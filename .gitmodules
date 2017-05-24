@@ -1,0 +1,38 @@
+[submodule "seqan"]
+	path = seqan
+	url = https://github.com/hannespetur/SeqAnHTS.git
+	branch = master
+  ignore = dirty
+[submodule "stations"]
+	path = stations
+	url = https://github.com/hannespetur/stations.git
+	branch = master
+  ignore = dirty
+[submodule "htslib"]
+	path = htslib
+	url = https://github.com/samtools/htslib.git
+	ignore = dirty
+[submodule "catch"]
+	path = catch
+	url = https://github.com/philsquared/Catch.git
+  ignore = dirty
+[submodule "rocksdb"]
+	path = rocksdb
+	url = https://github.com/facebook/rocksdb.git
+	ignore = dirty
+[submodule "snappy"]
+	path = snappy
+	url = https://github.com/google/snappy.git
+	ignore = dirty
+[submodule "statgen"]
+	path = statgen
+	url = https://github.com/hannespetur/libStatGen.git
+	ignore = dirty
+[submodule "args"]
+	path = args
+	url = https://github.com/Taywee/args.git
+  ignore = dirty
+[submodule "sparsehash"]
+	path = sparsehash
+	url = https://github.com/sparsehash/sparsehash.git
+	ignore = dirty

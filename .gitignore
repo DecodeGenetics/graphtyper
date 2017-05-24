@@ -1,0 +1,51 @@
+# Build files
+/release
+/reldeb
+/build*/
+/*-build/
+/debug*/
+/profiling
+example_test.vcf
+*.log
+.nfs*
+*.bak
+
+# ggtags
+/GPATH
+/GRTAGS
+/GTAGS
+
+# Ignore data files
+test/data/graphs
+/data
+trash
+
+## Ignore htslib build files
+htslib/src
+htslib/tmp
+
+# Ignore simulated data
+test/simulated_data/fasta
+test/simulated_data/graphs
+test/simulated_data/graphtyper_call*
+test/simulated_data/logs
+test/simulated_data/results
+test/simulated_data/sam
+test/simulated_data/stats
+test/simulated_data/truth.vcf*
+test/simulated_data/vcfs
+test/simulated_data/base_file.vcf*
+test/simulated_data/reference.fa*
+test/simulated_data/all_samples_pool_*
+
+# Real data is never in this repo
+test/real_data/all_bams
+test/real_data/.BAMS
+test/real_data/*.out
+test/real_data/graphs
+test/real_data/*.vcf.gz
+test/real_data/*.vcf.gz.tbi
+test/real_data/*results
+test/real_data/*vcfs
+*.bam
+*.bam.bai

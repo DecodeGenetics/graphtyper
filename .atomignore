@@ -1,0 +1,16 @@
+.git
+/data
+
+# External projects
+/catch
+/htslib
+/rocksdb
+/seqan
+/snappy
+
+## Build folders
+/old*
+/build*
+/debug
+/reldeb
+/release
