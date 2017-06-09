@@ -36,14 +36,16 @@ make -j4 # Will compile everything, including tests
 make test # Will run the unit tests
 ```
 
-### Using Graphtyper
+## Usage
+Please use the [recommended pipeline](https://github.com/DecodeGenetics/graphtyper-pipelines).
+
+## (Advanced) usage of Graphtyper
 All Graphtyper commands should be in the following format:
 ```sh
 graphtyper <COMMAND> [OPTIONS]
 ```
 Run `graphtyper` to get a list of commands and running `graphtyper <COMMAND> --help` to get all available options for that command.
 
-## Example usage of Graphtyper
 ### Graph construction
 Assuming you have variants in file 'variants.vcf' (not required) and your reference genome in 'genome.fa'. then you can create a graph of the region chr22:35,000,000-35,005,000 using
 ```sh
