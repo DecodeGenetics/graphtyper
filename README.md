@@ -12,7 +12,7 @@ To get started on using Graphtyper, you'll need the following:
 * liblzma
 * Autotools, Automake, Make, and CMake>=2.8.8 (if you want to use our build system)
 
-All other dependencies are submodules of this repository. Currently, we test Graphtyper using GCC 4.8.5 and GCC 5.4.0 on a linux 64 bit system.
+All other dependencies are submodules of this repository.
 
 ### Installation
 Make sure have the `CXX` environment variable set as the same compiler as `which g++` returns (because some of the submodules use the compiler directed by the `CXX` variable while other ignore it). Also set the `BOOST_ROOT` variable to the root of BOOST which should already be compiled with the same compiler. Graphtyper is linked with BOOST dynamically, but other libraries statically.
@@ -39,8 +39,8 @@ make test # Will run the unit tests
 ## Usage
 Please use the [recommended pipeline](https://github.com/DecodeGenetics/graphtyper-pipelines).
 
-## (Advanced) usage of Graphtyper
-All Graphtyper commands should be in the following format:
+## Graphtyper commands (advanced)
+All Graphtyper commands are in the following format:
 ```sh
 graphtyper <COMMAND> [OPTIONS]
 ```
