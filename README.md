@@ -21,7 +21,7 @@ For the purpose of demonstration, we assume you want to clone Graphtyper to `~/g
 
 ```sh
 mkdir -p ~/git && cd ~/git
-git clone --recursive git@github.com:DecodeGenetics/graphtyper.git graphtyper && cd graphtyper
+git clone --recursive https://github.com/DecodeGenetics/graphtyper.git graphtyper && cd graphtyper
 mkdir -p release-build && cd release-build
 cmake ..
 make -j4 graphtyper # The 'j' argument specifies how many compilation threads to use, you can change this if you have more threads available. Also, the compilation will take awhile... consider getting coffee at this point.
