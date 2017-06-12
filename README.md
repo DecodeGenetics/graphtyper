@@ -10,7 +10,7 @@ To get started on using Graphtyper, you'll need the following:
 * zlib>=1.2.8
 * libbz2
 * liblzma
-* Autotools, Automake, Make, and CMake>=2.8.8 (if you want to use our build system)
+* Autotools, Automake, libtool, Make, and CMake>=2.8.8 (if you want to use our build system)
 
 All other dependencies are submodules of this repository.
 
