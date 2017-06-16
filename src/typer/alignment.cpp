@@ -30,6 +30,19 @@ merge_index_queries(seqan::IupacString const & read,
   using namespace gyper;
 
   {
+    auto min_it = std::min_element(r_hamming0.begin(),
+                                   r_hamming0.end(),
+                                   [](std::vector<KmerLabel> const & l1, std::vector<KmerLabel> const & l2)
+                                   {
+                                     return l1.size() < l2.size();
+                                   });
+
+    assert (r_hamming0.size() > 0);
+    assert(min_it != r_hamming0.end());
+
+    if (min_it->size() > Options::instance()->MAX_UNIQUE_KMER_POSITIONS)
+      return;
+
     uint32_t read_start_index = 0;
 
     if (r_hamming1.size() == 0)
@@ -84,7 +97,7 @@ find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read, gyp
       r_hamming1 = query_index_hamming_distance1(read);
     else
       r_hamming1 = query_index_hamming_distance1_without_index(read);
-    //r_hamming1 = query_index_hamming_distance1(read);
+
     merge_index_queries(read, geno, r_hamming0, r_hamming1);
   }
   else

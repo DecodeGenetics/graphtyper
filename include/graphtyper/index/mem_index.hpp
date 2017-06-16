@@ -11,6 +11,8 @@
 namespace gyper
 {
 
+class Graph;
+
 class MemIndex
 {
 public:
@@ -26,7 +28,7 @@ public:
 };
 
 
-MemIndex load_secondary_mem_index(std::string const & index_path);
+MemIndex load_secondary_mem_index(std::string const & secondary_index_path, Graph & secondary_graph);
 
 extern MemIndex mem_index;
 

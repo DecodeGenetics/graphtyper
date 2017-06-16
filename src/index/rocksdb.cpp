@@ -43,11 +43,21 @@ value_to_labels(std::string const & value)
     else
       results[i].end_index = graph.get_ref_reach_pos(results[i].start_index) + offset;
 
-    assert(graph.get_ref_reach_pos(results[i].start_index) <= graph.get_ref_reach_pos(results[i].end_index));
     memcpy(&results[i].variant_id, value.data() + 6 + i * LABEL_SIZE, sizeof(uint32_t));
 
     if (results[i].variant_id != gyper::INVALID_ID)
     {
+#ifndef NDEBUG
+      if (results[i].variant_id >= graph.var_nodes.size())
+      {
+        BOOST_LOG_TRIVIAL(debug) << "[graphtyper::rocksdb] Invalid variant ID: "
+                                 << results[i].variant_id
+                                 << " >= "
+                                 << graph.var_nodes.size();
+
+        continue;
+      }
+#endif
       results[i].variant_num = graph.get_variant_num(results[i].variant_id);
       results[i].variant_order = graph.var_nodes[results[i].variant_id].get_label().order;
     }
@@ -225,10 +235,16 @@ template <>
 Index<RocksDB> &
 Index<RocksDB>::operator=(Index<RocksDB> && mv_index)
 {
-  std::cerr << "Move assign " << mv_index.buffer_map.size() << " " << mv_index.opened << " " << mv_index.hamming0.db << std::endl;
+  //std::cerr << "Before move assignment\n";
+  //std::cerr << "Donator " << mv_index.buffer_map.size() << " " << mv_index.opened << " " << mv_index.hamming0.db << '\n';
+  //std::cerr << "Recipient " << this->buffer_map.size() << " " << this->opened << " " << this->hamming0.db << '\n';
   this->opened = std::move(mv_index.opened);
   this->hamming0 = std::move(mv_index.hamming0);
-  //mv_index.opened = false;
+  mv_index.hamming0.db = nullptr;
+  mv_index.opened = false;
+  //std::cerr << "After move assignment\n";
+  //std::cerr << "Donator " << mv_index.buffer_map.size() << " " << mv_index.opened << " " << mv_index.hamming0.db << '\n';
+  //std::cerr << "Recipient " << this->buffer_map.size() << " " << this->opened << " " << this->hamming0.db << '\n';
   return *this;
 }
 

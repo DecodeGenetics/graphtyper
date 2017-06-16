@@ -146,7 +146,7 @@ call(std::vector<std::string> hts_paths,
     }
     else if (new_samples.size() > 1)
     {
-      BOOST_LOG_TRIVIAL(error) << "[graphtyper::caller] Sorry, currently Graphtyper does not support merged SAM files. Only one sample per file, please.";
+      BOOST_LOG_TRIVIAL(error) << "[graphtyper::caller] Sorry, currently Graphtyper does not support merged SAM/BAM files. Only one sample per file, please.";
       std::exit(1);
     }
 
@@ -160,7 +160,7 @@ call(std::vector<std::string> hts_paths,
 
   assert(samples.size() > 0);
   std::string const & pn = samples[0];
-  load_graph(graph_path); // Loads the graph into the global variable 'index'
+  load_graph(graph_path); // Loads the graph into the global variable 'graph'
   load_index(index_path); // Loads the index into the global variable 'index'
   mem_index.load(); // Loads the in-memory index
   //mem_index.generate_hamming1_hash_map(); // Generate a hashmap with edit distance 1

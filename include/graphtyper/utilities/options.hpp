@@ -65,6 +65,12 @@ public:
   bool use_read_cache = false;
   uint16_t read_cache_maximum_mismatches = 0;
 
+  // Alignment constraints
+  uint32_t MAX_SEED_NUMBER_ALLOWING_MISMATCHES = 64;
+  uint32_t MAX_SEED_NUMBER_FOR_WALKING = 256;
+  uint32_t MAX_NUM_LOCATIONS_PER_PATH = 256;
+  uint32_t MAX_UNIQUE_KMER_POSITIONS = 512;
+
   /********************************
    * HAPLOTYPE EXTRACTION OPTIONS *
    ********************************/

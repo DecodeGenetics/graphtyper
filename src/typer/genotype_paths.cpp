@@ -266,7 +266,10 @@ GenotypePaths::walk_read_ends(seqan::IupacString const & seq, int maximum_mismat
   if (paths.size() == 0 || paths[0].size() == seqan::length(seq))
     return;
 
-  if (paths.size() > 64)
+  if (paths.size() > Options::instance()->MAX_SEED_NUMBER_FOR_WALKING)
+    return; // Do not walk if we have too many seeds
+
+  if (paths.size() > Options::instance()->MAX_SEED_NUMBER_ALLOWING_MISMATCHES)
     maximum_mismatches = 0; // Only allow exact matches when we have a lot of paths
 
   std::size_t best_mismatches = 7;
@@ -283,8 +286,8 @@ GenotypePaths::walk_read_ends(seqan::IupacString const & seq, int maximum_mismat
 
     std::vector<Location> s_locs = graph.get_locations_of_a_position(path.end);
 
-    // if (s_locs.size() > 128)
-    //   continue;
+    if (s_locs.size() > Options::instance()->MAX_NUM_LOCATIONS_PER_PATH)
+      continue;
 
     std::vector<char> kmer;
     kmer.reserve(seqan::length(seq) - path.read_end_index + 1); // It cannot get bigger than this
@@ -332,8 +335,11 @@ GenotypePaths::walk_read_starts(seqan::IupacString const & seq, int maximum_mism
   if (paths.size() == 0 || paths[0].size() == seqan::length(seq))
     return;
 
-  if (paths.size() > 64)
-    maximum_mismatches = 0;
+  if (paths.size() > Options::instance()->MAX_SEED_NUMBER_FOR_WALKING)
+    return; // Do not walk if we have too many seeds
+
+  if (paths.size() > Options::instance()->MAX_SEED_NUMBER_ALLOWING_MISMATCHES)
+    maximum_mismatches = 0; // Only allow exact matches when we have a lot of paths
 
   std::size_t best_mismatches = 7;
   std::vector<std::vector<KmerLabel> > best_labels;
@@ -359,8 +365,8 @@ GenotypePaths::walk_read_starts(seqan::IupacString const & seq, int maximum_mism
     if (e_locs.size() == 0)
       continue;
 
-    // if (e_locs.size() > 128)
-    //   continue;
+    if (e_locs.size() > Options::instance()->MAX_NUM_LOCATIONS_PER_PATH)
+      continue;
 
     std::vector<Location> s_locs(1);
     std::vector<KmerLabel> new_labels;

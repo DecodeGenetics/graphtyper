@@ -255,6 +255,7 @@ Graph::add_genomic_region(std::vector<char> && reference_sequence,
 uint16_t
 Graph::get_variant_num(uint32_t v) const
 {
+  assert(v < var_nodes.size());
   return static_cast<uint16_t>(v - ref_nodes[var_nodes[v].get_out_ref_index() - 1].get_var_index(0));
 }
 

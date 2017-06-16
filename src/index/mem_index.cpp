@@ -3,6 +3,7 @@
 #include <vector> // std::vector
 #include <unordered_map> // std::unordered_map
 
+#include <graphtyper/graph/graph.hpp> // gyper::Graph
 #include <graphtyper/index/indexer.hpp>
 #include <graphtyper/index/rocksdb.hpp> // gyper::index
 #include <graphtyper/index/mem_index.hpp> // gyper::MemIndex
@@ -22,7 +23,8 @@ void
 MemIndex::load()
 {
   assert(index.hamming0.db); // Index is open
-  hamming0 = google::dense_hash_map<uint64_t, std::vector<KmerLabel> >();
+  assert(index.opened);
+  this->hamming0 = google::dense_hash_map<uint64_t, std::vector<KmerLabel> >();
 
   for (uint64_t key = 0; key < 0xFFFFFFFFFFFFFFFFull; ++key)
   {
@@ -33,15 +35,16 @@ MemIndex::load()
     }
   }
 
-  hamming0.set_empty_key(empty_key);
+  this->hamming0.set_empty_key(empty_key);
   std::size_t num_keys = 0;
   rocksdb::Iterator* it = index.hamming0.db->NewIterator(rocksdb::ReadOptions());
+  assert (it);
 
   for (it->SeekToFirst(); it->Valid(); it->Next())
   {
     uint64_t const key = key_to_uint64_t(it->key().ToString());
     ++num_keys;
-    hamming0[key] = value_to_labels(it->value().ToString());
+    this->hamming0[key] = value_to_labels(it->value().ToString());
   }
 
   assert(it->status().ok()); // Check for any errors
@@ -124,14 +127,22 @@ MemIndex::multi_get_hamming1(std::vector<std::vector<uint64_t> > const & keys)
 }
 
 
-MemIndex load_secondary_mem_index(std::string const & secondary_index_path)
+MemIndex
+load_secondary_mem_index(std::string const & secondary_index_path, Graph & secondary_graph)
 {
+  // Swap graphs
+  std::swap(graph, secondary_graph);
+
   Index<RocksDB> secondary_index = load_secondary_index(secondary_index_path);
   std::swap(index, secondary_index);
   MemIndex secondary_mem_index;
   secondary_mem_index.load();
   std::swap(index, secondary_index);
   secondary_index.close();
+
+  // Swap graphs back to the way they were
+  std::swap(graph, secondary_graph);
+
   return secondary_mem_index;
 }
 

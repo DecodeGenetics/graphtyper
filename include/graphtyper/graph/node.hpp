@@ -18,7 +18,6 @@ public:
   Label label;
   std::vector<TNodeIndex> out_var_ids;
 
-  RefNode();
   RefNode(Label && l, std::vector<TNodeIndex> && c) noexcept;
   RefNode(RefNode const & rn) noexcept;
 
@@ -30,6 +29,7 @@ public:
   std::vector<TNodeIndex> get_vars() const;
 
 private:
+  RefNode();
   template <class Archive>
   void serialize(Archive & ar, const unsigned int);
 };
@@ -40,7 +40,6 @@ class VarNode
   friend class boost::serialization::access;
 
 public:
-  VarNode();
   VarNode(Label && l, TNodeIndex && ori) noexcept;
   VarNode(VarNode const & vn) noexcept;
 
@@ -54,6 +53,7 @@ private:
   Label label;
   TNodeIndex out_ref_id;
 
+  VarNode();
   template <class Archive>
   void serialize(Archive & ar, const unsigned int);
 };

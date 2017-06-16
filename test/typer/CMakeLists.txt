@@ -4,6 +4,7 @@ set(graphtyper_typer_TEST_FILES
   ../test.cpp
   test_path.cpp
   test_genotype_path.cpp
+  test_graph_swapping.cpp
   test_vcf.cpp
   test_vcf_io.cpp
 )

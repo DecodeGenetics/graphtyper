@@ -7,6 +7,6 @@
 namespace gyper
 {
 
-void swap_graph_and_index(Graph && secondary_graph, MemIndex && secondary_mem_index);
+void swap_graph_and_index(Graph & secondary_graph, MemIndex & secondary_mem_index);
 
 } // namespace gyper
