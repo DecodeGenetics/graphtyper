@@ -1,10 +1,10 @@
 # Build files
-/release
-/reldeb
+/release/
+/reldeb/
 /build*/
-/*-build/
 /debug*/
-/profiling
+/*-build/
+/profiling/
 example_test.vcf
 *.log
 .nfs*

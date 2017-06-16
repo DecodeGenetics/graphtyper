@@ -110,9 +110,10 @@ VariantMap::filter_varmap_for_all()
     return;
 
   /** Filter variants with high error rate */
+  /*
   if (varmaps.size() >= 10) // Only consider error rate if the sample size is small
   {
-    for (auto map_it = pool_varmap.begin(); map_it != pool_varmap.end(); /*no increment*/)
+    for (auto map_it = pool_varmap.begin(); map_it != pool_varmap.end(); ) // no increment
     {
       // If we are certain that someone has this variant, don't bother calculating the error rate.
       if (std::any_of(map_it->second.begin(), map_it->second.end(), [](VariantSupport const & var_support){return var_support.is_highly_certainly_real();}))
@@ -161,8 +162,11 @@ VariantMap::filter_varmap_for_all()
       // Remove the variant if the allalic balance homozygous error rate is too high
       if (ABHOM_ERROR > Options::instance()->maximum_homozygous_allele_balance)
       {
-        BOOST_LOG_TRIVIAL(info) << "[graphtyper::variant_map] The variant " << map_it->first.print() << " has a too high error rate to be added ("
+        BOOST_LOG_TRIVIAL(info) << "[graphtyper::variant_map] The variant "
+                                << map_it->first.print()
+                                << " has a too high error rate to be added ("
                                 << ABHOM_ERROR << ").";
+
         map_it = pool_varmap.erase(map_it);
       }
       else
@@ -175,6 +179,7 @@ VariantMap::filter_varmap_for_all()
   {
     BOOST_LOG_TRIVIAL(info) << "[graphtyper::variant_map] Too few samples to filter based on ABHom.";
   }
+  */
 
   uint32_t const WINDOW_NOT_STARTED = 0xFFFFFFFFULL;
 
