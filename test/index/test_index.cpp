@@ -227,18 +227,3 @@ TEST_CASE("Test index chr3")
     REQUIRE(labels3[1].variant_id == 2);
   }
 }
-
-
-TEST_CASE("Index the HLA graph")
-{
-  using namespace gyper;
-
-  std::stringstream ss;
-  ss << gyper_SOURCE_DIRECTORY << "/test/data/graphs/HLA";
-  std::string const graph_path(ss.str());
-  ss << "_gti";
-  std::string const index_path(ss.str());
-
-  gyper::index_graph(graph_path, index_path);
-  gyper::load_index(index_path);
-}
