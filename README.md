@@ -10,9 +10,9 @@ To get started on using Graphtyper, you'll need the following:
 * zlib>=1.2.8
 * libbz2
 * liblzma
-* Autotools, Automake, Make, and CMake>=2.8.8 (if you want to use our build system)
+* Autotools, Automake, libtool, Make, and CMake>=2.8.8 (if you want to use our build system)
 
-All other dependencies are submodules of this repository. Currently, we test Graphtyper using GCC 4.8.5 and GCC 5.4.0 on a linux 64 bit system.
+All other dependencies are submodules of this repository.
 
 ### Installation
 Make sure have the `CXX` environment variable set as the same compiler as `which g++` returns (because some of the submodules use the compiler directed by the `CXX` variable while other ignore it). Also set the `BOOST_ROOT` variable to the root of BOOST which should already be compiled with the same compiler. Graphtyper is linked with BOOST dynamically, but other libraries statically.
@@ -21,7 +21,7 @@ For the purpose of demonstration, we assume you want to clone Graphtyper to `~/g
 
 ```sh
 mkdir -p ~/git && cd ~/git
-git clone --recursive git@github.com:hannespetur/graphtyper-beta.git graphtyper && cd graphtyper
+git clone --recursive https://github.com/DecodeGenetics/graphtyper.git graphtyper && cd graphtyper
 mkdir -p release-build && cd release-build
 cmake ..
 make -j4 graphtyper # The 'j' argument specifies how many compilation threads to use, you can change this if you have more threads available. Also, the compilation will take awhile... consider getting coffee at this point.
@@ -36,14 +36,16 @@ make -j4 # Will compile everything, including tests
 make test # Will run the unit tests
 ```
 
-### Using Graphtyper
-All Graphtyper commands should be in the following format:
+## Usage
+Please use the [recommended pipeline](https://github.com/DecodeGenetics/graphtyper-pipelines).
+
+## Graphtyper commands (advanced)
+All Graphtyper commands are in the following format:
 ```sh
 graphtyper <COMMAND> [OPTIONS]
 ```
 Run `graphtyper` to get a list of commands and running `graphtyper <COMMAND> --help` to get all available options for that command.
 
-## Example usage of Graphtyper
 ### Graph construction
 Assuming you have variants in file 'variants.vcf' (not required) and your reference genome in 'genome.fa'. then you can create a graph of the region chr22:35,000,000-35,005,000 using
 ```sh
