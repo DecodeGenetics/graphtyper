@@ -2,6 +2,13 @@ Graphtyper is a population-scale genotype caller. It represents a reference geno
 
 Main author and software maintainer: Hannes Pétur Eggertsson (Hannes.Eggertsson@decode.is)
 
+## Citation
+Graphtyper manuscript has not yet been published in a journal, so please cite our [preprint](http://biorxiv.org/content/early/2017/06/09/148403):
+
+`
+Hannes P. Eggertsson, Hakon Jonsson, Snaedis Kristmundsdottir, Eirikur Hjartarson, Birte Kehr, Gisli Masson, Florian Zink, Aslaug Jonasdottir, Adalbjorg Jonasdottir, Ingileif Jonsdottir, Daniel F. Gudbjartsson, Pall Melsted, Kari Stefansson, Bjarni V. Halldorsson. 2017. Graphtyper: Population-scale genotyping using pangenome graphs. bioRxiv doi: 10.1101/123456
+`
+
 ## Getting started
 ### Dependencies
 To get started on using Graphtyper, you'll need the following:
