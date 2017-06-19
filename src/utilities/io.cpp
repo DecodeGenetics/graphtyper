@@ -50,9 +50,16 @@ get_sample_names_from_bam_header(std::string const & hts_filename, std::unordere
         if (pos_id_ends == std::string::npos)
           pos_id_ends = line_it.size();
 
+        std::size_t pos_samp_ends = line_it.find("\t", pos_samp + 1);
+
+        // Check if this is the last field
+        if (pos_samp_ends == std::string::npos)
+          pos_samp_ends = line_it.size();
+
         std::string new_id = line_it.substr(pos_id + 4, pos_id_ends - pos_id - 4);
         assert(pos_samp + 11 < line_it.size());
-        std::string new_sample = line_it.substr(pos_samp + 4, 7);
+
+        std::string new_sample = line_it.substr(pos_samp + 4, pos_samp_ends - pos_samp - 4);
 
         // Make sure this read group has not been seen
         assert(rg2sample.count(new_id) == 0);
