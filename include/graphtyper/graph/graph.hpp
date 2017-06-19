@@ -108,6 +108,7 @@ public:
   uint32_t get_special_pos(uint32_t const pos, uint32_t const ref_reach) const;
   uint32_t get_ref_reach_pos(uint32_t const pos) const;
   uint32_t get_actual_pos(uint32_t const pos) const;
+
   std::unordered_map<uint32_t, std::vector<uint32_t> > ref_reach_to_special_pos;
   std::vector<uint32_t> ref_reach_poses;
   std::vector<uint32_t> actual_poses;

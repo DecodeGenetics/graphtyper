@@ -6,6 +6,7 @@
 #include <seqan/sequence.h>
 
 #include <graphtyper/graph/graph.hpp>
+#include <graphtyper/index/mem_index.hpp>
 #include <graphtyper/typer/path.hpp>
 #include <graphtyper/typer/variant_candidate.hpp>
 
@@ -43,8 +44,8 @@ public:
 
   void clear_paths();
 
-  void walk_read_ends(seqan::IupacString const & read, int maximum_mismatches = -1);
-  void walk_read_starts(seqan::IupacString const & read, int maximum_mismatches = -1);
+  void walk_read_ends(seqan::IupacString const & read, int maximum_mismatches = -1, gyper::Graph const & graph = gyper::graph);
+  void walk_read_starts(seqan::IupacString const & read, int maximum_mismatches = -1, gyper::Graph const & graph = gyper::graph);
 
   // Path filtering
   void remove_short_paths();

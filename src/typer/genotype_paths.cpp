@@ -261,7 +261,7 @@ GenotypePaths::remove_paths_with_too_many_mismatches()
 
 
 void
-GenotypePaths::walk_read_ends(seqan::IupacString const & seq, int maximum_mismatches)
+GenotypePaths::walk_read_ends(seqan::IupacString const & seq, int maximum_mismatches, gyper::Graph const & graph)
 {
   if (paths.size() == 0 || paths[0].size() == seqan::length(seq))
     return;
@@ -330,7 +330,7 @@ GenotypePaths::walk_read_ends(seqan::IupacString const & seq, int maximum_mismat
 
 
 void
-GenotypePaths::walk_read_starts(seqan::IupacString const & seq, int maximum_mismatches)
+GenotypePaths::walk_read_starts(seqan::IupacString const & seq, int maximum_mismatches, gyper::Graph const & graph)
 {
   if (paths.size() == 0 || paths[0].size() == seqan::length(seq))
     return;

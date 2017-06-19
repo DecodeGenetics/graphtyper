@@ -54,7 +54,7 @@ template uint32_t read_offset(seqan::IupacString const &);
 
 template <typename TSeq>
 std::vector<std::vector<KmerLabel> >
-query_index(TSeq const & read)
+query_index(TSeq const & read, MemIndex const & _mem_index)
 {
   std::vector<std::vector<uint64_t> > multi_keys;
   std::size_t const num_keys = get_num_kmers(read);
@@ -62,18 +62,18 @@ query_index(TSeq const & read)
   for (unsigned i = 0; i < num_keys; ++i)
     multi_keys.push_back(to_uint64_vec(read, (K - 1) * i));
 
-  return mem_index.multi_get(multi_keys);
+  return _mem_index.multi_get(multi_keys);
 }
 
 
 // Explicit instantation
-template std::vector<std::vector<KmerLabel> > query_index<seqan::Dna5String>(seqan::Dna5String const &);
-template std::vector<std::vector<KmerLabel> > query_index<seqan::IupacString>(seqan::IupacString const &);
+template std::vector<std::vector<KmerLabel> > query_index<seqan::Dna5String>(seqan::Dna5String const &, MemIndex const & mem_index);
+template std::vector<std::vector<KmerLabel> > query_index<seqan::IupacString>(seqan::IupacString const &, MemIndex const & mem_index);
 
 
 template <typename TSeq>
 std::vector<std::vector<KmerLabel> >
-query_index_hamming_distance1(TSeq const & read)
+query_index_hamming_distance1(TSeq const & read, gyper::MemIndex const & _mem_index)
 {
   std::vector<std::vector<uint64_t> > multi_keys;
   std::size_t const num_keys = get_num_kmers(read);
@@ -81,18 +81,20 @@ query_index_hamming_distance1(TSeq const & read)
   for (unsigned i = 0; i < num_keys; ++i)
     multi_keys.push_back(to_uint64_vec(read, (K - 1) * i));
 
-  return mem_index.multi_get_hamming1(multi_keys);
+  return _mem_index.multi_get_hamming1(multi_keys);
 }
 
 
 // Explicit instantation
-template std::vector<std::vector<KmerLabel> > query_index_hamming_distance1<seqan::Dna5String>(seqan::Dna5String const &);
-template std::vector<std::vector<KmerLabel> > query_index_hamming_distance1<seqan::IupacString>(seqan::IupacString const &);
+template std::vector<std::vector<KmerLabel> >
+query_index_hamming_distance1<seqan::Dna5String>(seqan::Dna5String const &, gyper::MemIndex const &);
+template std::vector<std::vector<KmerLabel> >
+query_index_hamming_distance1<seqan::IupacString>(seqan::IupacString const &, gyper::MemIndex const &);
 
 
 template <typename TSeq>
 std::vector<std::vector<KmerLabel> >
-query_index_hamming_distance1_without_index(TSeq const & read)
+query_index_hamming_distance1_without_index(TSeq const & read, gyper::MemIndex const & _mem_index)
 {
   std::vector<std::vector<uint64_t> > multi_keys;
   std::size_t const num_keys = get_num_kmers(read);
@@ -115,13 +117,15 @@ query_index_hamming_distance1_without_index(TSeq const & read)
     assert(multi_keys[i].size() == 96);
   }
 
-  return mem_index.multi_get(multi_keys);
+  return _mem_index.multi_get(multi_keys);
 }
 
 
 // Explicit instantation
-template std::vector<std::vector<KmerLabel> > query_index_hamming_distance1_without_index<seqan::Dna5String>(seqan::Dna5String const &);
-template std::vector<std::vector<KmerLabel> > query_index_hamming_distance1_without_index<seqan::IupacString>(seqan::IupacString const &);
+template std::vector<std::vector<KmerLabel> >
+query_index_hamming_distance1_without_index<seqan::Dna5String>(seqan::Dna5String const &, gyper::MemIndex const &);
+template std::vector<std::vector<KmerLabel> >
+query_index_hamming_distance1_without_index<seqan::IupacString>(seqan::IupacString const &, gyper::MemIndex const &);
 
 
 } // namespace gyper

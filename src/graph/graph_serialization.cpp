@@ -31,8 +31,8 @@ save_graph(std::string const & graph_path)
 void
 load_graph(std::string const & graph_path)
 {
-  graph.clear();
-  graph = Graph();
+  gyper::graph.clear();
+  gyper::graph = Graph();
   std::ifstream ifs(graph_path.c_str(), std::ios::binary);
 
   if (!ifs.is_open())

@@ -24,7 +24,8 @@ void
 merge_index_queries(seqan::IupacString const & read,
                     gyper::GenotypePaths & geno,
                     gyper::TKmerLabels const & r_hamming0,
-                    gyper::TKmerLabels const & r_hamming1
+                    gyper::TKmerLabels const & r_hamming1,
+                    gyper::Graph const & graph = gyper::graph
                     )
 {
   using namespace gyper;
@@ -67,8 +68,8 @@ merge_index_queries(seqan::IupacString const & read,
   }
 
   geno.remove_short_paths();
-  geno.walk_read_starts(read, -1);
-  geno.walk_read_ends(read, -1);
+  geno.walk_read_starts(read, -1, graph);
+  geno.walk_read_ends(read, -1, graph);
   geno.remove_short_paths();
   geno.remove_paths_with_too_many_mismatches();
   geno.remove_short_paths();
@@ -84,11 +85,11 @@ merge_index_queries(seqan::IupacString const & read,
 
 
 void
-find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read, gyper::GenotypePaths & geno, bool const hamming_distance1_index_available) // By default index should be available
+find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read, gyper::GenotypePaths & geno, bool const hamming_distance1_index_available, gyper::Graph const & graph = gyper::graph, gyper::MemIndex const & mem_index = gyper::mem_index) // By default index should be available
 {
   using namespace gyper;
 
-  TKmerLabels r_hamming0 = query_index(read);
+  TKmerLabels r_hamming0 = query_index(read, mem_index);
   TKmerLabels r_hamming1;
 
   if (Options::instance()->always_query_hamming_distance_one)
@@ -96,13 +97,13 @@ find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read, gyp
     if (hamming_distance1_index_available)
       r_hamming1 = query_index_hamming_distance1(read);
     else
-      r_hamming1 = query_index_hamming_distance1_without_index(read);
+      r_hamming1 = query_index_hamming_distance1_without_index(read, mem_index);
 
-    merge_index_queries(read, geno, r_hamming0, r_hamming1);
+    merge_index_queries(read, geno, r_hamming0, r_hamming1, graph);
   }
   else
   {
-    merge_index_queries(read, geno, r_hamming0, r_hamming1);
+    merge_index_queries(read, geno, r_hamming0, r_hamming1, graph);
 
     // Check if a sufficiently good path was found, otherwise allow hamming distance one when quering index
     if (geno.longest_path_size() < ((3 * K) - 2))
@@ -110,10 +111,10 @@ find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read, gyp
       if (hamming_distance1_index_available)
         r_hamming1 = query_index_hamming_distance1(read);
       else
-        r_hamming1 = query_index_hamming_distance1_without_index(read);
+        r_hamming1 = query_index_hamming_distance1_without_index(read, mem_index);
 
       assert (r_hamming0.size() == r_hamming1.size());
-      merge_index_queries(read, geno, r_hamming0, r_hamming1);
+      merge_index_queries(read, geno, r_hamming0, r_hamming1, graph);
     }
   }
 }
@@ -126,10 +127,10 @@ namespace gyper
 {
 
 GenotypePaths
-align_a_single_sequence_without_hamming_distance1_index(seqan::BamAlignmentRecord const & record)
+align_a_single_sequence_without_hamming_distance1_index(seqan::BamAlignmentRecord const & record, Graph const & graph, MemIndex const & mem_index)
 {
   GenotypePaths geno(record.seq, record.qual, record.mapQ);
-  find_genotype_paths_of_one_of_the_sequences(record.seq, geno, false /*no hamming distance 1 index available*/);
+  find_genotype_paths_of_one_of_the_sequences(record.seq, geno, false /*no hamming distance 1 index available*/, graph, mem_index);
   return geno;
 }
 
@@ -214,7 +215,7 @@ remove_distant_paths(GenotypePaths & geno1, GenotypePaths const & geno2, int64_t
 
 
 GenotypePaths
-find_genotype_paths_of_a_single_sequence(seqan::IupacString const & read, seqan::CharString const & qual, int const mismatches)
+find_genotype_paths_of_a_single_sequence(seqan::IupacString const & read, seqan::CharString const & qual, int const mismatches, gyper::Graph const & graph)
 {
   uint32_t read_start_index = 0;
   TKmerLabels r1 = query_index(read);
@@ -227,9 +228,9 @@ find_genotype_paths_of_a_single_sequence(seqan::IupacString const & read, seqan:
   }
 
   // Compare read ends to the graph
-  geno.walk_read_starts(read, mismatches /*max mismatches*/);
-  geno.walk_read_ends(read, mismatches /*max mismatches*/);
-  geno.walk_read_starts(read, mismatches /*max mismatches*/);
+  geno.walk_read_starts(read, mismatches /*max mismatches*/, graph);
+  geno.walk_read_ends(read, mismatches /*max mismatches*/, graph);
+  geno.walk_read_starts(read, mismatches /*max mismatches*/, graph);
   geno.remove_short_paths();
   return geno;
 }
@@ -261,12 +262,12 @@ find_haplotype_paths(std::vector<seqan::Dna5String> const & sequences)
         std::cout << i << " " << new_geno.longest_path_length << " vs. " << seqan::length(sequences[i]) << std::endl;
         std::cout << sequences[i] << std::endl;
 
-        if (new_geno.paths.size() > 0)
-        {
-          for (auto const & path : new_geno.paths)
-            std::cout << "new_geno @" << (path.start_pos() - 1061198324ul) << "-" << (path.end_pos() - 1061198324ul)
-                       << " starting from " << path.read_start_index << std::endl;
-        }
+        // if (new_geno.paths.size() > 0)
+        // {
+        //   for (auto const & path : new_geno.paths)
+        //     std::cout << "new_geno @" << (path.start_pos() - 1061198324ul) << "-" << (path.end_pos() - 1061198324ul)
+        //                << " starting from " << path.read_start_index << std::endl;
+        // }
 
         new_geno.longest_path_length = 0;
         ++count_too_short_sequences;

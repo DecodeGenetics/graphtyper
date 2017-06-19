@@ -45,6 +45,12 @@ Graph::clear()
   reference.clear();
   ref_nodes.clear();
   var_nodes.clear();
+  ref_reach_to_special_pos.clear();
+  ref_reach_poses.clear();
+  actual_poses.clear();
+
+  reference_offset = 0;
+  use_absolute_positions = true;
 }
 
 
@@ -934,12 +940,16 @@ Graph::get_locations_of_a_position(uint32_t pos) const
   assert(ref_nodes.size() != 0);
   std::vector<Location> locs;
 
-  if ((pos < ref_nodes[0].get_label().order) || (pos > (ref_nodes.back().get_label().order + ref_nodes.back().get_label().dna.size())))
+  if ((pos < ref_nodes[0].get_label().order) ||
+      (pos > (ref_nodes.back().get_label().order + ref_nodes.back().get_label().dna.size()))
+     )
+  {
     return locs;
+  }
 
   for (uint32_t r = 1; r <= ref_nodes.size(); ++r)
   {
-    if (r < ref_nodes.size() and ref_nodes[r].get_label().order <= pos)
+    if (r < ref_nodes.size() && ref_nodes[r].get_label().order <= pos)
       continue;
 
     int rr = r - 1;
@@ -1598,7 +1608,7 @@ Graph::add_special_pos(uint32_t const actual_pos, uint32_t const ref_reach)
 
   if (find_it != ref_reach_to_special_pos.end())
   {
-    find_it->second.push_back(SPECIAL_START + ref_reach_poses.size() - 1);
+    find_it->second.push_back(SPECIAL_START + this->ref_reach_poses.size() - 1);
   }
   else
   {

@@ -80,7 +80,7 @@ MemIndex::generate_hamming1_hash_map()
 
 
 std::vector<std::vector<KmerLabel> >
-MemIndex::multi_get(std::vector<std::vector<uint64_t> > const & keys)
+MemIndex::multi_get(std::vector<std::vector<uint64_t> > const & keys) const
 {
   std::vector<std::vector<KmerLabel> > labels(keys.size());
 
@@ -103,7 +103,7 @@ MemIndex::multi_get(std::vector<std::vector<uint64_t> > const & keys)
 
 
 std::vector<std::vector<KmerLabel> >
-MemIndex::multi_get_hamming1(std::vector<std::vector<uint64_t> > const & keys)
+MemIndex::multi_get_hamming1(std::vector<std::vector<uint64_t> > const & keys) const
 {
   std::vector<std::vector<KmerLabel> > labels(keys.size());
 

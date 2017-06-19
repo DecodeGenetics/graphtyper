@@ -23,8 +23,8 @@ public:
   MemIndex();
   void load();
   void generate_hamming1_hash_map();
-  std::vector<std::vector<KmerLabel> > multi_get(std::vector<std::vector<uint64_t> > const & keys);
-  std::vector<std::vector<KmerLabel> > multi_get_hamming1(std::vector<std::vector<uint64_t> > const & keys);
+  std::vector<std::vector<KmerLabel> > multi_get(std::vector<std::vector<uint64_t> > const & keys) const;
+  std::vector<std::vector<KmerLabel> > multi_get_hamming1(std::vector<std::vector<uint64_t> > const & keys) const;
 };
 
 
