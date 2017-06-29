@@ -49,70 +49,6 @@ current_date()
 }
 
 
-std::vector<std::string>
-get_all_contigs()
-{
-  std::unordered_map<std::string, std::string> contig_map =
-  {
-    {"chr1", "<ID=chr1,length=248956422>"},
-    {"chr2", "<ID=chr2,length=242193529>"},
-    {"chr3", "<ID=chr3,length=198295559>"},
-    {"chr4", "<ID=chr4,length=190214555>"},
-    {"chr5", "<ID=chr5,length=181538259>"},
-    {"chr6", "<ID=chr6,length=170805979>"},
-    {"chr7", "<ID=chr7,length=159345973>"},
-    {"chr8", "<ID=chr8,length=145138636>"},
-    {"chr9", "<ID=chr9,length=138394717>"},
-    {"chr10", "<ID=chr10,length=133797422>"},
-    {"chr11", "<ID=chr11,length=135086622>"},
-    {"chr12", "<ID=chr12,length=133275309>"},
-    {"chr13", "<ID=chr13,length=114364328>"},
-    {"chr14", "<ID=chr14,length=107043718>"},
-    {"chr15", "<ID=chr15,length=101991189>"},
-    {"chr16", "<ID=chr16,length=90338345>"},
-    {"chr17", "<ID=chr17,length=83257441>"},
-    {"chr18", "<ID=chr18,length=80373285>"},
-    {"chr19", "<ID=chr19,length=58617616>"},
-    {"chr20", "<ID=chr20,length=64444167>"},
-    {"chr21", "<ID=chr21,length=46709983>"},
-    {"chr22", "<ID=chr22,length=50818468>"},
-    {"chrX", "<ID=chrX,length=156040895>"},
-    {"chrY", "<ID=chrY,length=57227415>"}
-  };
-
-
-  std::vector<std::string> contigs =
-  {
-    contig_map["chr1"],
-    contig_map["chr2"],
-    contig_map["chr3"],
-    contig_map["chr4"],
-    contig_map["chr5"],
-    contig_map["chr6"],
-    contig_map["chr7"],
-    contig_map["chr8"],
-    contig_map["chr9"],
-    contig_map["chr10"],
-    contig_map["chr11"],
-    contig_map["chr12"],
-    contig_map["chr13"],
-    contig_map["chr14"],
-    contig_map["chr15"],
-    contig_map["chr16"],
-    contig_map["chr17"],
-    contig_map["chr18"],
-    contig_map["chr19"],
-    contig_map["chr20"],
-    contig_map["chr21"],
-    contig_map["chr22"],
-    contig_map["chrX"],
-    contig_map["chrY"]
-  };
-
-  return contigs;
-}
-
-
 std::vector<uint8_t>
 get_haplotype_phred(gyper::HapSample const & sample, uint32_t const cnum)
 {
@@ -553,10 +489,32 @@ Vcf::write_header()
 
   // Contigs
   {
-  std::vector<std::string> all_contigs = get_all_contigs();
-
-  for (auto const & contig : all_contigs)
-    *vcf_file << "##contig=" << contig << "\n";
+    *vcf_file << "##contig=<ID=chr1,length=248956422>\n";
+    *vcf_file << "##contig=<ID=chr2,length=242193529>\n";
+    *vcf_file << "##contig=<ID=chr3,length=198295559>\n";
+    *vcf_file << "##contig=<ID=chr4,length=190214555>\n";
+    *vcf_file << "##contig=<ID=chr5,length=181538259>\n";
+    *vcf_file << "##contig=<ID=chr6,length=170805979>\n";
+    *vcf_file << "##contig=<ID=chr7,length=159345973>\n";
+    *vcf_file << "##contig=<ID=chr8,length=145138636>\n";
+    *vcf_file << "##contig=<ID=chr9,length=138394717>\n";
+    *vcf_file << "##contig=<ID=chr10,length=133797422>\n";
+    *vcf_file << "##contig=<ID=chr11,length=135086622>\n";
+    *vcf_file << "##contig=<ID=chr12,length=133275309>\n";
+    *vcf_file << "##contig=<ID=chr13,length=114364328>\n";
+    *vcf_file << "##contig=<ID=chr14,length=107043718>\n";
+    *vcf_file << "##contig=<ID=chr15,length=101991189>\n";
+    *vcf_file << "##contig=<ID=chr16,length=90338345>\n";
+    *vcf_file << "##contig=<ID=chr17,length=83257441>\n";
+    *vcf_file << "##contig=<ID=chr18,length=80373285>\n";
+    *vcf_file << "##contig=<ID=chr19,length=58617616>\n";
+    *vcf_file << "##contig=<ID=chr20,length=64444167>\n";
+    *vcf_file << "##contig=<ID=chr21,length=46709983>\n";
+    *vcf_file << "##contig=<ID=chr22,length=50818468>\n";
+    *vcf_file << "##contig=<ID=chrX,length=156040895>\n";
+    *vcf_file << "##contig=<ID=chrY,length=57227415>\n";
+    *vcf_file << "##contig=<ID=chrM>\n";
+    *vcf_file << "##contig=<ID=chrUn>\n";
   }
 
   // INFO
