@@ -180,14 +180,38 @@ GenomicRegion::get_absolute_position(std::string const & chromosome, uint32_t co
   // std::cout << "contig_position = " << contig_position << std::endl;
   // assert(chromosome == get_contig_position(chromosome_to_offset.at(chromosome) + contig_position).first);
   // assert(contig_position == get_contig_position(chromosome_to_offset.at(chromosome) + contig_position).second);
-  return chromosome_to_offset.at(chromosome) + contig_position;
+  uint32_t abs_pos;
+
+  try
+  {
+    abs_pos = chromosome_to_offset.at(chromosome) + contig_position;
+  }
+  catch (std::out_of_range const &)
+  {
+    BOOST_LOG_TRIVIAL(error) << "[gyper::graph] No chromosome '" << chromosome << "' available. Please use chr[1-22,X,Y,Un]";
+    std::exit(1);
+  }
+
+  return abs_pos;
 }
 
 
 uint32_t
 GenomicRegion::get_absolute_position(uint32_t contig_position) const
 {
-  return chromosome_to_offset.at(chr) + contig_position;
+  uint32_t abs_pos;
+
+  try
+  {
+    abs_pos = chromosome_to_offset.at(chr) + contig_position;
+  }
+  catch (std::out_of_range const &)
+  {
+    BOOST_LOG_TRIVIAL(error) << "[gyper::graph] No chromosome '" << chr << "' available. Please use chr[1-22,X,Y,Un]";
+    std::exit(1);
+  }
+
+  return abs_pos;
 }
 
 
@@ -213,7 +237,7 @@ GenomicRegion::gather_contig_positions()
   offsets[0] = 0;
   chromosome_to_offset[chromosome_names[0]] = 0;
 
-  for (std::size_t i = 1; i < 24ul; ++i)
+  for (std::size_t i = 1; i < 26ul; ++i)
   {
     offsets[i] = offsets[i - 1] + chromosome_lengths[i - 1];
     chromosome_to_offset[chromosome_names[i]] = offsets[i];

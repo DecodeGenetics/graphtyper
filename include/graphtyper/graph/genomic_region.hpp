@@ -81,10 +81,12 @@ static const uint32_t CHR20_LENGTH = 64444167ul; // 2'777'473'071 2777473071ul
 static const uint32_t CHR21_LENGTH = 46709983ul;
 static const uint32_t CHR22_LENGTH = 50818468ul;
 static const uint32_t CHR0X_LENGTH = 156040895ul;
-static const uint32_t CHR0Y_LENGTH = 57227415ul; //
-                                                 // 3'088'269'832
+static const uint32_t CHR0Y_LENGTH = 57227415ul; // 3'088'269'832
+static const uint32_t CHR0M_LENGTH = 16569;
+static const uint32_t CHRUN_LENGTH = 400000000ul;
+// Special position start is at 3489660928
 
-static const std::array<uint32_t, 24ul> chromosome_lengths =
+static const std::array<uint32_t, 26ul> chromosome_lengths =
 {{
   CHR01_LENGTH,
   CHR02_LENGTH,
@@ -109,11 +111,13 @@ static const std::array<uint32_t, 24ul> chromosome_lengths =
   CHR21_LENGTH,
   CHR22_LENGTH,
   CHR0X_LENGTH,
-  CHR0Y_LENGTH
+  CHR0Y_LENGTH,
+  CHR0M_LENGTH,
+  CHRUN_LENGTH
 }};
 
 
-static const std::array<std::string, 24ul> chromosome_names =
+static const std::array<std::string, 26ul> chromosome_names =
 {{
   "chr1",
   "chr2",
@@ -138,7 +142,9 @@ static const std::array<std::string, 24ul> chromosome_names =
   "chr21",
   "chr22",
   "chrX",
-  "chrY"
+  "chrY",
+  "chrM",
+  "chrUn"
 }};
 
 } // namespace gyper
