@@ -8,6 +8,7 @@
 #include <graphtyper/index/rocksdb.hpp> // gyper::index
 #include <graphtyper/index/mem_index.hpp> // gyper::MemIndex
 #include <graphtyper/utilities/type_conversions.hpp>
+#include <graphtyper/utilities/options.hpp> // gyper::Options
 
 #include <google/dense_hash_map> // google::dense_hash_map
 
@@ -36,14 +37,12 @@ MemIndex::load()
   }
 
   this->hamming0.set_empty_key(empty_key);
-  std::size_t num_keys = 0;
   rocksdb::Iterator* it = index.hamming0.db->NewIterator(rocksdb::ReadOptions());
   assert (it);
 
   for (it->SeekToFirst(); it->Valid(); it->Next())
   {
     uint64_t const key = key_to_uint64_t(it->key().ToString());
-    ++num_keys;
     this->hamming0[key] = value_to_labels(it->value().ToString());
   }
 
@@ -83,9 +82,12 @@ std::vector<std::vector<KmerLabel> >
 MemIndex::multi_get(std::vector<std::vector<uint64_t> > const & keys) const
 {
   std::vector<std::vector<KmerLabel> > labels(keys.size());
+  std::vector<std::vector<google::dense_hash_map<uint64_t, std::vector<KmerLabel> >::const_iterator> > results(keys.size());
 
   for (std::size_t i = 0; i < keys.size(); ++i)
   {
+    std::size_t num_results = 0;
+
     for (std::size_t j = 0; j < keys[i].size(); ++j)
     {
       if (keys[i][j] != empty_key)
@@ -93,9 +95,27 @@ MemIndex::multi_get(std::vector<std::vector<uint64_t> > const & keys) const
         auto find_it = hamming0.find(keys[i][j]);
 
         if (find_it != hamming0.end())
-          std::copy(find_it->second.begin(), find_it->second.end(), std::back_inserter(labels[i]));
+        {
+          num_results += find_it->second.size();
+
+          if (num_results > Options::instance()->max_index_labels)
+          {
+            // Too many results, give up on this kmer
+            results[i].clear();
+            break;
+          }
+
+          results[i].push_back(find_it);
+        }
       }
     }
+  }
+
+  // If there are not too many results, add them to labels and return them
+  for (std::size_t i = 0; i < results.size(); ++i)
+  {
+    for (auto const res : results[i])
+      std::copy(res->second.begin(), res->second.end(), std::back_inserter(labels[i]));
   }
 
   return labels;

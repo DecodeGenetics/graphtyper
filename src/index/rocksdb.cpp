@@ -2,6 +2,7 @@
 
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/index/rocksdb.hpp>
+#include <graphtyper/utilities/options.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
 
 #include <seqan/basic.h>
@@ -47,17 +48,6 @@ value_to_labels(std::string const & value)
 
     if (results[i].variant_id != gyper::INVALID_ID)
     {
-#ifndef NDEBUG
-      if (results[i].variant_id >= graph.var_nodes.size())
-      {
-        BOOST_LOG_TRIVIAL(debug) << "[graphtyper::rocksdb] Invalid variant ID: "
-                                 << results[i].variant_id
-                                 << " >= "
-                                 << graph.var_nodes.size();
-
-        continue;
-      }
-#endif
       results[i].variant_num = graph.get_variant_num(results[i].variant_id);
       results[i].variant_order = graph.var_nodes[results[i].variant_id].get_label().order;
     }

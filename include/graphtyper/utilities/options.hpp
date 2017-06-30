@@ -28,11 +28,16 @@ public:
   std::string stats = ""; // Filename for statistics file
 
   /************************
-   * COINSTRUCTOR OPTIONS *
+   * CONSTRUCTOR OPTIONS *
    ************************/
   std::string fasta = "";
   std::string vcf = "";
   bool add_all_variants = false;
+
+  /********************
+   * INDEXING OPTIONS *
+   ********************/
+  uint64_t max_index_labels = 32;
 
   /*******************
    * CALLING OPTIONS *
