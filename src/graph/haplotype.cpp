@@ -508,7 +508,8 @@ Haplotype::explain_to_score(std::size_t const pn_index, bool const has_low_quali
   std::vector<uint16_t> haplotype_errors = find_with_how_many_errors_haplotypes_explain_the_read(cnum);
 
   // Update log scores
-  auto & hap_sample = hap_samples.at(pn_index);
+  assert (pn_index < hap_samples.size());
+  auto & hap_sample = hap_samples[pn_index];
 
   // If we are generating statistics, we store the number of reads that support haplotype
   if (Options::instance()->stats.size() > 0)
@@ -555,7 +556,7 @@ Haplotype::explain_to_score(std::size_t const pn_index, bool const has_low_quali
       {
         assert(to_index(x, y) < hap_sample.log_score.size());
         assert(i == to_index(x, y));
-        // Heterozygous
+
         if (haplotype_errors[x] == 0 && haplotype_errors[y] == 0)
           hap_sample.log_score[i] += epsilon_exponent;
         else if (haplotype_errors[x] == 0 || haplotype_errors[y] == 0)
@@ -577,7 +578,6 @@ Haplotype::explain_to_score(std::size_t const pn_index, bool const has_low_quali
   assert(gts.size() == explains.size());
   for (std::size_t i = 0; i < gts.size(); ++i)
     explains[i] = std::bitset<MAX_NUMBER_OF_HAPLOTYPES>(0);
-
 }
 
 

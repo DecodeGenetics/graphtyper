@@ -295,8 +295,8 @@ find_genotype_paths_of_a_sequence_pair(seqan::BamAlignmentRecord const & record1
                    GenotypePaths(record2.seq, record2.qual, record2.mapQ)
                    );
 
-  find_genotype_paths_of_one_of_the_sequences(record1.seq, genos.first, false /*true hamming distance 1 index is available*/);
-  find_genotype_paths_of_one_of_the_sequences(record2.seq, genos.second, false /*true hamming distance 1 index is available*/);
+  find_genotype_paths_of_one_of_the_sequences(record1.seq, genos.first, false /*true when hamming distance 1 index is available*/);
+  find_genotype_paths_of_one_of_the_sequences(record2.seq, genos.second, false /*true when hamming distance 1 index is available*/);
 
   // Remove distant paths
   {

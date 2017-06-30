@@ -123,6 +123,7 @@ call(std::vector<std::string> hts_paths,
 
   assert(regions.size() > 0);
   std::shared_ptr<Vcf> vcf;
+  //Options::instance()->max_index_labels = 2048;
 
   // Extract sample names from SAM. If that is not possible, try to get a sample name from the filename.
   std::unordered_map<std::string, std::string> rg2sample;

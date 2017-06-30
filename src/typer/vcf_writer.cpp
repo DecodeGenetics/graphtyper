@@ -43,7 +43,7 @@ are_genotype_paths_good(gyper::GenotypePaths const & geno)
 
   if (gyper::Options::instance()->hq_reads)
   {
-    if (geno.paths[0].size() < 150 || geno.paths[0].mismatches > 1 || !geno.all_paths_unique() || !geno.all_paths_fully_aligned())
+    if (geno.paths[0].mismatches > 1 || !geno.all_paths_unique() || !geno.all_paths_fully_aligned())
       return false;
   }
 
@@ -121,7 +121,7 @@ VcfWriter::update_haplotype_scores_from_paths(std::vector<std::pair<GenotypePath
     }
     else if (READ1_IS_GOOD)
     {
-      update_haplotype_scores_from_path(geno.first, pn_index, 1 /*unpaired*/);
+      update_haplotype_scores_from_path(geno.first, pn_index, 0 /*unpaired*/);
     }
     else if (READ2_IS_GOOD)
     {
