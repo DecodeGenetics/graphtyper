@@ -152,6 +152,7 @@ add_arg_regions(args::ArgumentParser & parser)
   return std::unique_ptr<TRegions>(new TRegions(parser, "REGIONS", "Regions to use."));
 }
 
+
 using TRegion = args::Positional<std::string>;
 
 std::unique_ptr<TRegion>
@@ -159,6 +160,7 @@ add_arg_region(args::ArgumentParser & parser)
 {
   return std::unique_ptr<TRegion>(new TRegion(parser, "REGION", "Region to use."));
 }
+
 
 using TRegionVal = args::ValueFlag<std::string>;
 
@@ -291,13 +293,34 @@ add_arg_vcfs(args::ArgumentParser & parser)
   return std::unique_ptr<TVcfs>(new TVcfs(parser, "VCFs", "A list of bgzipped VCF files seperated by newlines.", {"V", "vcfs"}));
 }
 
+/** max_index_labels argument */
+using TMaxIndexLabels = args::ValueFlag<unsigned>;
+
+std::unique_ptr<TMaxIndexLabels>
+add_arg_max_index_labels(args::ArgumentParser & parser)
+{
+  return std::unique_ptr<TMaxIndexLabels>(
+    new TMaxIndexLabels(
+      parser, "N", "Maximum number labels a single k-mer can be associated with.", {"max_index_labels"}
+    )
+  );
+}
+
+void
+parse_max_index_labels(TMaxIndexLabels & max_index_labels)
+{
+  if (max_index_labels)
+    gyper::Options::instance()->max_index_labels = args::get(max_index_labels);
+}
+
+
 /** max_merge_variant_dist argument */
 using TMaxMergeVariantDist = args::ValueFlag<unsigned>;
 
 std::unique_ptr<TMaxMergeVariantDist>
 add_arg_mmvd(args::ArgumentParser & parser)
 {
-  return std::unique_ptr<TMaxMergeVariantDist>(new TMaxMergeVariantDist(parser, "N", "Distance to merge variant into haplotypes.", {"max-merge-variant-dist"}));
+  return std::unique_ptr<TMaxMergeVariantDist>(new TMaxMergeVariantDist(parser, "N", "Distance to merge variant into haplotypes.", {"max_merge_variant_dist"}));
 }
 
 
@@ -905,6 +928,7 @@ main(int argc, char ** argv)
     auto sams_arg = add_arg_sams(call_parser);
     auto segment_arg = add_arg_segment(call_parser);
     auto stats_arg = add_arg_stats(call_parser);
+    auto max_index_labels_arg = add_arg_max_index_labels(call_parser);
     auto mmvd_arg = add_arg_mmvd(call_parser);
     // auto gather_unmapped_arg = add_arg_gather_unmapped(call_parser);
     auto log_arg = add_arg_log(call_parser);
@@ -942,6 +966,7 @@ main(int argc, char ** argv)
     parse_maximum_homozygous_allele_balance(*maximum_homozygous_allele_balance_arg);
     parse_epsilon_0_exponent(*epsilon_0_exponent_arg);
     parse_stats(*stats_arg);
+    parse_max_index_labels(*max_index_labels_arg);
     parse_mmvd(*mmvd_arg);
     parse_get_sample_names_from_filename(*get_sample_names_from_filename_arg);
     // parse_gather_unmapped(*gather_unmapped_arg);
