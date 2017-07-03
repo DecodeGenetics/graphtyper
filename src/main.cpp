@@ -152,12 +152,20 @@ add_arg_regions(args::ArgumentParser & parser)
   return std::unique_ptr<TRegions>(new TRegions(parser, "REGIONS", "Regions to use."));
 }
 
-using TRegionsVal = args::ValueFlag<std::string>;
+using TRegion = args::Positional<std::string>;
 
-std::unique_ptr<TRegionsVal>
+std::unique_ptr<TRegion>
+add_arg_region(args::ArgumentParser & parser)
+{
+  return std::unique_ptr<TRegion>(new TRegion(parser, "REGION", "Region to use."));
+}
+
+using TRegionVal = args::ValueFlag<std::string>;
+
+std::unique_ptr<TRegionVal>
 add_arg_region_val(args::ArgumentParser & parser)
 {
-  return std::unique_ptr<TRegionsVal>(new TRegionsVal(parser, "REGION", "Region to use.", {"r", "region"}, "."));
+  return std::unique_ptr<TRegionVal>(new TRegionVal(parser, "REGION", "Region to use.", {"r", "region"}, "."));
 }
 
 
@@ -804,7 +812,7 @@ main(int argc, char ** argv)
     auto command_arg = add_arg_command(construct_parser, argv[1]);
     auto graph_arg = add_arg_graph(construct_parser);
     auto fasta_arg = add_arg_fasta(construct_parser);
-    auto regions_arg = add_arg_regions(construct_parser);
+    auto regions_arg = add_arg_region(construct_parser);
     auto vcf_arg = add_arg_vcf(construct_parser);
     auto log_arg = add_arg_log(construct_parser);
 
@@ -818,7 +826,8 @@ main(int argc, char ** argv)
     SUCCESS &= check_required_argument(fasta_arg, "fasta");
     SUCCESS &= check_required_argument(regions_arg, "regions");
 
-    std::vector<std::string> regions = args::get(*regions_arg);
+    std::vector<std::string> regions;
+    regions.push_back(args::get(*regions_arg));
 
     for (auto & reg : regions)
       reg.erase(std::remove(reg.begin(), reg.end(), ','), reg.end());
