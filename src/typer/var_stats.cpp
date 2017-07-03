@@ -51,7 +51,7 @@ VarStats::add_realignment_distance(uint8_t const allele_id, uint32_t const origi
   assert (allele_id < realignment_distance.size());
   assert (allele_id < realignment_count.size());
   ++realignment_count[allele_id];
-  uint32_t const distance = std::abs(static_cast<int64_t>(original_pos) - static_cast<uint64_t>(new_pos));
+  uint32_t const distance = std::abs(static_cast<int64_t>(original_pos) - static_cast<int64_t>(new_pos));
 
   // Check for overflow
   if (static_cast<uint64_t>(realignment_distance[allele_id]) + static_cast<uint64_t>(distance) < 0xFFFFFFFFull)
