@@ -220,7 +220,9 @@ find_variant_sequences(gyper::Variant & new_var, gyper::Variant const & old_var)
 namespace gyper
 {
 
-Variant::Variant() noexcept {}
+Variant::Variant() noexcept
+  : abs_pos(0)
+{}
 
 Variant::Variant(Variant const & var) noexcept
   : abs_pos(var.abs_pos)
