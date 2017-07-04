@@ -95,7 +95,9 @@ GenotypePaths::all_paths_unique() const
 {
   for (std::size_t i = 1; i < paths.size(); ++i)
   {
-    if (paths[0].start_ref_reach_pos() != paths[i].start_ref_reach_pos() && paths[0].end_ref_reach_pos() != paths[i].end_ref_reach_pos())
+    if (paths[0].start_ref_reach_pos() != paths[i].start_ref_reach_pos() &&
+        paths[0].end_ref_reach_pos() != paths[i].end_ref_reach_pos()
+        )
     {
       return false;
     }

@@ -65,6 +65,7 @@ public:
   bool get_sample_names_from_filename = false;
   bool output_all_variants = false;
   bool always_query_hamming_distance_one = false;
+  uint32_t optimal_insert_size = 350;
 
   // Caching options
   bool use_read_cache = false;

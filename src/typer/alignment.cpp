@@ -171,16 +171,24 @@ align_unpaired_read_pairs(TReads & reads, std::vector<GenotypePaths> & genos)
 
 
 int64_t
-find_shortest_distance(GenotypePaths const & geno1, GenotypePaths const & geno2)
+find_shortest_distance(GenotypePaths const & geno1, GenotypePaths const & geno2, uint32_t const OPTIMAL)
 {
-  int64_t shortest_distance = 0xFFFFFFFFFFFFFFFFull;
+  int64_t shortest_distance = 0x00000000FFFFFFFFll;
 
   for (auto it1 = geno1.paths.cbegin(); it1 != geno1.paths.cend(); ++it1)
   {
     for (auto it2 = geno2.paths.cbegin(); it2 != geno2.paths.cend(); ++it2)
     {
-      int64_t const distance = std::abs(static_cast<int64_t>(it1->start_ref_reach_pos()) - static_cast<int64_t>(it2->start_ref_reach_pos()));
+      int64_t const distance1 = std::abs(
+        static_cast<int64_t>(it1->start_ref_reach_pos()) - static_cast<int64_t>(it2->end_ref_reach_pos())
+        );
+      int64_t const distance2 = std::abs(
+        static_cast<int64_t>(it1->end_ref_reach_pos()) - static_cast<int64_t>(it2->start_ref_reach_pos())
+        );
+
+      int64_t const distance = std::abs(std::max(distance1, distance2) - static_cast<int64_t>(OPTIMAL));
       shortest_distance = std::min(distance, shortest_distance);
+      //std::cerr << distance1 << " and " << distance2 << " results in " << distance << " " << shortest_distance << std::endl;
     }
   }
 
@@ -189,7 +197,7 @@ find_shortest_distance(GenotypePaths const & geno1, GenotypePaths const & geno2)
 
 
 void
-remove_distant_paths(GenotypePaths & geno1, GenotypePaths const & geno2, int64_t const SHORTEST_DISTANCE)
+remove_distant_paths(GenotypePaths & geno1, GenotypePaths const & geno2, int64_t const SHORTEST_DISTANCE, uint32_t const OPTIMAL)
 {
   auto it1 = geno1.paths.begin();
 
@@ -199,7 +207,15 @@ remove_distant_paths(GenotypePaths & geno1, GenotypePaths const & geno2, int64_t
 
     for (auto it2 = geno2.paths.cbegin(); it2 != geno2.paths.cend(); ++it2)
     {
-      if (std::abs(static_cast<int64_t>(it1->start_ref_reach_pos()) - static_cast<int64_t>(it2->start_ref_reach_pos())) <= SHORTEST_DISTANCE)
+      int64_t const distance1 = std::abs(
+        static_cast<int64_t>(it1->start_ref_reach_pos()) - static_cast<int64_t>(it2->end_ref_reach_pos())
+        );
+      int64_t const distance2 = std::abs(
+        static_cast<int64_t>(it1->end_ref_reach_pos()) - static_cast<int64_t>(it2->start_ref_reach_pos())
+        );
+      int64_t const distance = std::abs(std::max(distance1, distance2) - static_cast<int64_t>(OPTIMAL));
+
+      if (distance <= SHORTEST_DISTANCE)
       {
         found_close_match = true;
         break;
@@ -298,21 +314,15 @@ find_genotype_paths_of_a_sequence_pair(seqan::BamAlignmentRecord const & record1
   find_genotype_paths_of_one_of_the_sequences(record1.seq, genos.first, false /*true when hamming distance 1 index is available*/);
   find_genotype_paths_of_one_of_the_sequences(record2.seq, genos.second, false /*true when hamming distance 1 index is available*/);
 
-  // Remove distant paths
+  // Remove distant paths (from optimal insert size)
   {
-    bool const IS_NOT_UNIQUE_1 = genos.first.paths.size() > 1 && !genos.first.all_paths_unique();
-    bool const IS_NOT_UNIQUE_2 = genos.second.paths.size() > 1 && !genos.second.all_paths_unique();
+    uint32_t const OPTIMAL = Options::instance()->optimal_insert_size;
+    int64_t const SHORTEST_DISTANCE = std::min(static_cast<int64_t>(1000),
+                                               find_shortest_distance(genos.first, genos.second, OPTIMAL) + 60
+                                               );
 
-    if (IS_NOT_UNIQUE_1 || IS_NOT_UNIQUE_2)
-    {
-      int64_t const SHORTEST_DISTANCE = std::max(static_cast<int64_t>(1000l), find_shortest_distance(genos.first, genos.second)) + 100l;
-
-      if (IS_NOT_UNIQUE_1)
-        remove_distant_paths(genos.first, genos.second, SHORTEST_DISTANCE);
-
-      if (IS_NOT_UNIQUE_2)
-        remove_distant_paths(genos.second, genos.first, SHORTEST_DISTANCE);
-    }
+    remove_distant_paths(genos.first, genos.second, SHORTEST_DISTANCE, OPTIMAL);
+    remove_distant_paths(genos.second, genos.first, SHORTEST_DISTANCE, OPTIMAL);
   }
 
   return genos;
