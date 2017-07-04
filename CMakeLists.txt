@@ -202,12 +202,21 @@ set(graphtyper_all_libraries
   ${Boost_LIBRARIES}
 )
 
-# If lz4 is found, append it
+# If lz4 is optional for rocksdb
 find_package (Lz4)
 
 if (LZ4_FOUND)
-  list(APPEND graphtyper_all_libraries lz4)
+  list(APPEND graphtyper_all_libraries ${LZ4_LIBRARY})
 endif ()
+
+# If lzma is optional for htslib
+find_package (LibLZMA)
+
+if (LIBLZMA_FOUND)
+  list(APPEND graphtyper_all_libraries ${LIBLZMA_LIBRARIES})
+endif ()
+
+message(STATUS "Libraries: ${graphtyper_all_libraries}")
 
 message(STATUS "Compiling graphtyper's source files")
 add_subdirectory(src)
