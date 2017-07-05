@@ -315,14 +315,32 @@ find_genotype_paths_of_a_sequence_pair(seqan::BamAlignmentRecord const & record1
   find_genotype_paths_of_one_of_the_sequences(record2.seq, genos.second, false /*true when hamming distance 1 index is available*/);
 
   // Remove distant paths (from optimal insert size)
+  if (genos.first.paths.size() > 0 && genos.second.paths.size() > 0) // Both reads aligned
   {
     uint32_t const OPTIMAL = Options::instance()->optimal_insert_size;
-    int64_t const SHORTEST_DISTANCE = std::min(static_cast<int64_t>(1000),
-                                               find_shortest_distance(genos.first, genos.second, OPTIMAL) + 60
+    uint32_t const THRESHOLD = Options::instance()->max_insert_size_threshold;
+    int64_t const SHORTEST_DISTANCE = std::min(static_cast<int64_t>(Options::instance()->max_insert_size),
+                                               find_shortest_distance(genos.first, genos.second, OPTIMAL)
                                                );
 
-    remove_distant_paths(genos.first, genos.second, SHORTEST_DISTANCE, OPTIMAL);
-    remove_distant_paths(genos.second, genos.first, SHORTEST_DISTANCE, OPTIMAL);
+    if (Options::instance()->hq_reads)
+    {
+      if (SHORTEST_DISTANCE > THRESHOLD)
+      {
+        genos.first.clear_paths();
+        genos.second.clear_paths();
+      }
+      else
+      {
+        remove_distant_paths(genos.first, genos.second, THRESHOLD, OPTIMAL);
+        remove_distant_paths(genos.second, genos.first, THRESHOLD, OPTIMAL);
+      }
+    }
+    else
+    {
+      remove_distant_paths(genos.first, genos.second, SHORTEST_DISTANCE + THRESHOLD, OPTIMAL);
+      remove_distant_paths(genos.second, genos.first, SHORTEST_DISTANCE + THRESHOLD, OPTIMAL);
+    }
   }
 
   return genos;

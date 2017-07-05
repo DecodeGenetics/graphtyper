@@ -36,7 +36,7 @@ struct HapSample
   std::vector<uint16_t> log_score;
   std::vector<std::vector<uint16_t> > gt_coverage;
   std::unique_ptr<HapStats> stats;
-  // uint8_t ambiguous_depth = 0; // TODO
+  uint8_t ambiguous_depth = 0u;
   uint16_t max_log_score = 0u;
 };
 
