@@ -43,7 +43,7 @@ are_genotype_paths_good(gyper::GenotypePaths const & geno)
 
   if (gyper::Options::instance()->hq_reads)
   {
-    if (geno.paths[0].mismatches > 1 || !geno.all_paths_unique() || !geno.all_paths_fully_aligned())
+    if (geno.paths[0].mismatches > 1 || !geno.all_paths_fully_aligned())
       return false;
   }
 
@@ -242,8 +242,6 @@ VcfWriter::update_statistics(GenotypePaths & geno, std::size_t const pn_index, u
       //     else
       //       stats->predecessor[b].push_back(std::vector<char>(geno.read.begin(), end_it));
       //   }
-      //   //std::cerr << "DEBUG " << type_ids.first << " " << type_ids.second << " " << b << " " << v << " "
-      //   //          << reach << " " << path.end_correct_pos() << " " << stats->predecessor[b].back() << std::endl;
       // }
     }
   }
