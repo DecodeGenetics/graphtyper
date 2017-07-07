@@ -55,7 +55,8 @@ caller(std::shared_ptr<TReads> reads,
 
   if (seqan::length((*reads)[0].second.seq) == 0)
   {
-    if (!Options::instance()->is_segment_calling) // Do not process unpaired reads when calling segments
+    // Do not process unpaired reads when calling segments
+    if (!Options::instance()->is_segment_calling && !Options::instance()->hq_reads)
     {
       // The reads are unpaired
       std::vector<GenotypePaths> genos;

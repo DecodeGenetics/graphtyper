@@ -64,6 +64,7 @@ public:
    *********************/
   std::vector<std::pair<std::vector<uint16_t>, std::vector<Genotype> > > get_haplotype_calls() const;
   std::vector<Genotype> get_gts() const;
+  bool support_same_haplotypes(std::pair<GenotypePaths, GenotypePaths> const & geno) const;
 
 private:
   std::mutex mutable haplotype_mutex;

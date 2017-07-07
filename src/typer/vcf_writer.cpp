@@ -79,6 +79,47 @@ VcfWriter::VcfWriter(std::vector<std::string> const & samples, uint32_t variant_
 }
 
 
+bool
+VcfWriter::support_same_haplotypes(std::pair<GenotypePaths, GenotypePaths> const & geno) const
+{
+  using ReadExplain = std::map<std::pair<uint32_t, uint32_t>, std::bitset<MAX_NUMBER_OF_HAPLOTYPES> >;
+  ReadExplain read_explain1;
+  ReadExplain read_explain2;
+
+  for (auto const & path : geno.first.paths)
+  {
+    for (unsigned i = 0; i < path.var_order.size(); ++i)
+    {
+      std::pair<uint32_t, uint32_t> const type_ids = id2hap.at(path.var_order[i]); //hap_id = first, gen_id = second
+      read_explain1[type_ids] |= path.nums[i];
+    }
+  }
+
+  for (auto const & path : geno.second.paths)
+  {
+    for (unsigned i = 0; i < path.var_order.size(); ++i)
+    {
+      std::pair<uint32_t, uint32_t> const type_ids = id2hap.at(path.var_order[i]); //hap_id = first, gen_id = second
+      read_explain2[type_ids] |= path.nums[i];
+    }
+  }
+
+  for (auto it1 = read_explain1.begin(); it1 != read_explain1.end(); ++it1)
+  {
+    auto it2 = read_explain2.find(it1->first);
+
+    if (it2 != read_explain2.end())
+    {
+      std::bitset<MAX_NUMBER_OF_HAPLOTYPES> const explain_intersect = it1->second & it2->second;
+
+      if (explain_intersect.none())
+        return false;
+    }
+  }
+
+  return true;
+}
+
 void
 VcfWriter::update_haplotype_scores_from_paths(std::vector<GenotypePaths> & genos, std::size_t const pn_index)
 {
@@ -91,6 +132,9 @@ VcfWriter::update_haplotype_scores_from_paths(std::vector<GenotypePaths> & genos
       update_haplotype_scores_from_path(geno, pn_index, 0 /*unpaired*/);
   }
 }
+
+
+
 
 
 void
@@ -117,24 +161,36 @@ VcfWriter::update_haplotype_scores_from_paths(std::vector<std::pair<GenotypePath
     bool const READ1_IS_GOOD = are_genotype_paths_good(geno.first);
     bool const READ2_IS_GOOD = are_genotype_paths_good(geno.second);
 
-    if (READ1_IS_GOOD && READ2_IS_GOOD)
+    if (Options::instance()->hq_reads)
     {
-      update_haplotype_scores_from_path(geno.first, pn_index, 1 /*first in pair*/);
-      update_haplotype_scores_from_path(geno.second, pn_index, 2 /*second in pair*/);
-
-      if (Options::instance()->stats.size() > 0)
+      // Make sure both read pairs support the same haplotypes
+      if (READ1_IS_GOOD && READ2_IS_GOOD && support_same_haplotypes(geno))
       {
-        for (auto & hap : haplotypes)
-          hap.hap_samples[pn_index].stats->pair_stats.clear();
+        update_haplotype_scores_from_path(geno.first, pn_index, 1 /*first in pair*/);
+        update_haplotype_scores_from_path(geno.second, pn_index, 2 /*second in pair*/);
       }
     }
-    else if (READ1_IS_GOOD)
+    else
     {
-      update_haplotype_scores_from_path(geno.first, pn_index, 0 /*unpaired*/);
-    }
-    else if (READ2_IS_GOOD)
-    {
-      update_haplotype_scores_from_path(geno.second, pn_index, 0 /*unpaired*/);
+      if (READ1_IS_GOOD && READ2_IS_GOOD)
+      {
+        update_haplotype_scores_from_path(geno.first, pn_index, 1 /*first in pair*/);
+        update_haplotype_scores_from_path(geno.second, pn_index, 2 /*second in pair*/);
+
+        if (Options::instance()->stats.size() > 0)
+        {
+          for (auto & hap : haplotypes)
+            hap.hap_samples[pn_index].stats->pair_stats.clear();
+        }
+      }
+      else if (READ1_IS_GOOD)
+      {
+        update_haplotype_scores_from_path(geno.first, pn_index, 0 /*unpaired*/);
+      }
+      else if (READ2_IS_GOOD)
+      {
+        update_haplotype_scores_from_path(geno.second, pn_index, 0 /*unpaired*/);
+      }
     }
   }
 }
@@ -335,7 +391,8 @@ VcfWriter::update_haplotype_scores_from_path(GenotypePaths & geno, std::size_t c
     haplotypes[*it].realignment_to_stats(geno.is_originally_unaligned,
                                          geno.original_pos /*original_pos*/,
                                          absolute_pos.get_contig_position(geno.paths[0].start_correct_pos()).second /*new_pos*/
-      );
+                                         );
+
     haplotypes[*it].graph_complexity_to_stats();
 
     // Update the likelihood scores
