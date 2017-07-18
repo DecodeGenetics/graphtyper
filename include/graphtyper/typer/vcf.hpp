@@ -67,7 +67,7 @@ public:
   void add_read_group_to_pn(std::unordered_map<std::string, std::string> const & new_rg2pn);
 
   // Modify data
-  void post_process_variants(bool const NORMALIZE = true);
+  void post_process_variants(bool const NORMALIZE = true, bool const TRIM_SEQUENCES = true);
 
   VCF_FILE_MODE filemode;
   std::string filename;

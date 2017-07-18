@@ -1021,14 +1021,14 @@ Vcf::add_haplotypes_for_extraction(std::vector<std::vector<Genotype> > const & g
 
 
 void
-Vcf::post_process_variants(bool const NORMALIZE)
+Vcf::post_process_variants(bool const NORMALIZE, bool const TRIM_SEQUENCES)
 {
   if (NORMALIZE)
   {
     for (auto & var : variants)
       var.normalize();
   }
-  else
+  else if (TRIM_SEQUENCES)
   {
     for (auto & var : variants)
       var.trim_sequences(false); // Don't keep one match

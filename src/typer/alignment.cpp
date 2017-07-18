@@ -345,6 +345,40 @@ find_haplotype_paths(std::vector<seqan::Dna5String> const & sequences)
 }
 
 
+bool
+support_same_path(std::pair<GenotypePaths, GenotypePaths> const & genos)
+{
+  using ReadExplain = std::unordered_map<uint32_t, std::bitset<MAX_NUMBER_OF_HAPLOTYPES> >; // Variant order to explain
+  ReadExplain read_explain1;
+  ReadExplain read_explain2;
+
+  for (auto const & path : genos.first.paths)
+  {
+    for (unsigned i = 0; i < path.var_order.size(); ++i)
+      read_explain1[path.var_order[i]] |= path.nums[i];
+  }
+
+  for (auto const & path : genos.second.paths)
+  {
+    for (unsigned i = 0; i < path.var_order.size(); ++i)
+      read_explain2[path.var_order[i]] |= path.nums[i];
+  }
+
+  for (auto it1 = read_explain1.begin(); it1 != read_explain1.end(); ++it1)
+  {
+    auto it2 = read_explain2.find(it1->first);
+
+    if (it2 != read_explain2.end())
+    {
+      if ((it1->second & it2->second).none())
+        return false;
+    }
+  }
+
+  return true;
+}
+
+
 std::pair<GenotypePaths, GenotypePaths>
 find_genotype_paths_of_a_sequence_pair(seqan::BamAlignmentRecord const & record1,
                                        seqan::BamAlignmentRecord const & record2,
@@ -371,7 +405,7 @@ find_genotype_paths_of_a_sequence_pair(seqan::BamAlignmentRecord const & record1
 
     if (Options::instance()->hq_reads)
     {
-      if (SHORTEST_DISTANCE > THRESHOLD)
+      if (SHORTEST_DISTANCE > THRESHOLD || !support_same_path(genos))
       {
         genos.first.clear_paths();
         genos.second.clear_paths();

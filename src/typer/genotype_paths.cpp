@@ -23,7 +23,8 @@ namespace
 bool
 merge_current_compatibility(gyper::KmerLabel const & l, gyper::Path const & p)
 {
-  return l.start_index == p.start && l.end_index == p.end; // It is not compatible if the variant order is not already in the path
+  // It is not compatible if the variant order is not already in the path
+  return l.start_index == p.start && l.end_index == p.end;
 }
 
 
@@ -35,7 +36,10 @@ merge_forward_compatibility(gyper::Path const & prev, gyper::Path const & next)
 
 
 std::vector<gyper::Path>
-find_all_nonduplicated_paths(std::vector<gyper::KmerLabel> const & ll, uint32_t const read_start_index, uint32_t const read_end_index, uint16_t const mismatches)
+find_all_nonduplicated_paths(std::vector<gyper::KmerLabel> const & ll,
+                             uint32_t const read_start_index,
+                             uint32_t const read_end_index,
+                             uint16_t const mismatches)
 {
   if (ll.size() == 0)
     return std::vector<gyper::Path>(0);
@@ -65,6 +69,39 @@ find_all_nonduplicated_paths(std::vector<gyper::KmerLabel> const & ll, uint32_t 
   }
 
   return paths;
+}
+
+
+std::vector<gyper::Location>
+get_locations(gyper::Graph const & graph, gyper::Path const & path, bool const START)
+{
+  std::vector<gyper::Location> locs;
+
+  if (START)
+    locs = graph.get_locations_of_a_position(path.start);
+  else
+    locs = graph.get_locations_of_a_position(path.end);
+
+
+
+  auto is_not_in_path_lambda = [&](gyper::Location const & loc) -> bool
+  {
+    for (unsigned i = 0; i < path.var_order.size(); ++i)
+    {
+      if (loc.node_order == path.var_order[i] && !path.nums[i].test(graph.get_variant_num(loc.node_index)))
+        return true;
+    }
+
+    return false;
+  };
+
+  // Remove locations that are on an allele that is not in the path.
+  // NOTE: This process would be (slightly) faster if there was instead a check for this in
+  //       "get_locations_of_a_position(uint32_t)"
+  if (locs.size() > 0 && locs[0].node_type == 'V')
+    locs.erase(std::remove_if(locs.begin(), locs.end(), is_not_in_path_lambda), locs.end());
+
+  return locs;
 }
 
 
@@ -286,9 +323,9 @@ GenotypePaths::walk_read_ends(seqan::IupacString const & seq, int maximum_mismat
     if (path.read_end_index == seqan::length(seq) - 1)
       continue;
 
-    std::vector<Location> s_locs = graph.get_locations_of_a_position(path.end);
+    std::vector<Location> s_locs = get_locations(graph, path, false /*start?*/);
 
-    if (s_locs.size() > Options::instance()->MAX_NUM_LOCATIONS_PER_PATH)
+    if (s_locs.size() == 0 || s_locs.size() > Options::instance()->MAX_NUM_LOCATIONS_PER_PATH)
       continue;
 
     std::vector<char> kmer;
@@ -297,11 +334,14 @@ GenotypePaths::walk_read_ends(seqan::IupacString const & seq, int maximum_mismat
     for (uint32_t i = path.read_end_index; i < seqan::length(seq); ++i)
       kmer.push_back(seq[i]);
 
-    std::vector<Location> e_locs(1);
+    std::vector<Location> e_locs(1); // Unavailable end
     std::vector<KmerLabel> new_labels;
 
     // Value less than zero causes default value
-    uint32_t mismatches = (maximum_mismatches < 0) ? std::min(2 + kmer.size() / 11, best_mismatches) : static_cast<uint32_t>(maximum_mismatches);
+    uint32_t mismatches = (maximum_mismatches < 0) ?
+      std::min(2 + kmer.size() / 11, best_mismatches) :
+      static_cast<uint32_t>(maximum_mismatches);
+
     new_labels = graph.iterative_dfs(std::move(s_locs), std::move(e_locs), kmer, mismatches);
 
     if (new_labels.size() > 0)
@@ -361,20 +401,19 @@ GenotypePaths::walk_read_starts(seqan::IupacString const & seq, int maximum_mism
     for (uint32_t i = 0; i <= path.read_start_index; ++i)
       kmer.push_back(seq[i]);
 
+    std::vector<Location> e_locs = get_locations(graph, path, true /*start?*/);
 
-    std::vector<Location> e_locs = graph.get_locations_of_a_position(path.start);
-
-    if (e_locs.size() == 0)
+    if (e_locs.size() == 0 || e_locs.size() > Options::instance()->MAX_NUM_LOCATIONS_PER_PATH)
       continue;
 
-    if (e_locs.size() > Options::instance()->MAX_NUM_LOCATIONS_PER_PATH)
-      continue;
-
-    std::vector<Location> s_locs(1);
+    std::vector<Location> s_locs(1); // Unavailable start
     std::vector<KmerLabel> new_labels;
 
     // Value less than zero causes default value
-    uint32_t mismatches = (maximum_mismatches < 0) ? std::min(2 + kmer.size() / 11, best_mismatches) : static_cast<uint32_t>(maximum_mismatches);
+    uint32_t mismatches = (maximum_mismatches < 0) ?
+      std::min(2 + kmer.size() / 11, best_mismatches) :
+      static_cast<uint32_t>(maximum_mismatches);
+
     new_labels = graph.iterative_dfs(std::move(s_locs), std::move(e_locs), kmer, mismatches);
 
     if (new_labels.size() > 0)

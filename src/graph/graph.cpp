@@ -974,7 +974,7 @@ Graph::get_locations_of_a_position(uint32_t pos) const
     // Check variants behind this reference
     while (rr >= 0)
     {
-      // Assume there is now variants larger than 10000 bp
+      // Assume there is no variants larger than 10000 bp
       if (ref_nodes[rr].get_label().order + 10000 <= pos)
         break;
 

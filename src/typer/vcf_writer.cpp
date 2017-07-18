@@ -43,8 +43,18 @@ are_genotype_paths_good(gyper::GenotypePaths const & geno)
 
   if (gyper::Options::instance()->hq_reads)
   {
-    if (geno.paths[0].mismatches > 1 || !geno.all_paths_fully_aligned())
+    if (!geno.all_paths_fully_aligned()) // Require reads to be fully aligned
       return false;
+
+    // Any path overlapping a variant must also not have any mismatches
+    if (geno.paths[0].mismatches > 0)
+    {
+      for (auto const & path : geno.paths)
+      {
+        if (path.var_order.size() > 0)
+          return false;
+      }
+    }
   }
 
   return true;
@@ -65,7 +75,9 @@ VcfWriter::VcfWriter(std::vector<std::string> const & samples, uint32_t variant_
                           << graph.var_nodes.size();
 
   haplotypes = gyper::graph.get_all_haplotypes(variant_distance);
-  BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf_writer] Got " << haplotypes.size() << " haplotypes.";
+  BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf_writer] Got "
+                          << haplotypes.size()
+                          << " haplotypes.";
 
   // Insert items in the id to haplotype map
   for (unsigned i = 0; i < haplotypes.size(); ++i)
@@ -79,49 +91,10 @@ VcfWriter::VcfWriter(std::vector<std::string> const & samples, uint32_t variant_
 }
 
 
-bool
-VcfWriter::support_same_haplotypes(std::pair<GenotypePaths, GenotypePaths> const & geno) const
-{
-  using ReadExplain = std::map<std::pair<uint32_t, uint32_t>, std::bitset<MAX_NUMBER_OF_HAPLOTYPES> >;
-  ReadExplain read_explain1;
-  ReadExplain read_explain2;
-
-  for (auto const & path : geno.first.paths)
-  {
-    for (unsigned i = 0; i < path.var_order.size(); ++i)
-    {
-      std::pair<uint32_t, uint32_t> const type_ids = id2hap.at(path.var_order[i]); //hap_id = first, gen_id = second
-      read_explain1[type_ids] |= path.nums[i];
-    }
-  }
-
-  for (auto const & path : geno.second.paths)
-  {
-    for (unsigned i = 0; i < path.var_order.size(); ++i)
-    {
-      std::pair<uint32_t, uint32_t> const type_ids = id2hap.at(path.var_order[i]); //hap_id = first, gen_id = second
-      read_explain2[type_ids] |= path.nums[i];
-    }
-  }
-
-  for (auto it1 = read_explain1.begin(); it1 != read_explain1.end(); ++it1)
-  {
-    auto it2 = read_explain2.find(it1->first);
-
-    if (it2 != read_explain2.end())
-    {
-      std::bitset<MAX_NUMBER_OF_HAPLOTYPES> const explain_intersect = it1->second & it2->second;
-
-      if (explain_intersect.none())
-        return false;
-    }
-  }
-
-  return true;
-}
-
 void
-VcfWriter::update_haplotype_scores_from_paths(std::vector<GenotypePaths> & genos, std::size_t const pn_index)
+VcfWriter::update_haplotype_scores_from_paths(std::vector<GenotypePaths> & genos,
+                                              std::size_t const pn_index
+  )
 {
   std::lock_guard<std::mutex> lock(haplotype_mutex);
   assert(!Options::instance()->is_segment_calling);
@@ -134,13 +107,11 @@ VcfWriter::update_haplotype_scores_from_paths(std::vector<GenotypePaths> & genos
 }
 
 
-
-
-
 void
-VcfWriter::update_haplotype_scores_from_paths(std::vector<std::pair<GenotypePaths, GenotypePaths> > & genos,
-                                              std::size_t const pn_index
-                                              )
+VcfWriter::update_haplotype_scores_from_paths(
+  std::vector<std::pair<GenotypePaths, GenotypePaths> > & genos,
+  std::size_t const pn_index
+  )
 {
   std::lock_guard<std::mutex> lock(haplotype_mutex);
 
@@ -164,7 +135,7 @@ VcfWriter::update_haplotype_scores_from_paths(std::vector<std::pair<GenotypePath
     if (Options::instance()->hq_reads)
     {
       // Make sure both read pairs support the same haplotypes
-      if (READ1_IS_GOOD && READ2_IS_GOOD && support_same_haplotypes(geno))
+      if (READ1_IS_GOOD && READ2_IS_GOOD)
       {
         update_haplotype_scores_from_path(geno.first, pn_index, 1 /*first in pair*/);
         update_haplotype_scores_from_path(geno.second, pn_index, 2 /*second in pair*/);
