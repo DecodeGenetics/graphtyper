@@ -315,7 +315,7 @@ VcfWriter::update_haplotype_scores_from_path(GenotypePaths & geno, std::size_t c
     //if (not geno.is_originally_unaligned && geno.original_pos != absolute_pos.get_contig_position(geno.paths[0].start_correct_pos()).second)
     //  std::cerr << "Original pos, new pos = " << geno.original_pos << " " << absolute_pos.get_contig_position(geno.paths[0].start_correct_pos()).second << "\n";
 
-    haplotypes[*it].realignment_to_stats(geno.is_originally_unaligned, geno.original_pos /*original_pos*/, absolute_pos.get_contig_position(geno.paths[0].start_correct_pos()).second /*new_pos*/);
+    haplotypes[*it].realignment_to_stats(geno.is_originally_unaligned, geno.is_originally_clipped, geno.original_pos /*original_pos*/, absolute_pos.get_contig_position(geno.paths[0].start_correct_pos()).second /*new_pos*/);
     haplotypes[*it].graph_complexity_to_stats();
 
     haplotypes[*it].explain_to_score(pn_index, has_low_quality_snp, non_unique_paths, geno.mapq, fully_aligned, mismatches); // Update the likelihood scores

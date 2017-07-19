@@ -26,6 +26,7 @@ public:
   bool is_first_in_pair = true;
   bool forward_strand = true;
   bool is_originally_unaligned = false;
+  bool is_originally_clipped = false;
 
   /****************
    * CONSTRUCTORS *

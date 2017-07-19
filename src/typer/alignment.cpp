@@ -20,6 +20,16 @@
 namespace
 {
 
+bool
+is_clipped(seqan::String<seqan::CigarElement<> > const & cigar)
+{
+  return seqan::length(cigar) == 0 ||
+    seqan::front(cigar).operation == 'S' ||
+    seqan::front(cigar).operation == 'H' ||
+    seqan::back(cigar).operation == 'S' ||
+    seqan::back(cigar).operation == 'H';
+}
+
 void
 merge_index_queries(seqan::IupacString const & read,
                     gyper::GenotypePaths & geno,
@@ -155,6 +165,7 @@ align_unpaired_read_pairs(TReads & reads, std::vector<GenotypePaths> & genos)
       geno1.is_first_in_pair = seqan::hasFlagFirst(read_it->first);
       geno1.is_originally_unaligned = seqan::hasFlagUnmapped(read_it->first);
       geno1.original_pos = read_it->first.beginPos + 1; // Change to 1-based system
+      geno1.is_originally_clipped = is_clipped(read_it->first.cigar);
       genos.push_back(std::move(geno1));
       break;
 
@@ -163,6 +174,7 @@ align_unpaired_read_pairs(TReads & reads, std::vector<GenotypePaths> & genos)
       geno2.is_first_in_pair = seqan::hasFlagFirst(read_it->first);
       geno2.is_originally_unaligned = seqan::hasFlagUnmapped(read_it->first);
       geno2.original_pos = read_it->first.beginPos + 1; // Change to 1-based system
+      geno2.is_originally_clipped = is_clipped(read_it->first.cigar);
       genos.push_back(std::move(geno2));
       break;
     }
@@ -343,6 +355,8 @@ get_best_genotype_paths(std::vector<TReadPair> const & records)
       genos1.second.forward_strand = false; // The second read in the pair has been reverse complemented
       genos1.first.is_originally_unaligned = seqan::hasFlagUnmapped(record_it->first);
       genos1.second.is_originally_unaligned = seqan::hasFlagUnmapped(record_it->second);
+      genos1.first.is_originally_clipped = is_clipped(record_it->first.cigar);
+      genos1.second.is_originally_clipped = is_clipped(record_it->second.cigar);
       genos1.second.is_first_in_pair = false;
       genos1.first.original_pos = record_it->first.beginPos + 1;
       genos1.second.original_pos = record_it->second.beginPos + 1;
@@ -353,6 +367,8 @@ get_best_genotype_paths(std::vector<TReadPair> const & records)
       genos2.first.forward_strand = false; // The first read in the pair has been reverse complemented
       genos2.first.is_originally_unaligned = seqan::hasFlagUnmapped(record_it->first);
       genos2.second.is_originally_unaligned = seqan::hasFlagUnmapped(record_it->second);
+      genos2.first.is_originally_clipped = is_clipped(record_it->first.cigar);
+      genos2.second.is_originally_clipped = is_clipped(record_it->second.cigar);
       genos2.second.is_first_in_pair = false;
       genos2.first.original_pos = record_it->first.beginPos + 1;
       genos2.second.original_pos = record_it->second.beginPos + 1;

@@ -217,7 +217,7 @@ Haplotype::clipped_reads_to_stats(bool const fully_aligned)
 void
 Haplotype::graph_complexity_to_stats()
 {
-  assert (var_stats.size() == gts.size());
+  assert(var_stats.size() == gts.size());
 
   for (std::size_t i = 0; i < gts.size(); ++i)
     var_stats[i].graph_complexity = graph.get_10log10_num_paths(gts[i].first_variant_node);
@@ -227,23 +227,27 @@ Haplotype::graph_complexity_to_stats()
 void
 Haplotype::mapq_to_stats(uint8_t const new_mapq)
 {
-  assert (var_stats.size() == gts.size());
-  assert (var_stats.size() == coverage.size());
+  assert(var_stats.size() == gts.size());
+  assert(var_stats.size() == coverage.size());
 
   for (std::size_t i = 0; i < var_stats.size(); ++i)
   {
     // coverage[i] == 0xFFFFu means there is no coverage
     if (coverage[i] != 0xFFFFu && coverage[i] != 0xFFFEu)
-      var_stats[i].add_mapq(new_mapq);
+      var_stats[i].add_mapq(coverage[i], new_mapq);
   }
 }
 
 
 void
-Haplotype::realignment_to_stats(bool const is_unaligned_read, uint32_t const original_pos, uint32_t const new_pos)
+Haplotype::realignment_to_stats(bool const is_unaligned_read,
+                                bool const is_originally_clipped,
+                                uint32_t const original_pos,
+                                uint32_t const new_pos
+  )
 {
-  assert (var_stats.size() == gts.size());
-  assert (var_stats.size() == coverage.size());
+  assert(var_stats.size() == gts.size());
+  assert(var_stats.size() == coverage.size());
 
   if (is_unaligned_read)
   {
@@ -257,7 +261,14 @@ Haplotype::realignment_to_stats(bool const is_unaligned_read, uint32_t const ori
     for (std::size_t i = 0; i < var_stats.size(); ++i)
     {
       if (coverage[i] != 0xFFFFu && coverage[i] != 0xFFFEu)
+      {
+        assert(coverage[i] < var_stats[i].originally_clipped.size());
+
+        if (is_originally_clipped)
+          ++var_stats[i].originally_clipped[coverage[i]];
+
         var_stats[i].add_realignment_distance(coverage[i] /*allele_id*/, original_pos, new_pos);
+      }
     }
   }
 }
@@ -266,8 +277,8 @@ Haplotype::realignment_to_stats(bool const is_unaligned_read, uint32_t const ori
 void
 Haplotype::strand_to_stats(bool const forward_strand, bool const is_first_in_pair)
 {
-  assert (var_stats.size() == gts.size());
-  assert (var_stats.size() == coverage.size());
+  assert(var_stats.size() == gts.size());
+  assert(var_stats.size() == coverage.size());
 
   for (std::size_t i = 0; i < var_stats.size(); ++i)
   {

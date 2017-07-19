@@ -53,7 +53,10 @@ public:
   bool is_indel() const;
   bool is_with_matching_first_bases() const;
   uint64_t get_seq_depth() const;
+  uint64_t get_seq_depth_of_allele(uint16_t const allele_id) const;
+  std::vector<uint64_t> get_seq_depth_of_all_alleles() const;
   uint64_t get_rooted_mapq() const;
+  std::vector<uint64_t> get_rooted_mapq_per_allele() const;
   uint64_t get_qual() const; // Gets quality of record
 
 
