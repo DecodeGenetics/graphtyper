@@ -71,40 +71,6 @@ find_all_nonduplicated_paths(std::vector<gyper::KmerLabel> const & ll,
   return paths;
 }
 
-
-std::vector<gyper::Location>
-get_locations(gyper::Graph const & graph, gyper::Path const & path, bool const START)
-{
-  std::vector<gyper::Location> locs;
-
-  if (START)
-    locs = graph.get_locations_of_a_position(path.start);
-  else
-    locs = graph.get_locations_of_a_position(path.end);
-
-
-
-  auto is_not_in_path_lambda = [&](gyper::Location const & loc) -> bool
-  {
-    for (unsigned i = 0; i < path.var_order.size(); ++i)
-    {
-      if (loc.node_order == path.var_order[i] && !path.nums[i].test(graph.get_variant_num(loc.node_index)))
-        return true;
-    }
-
-    return false;
-  };
-
-  // Remove locations that are on an allele that is not in the path.
-  // NOTE: This process would be (slightly) faster if there was instead a check for this in
-  //       "get_locations_of_a_position(uint32_t)"
-  if (locs.size() > 0 && locs[0].node_type == 'V')
-    locs.erase(std::remove_if(locs.begin(), locs.end(), is_not_in_path_lambda), locs.end());
-
-  return locs;
-}
-
-
 } // anon namespace
 
 
@@ -323,7 +289,7 @@ GenotypePaths::walk_read_ends(seqan::IupacString const & seq, int maximum_mismat
     if (path.read_end_index == seqan::length(seq) - 1)
       continue;
 
-    std::vector<Location> s_locs = get_locations(graph, path, false /*start?*/);
+    std::vector<Location> s_locs = graph.get_locations_of_a_position(path.end, path);
 
     if (s_locs.size() == 0 || s_locs.size() > Options::instance()->MAX_NUM_LOCATIONS_PER_PATH)
       continue;
@@ -401,7 +367,7 @@ GenotypePaths::walk_read_starts(seqan::IupacString const & seq, int maximum_mism
     for (uint32_t i = 0; i <= path.read_start_index; ++i)
       kmer.push_back(seq[i]);
 
-    std::vector<Location> e_locs = get_locations(graph, path, true /*start?*/);
+    std::vector<Location> e_locs = graph.get_locations_of_a_position(path.start, path);
 
     if (e_locs.size() == 0 || e_locs.size() > Options::instance()->MAX_NUM_LOCATIONS_PER_PATH)
       continue;
@@ -481,8 +447,8 @@ GenotypePaths::find_new_variants() const
 
       for (unsigned i = 0; i < reference.size(); ++i)
       {
-        assert (i < seqan::length(read));
-        assert (i < seqan::length(qual));
+        assert(i < seqan::length(read));
+        assert(i < seqan::length(qual));
 
         if (reference[i] != read[i] && read[i] != 'N' /*&& qual[i] >= static_cast<char>(25)*/)
         {
@@ -530,7 +496,7 @@ GenotypePaths::find_new_variants() const
                 // std::cout << "r = " << r << std::endl;
                 // std::cout << "REF = " << std::string(new_var.seqs[0].begin(), new_var.seqs[0].end()) << std::endl;
                 // std::cout << "ALT = " << std::string(new_var.seqs[1].begin(), new_var.seqs[1].end()) << std::endl;
-                assert (new_var.seqs[1].size() > 0);
+                assert(new_var.seqs[1].size() > 0);
                 // std::cout << "READ[r] = " << std::string(read.begin() + r, read.begin() + r + new_var.seqs[1].size()) << std::endl;
                 unsigned const MIN_QUAL = *std::min_element(qual.begin() + r, qual.begin() + r + new_var.seqs[1].size()) - 33u;
                 // std::cout << "minimum quality is " << MIN_QUAL << std::endl;
@@ -576,7 +542,7 @@ GenotypePaths::find_new_variants() const
               // std::cout << "r = " << r << std::endl;
               // std::cout << "REF = " << std::string(new_var.seqs[0].begin(), new_var.seqs[0].end()) << std::endl;
               // std::cout << "ALT = " << std::string(new_var.seqs[1].begin(), new_var.seqs[1].end()) << std::endl;
-              assert (new_var.seqs[1].size() > 0);
+              assert(new_var.seqs[1].size() > 0);
               // std::cout << "READ[r] = " << std::string(read.begin() + r, read.begin() + r + new_var.seqs[1].size()) << std::endl;
               unsigned const MIN_QUAL = *std::min_element(qual.begin() + r, qual.begin() + r + new_var.seqs[1].size()) - 33u;
               // std::cout << "minimum quality is " << MIN_QUAL << std::endl;

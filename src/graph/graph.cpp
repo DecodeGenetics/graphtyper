@@ -16,6 +16,7 @@
 #include <graphtyper/graph/label.hpp>
 #include <graphtyper/graph/node.hpp>
 #include <graphtyper/graph/var_record.hpp>
+#include <graphtyper/typer/path.hpp>
 #include <graphtyper/typer/variant.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
 #include <graphtyper/utilities/options.hpp>
@@ -930,7 +931,7 @@ Graph::get_all_sequences(uint32_t start, uint32_t end) const
 
 
 std::vector<Location>
-Graph::get_locations_of_a_position(uint32_t pos) const
+Graph::get_locations_of_a_position(uint32_t pos, gyper::Path const & path) const
 {
   bool const IS_SPECIAL = is_special_pos(pos);
 
@@ -965,7 +966,7 @@ Graph::get_locations_of_a_position(uint32_t pos) const
                                 pos - ref_nodes[rr].get_label().order /*offset*/
                                 )
                        );
-        break; // There is no way there are also variants with at this location if the position is not special
+        break; // There is no way there are also variants at this location if the position is not special
       }
 
       --rr; // Variants behind the reference can only have this location
@@ -984,13 +985,21 @@ Graph::get_locations_of_a_position(uint32_t pos) const
 
         if (pos >= var_nodes[v].get_label().order and pos <= var_nodes[v].get_label().reach())
         {
-          locs.push_back(
-            {'V' /*type*/,
-             v /*node_id*/,
-             var_nodes[v].get_label().order /*node_order*/,
-             pos - var_nodes[v].get_label().order  /*offset*/
-            }
+          // Only add this node if the path has it
+          auto find_it = std::find(path.var_order.cbegin(), path.var_order.cend(), var_nodes[v].get_label().order);
+          std::size_t const j = std::distance(path.var_order.begin(), find_it);
+          assert (i == this->get_variant_num(v));
+
+          if (j < path.nums.size() && path.nums[j].test(i))
+          {
+            locs.push_back(
+              {'V' /*type*/,
+               v /*node_id*/,
+               var_nodes[v].get_label().order /*node_order*/,
+               pos - var_nodes[v].get_label().order  /*offset*/
+              }
             );
+          }
         }
       }
 

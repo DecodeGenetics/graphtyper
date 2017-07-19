@@ -18,6 +18,7 @@ namespace gyper
 
 class Variant;
 class VarRecord;
+class Path;
 
 using TSVKey = std::tuple<uint32_t, std::vector<char>, std::vector<std::vector<char> > >; // pos, ref, alts
 
@@ -79,7 +80,7 @@ public:
   /*************************
    * GRAPH LOCAL ALIGNMENT *
    *************************/
-  std::vector<Location> get_locations_of_a_position(uint32_t pos) const;
+  std::vector<Location> get_locations_of_a_position(uint32_t pos, gyper::Path const & path) const;
 
   std::vector<KmerLabel>
   get_labels_forward(Location const & s,
