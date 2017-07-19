@@ -171,14 +171,43 @@ align_unpaired_read_pairs(TReads & reads, std::vector<GenotypePaths> & genos)
 
 
 int64_t
-get_insert_size(std::vector<Path>::const_iterator it1, std::vector<Path>::const_iterator it2, bool const REVERSE_COMPLEMENT)
+get_insert_size(std::vector<Path>::const_iterator it1,
+                std::vector<Path>::const_iterator it2,
+                uint32_t const OPTIMAL,
+                bool const REVERSE_COMPLEMENT
+  )
 {
   int64_t distance;
 
   if (REVERSE_COMPLEMENT)
+  {
     distance = static_cast<int64_t>(it1->end_correct_pos()) - static_cast<int64_t>(it2->start_correct_pos());
+    std::vector<Location> ll1 = graph.get_locations_of_a_position(it1->end, *it1);
+    std::vector<Location> ll2 = graph.get_locations_of_a_position(it2->start, *it2);
+    std::vector<int64_t> distances = graph.reference_distance_between_locations(ll1, ll2);
+
+    // std::cerr << "1: " << distance;
+    //
+    // for (auto const d : distances)
+    //   std::cerr << " " << d;
+    //
+    // std::cerr << std::endl;
+  }
   else
+  {
     distance = static_cast<int64_t>(it2->end_correct_pos()) - static_cast<int64_t>(it1->start_correct_pos());
+    std::vector<Location> ll1 = graph.get_locations_of_a_position(it2->end, *it2);
+    std::vector<Location> ll2 = graph.get_locations_of_a_position(it1->start, *it1);
+    std::vector<int64_t> distances = graph.reference_distance_between_locations(ll1, ll2);
+
+    // std::cerr << "2: " << distance;
+    //
+    // for (auto const d : distances)
+    //   std::cerr << " " << d;
+    //
+    // std::cerr << std::endl;
+  }
+
 
   return distance;
 }
@@ -197,7 +226,7 @@ find_shortest_distance(GenotypePaths const & geno1,
   {
     for (auto it2 = geno2.paths.cbegin(); it2 != geno2.paths.cend(); ++it2)
     {
-      int64_t distance = get_insert_size(it1, it2, REVERSE_COMPLEMENT);
+      int64_t distance = get_insert_size(it1, it2, OPTIMAL, REVERSE_COMPLEMENT);
       distance = std::abs(distance - static_cast<int64_t>(OPTIMAL));
       shortest_distance = std::min(distance, shortest_distance);
     }
@@ -224,7 +253,7 @@ remove_distant_paths(GenotypePaths & geno1,
 
       for (auto it2 = geno2.paths.cbegin(); it2 != geno2.paths.cend(); ++it2)
       {
-        int64_t distance = get_insert_size(it1, it2, REVERSE_COMPLEMENT);
+        int64_t distance = get_insert_size(it1, it2, OPTIMAL, REVERSE_COMPLEMENT);
         distance = std::abs(distance - static_cast<int64_t>(OPTIMAL));
 
         if (distance <= SHORTEST_DISTANCE)
@@ -256,7 +285,7 @@ remove_distant_paths(GenotypePaths & geno1,
 
       for (auto it1 = geno1.paths.cbegin(); it1 != geno1.paths.cend(); ++it1)
       {
-        int64_t distance = get_insert_size(it1, it2, REVERSE_COMPLEMENT);
+        int64_t distance = get_insert_size(it1, it2, OPTIMAL, REVERSE_COMPLEMENT);
         distance = std::abs(distance - static_cast<int64_t>(OPTIMAL));
 
         if (distance <= SHORTEST_DISTANCE)

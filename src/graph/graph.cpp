@@ -930,6 +930,44 @@ Graph::get_all_sequences(uint32_t start, uint32_t end) const
 }
 
 
+std::vector<int64_t>
+Graph::reference_distance_between_locations(std::vector<Location> const & ll1, std::vector<Location> const & ll2) const
+{
+  auto get_ref_pos_lambda = [&](Location const & l)
+  {
+    uint32_t pos;
+
+    if (l.node_type == 'R')
+    {
+      pos = l.node_order + l.offset;
+    }
+    else
+    {
+      assert(l.node_type == 'V');
+      uint32_t const node_remainder = var_nodes[l.node_index].get_label().dna.size() - l.offset;
+      pos = this->var_nodes[l.node_index].get_label().reach() + 1 - node_remainder;
+    }
+
+    return pos;
+  };
+
+  std::vector<int64_t> distances;
+
+  for (auto const & l1 : ll1)
+  {
+    uint32_t const ref_pos1 = get_ref_pos_lambda(l1);
+
+    for (auto const & l2 : ll2)
+    {
+      uint32_t const ref_pos2 = get_ref_pos_lambda(l2);
+      distances.push_back(static_cast<int64_t>(ref_pos1) - static_cast<int64_t>(ref_pos2));
+    }
+  }
+
+  return distances;
+}
+
+
 std::vector<Location>
 Graph::get_locations_of_a_position(uint32_t pos, gyper::Path const & path) const
 {
