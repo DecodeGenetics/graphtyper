@@ -22,9 +22,9 @@ namespace gyper
 VarStats::VarStats(uint16_t allele_count) noexcept
   : mapq_allele_root_total(allele_count)
   , mapq_allele_counts(allele_count)
+  , originally_clipped(allele_count)
   , realignment_distance(allele_count)
   , realignment_count(allele_count)
-  , originally_clipped(allele_count)
   , r1_strand_forward(allele_count)
   , r1_strand_reverse(allele_count)
   , r2_strand_forward(allele_count)
