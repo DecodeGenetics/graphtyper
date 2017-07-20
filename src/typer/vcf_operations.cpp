@@ -236,25 +236,23 @@ vcf_merge(std::vector<std::string> vcfs, std::string const & output)
     // MQ requires the generated INFOs
     var.generate_infos();
 
-    // Add MQ and MQperAllele
+    // Add MQ
     {
-      assert (var.infos.count("SeqDepth") == 1);
-      std::string seq_depth_str = var.infos["SeqDepth"];
+      uint64_t const seq_depth = var.get_seq_depth();
 
-      if (seq_depth_str.size() > 0)
+      if (seq_depth > 0)
       {
-        uint64_t const seq_depth = std::strtoull(seq_depth_str.c_str(), NULL, 10);
-
-        if (seq_depth > 0)
-        {
-          var.infos["MQ"] = std::to_string(
-            static_cast<uint16_t>(sqrt(static_cast<double>(total_mapq_root) / static_cast<double>(seq_depth)))
-            );
-        }
+        var.infos["MQ"] = std::to_string(
+          static_cast<uint16_t>(sqrt(static_cast<double>(total_mapq_root) / static_cast<double>(seq_depth)))
+          );
+      }
+      else
+      {
+        var.infos["MQ"] = "255";
       }
     }
 
-    // Add MQperAllele
+    // MQperAllele
     if (total_mapq_per_allele.size() > 0)
     {
       std::ostringstream ss;
