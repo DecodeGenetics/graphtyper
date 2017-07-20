@@ -349,9 +349,8 @@ Graph::get_generated_reference_genome(uint32_t & from, uint32_t & to) const
 
   if (to < from)
   {
-    BOOST_LOG_TRIVIAL(error) << "[graphtyper::graph] Read end is before the reference genome starts.";
+    BOOST_LOG_TRIVIAL(warning) << "[graphtyper::graph] Read end is before the reference genome starts.";
     BOOST_LOG_TRIVIAL(debug) << "reference_offset=" << reference_offset << ", to=" << to << ", from=" << from << ", abs_first_from=" << abs_first_from;
-    std::exit(1);
     return std::vector<char>(0);
   }
 
