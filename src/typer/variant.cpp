@@ -30,6 +30,11 @@ update_strand_bias(std::size_t const num_seqs, std::size_t new_num_seqs, std::ve
   using gyper::get_strand_bias;
   using gyper::join_strand_bias;
 
+  std::vector<uint32_t> originally_cropped = get_strand_bias(var.infos, "CRAligner");
+
+  std::vector<uint32_t> mq_per_allele = get_strand_bias(var.infos, "MQperAllele");
+  std::vector<uint64_t> seq_depths = var.get_seq_depth_of_all_alleles();
+
   std::vector<uint32_t> sbf = get_strand_bias(var.infos, "SBF");
   std::vector<uint32_t> sbr = get_strand_bias(var.infos, "SBR");
 
@@ -43,6 +48,11 @@ update_strand_bias(std::size_t const num_seqs, std::size_t new_num_seqs, std::ve
 
   if (sbf.size() > 0 && sbr.size() > 0)
   {
+    std::vector<uint32_t> new_originally_cropped(new_num_seqs, 0u);
+
+    std::vector<uint64_t> new_mq_rooted(new_num_seqs, 0u);
+    std::vector<uint64_t> new_seq_depths(new_num_seqs, 0u);
+
     std::vector<uint32_t> new_sbf(new_num_seqs, 0u);
     std::vector<uint32_t> new_sbr(new_num_seqs, 0u);
 
@@ -59,12 +69,19 @@ update_strand_bias(std::size_t const num_seqs, std::size_t new_num_seqs, std::ve
       uint32_t new_y = old_phred_to_new_phred[y];
 
       assert(new_y < new_num_seqs);
+      assert(y < mq_per_allele.size());
+      assert(y < seq_depths.size());
       assert(y < sbf.size());
       assert(y < sbr.size());
       assert(y < sbf1.size());
       assert(y < sbf2.size());
       assert(y < sbr1.size());
       assert(y < sbr2.size());
+
+      new_originally_cropped[new_y] += originally_cropped[y];
+
+      new_mq_rooted[new_y] += mq_per_allele[y] * mq_per_allele[y] * seq_depths[y];
+      new_seq_depths[new_y] += seq_depths[y];
 
       new_sbf[new_y] += sbf[y];
       new_sbr[new_y] += sbr[y];
@@ -78,6 +95,28 @@ update_strand_bias(std::size_t const num_seqs, std::size_t new_num_seqs, std::ve
       new_ra_dist[new_y] += ra_dist[y];
     }
 
+    {
+      std::ostringstream ss;
+      std::size_t m = 0;
+
+      if (new_seq_depths[m] > 0)
+        ss << static_cast<uint16_t>(sqrt(static_cast<double>(new_mq_rooted[m]) / static_cast<double>(new_seq_depths[m])));
+      else
+        ss << 255u;
+
+      for (m = 1; m < new_num_seqs; ++m)
+      {
+        if (new_seq_depths[m] > 0)
+          ss << ',' << static_cast<uint16_t>(sqrt(static_cast<double>(new_mq_rooted[m]) / static_cast<double>(new_seq_depths[m])));
+        else
+          ss << ',' << 255u;
+      }
+
+      new_var.infos["MQperAllele"] = ss.str();
+    }
+
+    new_var.infos["CRAligner"] = join_strand_bias(new_originally_cropped);
+
     new_var.infos["SBF"] = join_strand_bias(new_sbf);
     new_var.infos["SBR"] = join_strand_bias(new_sbr);
 
@@ -90,6 +129,7 @@ update_strand_bias(std::size_t const num_seqs, std::size_t new_num_seqs, std::ve
     new_var.infos["RADist"] = join_strand_bias(new_ra_dist);
   }
 }
+
 
 void
 find_variant_sequences(gyper::Variant & new_var, gyper::Variant const & old_var)
@@ -787,9 +827,39 @@ Variant::get_seq_depth() const
 
 
 uint64_t
+Variant::get_seq_depth_of_allele(uint16_t const allele_id) const
+{
+  uint64_t seqdepth = 0;
+
+  for (auto const & sample_call : calls)
+  {
+    assert(allele_id < sample_call.coverage.size());
+    seqdepth += sample_call.coverage[allele_id];
+  }
+
+  return seqdepth;
+}
+
+
+std::vector<uint64_t>
+Variant::get_seq_depth_of_all_alleles() const
+{
+  std::vector<uint64_t> seq_depths;
+  seq_depths.reserve(this->seqs.size());
+
+  for (std::size_t i = 0; i < this->seqs.size(); ++i)
+  {
+    seq_depths.push_back(this->get_seq_depth_of_allele(i));
+  }
+
+  return seq_depths;
+}
+
+
+uint64_t
 Variant::get_rooted_mapq() const
 {
-  uint64_t const seq_depth = get_seq_depth();
+  uint64_t const seq_depth = this->get_seq_depth();
   auto find_it = infos.find("MQ");
 
   if (find_it != infos.end())
@@ -800,6 +870,31 @@ Variant::get_rooted_mapq() const
 
   BOOST_LOG_TRIVIAL(warning) << "[graphtyper::variant] Could not extract MQ.";
   return 60ul * 60ul * seq_depth; // This is nasty, but I think this is the nicest way to go without making things so much more complicated.
+}
+
+std::vector<uint64_t>
+Variant::get_rooted_mapq_per_allele() const
+{
+  auto find_it = infos.find("MQperAllele");
+
+  if (find_it == infos.end())
+  {
+    uint64_t const seq_depth = this->get_seq_depth();
+    return std::vector<uint64_t>(this->seqs.size(), 60ul * 60ul * seq_depth);
+  }
+
+  std::vector<uint64_t> rooted_mapq_per_allele;
+  std::vector<uint32_t> mapq_per_allele = get_strand_bias(this->infos, "MQperAllele");
+  assert(mapq_per_allele.size() == seqs.size());
+  rooted_mapq_per_allele.reserve(seqs.size());
+
+  for (std::size_t i = 0; i < seqs.size(); ++i)
+  {
+    uint64_t const seq_depth = this->get_seq_depth_of_allele(i);
+    rooted_mapq_per_allele.push_back(static_cast<uint64_t>(mapq_per_allele[i] * mapq_per_allele[i]) * seq_depth);
+  }
+
+  return rooted_mapq_per_allele;
 }
 
 

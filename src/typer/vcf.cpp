@@ -296,6 +296,8 @@ Vcf::read_record()
           new_var.infos["AC"] = std::string(info_key_value.begin() + 3, info_key_value.end()); // Get AC so vcf_break_down can first remove uncalled alleles
         else if (same_prefix(info_key_value, std::string("CR=")))
           new_var.infos["CR"] = std::string(info_key_value.begin() + 3, info_key_value.end());
+        else if (same_prefix(info_key_value, std::string("CRAligner=")))
+          new_var.infos["CRAligner"] = std::string(info_key_value.begin() + 10, info_key_value.end());
         else if (same_prefix(info_key_value, std::string("GX=")))
           new_var.infos["GX"] = std::string(info_key_value.begin() + 3, info_key_value.end());
         else if (same_prefix(info_key_value, std::string("PS=")))
@@ -304,6 +306,8 @@ Vcf::read_record()
           new_var.infos["MQ"] = std::string(info_key_value.begin() + 3, info_key_value.end());
         else if (same_prefix(info_key_value, std::string("MQ0=")))
           new_var.infos["MQ0"] = std::string(info_key_value.begin() + 4, info_key_value.end());
+        else if (same_prefix(info_key_value, std::string("MQperAllele=")))
+          new_var.infos["MQperAllele"] = std::string(info_key_value.begin() + 12, info_key_value.end());
         else if (same_prefix(info_key_value, std::string("RACount=")))
           new_var.infos["RACount"] = std::string(info_key_value.begin() + 8, info_key_value.end());
         else if (same_prefix(info_key_value, std::string("RADist=")))
@@ -526,12 +530,14 @@ Vcf::write_header()
     *vcf_file << "##INFO=<ID=ABHomMulti,Number=R,Type=Float,Description=\"List of Allele Balance values for multiallelic homozygous calls (A/(A+0)) where A is the called allele and O is anything else. Each value corresponds to a ref or alt in the same order as they appear. -1 if not available.\">\n";
     *vcf_file << "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Number of alternate alleles in called genotypes.\">\n";
     *vcf_file << "##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Number of alleles in called genotypes.\">\n";
-    *vcf_file << "##INFO=<ID=CR,Number=1,Type=Integer,Description=\"Number of clipped reads.\">\n";
+    *vcf_file << "##INFO=<ID=CR,Number=1,Type=Integer,Description=\"Number of clipped reads by Graphtyper.\">\n";
+    *vcf_file << "##INFO=<ID=CRAligner,Number=R,Type=Integer,Description=\"Number of clipped reads by the global read aligner.\">\n";
     *vcf_file << "##INFO=<ID=GX,Number=1,Type=Integer,Description=\"Graph complexity, 10*log10(#paths around the variant).\">\n";
     *vcf_file << "##INFO=<ID=MaxAAS,Number=A,Type=Integer,Description=\"Maximum alternative allele support per alt. allele.\">\n";
     *vcf_file << "##INFO=<ID=MaxAASR,Number=A,Type=Float,Description=\"Maximum alternative allele support ratio per alt. allele.\">\n";
     *vcf_file << "##INFO=<ID=MQ,Number=1,Type=Integer,Description=\"Root-mean-square mapping quality.\">\n";
     *vcf_file << "##INFO=<ID=MQ0,Number=1,Type=Integer,Description=\"Number of reads with MQ=0.\">\n";
+    *vcf_file << "##INFO=<ID=MQperAllele,Number=R,Type=Integer,Description=\"Mapping quality of reads aligned to each allele.\">\n";
     *vcf_file << "##INFO=<ID=QD,Number=1,Type=Float,Description=\"QUAL divided by NonReferenceSeqDepth.\">\n";
     *vcf_file << "##INFO=<ID=PS,Number=1,Type=Integer,Description=\"Unique ID of the phase set this variant is a member of. "
               << "If the calls are unphased, it is used to represent which haplotype set the variant is a member of.\">\n";
@@ -919,9 +925,11 @@ Vcf::add_haplotype(Haplotype & haplotype, bool const clear_haplotypes, uint32_t 
   for (std::size_t i = 0; i < new_vars.size(); ++i)
   {
     new_vars[i].infos["CR"] = std::to_string(haplotype.var_stats[i].clipped_reads);
+    new_vars[i].infos["CRAligner"] = haplotype.var_stats[i].get_originally_clipped_reads();
     new_vars[i].infos["GX"] = std::to_string(haplotype.var_stats[i].graph_complexity);
     new_vars[i].infos["MQ"] = std::to_string(haplotype.var_stats[i].get_rms_mapq());
     new_vars[i].infos["MQ0"] = std::to_string(haplotype.var_stats[i].mapq_zero_count);
+    new_vars[i].infos["MQperAllele"] = haplotype.var_stats[i].get_rms_mapq_per_allele();
     new_vars[i].infos["PS"] = std::to_string(phase_set);
     new_vars[i].infos["RACount"] = haplotype.var_stats[i].get_realignment_count();
     new_vars[i].infos["RADist"] = haplotype.var_stats[i].get_realignment_distance();

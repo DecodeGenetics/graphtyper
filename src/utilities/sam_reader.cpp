@@ -81,7 +81,7 @@ SamReader::read_N_reads(std::size_t const N)
           {
             seqan::erase(record.seq, 0, i);
             seqan::erase(record.qual, 0, i);
-            seqan::clear(record.cigar);
+            seqan::clear(record.cigar); // Clear CIGAR as it is incorrect now
           }
 
           break;
@@ -89,7 +89,7 @@ SamReader::read_N_reads(std::size_t const N)
       }
 
       // The minimum read length is 2 overlapping k-mers
-      std::size_t const MIN_READ_LENGTH = Options::instance()->is_segment_calling ? 3 * K - 1 : 2 * K - 1;
+      std::size_t const MIN_READ_LENGTH = 2 * K - 1;
 
       // Remove Ns from back
       while (seqan::length(record.seq) >= MIN_READ_LENGTH && seqan::back(record.seq) == seqan::Iupac('N'))

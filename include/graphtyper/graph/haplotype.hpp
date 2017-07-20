@@ -74,7 +74,12 @@ public:
   void clipped_reads_to_stats(bool const fully_aligned);
   void graph_complexity_to_stats();
   void mapq_to_stats(uint8_t const mapq);
-  void realignment_to_stats(bool const is_unaligned_read, uint32_t const original_pos, uint32_t const new_pos);
+  void realignment_to_stats(bool const is_unaligned_read,
+                            bool const is_originally_clipped,
+                            uint32_t const original_pos,
+                            uint32_t const new_pos
+    );
+
   void strand_to_stats(bool const forward_strand, bool const is_first_in_pair);
   void coverage_to_gts(std::size_t const pn_index);
   std::bitset<MAX_NUMBER_OF_HAPLOTYPES> explain_to_path_explain();

@@ -5,7 +5,7 @@
 #include <map> // std::map<Key, Value>
 #include <numeric> // std::accumulate
 #include <string> // std::string
-#include <sstream> // std::stringstream
+#include <sstream> // std::ostringstream
 #include <vector> // std::vector
 
 #include <boost/algorithm/string/split.hpp> // boost::split
@@ -20,7 +20,10 @@ namespace gyper
 {
 
 VarStats::VarStats(uint16_t allele_count) noexcept
-  : realignment_distance(allele_count)
+  : mapq_allele_root_total(allele_count)
+  , mapq_allele_counts(allele_count)
+  , originally_clipped(allele_count)
+  , realignment_distance(allele_count)
   , realignment_count(allele_count)
   , r1_strand_forward(allele_count)
   , r1_strand_reverse(allele_count)
@@ -30,7 +33,7 @@ VarStats::VarStats(uint16_t allele_count) noexcept
 
 
 void
-VarStats::add_mapq(uint8_t const new_mapq)
+VarStats::add_mapq(uint8_t allele_id, uint8_t const new_mapq)
 {
   // Ignore MapQ == 255, that means MapQ is unavailable
   if (new_mapq < 255u)
@@ -40,7 +43,14 @@ VarStats::add_mapq(uint8_t const new_mapq)
     if (new_mapq == 0u)
       ++mapq_zero_count;
     else
-      mapq_root_total += static_cast<uint64_t>(new_mapq) * static_cast<uint64_t>(new_mapq); // Mapping quality rooted
+      mapq_root_total += static_cast<uint64_t>(new_mapq) * static_cast<uint64_t>(new_mapq); // Mapping quality squared
+
+    // Per allele stats
+    assert(allele_id < mapq_allele_counts.size());
+    assert(allele_id < mapq_allele_root_total.size());
+
+    ++mapq_allele_counts[allele_id];
+    mapq_allele_root_total[allele_id] += static_cast<uint64_t>(new_mapq) * static_cast<uint64_t>(new_mapq);
   }
 }
 
@@ -72,6 +82,34 @@ VarStats::get_rms_mapq() const
   else
     return 255u;
 }
+
+
+std::string
+VarStats::get_rms_mapq_per_allele() const
+{
+  std::vector<uint64_t> rms_mapq_per_allele(mapq_allele_counts.size(), 255u);
+
+  for (std::size_t i = 0; i < rms_mapq_per_allele.size(); ++i)
+  {
+    if (mapq_allele_counts[i] > 0)
+    {
+      rms_mapq_per_allele[i] =
+        static_cast<uint64_t>(
+          sqrt(static_cast<double>(mapq_allele_root_total[i]) / static_cast<double>(mapq_allele_counts[i]))
+        );
+    }
+  }
+
+  return join_strand_bias(rms_mapq_per_allele);
+}
+
+
+std::string
+VarStats::get_originally_clipped_reads() const
+{
+  return join_strand_bias(this->originally_clipped);
+}
+
 
 std::string
 VarStats::get_realignment_count() const
@@ -105,7 +143,7 @@ VarStats::get_reverse_strand_bias() const
 std::string
 VarStats::get_unaligned_count() const
 {
-  std::stringstream ss;
+  std::ostringstream ss;
   ss << this->unaligned_reads;
   return ss.str();
 }
@@ -140,8 +178,9 @@ VarStats::get_r2_reverse_strand_bias() const
 
 
 /** Non-member functions */
+template<class T>
 std::string
-join_strand_bias(std::vector<uint32_t> const & bias)
+join_strand_bias(std::vector<T> const & bias)
 {
   if (bias.size() == 0)
     return std::string(".");
@@ -154,6 +193,10 @@ join_strand_bias(std::vector<uint32_t> const & bias)
 
   return ss.str();
 }
+
+// Explicit instantiation
+template std::string join_strand_bias(std::vector<uint32_t> const & bias);
+template std::string join_strand_bias(std::vector<uint64_t> const & bias);
 
 
 std::string

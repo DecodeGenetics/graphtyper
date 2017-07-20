@@ -1,6 +1,7 @@
 #include <cmath> // sqrt
 #include <iostream> // std::cout, std::endl
 #include <string> // std::string
+#include <sstream> // std::ostringstream
 #include <vector> // std::vector
 
 #include <boost/log/trivial.hpp> // BOOST_LOG_TRIVIAL
@@ -86,6 +87,9 @@ vcf_merge(std::vector<std::string> vcfs, std::string const & output)
       if (find_it != var.infos.end())
         mapq_zero_count = std::strtoull(find_it->second.c_str(), NULL, 10);
     }
+
+    // MQperAllele
+    std::vector<uint64_t> total_mapq_per_allele = var.get_rooted_mapq_per_allele();
 
     // SBF and SBR
     std::vector<uint32_t> strand_forward;
@@ -173,6 +177,15 @@ vcf_merge(std::vector<std::string> vcfs, std::string const & output)
           mapq_zero_count += std::strtoull(find_it->second.c_str(), NULL, 10);
       }
 
+      // Get MQperAllele
+      {
+        std::vector<uint64_t> new_mapq_per_allele = next_vcf.variants[0].get_rooted_mapq_per_allele();
+        assert(new_mapq_per_allele.size() == total_mapq_per_allele.size());
+
+        for (std::size_t m = 0; m < new_mapq_per_allele.size(); ++m)
+          total_mapq_per_allele[m] += new_mapq_per_allele[m];
+      }
+
       // Get SBF and SBR
       {
         auto add_to_bias_lambda = [&](std::string id, std::vector<uint32_t> & bias)
@@ -220,21 +233,48 @@ vcf_merge(std::vector<std::string> vcfs, std::string const & output)
     var.infos["RACount"] = join_strand_bias(realignment_count);
     var.infos["RADist"] = join_strand_bias(realignment_distance);
 
-    // MQ requirsed the generate INFOs
+    // MQ requires the generated INFOs
     var.generate_infos();
 
     // Add MQ
     {
-      assert (var.infos.count("SeqDepth") == 1);
-      std::string seq_depth_str = var.infos["SeqDepth"];
+      uint64_t const seq_depth = var.get_seq_depth();
 
-      if (seq_depth_str.size() > 0)
+      if (seq_depth > 0)
       {
-        uint64_t const seq_depth = std::strtoull(seq_depth_str.c_str(), NULL, 10);
+        var.infos["MQ"] = std::to_string(
+          static_cast<uint16_t>(sqrt(static_cast<double>(total_mapq_root) / static_cast<double>(seq_depth)))
+          );
+      }
+      else
+      {
+        var.infos["MQ"] = "255";
+      }
+    }
+
+    // MQperAllele
+    if (total_mapq_per_allele.size() > 0)
+    {
+      std::ostringstream ss;
+      std::size_t m = 0;
+      uint64_t seq_depth = var.get_seq_depth_of_allele(0);
+
+      if (seq_depth > 0)
+        ss << static_cast<uint16_t>(sqrt(static_cast<double>(total_mapq_per_allele[m]) / static_cast<double>(seq_depth)));
+      else
+        ss << 255u;
+
+      for (m = 1; m < total_mapq_per_allele.size(); ++m)
+      {
+        seq_depth = var.get_seq_depth_of_allele(m);
 
         if (seq_depth > 0)
-          var.infos["MQ"] = std::to_string(static_cast<uint16_t>(sqrt(static_cast<double>(total_mapq_root) / static_cast<double>(seq_depth))));
+          ss << ',' << static_cast<uint16_t>(sqrt(static_cast<double>(total_mapq_per_allele[m]) / static_cast<double>(seq_depth)));
+        else
+          ss << ',' << 255u;
       }
+
+      var.infos["MQperAllele"] = ss.str();
     }
 
     // Add MQ0
