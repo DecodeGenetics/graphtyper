@@ -1,9 +1,10 @@
-Graphtyper is a population-scale genotype caller. It represents a reference genome + known variants of a genomic region using an acyclic mathematical graph structure (a "pangenome reference"), which sequence reads are re-aligned to for the purpose of genotyping sequenced samples.
+# Graphtyper
+Graphtyper is a highly scalable genotyping software. It represents a reference genome and known variants of a genomic region using an acyclic mathematical graph structure (a "pangenome reference"), which high-throughput sequence reads are re-aligned to for the purpose of discovering and genotyping SNPs and small indels.
 
-Main author and software maintainer: Hannes Pétur Eggertsson (Hannes.Eggertsson@decode.is)
+First author and software maintainer: Hannes Pétur Eggertsson (Hannes.Eggertsson@decode.is)
 
 ## Citation
-Graphtyper manuscript has not yet been published in a journal, so please cite our [preprint](http://biorxiv.org/content/early/2017/06/09/148403):
+The Graphtyper manuscript has not yet been published in a journal, so please cite our [preprint](http://biorxiv.org/content/early/2017/06/09/148403):
 
 `
 Hannes P. Eggertsson, Hakon Jonsson, Snaedis Kristmundsdottir, Eirikur Hjartarson, Birte Kehr, Gisli Masson, Florian Zink, Aslaug Jonasdottir, Adalbjorg Jonasdottir, Ingileif Jonsdottir, Daniel F. Gudbjartsson, Pall Melsted, Kari Stefansson, Bjarni V. Halldorsson. 2017. Graphtyper: Population-scale genotyping using pangenome graphs. bioRxiv doi: 10.1101/123456
@@ -11,8 +12,8 @@ Hannes P. Eggertsson, Hakon Jonsson, Snaedis Kristmundsdottir, Eirikur Hjartarso
 
 ## Getting started
 ### Dependencies
-To get started on using Graphtyper, you'll need the following:
-* C++ compiler with C++11 supported (we currently test using gcc 4.8.5 and gcc 5.4.0)
+Before installing Graphtyper you'll need the following:
+* C++ compiler with C++11 supported (we mostly use gcc 4.8.5, gcc 5.4.0, and the latest gcc 6 and 7 releases)
 * Boost>=1.57.0
 * zlib>=1.2.8
 * libbz2
