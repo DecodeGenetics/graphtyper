@@ -8,13 +8,15 @@ namespace gyper
 {
 
 SampleCall::SampleCall() noexcept
-  // : ambiguous_depth(0)
+   : ambiguous_depth(0)
 {}
 
-SampleCall::SampleCall(std::vector<uint8_t> const & _phred, std::vector<uint16_t> const & _coverage/*, uint8_t const & _ambiguous_depth*/) noexcept
+SampleCall::SampleCall(std::vector<uint8_t> const & _phred,
+                       std::vector<uint16_t> const & _coverage,
+                       uint8_t const _ambiguous_depth) noexcept
   : phred(_phred)
   , coverage(_coverage)
-  // , ambiguous_depth(_ambiguous_depth)
+  , ambiguous_depth(_ambiguous_depth)
 {}
 
 

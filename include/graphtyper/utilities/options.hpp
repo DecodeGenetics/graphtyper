@@ -66,6 +66,11 @@ public:
   bool output_all_variants = false;
   bool always_query_hamming_distance_one = false;
 
+  // Insert size options
+  uint32_t max_insert_size = 1000;
+  uint32_t optimal_insert_size = 330;
+  uint32_t max_insert_size_threshold = 40; // Allowed threshold from the optimal insert size to be considered HQ
+
   // Caching options
   bool use_read_cache = false;
   uint16_t read_cache_maximum_mismatches = 0;

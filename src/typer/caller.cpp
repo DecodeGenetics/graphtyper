@@ -55,7 +55,8 @@ caller(std::shared_ptr<TReads> reads,
 
   if (seqan::length((*reads)[0].second.seq) == 0)
   {
-    if (!Options::instance()->is_segment_calling) // Do not process unpaired reads when calling segments
+    // Do not process unpaired reads when calling segments
+    if (!Options::instance()->is_segment_calling && !Options::instance()->hq_reads)
     {
       // The reads are unpaired
       std::vector<GenotypePaths> genos;
@@ -240,12 +241,16 @@ call(std::vector<std::string> hts_paths,
     HaplotypeCalls hap_calls(writer->get_haplotype_calls());
     BOOST_LOG_TRIVIAL(info) << "[graphtyper::caller] Writing haplotype calls to '" << hap_calls_path.str() << "'";
     save_calls(hap_calls, hap_calls_path.str());
-    BOOST_LOG_TRIVIAL(info) << "[graphtyper::caller] Writing calls to '" << output_dir << "/" << pn << "_calls.vcf.gz'";
+    BOOST_LOG_TRIVIAL(info) << "[graphtyper::caller] Writing calls to '"
+                            << output_dir
+                            << "/"
+                            << pn
+                            << "_calls.vcf.gz'";
 
     for (unsigned ps = 0; ps < writer->haplotypes.size(); ++ps)
       vcf->add_haplotype(writer->haplotypes[ps], true /*clear haplotypes*/, ps);
 
-    vcf->post_process_variants();
+    vcf->post_process_variants(false /*normalize variants?*/, true /*trim variant sequences?*/);
     vcf->write();
   }
 
@@ -253,7 +258,12 @@ call(std::vector<std::string> hts_paths,
   if (!gyper::Options::instance()->no_new_variants)
   {
     std::ostringstream discovery_vcf_path;
-    BOOST_LOG_TRIVIAL(info) << "[graphtyper::caller] Writing discovery results to '" << output_dir << "/" << pn << "_variants.vcf.gz'";
+    BOOST_LOG_TRIVIAL(info) << "[graphtyper::caller] Writing discovery results to '"
+                            << output_dir
+                            << "/"
+                            << pn
+                            << "_variants.vcf.gz'";
+
     discovery_vcf_path << output_dir << "/" << pn << "_variants.vcf.gz";
     global_varmap.create_varmap_for_all();
     global_varmap.filter_varmap_for_all();

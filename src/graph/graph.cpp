@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <assert.h>
 #include <iostream>
+#include <unordered_set> // std::unordered_set
 
 #include <seqan/basic.h>
 #include <seqan/sequence.h>
@@ -16,6 +17,7 @@
 #include <graphtyper/graph/label.hpp>
 #include <graphtyper/graph/node.hpp>
 #include <graphtyper/graph/var_record.hpp>
+#include <graphtyper/typer/path.hpp>
 #include <graphtyper/typer/variant.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
 #include <graphtyper/utilities/options.hpp>
@@ -928,8 +930,46 @@ Graph::get_all_sequences(uint32_t start, uint32_t end) const
 }
 
 
+std::unordered_set<int64_t>
+Graph::reference_distance_between_locations(std::vector<Location> const & ll1, std::vector<Location> const & ll2) const
+{
+  auto get_ref_pos_lambda = [&](Location const & l)
+  {
+    uint32_t pos;
+
+    if (l.node_type == 'R')
+    {
+      pos = l.node_order + l.offset;
+    }
+    else
+    {
+      assert(l.node_type == 'V');
+      uint32_t const node_remainder = var_nodes[l.node_index].get_label().dna.size() - l.offset;
+      pos = this->var_nodes[l.node_index].get_label().reach() + 1 - node_remainder;
+    }
+
+    return pos;
+  };
+
+  std::unordered_set<int64_t> distance_map;
+
+  for (auto const & l1 : ll1)
+  {
+    uint32_t const ref_pos1 = get_ref_pos_lambda(l1);
+
+    for (auto const & l2 : ll2)
+    {
+      uint32_t const ref_pos2 = get_ref_pos_lambda(l2);
+      distance_map.insert(static_cast<int64_t>(ref_pos2) - static_cast<int64_t>(ref_pos1));
+    }
+  }
+
+  return distance_map;
+}
+
+
 std::vector<Location>
-Graph::get_locations_of_a_position(uint32_t pos) const
+Graph::get_locations_of_a_position(uint32_t pos, gyper::Path const & path) const
 {
   bool const IS_SPECIAL = is_special_pos(pos);
 
@@ -964,7 +1004,7 @@ Graph::get_locations_of_a_position(uint32_t pos) const
                                 pos - ref_nodes[rr].get_label().order /*offset*/
                                 )
                        );
-        break; // There is no way there are also variants with at this location if the position is not special
+        break; // There is no way there are also variants at this location if the position is not special
       }
 
       --rr; // Variants behind the reference can only have this location
@@ -973,7 +1013,7 @@ Graph::get_locations_of_a_position(uint32_t pos) const
     // Check variants behind this reference
     while (rr >= 0)
     {
-      // Assume there is now variants larger than 10000 bp
+      // Assume there is no variants larger than 10000 bp
       if (ref_nodes[rr].get_label().order + 10000 <= pos)
         break;
 
@@ -983,13 +1023,21 @@ Graph::get_locations_of_a_position(uint32_t pos) const
 
         if (pos >= var_nodes[v].get_label().order and pos <= var_nodes[v].get_label().reach())
         {
-          locs.push_back(
-            {'V' /*type*/,
-             v /*node_id*/,
-             var_nodes[v].get_label().order /*node_order*/,
-             pos - var_nodes[v].get_label().order  /*offset*/
-            }
+          // Only add this node if the path has it
+          auto find_it = std::find(path.var_order.cbegin(), path.var_order.cend(), var_nodes[v].get_label().order);
+          std::size_t const j = std::distance(path.var_order.begin(), find_it);
+          assert (i == this->get_variant_num(v));
+
+          if (j < path.nums.size() && path.nums[j].test(i))
+          {
+            locs.push_back(
+              {'V' /*type*/,
+               v /*node_id*/,
+               var_nodes[v].get_label().order /*node_order*/,
+               pos - var_nodes[v].get_label().order  /*offset*/
+              }
             );
+          }
         }
       }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <boost/serialization/access.hpp>
@@ -18,6 +19,7 @@ namespace gyper
 
 class Variant;
 class VarRecord;
+class Path;
 
 using TSVKey = std::tuple<uint32_t, std::vector<char>, std::vector<std::vector<char> > >; // pos, ref, alts
 
@@ -79,7 +81,12 @@ public:
   /*************************
    * GRAPH LOCAL ALIGNMENT *
    *************************/
-  std::vector<Location> get_locations_of_a_position(uint32_t pos) const;
+  std::unordered_set<int64_t>
+  reference_distance_between_locations(std::vector<Location> const & ll1,
+                                       std::vector<Location> const & ll2
+    ) const;
+
+  std::vector<Location> get_locations_of_a_position(uint32_t pos, gyper::Path const & path) const;
 
   std::vector<KmerLabel>
   get_labels_forward(Location const & s,

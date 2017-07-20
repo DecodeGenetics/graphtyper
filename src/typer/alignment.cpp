@@ -183,15 +183,55 @@ align_unpaired_read_pairs(TReads & reads, std::vector<GenotypePaths> & genos)
 
 
 int64_t
-find_shortest_distance(GenotypePaths const & geno1, GenotypePaths const & geno2)
+get_insert_size(std::vector<Path>::const_iterator it1,
+                std::vector<Path>::const_iterator it2,
+                uint32_t const OPTIMAL,
+                bool const REVERSE_COMPLEMENT
+  )
 {
-  int64_t shortest_distance = 0xFFFFFFFFFFFFFFFFull;
+  std::unordered_set<int64_t> distances;
+
+  if (REVERSE_COMPLEMENT)
+  {
+    std::vector<Location> ll1 = graph.get_locations_of_a_position(it2->start, *it2);
+    std::vector<Location> ll2 = graph.get_locations_of_a_position(it1->end, *it1);
+    distances = graph.reference_distance_between_locations(ll1, ll2);
+  }
+  else
+  {
+    std::vector<Location> ll1 = graph.get_locations_of_a_position(it1->start, *it1);
+    std::vector<Location> ll2 = graph.get_locations_of_a_position(it2->end, *it2);
+    distances = graph.reference_distance_between_locations(ll1, ll2);
+  }
+
+  // Find the distance which is closest to the OPTIMAL
+  int64_t best_distance = 0x00000000FFFFFFFFll;
+
+  for (auto it = distances.begin(); it != distances.end(); ++it)
+  {
+    if (std::llabs(*it - OPTIMAL) < std::llabs(best_distance - OPTIMAL))
+      best_distance = *it;
+  }
+
+  return best_distance;
+}
+
+
+int64_t
+find_shortest_distance(GenotypePaths const & geno1,
+                       GenotypePaths const & geno2,
+                       uint32_t const OPTIMAL,
+                       bool const REVERSE_COMPLEMENT
+  )
+{
+  int64_t shortest_distance = 0x00000000FFFFFFFFll;
 
   for (auto it1 = geno1.paths.cbegin(); it1 != geno1.paths.cend(); ++it1)
   {
     for (auto it2 = geno2.paths.cbegin(); it2 != geno2.paths.cend(); ++it2)
     {
-      int64_t const distance = std::abs(static_cast<int64_t>(it1->start_ref_reach_pos()) - static_cast<int64_t>(it2->start_ref_reach_pos()));
+      int64_t distance = get_insert_size(it1, it2, OPTIMAL, REVERSE_COMPLEMENT);
+      distance = std::abs(distance - static_cast<int64_t>(OPTIMAL));
       shortest_distance = std::min(distance, shortest_distance);
     }
   }
@@ -201,27 +241,69 @@ find_shortest_distance(GenotypePaths const & geno1, GenotypePaths const & geno2)
 
 
 void
-remove_distant_paths(GenotypePaths & geno1, GenotypePaths const & geno2, int64_t const SHORTEST_DISTANCE)
+remove_distant_paths(GenotypePaths & geno1,
+                     GenotypePaths & geno2,
+                     int64_t const SHORTEST_DISTANCE,
+                     uint32_t const OPTIMAL,
+                     bool const REVERSE_COMPLEMENT
+  )
 {
-  auto it1 = geno1.paths.begin();
-
-  while (it1 != geno1.paths.end())
   {
-    bool found_close_match = false;
+    auto it1 = geno1.paths.begin();
 
-    for (auto it2 = geno2.paths.cbegin(); it2 != geno2.paths.cend(); ++it2)
+    while (it1 != geno1.paths.end())
     {
-      if (std::abs(static_cast<int64_t>(it1->start_ref_reach_pos()) - static_cast<int64_t>(it2->start_ref_reach_pos())) <= SHORTEST_DISTANCE)
-      {
-        found_close_match = true;
-        break;
-      }
-    }
+      bool found_close_match = false;
 
-    if (not found_close_match)
-      it1 = geno1.paths.erase(it1); // Didn't find anyone close
-    else
-      ++it1;
+      for (auto it2 = geno2.paths.cbegin(); it2 != geno2.paths.cend(); ++it2)
+      {
+        int64_t distance = get_insert_size(it1, it2, OPTIMAL, REVERSE_COMPLEMENT);
+        distance = std::abs(distance - static_cast<int64_t>(OPTIMAL));
+
+        if (distance <= SHORTEST_DISTANCE)
+        {
+          found_close_match = true;
+          break;
+        }
+      }
+
+      if (not found_close_match)
+        it1 = geno1.paths.erase(it1); // Didn't find anyone close
+      else
+        ++it1;
+    }
+  }
+
+  if (geno1.paths.size() == 0)
+  {
+    geno1.clear_paths(); // call clear_paths to reset the maximum path length
+    geno2.clear_paths();
+  }
+  else
+  {
+    auto it2 = geno2.paths.begin();
+
+    while (it2 != geno2.paths.end())
+    {
+      bool found_close_match = false;
+
+      for (auto it1 = geno1.paths.cbegin(); it1 != geno1.paths.cend(); ++it1)
+      {
+        int64_t distance = get_insert_size(it1, it2, OPTIMAL, REVERSE_COMPLEMENT);
+        distance = std::abs(distance - static_cast<int64_t>(OPTIMAL));
+
+        if (distance <= SHORTEST_DISTANCE)
+        {
+          found_close_match = true;
+          break;
+        }
+      }
+
+      if (not found_close_match)
+        it2 = geno2.paths.erase(it2); // Didn't find anyone close
+      else
+        ++it2;
+    }
   }
 }
 
@@ -296,9 +378,44 @@ find_haplotype_paths(std::vector<seqan::Dna5String> const & sequences)
 }
 
 
+bool
+support_same_path(std::pair<GenotypePaths, GenotypePaths> const & genos)
+{
+  using ReadExplain = std::unordered_map<uint32_t, std::bitset<MAX_NUMBER_OF_HAPLOTYPES> >; // Variant order to explain
+  ReadExplain read_explain1;
+  ReadExplain read_explain2;
+
+  for (auto const & path : genos.first.paths)
+  {
+    for (unsigned i = 0; i < path.var_order.size(); ++i)
+      read_explain1[path.var_order[i]] |= path.nums[i];
+  }
+
+  for (auto const & path : genos.second.paths)
+  {
+    for (unsigned i = 0; i < path.var_order.size(); ++i)
+      read_explain2[path.var_order[i]] |= path.nums[i];
+  }
+
+  for (auto it1 = read_explain1.begin(); it1 != read_explain1.end(); ++it1)
+  {
+    auto it2 = read_explain2.find(it1->first);
+
+    if (it2 != read_explain2.end())
+    {
+      if ((it1->second & it2->second).none())
+        return false;
+    }
+  }
+
+  return true;
+}
+
+
 std::pair<GenotypePaths, GenotypePaths>
 find_genotype_paths_of_a_sequence_pair(seqan::BamAlignmentRecord const & record1,
-                                       seqan::BamAlignmentRecord const & record2
+                                       seqan::BamAlignmentRecord const & record2,
+                                       bool const REVERSE_COMPLEMENT
                                        )
 {
   // Create two empty paths, one for each read
@@ -310,20 +427,32 @@ find_genotype_paths_of_a_sequence_pair(seqan::BamAlignmentRecord const & record1
   find_genotype_paths_of_one_of_the_sequences(record1.seq, genos.first, false /*true when hamming distance 1 index is available*/);
   find_genotype_paths_of_one_of_the_sequences(record2.seq, genos.second, false /*true when hamming distance 1 index is available*/);
 
-  // Remove distant paths
+  // Remove distant paths (from optimal insert size)
+  if (genos.first.paths.size() > 0 && genos.second.paths.size() > 0) // Both reads aligned
   {
-    bool const IS_NOT_UNIQUE_1 = genos.first.paths.size() > 1 && !genos.first.all_paths_unique();
-    bool const IS_NOT_UNIQUE_2 = genos.second.paths.size() > 1 && !genos.second.all_paths_unique();
+    uint32_t const OPTIMAL = Options::instance()->optimal_insert_size;
+    uint32_t const THRESHOLD = Options::instance()->max_insert_size_threshold;
+    int64_t const SHORTEST_DISTANCE = std::min(static_cast<int64_t>(Options::instance()->max_insert_size),
+                                               find_shortest_distance(genos.first, genos.second, OPTIMAL, REVERSE_COMPLEMENT)
+                                               );
 
-    if (IS_NOT_UNIQUE_1 || IS_NOT_UNIQUE_2)
+    if (Options::instance()->hq_reads)
     {
-      int64_t const SHORTEST_DISTANCE = std::max(static_cast<int64_t>(1000l), find_shortest_distance(genos.first, genos.second)) + 100l;
-
-      if (IS_NOT_UNIQUE_1)
-        remove_distant_paths(genos.first, genos.second, SHORTEST_DISTANCE);
-
-      if (IS_NOT_UNIQUE_2)
-        remove_distant_paths(genos.second, genos.first, SHORTEST_DISTANCE);
+      if (SHORTEST_DISTANCE > THRESHOLD || !support_same_path(genos))
+      {
+        genos.first.clear_paths();
+        genos.second.clear_paths();
+      }
+      else if (genos.first.paths.size() > 1 || genos.second.paths.size() > 1)
+      {
+        int64_t HQ_THRESHOLD = std::min(static_cast<int64_t>(THRESHOLD), static_cast<int64_t>(SHORTEST_DISTANCE + 5));
+        remove_distant_paths(genos.first, genos.second, HQ_THRESHOLD, OPTIMAL, REVERSE_COMPLEMENT);
+        assert(genos.first.paths.size() > 0 && genos.second.paths.size() > 1);
+      }
+    }
+    else
+    {
+      remove_distant_paths(genos.first, genos.second, SHORTEST_DISTANCE + THRESHOLD, OPTIMAL, REVERSE_COMPLEMENT);
     }
   }
 
@@ -340,14 +469,17 @@ get_best_genotype_paths(std::vector<TReadPair> const & records)
   {
     assert(std::distance(seqan::begin(record_it->first.seq), seqan::end(record_it->first.seq)) >= 2 * K - 1);
     assert(std::distance(seqan::begin(record_it->second.seq), seqan::end(record_it->second.seq)) >= 2 * K - 1);
-    std::pair<GenotypePaths, GenotypePaths> genos1 = find_genotype_paths_of_a_sequence_pair(record_it->first, record_it->second);
+    std::pair<GenotypePaths, GenotypePaths> genos1 =
+      find_genotype_paths_of_a_sequence_pair(record_it->first, record_it->second, false /*REVERSE_COMPLEMENT*/);
+
     seqan::BamAlignmentRecord rec_first(record_it->first);
     seqan::BamAlignmentRecord rec_second(record_it->second);
     seqan::reverseComplement(rec_first.seq);
     seqan::reverse(rec_first.qual);
     seqan::reverseComplement(rec_second.seq);
     seqan::reverse(rec_second.qual);
-    std::pair<GenotypePaths, GenotypePaths> genos2 = find_genotype_paths_of_a_sequence_pair(rec_first, rec_second);
+    std::pair<GenotypePaths, GenotypePaths> genos2 =
+      find_genotype_paths_of_a_sequence_pair(rec_first, rec_second, true /*REVERSE_COMPLEMENT*/);
 
     switch (compare_pair_of_genotype_paths(genos1, genos2))
     {

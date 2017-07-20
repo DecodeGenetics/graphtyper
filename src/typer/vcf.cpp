@@ -338,6 +338,7 @@ Vcf::read_record()
     int32_t ad_field = -1;
     int32_t gt_field = -1;
     int32_t pl_field = -1;
+    int32_t md_field = -1;
 
     for (int32_t f = 0; f < static_cast<int32_t>(all_format_colon.size() - 1); ++f)
     {
@@ -349,6 +350,8 @@ Vcf::read_record()
         gt_field = f;
       else if (field == "PL")
         pl_field = f;
+      else if (field == "MD")
+        md_field = f;
     }
 
     assert(ad_field != -1);
@@ -396,6 +399,13 @@ Vcf::read_record()
 
       for (std::size_t j = 0; j < ad_str_comma.size() - 1; ++j)
         new_call.coverage.push_back(static_cast<uint16_t>(std::stoul(get_string_at_tab_index(ad_str, ad_str_comma, j))));
+
+      // Parse MD
+      if (md_field != -1)
+      {
+        std::string const md_str = get_string_at_tab_index(sample_string, sample_string_colon, md_field);
+        new_call.ambiguous_depth = std::stoul(md_str);
+      }
 
       // Parse PL
       std::string const pl_str = get_string_at_tab_index(sample_string, sample_string_colon, pl_field);
@@ -567,6 +577,7 @@ Vcf::write_header()
   {
     *vcf_file << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n";
     *vcf_file << "##FORMAT=<ID=AD,Number=R,Type=Integer,Description=\"Allelic depths for the ref and alt alleles in the order listed\">\n";
+    *vcf_file << "##FORMAT=<ID=MD,Number=1,Type=Integer,Description=\"Read depth of multiple alleles.\">\n";
     *vcf_file << "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Approximate read depth\">\n";
     *vcf_file << "##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype Quality.\">\n";
     *vcf_file << "##FORMAT=<ID=PL,Number=G,Type=Integer,Description=\"PHRED-scaled genotype likelihoods\">\n";
@@ -671,7 +682,7 @@ Vcf::write_record(Variant const & var, std::string const & suffix, const bool FI
 
   // Parse FORMAT
   if (sample_names.size() > 0)
-    *vcf_file << "\tGT:AD:DP:GQ:PL";
+    *vcf_file << "\tGT:AD:MD:DP:GQ:PL";
 
   for (std::size_t i = 0; i < var.calls.size(); ++i)
   {
@@ -707,7 +718,7 @@ Vcf::write_record(Variant const & var, std::string const & suffix, const bool FI
       }
     }
 
-    // Write AD:DP
+    // Write AD
     {
       assert(call.coverage.size() > 0);
       *vcf_file << ":" << static_cast<uint16_t>(call.coverage[0]);
@@ -716,9 +727,14 @@ Vcf::write_record(Variant const & var, std::string const & suffix, const bool FI
         *vcf_file << "," << static_cast<uint16_t>(*ad_it);
     }
 
+    // Write MD (Multi-depth)
+    {
+      *vcf_file << ":" << call.ambiguous_depth;
+    }
+
     // Write DP
     {
-      *vcf_file << ":" << std::accumulate(call.coverage.begin(), call.coverage.end(), static_cast<uint32_t>(0u));
+      *vcf_file << ":" << std::accumulate(call.coverage.begin(), call.coverage.end(), static_cast<uint32_t>(call.ambiguous_depth));
     }
 
     // Write GQ
@@ -953,7 +969,7 @@ Vcf::add_haplotype(Haplotype & haplotype, bool const clear_haplotypes, uint32_t 
     {
       assert(i < gt_phred.size());
       assert(i < sample.gt_coverage.size());
-      new_vars[i].calls.push_back(SampleCall(gt_phred[i], sample.gt_coverage[i])); // Add new call
+      new_vars[i].calls.push_back(SampleCall(gt_phred[i], sample.gt_coverage[i], sample.ambiguous_depth)); // Add new call
 
       if (Options::instance()->phased_output)
       {
@@ -1013,14 +1029,14 @@ Vcf::add_haplotypes_for_extraction(std::vector<std::vector<Genotype> > const & g
 
 
 void
-Vcf::post_process_variants(bool const NORMALIZE)
+Vcf::post_process_variants(bool const NORMALIZE, bool const TRIM_SEQUENCES)
 {
   if (NORMALIZE)
   {
     for (auto & var : variants)
       var.normalize();
   }
-  else
+  else if (TRIM_SEQUENCES)
   {
     for (auto & var : variants)
       var.trim_sequences(false); // Don't keep one match

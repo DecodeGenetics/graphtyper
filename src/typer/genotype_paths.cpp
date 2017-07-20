@@ -23,7 +23,8 @@ namespace
 bool
 merge_current_compatibility(gyper::KmerLabel const & l, gyper::Path const & p)
 {
-  return l.start_index == p.start && l.end_index == p.end; // It is not compatible if the variant order is not already in the path
+  // It is not compatible if the variant order is not already in the path
+  return l.start_index == p.start && l.end_index == p.end;
 }
 
 
@@ -35,7 +36,10 @@ merge_forward_compatibility(gyper::Path const & prev, gyper::Path const & next)
 
 
 std::vector<gyper::Path>
-find_all_nonduplicated_paths(std::vector<gyper::KmerLabel> const & ll, uint32_t const read_start_index, uint32_t const read_end_index, uint16_t const mismatches)
+find_all_nonduplicated_paths(std::vector<gyper::KmerLabel> const & ll,
+                             uint32_t const read_start_index,
+                             uint32_t const read_end_index,
+                             uint16_t const mismatches)
 {
   if (ll.size() == 0)
     return std::vector<gyper::Path>(0);
@@ -67,7 +71,6 @@ find_all_nonduplicated_paths(std::vector<gyper::KmerLabel> const & ll, uint32_t 
   return paths;
 }
 
-
 } // anon namespace
 
 
@@ -95,7 +98,9 @@ GenotypePaths::all_paths_unique() const
 {
   for (std::size_t i = 1; i < paths.size(); ++i)
   {
-    if (paths[0].start_ref_reach_pos() != paths[i].start_ref_reach_pos() && paths[0].end_ref_reach_pos() != paths[i].end_ref_reach_pos())
+    if (paths[0].start_ref_reach_pos() != paths[i].start_ref_reach_pos() &&
+        paths[0].end_ref_reach_pos() != paths[i].end_ref_reach_pos()
+        )
     {
       return false;
     }
@@ -284,9 +289,9 @@ GenotypePaths::walk_read_ends(seqan::IupacString const & seq, int maximum_mismat
     if (path.read_end_index == seqan::length(seq) - 1)
       continue;
 
-    std::vector<Location> s_locs = graph.get_locations_of_a_position(path.end);
+    std::vector<Location> s_locs = graph.get_locations_of_a_position(path.end, path);
 
-    if (s_locs.size() > Options::instance()->MAX_NUM_LOCATIONS_PER_PATH)
+    if (s_locs.size() == 0 || s_locs.size() > Options::instance()->MAX_NUM_LOCATIONS_PER_PATH)
       continue;
 
     std::vector<char> kmer;
@@ -295,11 +300,14 @@ GenotypePaths::walk_read_ends(seqan::IupacString const & seq, int maximum_mismat
     for (uint32_t i = path.read_end_index; i < seqan::length(seq); ++i)
       kmer.push_back(seq[i]);
 
-    std::vector<Location> e_locs(1);
+    std::vector<Location> e_locs(1); // Unavailable end
     std::vector<KmerLabel> new_labels;
 
     // Value less than zero causes default value
-    uint32_t mismatches = (maximum_mismatches < 0) ? std::min(2 + kmer.size() / 11, best_mismatches) : static_cast<uint32_t>(maximum_mismatches);
+    uint32_t mismatches = (maximum_mismatches < 0) ?
+      std::min(2 + kmer.size() / 11, best_mismatches) :
+      static_cast<uint32_t>(maximum_mismatches);
+
     new_labels = graph.iterative_dfs(std::move(s_locs), std::move(e_locs), kmer, mismatches);
 
     if (new_labels.size() > 0)
@@ -359,20 +367,19 @@ GenotypePaths::walk_read_starts(seqan::IupacString const & seq, int maximum_mism
     for (uint32_t i = 0; i <= path.read_start_index; ++i)
       kmer.push_back(seq[i]);
 
+    std::vector<Location> e_locs = graph.get_locations_of_a_position(path.start, path);
 
-    std::vector<Location> e_locs = graph.get_locations_of_a_position(path.start);
-
-    if (e_locs.size() == 0)
+    if (e_locs.size() == 0 || e_locs.size() > Options::instance()->MAX_NUM_LOCATIONS_PER_PATH)
       continue;
 
-    if (e_locs.size() > Options::instance()->MAX_NUM_LOCATIONS_PER_PATH)
-      continue;
-
-    std::vector<Location> s_locs(1);
+    std::vector<Location> s_locs(1); // Unavailable start
     std::vector<KmerLabel> new_labels;
 
     // Value less than zero causes default value
-    uint32_t mismatches = (maximum_mismatches < 0) ? std::min(2 + kmer.size() / 11, best_mismatches) : static_cast<uint32_t>(maximum_mismatches);
+    uint32_t mismatches = (maximum_mismatches < 0) ?
+      std::min(2 + kmer.size() / 11, best_mismatches) :
+      static_cast<uint32_t>(maximum_mismatches);
+
     new_labels = graph.iterative_dfs(std::move(s_locs), std::move(e_locs), kmer, mismatches);
 
     if (new_labels.size() > 0)
@@ -440,8 +447,8 @@ GenotypePaths::find_new_variants() const
 
       for (unsigned i = 0; i < reference.size(); ++i)
       {
-        assert (i < seqan::length(read));
-        assert (i < seqan::length(qual));
+        assert(i < seqan::length(read));
+        assert(i < seqan::length(qual));
 
         if (reference[i] != read[i] && read[i] != 'N' /*&& qual[i] >= static_cast<char>(25)*/)
         {
@@ -489,7 +496,7 @@ GenotypePaths::find_new_variants() const
                 // std::cout << "r = " << r << std::endl;
                 // std::cout << "REF = " << std::string(new_var.seqs[0].begin(), new_var.seqs[0].end()) << std::endl;
                 // std::cout << "ALT = " << std::string(new_var.seqs[1].begin(), new_var.seqs[1].end()) << std::endl;
-                assert (new_var.seqs[1].size() > 0);
+                assert(new_var.seqs[1].size() > 0);
                 // std::cout << "READ[r] = " << std::string(read.begin() + r, read.begin() + r + new_var.seqs[1].size()) << std::endl;
                 unsigned const MIN_QUAL = *std::min_element(qual.begin() + r, qual.begin() + r + new_var.seqs[1].size()) - 33u;
                 // std::cout << "minimum quality is " << MIN_QUAL << std::endl;
@@ -535,7 +542,7 @@ GenotypePaths::find_new_variants() const
               // std::cout << "r = " << r << std::endl;
               // std::cout << "REF = " << std::string(new_var.seqs[0].begin(), new_var.seqs[0].end()) << std::endl;
               // std::cout << "ALT = " << std::string(new_var.seqs[1].begin(), new_var.seqs[1].end()) << std::endl;
-              assert (new_var.seqs[1].size() > 0);
+              assert(new_var.seqs[1].size() > 0);
               // std::cout << "READ[r] = " << std::string(read.begin() + r, read.begin() + r + new_var.seqs[1].size()) << std::endl;
               unsigned const MIN_QUAL = *std::min_element(qual.begin() + r, qual.begin() + r + new_var.seqs[1].size()) - 33u;
               // std::cout << "minimum quality is " << MIN_QUAL << std::endl;

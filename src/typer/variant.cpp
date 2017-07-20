@@ -218,34 +218,21 @@ find_variant_sequences(gyper::Variant & new_var, gyper::Variant const & old_var)
       {
         uint32_t const new_y = old_phred_to_new_phred[y];
 
+        // Check overflow of coverage
         if (static_cast<uint32_t>(new_call.coverage[new_y]) + static_cast<uint32_t>(old_call.coverage[y]) < 0xFFFFul)
           new_call.coverage[new_y] += old_call.coverage[y];
         else
-          new_call.coverage[new_y] = static_cast<uint16_t>(0xFFFFul);
+          new_call.coverage[new_y] = 0xFFFFul;
       }
+    }
+
+    // multi-depth
+    {
+      new_call.ambiguous_depth = old_call.ambiguous_depth;
     }
 
     // Update strand bias
     update_strand_bias(old_var.seqs.size(), new_seqs.size(), old_phred_to_new_phred, old_var, new_var);
-    // std::vector<uint32_t> sbf = get_strand_bias(old_var.infos, "SBF");
-    // std::vector<uint32_t> sbr = get_strand_bias(old_var.infos, "SBR");
-    //
-    // if (sbf.size() > 0 && sbr.size() > 0)
-    // {
-    //   std::vector<uint32_t> new_sbf(new_seqs.size(), 0u);
-    //   std::vector<uint32_t> new_sbr(new_seqs.size(), 0u);
-    //
-    //   for (uint32_t y = 0; y < old_var.seqs.size(); ++y)
-    //   {
-    //     uint32_t const new_y = old_phred_to_new_phred[y];
-    //     new_sbf[new_y] += sbf[y];
-    //     new_sbr[new_y] += sbr[y];
-    //   }
-    //
-    //   new_var.infos["SBF"] = join_strand_bias(new_sbf);
-    //   new_var.infos["SBR"] = join_strand_bias(new_sbr);
-    // }
-
     new_var.calls.push_back(std::move(new_call));
   }
 
@@ -332,7 +319,10 @@ Variant::generate_infos()
 
   for (auto const & sample_call : calls)
   {
-    uint32_t total_depth = std::accumulate(sample_call.coverage.cbegin(), sample_call.coverage.cend(), 0ull);
+    uint32_t total_depth = std::accumulate(sample_call.coverage.cbegin(),
+                                           sample_call.coverage.cend(),
+                                           static_cast<uint32_t>(sample_call.ambiguous_depth)
+      );
 
     // Skip zero (the reference)
     for (uint16_t c = 1; c < sample_call.coverage.size(); ++c)
@@ -410,7 +400,7 @@ Variant::generate_infos()
       //assert (sample_call.coverage.size() > 0);
       const uint64_t non_ref_seqdepth = std::accumulate(sample_call.coverage.cbegin() + 1, sample_call.coverage.cend(), 0ull);
       seqdepth_nonref += std::min(static_cast<uint64_t>(10), non_ref_seqdepth); // Dont add too much because phred cannot go very high
-      seqdepth += non_ref_seqdepth + sample_call.coverage[0];
+      seqdepth += non_ref_seqdepth + sample_call.coverage[0] + sample_call.ambiguous_depth;
     }
 
     // AN
@@ -820,7 +810,12 @@ Variant::get_seq_depth() const
   uint64_t seqdepth = 0;
 
   for (auto const & sample_call : calls)
-    seqdepth += std::accumulate(sample_call.coverage.cbegin(), sample_call.coverage.cend(), 0ull);
+  {
+    seqdepth += std::accumulate(sample_call.coverage.cbegin(),
+                                sample_call.coverage.cend(),
+                                static_cast<uint32_t>(sample_call.ambiguous_depth)
+                                );
+  }
 
   return seqdepth;
 }
@@ -1393,6 +1388,7 @@ break_multi_snps(Variant const && var)
       SampleCall new_sample_call;
       new_sample_call.phred = std::vector<uint8_t>(new_var.seqs.size() * (new_var.seqs.size() + 1) / 2, 255u);
       new_sample_call.coverage = std::vector<uint16_t>(new_var.seqs.size(), 0u);
+      new_sample_call.ambiguous_depth = call.ambiguous_depth;
 
       for (uint32_t y = 0; y < seqs.size(); ++y)
       {
@@ -1419,11 +1415,11 @@ break_multi_snps(Variant const && var)
 
         uint32_t new_y = old_phred_to_new_phred[y];
 
-        // Check overflow
-        if (static_cast<uint16_t>(new_sample_call.coverage[new_y]) + static_cast<uint16_t>(call.coverage[y]) < 0xFFFFull)
+        // Check overflow of coverage
+        if (static_cast<uint32_t>(new_sample_call.coverage[new_y]) + static_cast<uint32_t>(call.coverage[y]) < 0xFFFFul)
           new_sample_call.coverage[new_y] += call.coverage[y];
         else
-          new_sample_call.coverage[new_y] = 0xFFFFull;
+          new_sample_call.coverage[new_y] = 0xFFFFul;
       }
 
       new_var.calls.push_back(std::move(new_sample_call));

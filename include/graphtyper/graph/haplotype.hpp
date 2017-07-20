@@ -12,22 +12,31 @@
 namespace gyper
 {
 
+
+struct PairStats
+{
+  uint32_t hap_id;
+  uint32_t gt_id;
+};
+
+
 struct HapStats
 {
   std::vector<uint8_t> hap_coverage;
   std::vector<uint8_t> hap_unique_coverage;
   std::vector<std::vector<std::vector<char> > > predecessor;
   std::vector<std::vector<std::vector<char> > > successor;
-  std::vector<std::pair<uint32_t, uint32_t> > hap_b;
+  std::vector<PairStats> pair_stats;
   std::vector<std::vector<std::pair<uint32_t, uint32_t> > > pair_info;
 };
+
 
 struct HapSample
 {
   std::vector<uint16_t> log_score;
   std::vector<std::vector<uint16_t> > gt_coverage;
   std::unique_ptr<HapStats> stats;
-  // uint8_t ambiguous_depth = 0; // TODO
+  uint8_t ambiguous_depth = 0u;
   uint16_t max_log_score = 0u;
 };
 

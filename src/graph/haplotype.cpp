@@ -186,13 +186,21 @@ Haplotype::add_coverage(uint32_t const i, uint16_t const c)
   // c is coverage for this local genotype id
   assert(i < gts.size());
   assert(i < coverage.size());
-  assert(c < gts[i].num);
-  assert(c < 0xFFFEu);
 
-  if (coverage[i] == 0xFFFFu)
-    coverage[i] = c;   // Coverage has not been set, so we set it to c
-  else if (coverage[i] != c)
-    coverage[i] = 0xFFFEu;   // Multiple matches
+  if (c == 0xFFFEu)
+  {
+    coverage[i] = c;
+  }
+  else
+  {
+    assert(c < gts[i].num);
+    assert(c < 0xFFFEu);
+
+    if (coverage[i] == 0xFFFFu)
+      coverage[i] = c;   // Coverage has not been set, so we set it to c
+    else if (coverage[i] != c)
+      coverage[i] = 0xFFFEu;   // Multiple matches
+  }
 }
 
 
@@ -207,7 +215,7 @@ Haplotype::clipped_reads_to_stats(bool const fully_aligned)
     for (std::size_t i = 0; i < var_stats.size(); ++i)
     {
       // coverage[i] == 0xFFFFu means there is no coverage
-      if (coverage[i] != 0xFFFFu && coverage[i] != 0xFFFEu)
+      if (coverage[i] != 0xFFFFu) // && coverage[i] != 0xFFFEu)
         ++var_stats[i].clipped_reads;
     }
   }
@@ -233,7 +241,7 @@ Haplotype::mapq_to_stats(uint8_t const new_mapq)
   for (std::size_t i = 0; i < var_stats.size(); ++i)
   {
     // coverage[i] == 0xFFFFu means there is no coverage
-    if (coverage[i] != 0xFFFFu && coverage[i] != 0xFFFEu)
+    if (coverage[i] != 0xFFFFu)// && coverage[i] != 0xFFFEu)
       var_stats[i].add_mapq(coverage[i], new_mapq);
   }
 }
@@ -321,22 +329,22 @@ Haplotype::coverage_to_gts(std::size_t const pn_index)
   {
     // coverage[i] == 0xFFFFu means there is no coverage
     // coverage[i] == 0xFFFEu means there are more than one coverage match
-    if (coverage[i] != 0xFFFFu && coverage[i] != 0xFFFEu)
+    if (coverage[i] < 0xFFFEu) // same as coverage[i] != 0xFFFFu && coverage[i] != 0xFFFEu
     {
-      assert(i < hap_samples.at(pn_index).gt_coverage.size());
+      assert(i < hap_samples[pn_index].gt_coverage.size());
       assert(coverage[i] < gts[i].num);
-      assert(coverage[i] < hap_samples.at(pn_index).gt_coverage[i].size());
+      assert(coverage[i] < hap_samples[pn_index].gt_coverage[i].size());
 
       // Check for overflow
-      if (hap_samples.at(pn_index).gt_coverage[i][coverage[i]] < 0xFFFFul)
-        ++hap_samples.at(pn_index).gt_coverage[i][coverage[i]];
+      if (hap_samples[pn_index].gt_coverage[i][coverage[i]] < 0xFFFFul)
+        ++hap_samples[pn_index].gt_coverage[i][coverage[i]];
     }
-    // else if (coverage[i] == 0xFFFEu)
-    // {
-    //   // More than one coverage match means we need to update ambiguous depth
-    //   if (hap_samples.at(pn_index).ambiguous_depth < 255)
-    //     ++hap_samples.at(pn_index).ambiguous_depth;
-    // }
+    else if (coverage[i] == 0xFFFEu)
+    {
+      // More than one coverage match means we need to update ambiguous depth
+      if (hap_samples[pn_index].ambiguous_depth < 255)
+        ++hap_samples[pn_index].ambiguous_depth;
+    }
   }
 
   // Reset coverage

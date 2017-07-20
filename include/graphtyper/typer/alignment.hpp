@@ -14,17 +14,19 @@
 namespace gyper
 {
 
-int64_t
-find_shortest_distance(GenotypePaths const & geno1,
-                       GenotypePaths const & geno2
-                       );
-
-void
-remove_distant_paths(GenotypePaths & geno1,
-                     GenotypePaths const & geno2,
-                     int64_t const SHORTEST_DISTANCE
-                     );
-
+//int64_t
+//find_shortest_distance(GenotypePaths const & geno1,
+//                       GenotypePaths const & geno2,
+//                       uint32_t const OPTIMAL = 0
+//                       );
+//
+// void
+// remove_distant_paths(GenotypePaths & geno1,
+//                      GenotypePaths const & geno2,
+//                      int64_t const SHORTEST_DISTANCE,
+//                      uint32_t const OPTIMAL = 0
+//                      );
+//
 GenotypePaths
 align_a_single_sequence_without_hamming_distance1_index(seqan::BamAlignmentRecord const & record, Graph const & graph = gyper::graph, MemIndex const & mem_index = gyper::mem_index);
 
