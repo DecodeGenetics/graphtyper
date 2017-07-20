@@ -30,6 +30,8 @@ update_strand_bias(std::size_t const num_seqs, std::size_t new_num_seqs, std::ve
   using gyper::get_strand_bias;
   using gyper::join_strand_bias;
 
+  std::vector<uint32_t> originally_cropped = get_strand_bias(var.infos, "CRAligner");
+
   std::vector<uint32_t> mq_per_allele = get_strand_bias(var.infos, "MQperAllele");
   std::vector<uint64_t> seq_depths = var.get_seq_depth_of_all_alleles();
 
@@ -46,6 +48,8 @@ update_strand_bias(std::size_t const num_seqs, std::size_t new_num_seqs, std::ve
 
   if (sbf.size() > 0 && sbr.size() > 0)
   {
+    std::vector<uint32_t> new_originally_cropped(new_num_seqs, 0u);
+
     std::vector<uint64_t> new_mq_rooted(new_num_seqs, 0u);
     std::vector<uint64_t> new_seq_depths(new_num_seqs, 0u);
 
@@ -74,6 +78,8 @@ update_strand_bias(std::size_t const num_seqs, std::size_t new_num_seqs, std::ve
       assert(y < sbr1.size());
       assert(y < sbr2.size());
 
+      new_originally_cropped[new_y] += originally_cropped[y];
+
       new_mq_rooted[new_y] += mq_per_allele[y] * mq_per_allele[y] * seq_depths[y];
       new_seq_depths[new_y] += seq_depths[y];
 
@@ -90,8 +96,6 @@ update_strand_bias(std::size_t const num_seqs, std::size_t new_num_seqs, std::ve
     }
 
     {
-      std::cerr << seq_depths[0] << "+" << seq_depths[1] << std::endl;
-      std::cerr << new_seq_depths[0] << "++" << new_seq_depths[1] << std::endl;
       std::ostringstream ss;
       std::size_t m = 0;
 
@@ -111,6 +115,8 @@ update_strand_bias(std::size_t const num_seqs, std::size_t new_num_seqs, std::ve
       new_var.infos["MQperAllele"] = ss.str();
     }
 
+    new_var.infos["CRAligner"] = join_strand_bias(new_originally_cropped);
+
     new_var.infos["SBF"] = join_strand_bias(new_sbf);
     new_var.infos["SBR"] = join_strand_bias(new_sbr);
 
@@ -123,6 +129,7 @@ update_strand_bias(std::size_t const num_seqs, std::size_t new_num_seqs, std::ve
     new_var.infos["RADist"] = join_strand_bias(new_ra_dist);
   }
 }
+
 
 void
 find_variant_sequences(gyper::Variant & new_var, gyper::Variant const & old_var)

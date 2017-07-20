@@ -5,7 +5,7 @@
 #include <map> // std::map<Key, Value>
 #include <numeric> // std::accumulate
 #include <string> // std::string
-#include <sstream> // std::stringstream
+#include <sstream> // std::ostringstream
 #include <vector> // std::vector
 
 #include <boost/algorithm/string/split.hpp> // boost::split
@@ -105,6 +105,13 @@ VarStats::get_rms_mapq_per_allele() const
 
 
 std::string
+VarStats::get_originally_clipped_reads() const
+{
+  return join_strand_bias(this->originally_clipped);
+}
+
+
+std::string
 VarStats::get_realignment_count() const
 {
   return join_strand_bias(realignment_count); // TODO: Rename join_strand_bias()
@@ -136,7 +143,7 @@ VarStats::get_reverse_strand_bias() const
 std::string
 VarStats::get_unaligned_count() const
 {
-  std::stringstream ss;
+  std::ostringstream ss;
   ss << this->unaligned_reads;
   return ss.str();
 }

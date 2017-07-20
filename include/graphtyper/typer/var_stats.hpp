@@ -21,12 +21,12 @@ public:
 
   /** Clipped reads */
   uint32_t clipped_reads = 0u;
+  std::vector<uint32_t> originally_clipped;
 
   /** Realignment statistics */
   uint32_t unaligned_reads = 0u;
   std::vector<uint32_t> realignment_distance;
   std::vector<uint32_t> realignment_count;
-  std::vector<uint32_t> originally_clipped;
 
   /** Strand bias per allele */
   std::vector<uint32_t> r1_strand_forward;
@@ -53,6 +53,7 @@ public:
    */
   uint8_t get_rms_mapq() const;
   std::string get_rms_mapq_per_allele() const;
+  std::string get_originally_clipped_reads() const;
   std::string get_realignment_count() const;
   std::string get_realignment_distance() const;
   std::string get_forward_strand_bias() const;
