@@ -241,7 +241,7 @@ Haplotype::mapq_to_stats(uint8_t const new_mapq)
   for (std::size_t i = 0; i < var_stats.size(); ++i)
   {
     // coverage[i] == 0xFFFFu means there is no coverage
-    if (coverage[i] != 0xFFFFu)// && coverage[i] != 0xFFFEu)
+    if (coverage[i] != 0xFFFFu && coverage[i] != 0xFFFEu)
       var_stats[i].add_mapq(coverage[i], new_mapq);
   }
 }

@@ -361,6 +361,7 @@ VcfWriter::update_haplotype_scores_from_path(GenotypePaths & geno, std::size_t c
     haplotypes[*it].mapq_to_stats(geno.mapq);
     haplotypes[*it].strand_to_stats(geno.forward_strand, geno.is_first_in_pair);
     haplotypes[*it].realignment_to_stats(geno.is_originally_unaligned,
+                                         geno.is_originally_clipped,
                                          geno.original_pos /*original_pos*/,
                                          absolute_pos.get_contig_position(geno.paths[0].start_correct_pos()).second /*new_pos*/
                                          );
