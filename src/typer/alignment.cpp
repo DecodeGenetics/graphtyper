@@ -177,39 +177,31 @@ get_insert_size(std::vector<Path>::const_iterator it1,
                 bool const REVERSE_COMPLEMENT
   )
 {
-  int64_t distance;
+  std::unordered_set<int64_t> distances;
 
   if (REVERSE_COMPLEMENT)
   {
-    distance = static_cast<int64_t>(it1->end_correct_pos()) - static_cast<int64_t>(it2->start_correct_pos());
-    std::vector<Location> ll1 = graph.get_locations_of_a_position(it1->end, *it1);
-    std::vector<Location> ll2 = graph.get_locations_of_a_position(it2->start, *it2);
-    std::vector<int64_t> distances = graph.reference_distance_between_locations(ll1, ll2);
-
-    // std::cerr << "1: " << distance;
-    //
-    // for (auto const d : distances)
-    //   std::cerr << " " << d;
-    //
-    // std::cerr << std::endl;
+    std::vector<Location> ll1 = graph.get_locations_of_a_position(it2->start, *it2);
+    std::vector<Location> ll2 = graph.get_locations_of_a_position(it1->end, *it1);
+    distances = graph.reference_distance_between_locations(ll1, ll2);
   }
   else
   {
-    distance = static_cast<int64_t>(it2->end_correct_pos()) - static_cast<int64_t>(it1->start_correct_pos());
-    std::vector<Location> ll1 = graph.get_locations_of_a_position(it2->end, *it2);
-    std::vector<Location> ll2 = graph.get_locations_of_a_position(it1->start, *it1);
-    std::vector<int64_t> distances = graph.reference_distance_between_locations(ll1, ll2);
-
-    // std::cerr << "2: " << distance;
-    //
-    // for (auto const d : distances)
-    //   std::cerr << " " << d;
-    //
-    // std::cerr << std::endl;
+    std::vector<Location> ll1 = graph.get_locations_of_a_position(it1->start, *it1);
+    std::vector<Location> ll2 = graph.get_locations_of_a_position(it2->end, *it2);
+    distances = graph.reference_distance_between_locations(ll1, ll2);
   }
 
+  // Find the distance which is closest to the OPTIMAL
+  int64_t best_distance = 0x00000000FFFFFFFFll;
 
-  return distance;
+  for (auto it = distances.begin(); it != distances.end(); ++it)
+  {
+    if (std::llabs(*it - OPTIMAL) < std::llabs(best_distance - OPTIMAL))
+      best_distance = *it;
+  }
+
+  return best_distance;
 }
 
 
@@ -443,6 +435,7 @@ find_genotype_paths_of_a_sequence_pair(seqan::BamAlignmentRecord const & record1
       {
         int64_t HQ_THRESHOLD = std::min(static_cast<int64_t>(THRESHOLD), static_cast<int64_t>(SHORTEST_DISTANCE + 5));
         remove_distant_paths(genos.first, genos.second, HQ_THRESHOLD, OPTIMAL, REVERSE_COMPLEMENT);
+        assert(genos.first.paths.size() > 0 && genos.second.paths.size() > 1);
       }
     }
     else

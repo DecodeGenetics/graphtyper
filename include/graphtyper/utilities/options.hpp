@@ -68,8 +68,8 @@ public:
 
   // Insert size options
   uint32_t max_insert_size = 1000;
-  uint32_t optimal_insert_size = 350;
-  uint32_t max_insert_size_threshold = 80; // Allowed threshold from the optimal insert size to be considered HQ
+  uint32_t optimal_insert_size = 330;
+  uint32_t max_insert_size_threshold = 40; // Allowed threshold from the optimal insert size to be considered HQ
 
   // Caching options
   bool use_read_cache = false;

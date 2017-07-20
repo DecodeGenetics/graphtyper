@@ -186,13 +186,21 @@ Haplotype::add_coverage(uint32_t const i, uint16_t const c)
   // c is coverage for this local genotype id
   assert(i < gts.size());
   assert(i < coverage.size());
-  assert(c < gts[i].num);
-  assert(c < 0xFFFEu);
 
-  if (coverage[i] == 0xFFFFu)
-    coverage[i] = c;   // Coverage has not been set, so we set it to c
-  else if (coverage[i] != c)
-    coverage[i] = 0xFFFEu;   // Multiple matches
+  if (c == 0xFFFEu)
+  {
+    coverage[i] = c;
+  }
+  else
+  {
+    assert(c < gts[i].num);
+    assert(c < 0xFFFEu);
+
+    if (coverage[i] == 0xFFFFu)
+      coverage[i] = c;   // Coverage has not been set, so we set it to c
+    else if (coverage[i] != c)
+      coverage[i] = 0xFFFEu;   // Multiple matches
+  }
 }
 
 

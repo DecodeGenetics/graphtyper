@@ -46,14 +46,11 @@ are_genotype_paths_good(gyper::GenotypePaths const & geno)
     if (!geno.all_paths_fully_aligned()) // Require reads to be fully aligned
       return false;
 
-    // Any path overlapping a variant must also not have any mismatches
-    if (geno.paths[0].mismatches > 0)
+    // Any path overlapping a variant must also not have too many mismatches
+    for (auto const & path : geno.paths)
     {
-      for (auto const & path : geno.paths)
-      {
-        if (path.var_order.size() > 0)
-          return false;
-      }
+      if (path.var_order.size() > 0 && path.mismatches > 1)
+        return false;
     }
   }
 
@@ -341,6 +338,10 @@ VcfWriter::update_haplotype_scores_from_path(GenotypePaths & geno, std::size_t c
           ++b;
 
         haplotypes[type_ids.first].add_coverage(type_ids.second, b);
+      }
+      else /* Otherwise the coverage is ambigous => 0xFFFEu */
+      {
+        haplotypes[type_ids.first].add_coverage(type_ids.second, 0xFFFEu);
       }
     }
   }

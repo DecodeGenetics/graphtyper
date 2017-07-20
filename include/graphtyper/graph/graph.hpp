@@ -1,6 +1,7 @@
 #pragma once
 
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <boost/serialization/access.hpp>
@@ -80,7 +81,11 @@ public:
   /*************************
    * GRAPH LOCAL ALIGNMENT *
    *************************/
-  std::vector<int64_t> reference_distance_between_locations(std::vector<Location> const & ll1, std::vector<Location> const & ll2) const;
+  std::unordered_set<int64_t>
+  reference_distance_between_locations(std::vector<Location> const & ll1,
+                                       std::vector<Location> const & ll2
+    ) const;
+
   std::vector<Location> get_locations_of_a_position(uint32_t pos, gyper::Path const & path) const;
 
   std::vector<KmerLabel>

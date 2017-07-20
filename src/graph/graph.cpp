@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <assert.h>
 #include <iostream>
+#include <unordered_set> // std::unordered_set
 
 #include <seqan/basic.h>
 #include <seqan/sequence.h>
@@ -930,7 +931,7 @@ Graph::get_all_sequences(uint32_t start, uint32_t end) const
 }
 
 
-std::vector<int64_t>
+std::unordered_set<int64_t>
 Graph::reference_distance_between_locations(std::vector<Location> const & ll1, std::vector<Location> const & ll2) const
 {
   auto get_ref_pos_lambda = [&](Location const & l)
@@ -951,7 +952,7 @@ Graph::reference_distance_between_locations(std::vector<Location> const & ll1, s
     return pos;
   };
 
-  std::vector<int64_t> distances;
+  std::unordered_set<int64_t> distance_map;
 
   for (auto const & l1 : ll1)
   {
@@ -960,11 +961,11 @@ Graph::reference_distance_between_locations(std::vector<Location> const & ll1, s
     for (auto const & l2 : ll2)
     {
       uint32_t const ref_pos2 = get_ref_pos_lambda(l2);
-      distances.push_back(static_cast<int64_t>(ref_pos1) - static_cast<int64_t>(ref_pos2));
+      distance_map.insert(static_cast<int64_t>(ref_pos2) - static_cast<int64_t>(ref_pos1));
     }
   }
 
-  return distances;
+  return distance_map;
 }
 
 
