@@ -453,7 +453,12 @@ Haplotype::find_with_how_many_errors_haplotypes_explain_the_read(uint32_t const 
 
 
 void
-Haplotype::explain_to_score(std::size_t const pn_index, bool const has_low_quality_snp, bool const non_unique_paths, uint8_t const mapq, bool const fully_aligned, std::size_t const mismatches)
+Haplotype::explain_to_score(std::size_t const pn_index,
+                            bool const has_low_quality_snp,
+                            bool const non_unique_paths,
+                            uint8_t const mapq,
+                            bool const fully_aligned,
+                            std::size_t const mismatches)
 {
   // Update log_score
   uint16_t epsilon_exponent;

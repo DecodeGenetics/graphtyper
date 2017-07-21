@@ -18,6 +18,7 @@
 #include <graphtyper/graph/graph_serialization.hpp>
 #include <graphtyper/graph/haplotype_calls.hpp>
 #include <graphtyper/graph/haplotype_extractor.hpp>
+#include <graphtyper/typer/read_stats.hpp>
 #include <graphtyper/typer/vcf_writer.hpp>
 #include <graphtyper/utilities/graph_help_functions.hpp>
 #include <graphtyper/utilities/options.hpp>
@@ -38,18 +39,20 @@ compare_gts(gyper::Genotype const & a, gyper::Genotype const & b)
 bool
 are_genotype_paths_good(gyper::GenotypePaths const & geno)
 {
-  if (geno.paths.size() == 0 || (!geno.all_paths_fully_aligned() && geno.paths[0].size() < 95))
+  bool const fully_aligned = geno.all_paths_fully_aligned();
+
+  if (geno.paths.size() == 0 || (!fully_aligned && (!geno.all_paths_unique() || geno.paths[0].size() < 95)))
     return false;
 
   if (gyper::Options::instance()->hq_reads)
   {
-    if (!geno.all_paths_fully_aligned()) // Require reads to be fully aligned
+    if (!fully_aligned) // Require reads to be fully aligned
       return false;
 
     // Any path overlapping a variant must also not have too many mismatches
     for (auto const & path : geno.paths)
     {
-      if (path.var_order.size() > 0 && path.mismatches > 1)
+      if (path.var_order.size() > 0 && path.mismatches > 2)
         return false;
     }
   }
@@ -269,13 +272,6 @@ VcfWriter::update_statistics(GenotypePaths & geno, std::size_t const pn_index, u
       // }
     }
   }
-
-  // if (read_pair == 2)
-  // {
-  //   // Must clear all before parsing the next read pair
-  //   for (auto & hap : haplotypes)
-  //     hap.hap_samples[pn_index].stats->pair_stats.clear();
-  // }
 }
 
 
@@ -290,10 +286,6 @@ VcfWriter::update_haplotype_scores_from_path(GenotypePaths & geno, std::size_t c
   std::size_t const mismatches = geno.paths[0].mismatches;
   assert (geno.read.size() >= 63);
 
-  // If the paths are not unique, require the read to be fully aligned
-  if (non_unique_paths && !geno.all_paths_fully_aligned())
-    return;
-
   if (Options::instance()->stats.size() > 0) // Update statistics if '--stats' was passed
     this->update_statistics(geno, pn_index, read_pair);
 
@@ -307,7 +299,7 @@ VcfWriter::update_haplotype_scores_from_path(GenotypePaths & geno, std::size_t c
     for (std::size_t i = 0; i < p_it->var_order.size(); ++i)
     {
       assert(id2hap.count(p_it->var_order[i]) == 1);
-      std::pair<uint32_t, uint32_t> const type_ids = id2hap.at(p_it->var_order[i]);   //hap_id = first, gen_id = second
+      std::pair<uint32_t, uint32_t> const type_ids = id2hap.at(p_it->var_order[i]); // hap_id = first, gen_id = second
       assert(type_ids.first < haplotypes.size());
 
       // Check if the genotype is a SNP
@@ -328,9 +320,6 @@ VcfWriter::update_haplotype_scores_from_path(GenotypePaths & geno, std::size_t c
       // Add coverage if the explanation is unique
       if (p_it->nums[i].count() == 1)
       {
-        // if (Options::instance()->is_segment_calling)
-        //   haplotypes[type_ids.first].add_explanation(type_ids.second, p_it->nums[i]);
-
         // Check which bit is set
         uint16_t b = 0;
 
@@ -557,6 +546,7 @@ VcfWriter::generate_statistics(std::vector<std::string> const & pns)
   {
     auto const & pn = pns[i];
 
+    // Haplotype statistics
     for (unsigned ps = 0; ps < haplotypes.size(); ++ps)
     {
       auto const & hap = haplotypes[ps];

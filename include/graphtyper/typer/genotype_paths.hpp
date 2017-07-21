@@ -23,6 +23,7 @@ public:
   uint32_t longest_path_length = 0;
   uint8_t mapq = 255u;
   uint32_t original_pos = 0; /* 0-based position from global alignment */
+  int32_t ml_insert_size = 0x7FFFFFFFl;
   bool is_first_in_pair = true;
   bool forward_strand = true;
   bool is_originally_unaligned = false;

@@ -224,6 +224,7 @@ find_shortest_distance(GenotypePaths const & geno1,
                        bool const REVERSE_COMPLEMENT
   )
 {
+  int64_t shortest_distance_diff = 0x00000000FFFFFFFFll;
   int64_t shortest_distance = 0x00000000FFFFFFFFll;
 
   for (auto it1 = geno1.paths.cbegin(); it1 != geno1.paths.cend(); ++it1)
@@ -231,8 +232,13 @@ find_shortest_distance(GenotypePaths const & geno1,
     for (auto it2 = geno2.paths.cbegin(); it2 != geno2.paths.cend(); ++it2)
     {
       int64_t distance = get_insert_size(it1, it2, OPTIMAL, REVERSE_COMPLEMENT);
-      distance = std::abs(distance - static_cast<int64_t>(OPTIMAL));
-      shortest_distance = std::min(distance, shortest_distance);
+      int64_t distance_diff = std::llabs(distance - static_cast<int64_t>(OPTIMAL));
+
+      if (distance_diff < shortest_distance_diff)
+      {
+        shortest_distance_diff = distance_diff;
+        shortest_distance = distance;
+      }
     }
   }
 
@@ -432,20 +438,32 @@ find_genotype_paths_of_a_sequence_pair(seqan::BamAlignmentRecord const & record1
   {
     uint32_t const OPTIMAL = Options::instance()->optimal_insert_size;
     uint32_t const THRESHOLD = Options::instance()->max_insert_size_threshold;
+    int64_t const INSERT_SIZE = find_shortest_distance(genos.first, genos.second, OPTIMAL, REVERSE_COMPLEMENT);
     int64_t const SHORTEST_DISTANCE = std::min(static_cast<int64_t>(Options::instance()->max_insert_size),
-                                               find_shortest_distance(genos.first, genos.second, OPTIMAL, REVERSE_COMPLEMENT)
+                                               static_cast<int64_t>(std::llabs(INSERT_SIZE - static_cast<int64_t>(OPTIMAL)))
                                                );
+
+    if (REVERSE_COMPLEMENT)
+    {
+      genos.first.ml_insert_size = -INSERT_SIZE;
+      genos.second.ml_insert_size = INSERT_SIZE;
+    }
+    else
+    {
+      genos.first.ml_insert_size = INSERT_SIZE;
+      genos.second.ml_insert_size = -INSERT_SIZE;
+    }
 
     if (Options::instance()->hq_reads)
     {
-      if (SHORTEST_DISTANCE > THRESHOLD || !support_same_path(genos))
+      if (SHORTEST_DISTANCE > static_cast<int64_t>(THRESHOLD) || !support_same_path(genos))
       {
         genos.first.clear_paths();
         genos.second.clear_paths();
       }
       else if (genos.first.paths.size() > 1 || genos.second.paths.size() > 1)
       {
-        int64_t HQ_THRESHOLD = std::min(static_cast<int64_t>(THRESHOLD), static_cast<int64_t>(SHORTEST_DISTANCE + 5));
+        int64_t HQ_THRESHOLD = std::min(static_cast<int64_t>(THRESHOLD), static_cast<int64_t>(SHORTEST_DISTANCE + 5ll));
         remove_distant_paths(genos.first, genos.second, HQ_THRESHOLD, OPTIMAL, REVERSE_COMPLEMENT);
         assert(genos.first.paths.size() > 0 && genos.second.paths.size() > 1);
       }
