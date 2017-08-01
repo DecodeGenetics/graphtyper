@@ -88,6 +88,11 @@ VcfWriter::VcfWriter(std::vector<std::string> const & samples, uint32_t variant_
     for (unsigned j = 0; j < gt_ids.size(); ++j)
       id2hap[gt_ids[j]] = {i, j};
   }
+
+  if (Options::instance()->stats.size() > 0)
+  {
+    this->read_stats = std::unique_ptr<ReadStats>(new ReadStats(samples.size()));
+  }
 }
 
 
@@ -170,7 +175,17 @@ VcfWriter::update_haplotype_scores_from_paths(
 void
 VcfWriter::update_statistics(GenotypePaths & geno, std::size_t const pn_index, unsigned const read_pair)
 {
-  // If the alignment is unique, log the sequence successor and connected haplotypes
+  // Update read statistics
+  {
+    // Only log positive values, so each pair only registered once
+    if (geno.ml_insert_size != 0x7FFFFFFFl && geno.ml_insert_size >= 0)
+    {
+      assert (pn_index < read_stats->insert_sizes.size());
+      read_stats->insert_sizes[pn_index].push_back(geno.ml_insert_size);
+    }
+  }
+
+  // If the alignment is unique, log the sequence successor and linked haplotypes
   if (geno.paths.size() == 1)
   {
     auto const & path = geno.paths[0];
@@ -537,9 +552,36 @@ VcfWriter::generate_statistics(std::vector<std::string> const & pns)
   if (Options::instance()->stats.size() == 0 || pns.size() == 0)
     return;
 
-  std::string const hap_stats = Options::instance()->stats + "/" + pns[0] + "_haplotypes.tsv";
-  BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf_writer] Generating haplotype statistics to " << hap_stats;
-  std::ofstream hap_file(hap_stats.c_str());
+  // Read statistics
+  if (read_stats)
+  {
+    if (read_stats->insert_sizes.size() > 0)
+    {
+      for (std::size_t p = 0; p < pns.size(); ++p)
+      {
+        std::string const read_stats_fn = Options::instance()->stats + "/" + pns[p] + "_reads.tsv";
+        BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf_writer] Generating read statistics to " << read_stats_fn;
+        std::ofstream read_file(read_stats_fn.c_str());
+
+        std::unordered_map<uint32_t, uint32_t> insert_size_counts;
+
+        for (auto const insert_size : read_stats->insert_sizes[p])
+          ++insert_size_counts[insert_size];
+
+        read_file << (insert_size_counts[0]/2); // Insert size 0 should be half to only count each read pair once
+
+        for (uint32_t i = 1; i < 1000; ++i)
+          read_file << '\n' << insert_size_counts[i];
+
+        read_file << '\n';
+      }
+    }
+  }
+
+  // Haplotype statistics
+  std::string const hap_stats_fn = Options::instance()->stats + "/" + pns[0] + "_haplotypes.tsv";
+  BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf_writer] Generating haplotype statistics to " << hap_stats_fn;
+  std::ofstream hap_file(hap_stats_fn.c_str());
 
   // Loop samples
   for (unsigned i = 0; i < pns.size(); ++i)

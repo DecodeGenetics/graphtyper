@@ -15,6 +15,7 @@
 #include <graphtyper/typer/genotype_paths.hpp>
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/genotype.hpp>
+#include <graphtyper/typer/read_stats.hpp>
 #include <graphtyper/typer/segment.hpp>
 
 
@@ -69,6 +70,7 @@ private:
   std::mutex mutable haplotype_mutex;
   std::string pn;
   std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t> > id2hap; // first = haplotype, second = local genotype id
+  std::unique_ptr<ReadStats> read_stats = nullptr;
 
   seqan::VcfRecord create_multi_record(Genotype const & gt, bool const WRITE_PL);
 
