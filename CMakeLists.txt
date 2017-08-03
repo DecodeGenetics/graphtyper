@@ -5,7 +5,7 @@ include(ExternalProject)
 
 # The version number.
 set (graphtyper_VERSION_MAJOR 1)
-set (graphtyper_VERSION_MINOR 1)
+set (graphtyper_VERSION_MINOR 2)
 
 # SeqAn options
 set(SEQAN_BUILD_SYSTEM "SEQAN_RELEASE_LIBRARY" CACHE TYPE STRING)
