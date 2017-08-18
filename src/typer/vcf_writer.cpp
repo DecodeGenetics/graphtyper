@@ -204,42 +204,47 @@ VcfWriter::update_statistics(GenotypePaths & geno, std::size_t const pn_index, u
     auto const & path = geno.paths.at(RND % geno.paths.size());
 
     // Check if the path is purely reference
-    bool is_pure_reference = true;
-    bool is_pure_alternative = path.nums.size() > 0;
-
-    for (auto const & num : path.nums)
+    if (path.nums.size () > 0)
     {
-      bool const REF_COV = num.test(0);
-      bool const ALT_COV = num.count() - static_cast<uint32_t>(REF_COV);
+      bool is_pure_reference = true;
+      bool is_pure_alternative = true;
 
-      if (!REF_COV)
-        is_pure_reference = false;
-
-      if (!ALT_COV)
-        is_pure_alternative = false;
-
-      if (!is_pure_reference && !is_pure_alternative)
+      for (auto const & num : path.nums)
       {
-        break;
-      }
-    }
+        bool const REF_COV = num.test(0);
+        bool const ALT_COV = (num.count() - num.test(0)) > 0;
 
-    if (is_pure_reference ^ is_pure_alternative)
-    {
-      if (is_pure_reference)
-        read_stats->ref_read_abs_pos[pn_index].push_back({path.start_correct_pos(), path.end_correct_pos()});
+        if (!REF_COV)
+          is_pure_reference = false;
+
+        if (!ALT_COV)
+          is_pure_alternative = false;
+
+        if (!is_pure_reference && !is_pure_alternative)
+          break;
+      }
+
+      if (is_pure_reference ^ is_pure_alternative)
+      {
+        if (is_pure_reference)
+          read_stats->ref_read_abs_pos[pn_index].push_back({path.start_correct_pos(), path.end_correct_pos()});
+        else
+          read_stats->alt_read_abs_pos[pn_index].push_back({path.start_correct_pos(), path.end_correct_pos()});
+      }
       else
-        read_stats->alt_read_abs_pos[pn_index].push_back({path.start_correct_pos(), path.end_correct_pos()});
+      {
+        // Pick randomly
+        if ((RND + 11 * geno.paths[0].start) % 2 == 0)
+          read_stats->ref_read_abs_pos[pn_index].push_back({path.start_correct_pos(), path.end_correct_pos()});
+        else
+          read_stats->alt_read_abs_pos[pn_index].push_back({path.start_correct_pos(), path.end_correct_pos()});
+      }
     }
     else
     {
-      // Pick randomly
-      if (RND % 2 == 0)
-        read_stats->ref_read_abs_pos[pn_index].push_back({path.start_correct_pos(), path.end_correct_pos()});
-      else
-        read_stats->alt_read_abs_pos[pn_index].push_back({path.start_correct_pos(), path.end_correct_pos()});
+      // The path does not overlap any variants
+      read_stats->other_read_abs_pos[pn_index].push_back({path.start_correct_pos(), path.end_correct_pos()});
     }
-
   }
 
   // If the alignment is unique, log the sequence successor and linked haplotypes
@@ -709,33 +714,43 @@ VcfWriter::generate_statistics(std::vector<std::string> const & pns)
           }
         };
 
+        read_file << "#Coverage of interval (COV). Fields show reference allele coverage,"
+                  << " alternative allele coverage, other coverage and total coverage.\n";
+
         // Map of ref coverage by a range of position
         Tread_cov_map ref_coverage;
-        //read_file << "#Reference Allele Coverage by begin position (RAC)\n";
 
         for (auto const abs_pos : read_stats->ref_read_abs_pos[p])
           add_rounded_pos_lambda(ref_coverage, abs_pos);
 
         // Map of ref coverage by a range of position
         Tread_cov_map alt_coverage;
-        read_file << "#Coverage of interval (COV). Fields show reference allele coverage,"
-                  << " alternative allele coverage and total coverage.\n";
 
         for (auto const abs_pos : read_stats->alt_read_abs_pos[p])
           add_rounded_pos_lambda(alt_coverage, abs_pos);
 
+        // Map of other coverage by a range of position
+        Tread_cov_map other_coverage;
+
+        for (auto const abs_pos : read_stats->other_read_abs_pos[p])
+          add_rounded_pos_lambda(other_coverage, abs_pos);
+
         auto a_it = alt_coverage.begin();
         auto r_it = ref_coverage.begin();
 
-        auto print_to_read_file_lambda = [&](Tread_cov_map::iterator it, uint32_t const ref_count, uint32_t const alt_count)
+        auto print_to_read_file_lambda = [&](Tread_cov_map::const_iterator it, uint32_t const ref_count, uint32_t const alt_count)
         {
+          auto find_it = other_coverage.find(it->first);
+          uint32_t const other_count = find_it == other_coverage.end() ? 0 : find_it->second;
+
           read_file << "COV\t"
                     << it->first.first << "\t["
                     << it->first.second << "-"
                     << (it->first.second + INTERVAL_SIZE - 1) << "]\t"
                     << ref_count << "\t"
                     << alt_count << "\t"
-                    << (ref_count + alt_count) << "\n";
+                    << other_count << "\t"
+                    << (ref_count + alt_count + other_count) << "\n";
         };
 
         while (a_it != alt_coverage.end() || r_it != ref_coverage.end())
