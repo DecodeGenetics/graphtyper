@@ -24,6 +24,7 @@ public:
   uint8_t mapq = 255u;
   uint32_t original_pos = 0; /* 0-based position from global alignment */
   int32_t ml_insert_size = 0x7FFFFFFFl;
+  uint8_t read_pair_mismatches = 255u; /* Total mismatches in the read-pair. 255 if the either read is not aligned. */
   bool is_first_in_pair = true;
   bool forward_strand = true;
   bool is_originally_unaligned = false;

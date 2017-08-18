@@ -3,12 +3,6 @@
 #include <cstdint>
 #include <vector>
 
-struct Mismatch
-{
-  uint32_t pos = 0;
-  char new_base = 'N';
-};
-
 class ReadStats
 {
 public:
@@ -16,8 +10,12 @@ public:
   {
     insert_sizes.resize(num_samples);
     mismatches.resize(num_samples);
+    ref_read_abs_pos.resize(num_samples);
+    alt_read_abs_pos.resize(num_samples);
   }
 
   std::vector<std::vector<uint32_t> > insert_sizes;
-  std::vector<std::vector<Mismatch> > mismatches;
+  std::vector<std::vector<uint8_t> > mismatches;
+  std::vector<std::vector<std::pair<uint32_t, uint32_t> > > ref_read_abs_pos;
+  std::vector<std::vector<std::pair<uint32_t, uint32_t> > > alt_read_abs_pos;
 };

@@ -454,6 +454,13 @@ find_genotype_paths_of_a_sequence_pair(seqan::BamAlignmentRecord const & record1
       genos.second.ml_insert_size = -INSERT_SIZE;
     }
 
+    // Store total mismatches in each read pair
+    {
+      uint8_t const READ_PAIR_MISMATCHES = genos.first.paths[0].mismatches + genos.second.paths[0].mismatches;
+      genos.first.read_pair_mismatches = READ_PAIR_MISMATCHES;
+      genos.second.read_pair_mismatches = READ_PAIR_MISMATCHES;
+    }
+
     if (Options::instance()->hq_reads)
     {
       if (SHORTEST_DISTANCE > static_cast<int64_t>(THRESHOLD) || !support_same_path(genos))

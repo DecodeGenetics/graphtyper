@@ -49,12 +49,15 @@ are_genotype_paths_good(gyper::GenotypePaths const & geno)
     if (!fully_aligned) // Require reads to be fully aligned
       return false;
 
-    // Any path overlapping a variant must also not have too many mismatches
-    for (auto const & path : geno.paths)
-    {
-      if (path.var_order.size() > 0 && path.mismatches > 2)
-        return false;
-    }
+    if (geno.paths[0].mismatches > 4)
+      return false;
+
+    //// Any path overlapping a variant must also not have too many mismatches
+    //for (auto const & path : geno.paths)
+    //{
+    //  if (path.var_order.size() > 0 && path.mismatches > 2)
+    //    return false;
+    //}
   }
 
   return true;
@@ -91,6 +94,7 @@ VcfWriter::VcfWriter(std::vector<std::string> const & samples, uint32_t variant_
 
   if (Options::instance()->stats.size() > 0)
   {
+    BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf_writer] Gathering read statistics";
     this->read_stats = std::unique_ptr<ReadStats>(new ReadStats(samples.size()));
   }
 }
@@ -176,13 +180,66 @@ void
 VcfWriter::update_statistics(GenotypePaths & geno, std::size_t const pn_index, unsigned const read_pair)
 {
   // Update read statistics
+  if (geno.ml_insert_size != 0x7FFFFFFFl)
   {
+    assert (read_stats);
+    assert (pn_index < read_stats->insert_sizes.size());
+    assert (0 < geno.paths.size());
+    assert (pn_index < read_stats->mismatches.size());
+    assert (geno.read_pair_mismatches != static_cast<uint8_t>(255u));
+
     // Only log positive values, so each pair only registered once
-    if (geno.ml_insert_size != 0x7FFFFFFFl && geno.ml_insert_size >= 0)
+    if (geno.ml_insert_size > 0)
     {
-      assert (pn_index < read_stats->insert_sizes.size());
-      read_stats->insert_sizes[pn_index].push_back(geno.ml_insert_size);
+      read_stats->insert_sizes[pn_index].push_back(static_cast<uint32_t>(geno.ml_insert_size));
+      read_stats->mismatches[pn_index].push_back(static_cast<uint8_t>(geno.read_pair_mismatches));
     }
+  }
+
+  // Select a path "randomly" and update coverage
+  {
+    assert (read_stats);
+    assert (geno.paths.size() > 0);
+    uint32_t const RND = 3 * geno.paths[0].start + 5 * geno.paths[0].end + 7 * geno.paths[0].mismatches;
+    auto const & path = geno.paths.at(RND % geno.paths.size());
+
+    // Check if the path is purely reference
+    bool is_pure_reference = true;
+    bool is_pure_alternative = path.nums.size() > 0;
+
+    for (auto const & num : path.nums)
+    {
+      bool const REF_COV = num.test(0);
+      bool const ALT_COV = num.count() - static_cast<uint32_t>(REF_COV);
+
+      if (!REF_COV)
+        is_pure_reference = false;
+
+      if (!ALT_COV)
+        is_pure_alternative = false;
+
+      if (!is_pure_reference && !is_pure_alternative)
+      {
+        break;
+      }
+    }
+
+    if (is_pure_reference ^ is_pure_alternative)
+    {
+      if (is_pure_reference)
+        read_stats->ref_read_abs_pos[pn_index].push_back({path.start_correct_pos(), path.end_correct_pos()});
+      else
+        read_stats->alt_read_abs_pos[pn_index].push_back({path.start_correct_pos(), path.end_correct_pos()});
+    }
+    else
+    {
+      // Pick randomly
+      if (RND % 2 == 0)
+        read_stats->ref_read_abs_pos[pn_index].push_back({path.start_correct_pos(), path.end_correct_pos()});
+      else
+        read_stats->alt_read_abs_pos[pn_index].push_back({path.start_correct_pos(), path.end_correct_pos()});
+    }
+
   }
 
   // If the alignment is unique, log the sequence successor and linked haplotypes
@@ -553,29 +610,177 @@ VcfWriter::generate_statistics(std::vector<std::string> const & pns)
     return;
 
   // Read statistics
-  if (read_stats)
+  if (read_stats && read_stats->mismatches.size() > 0)
   {
-    if (read_stats->insert_sizes.size() > 0)
+    assert (read_stats->mismatches.size() == read_stats->insert_sizes.size());
+
+    for (std::size_t p = 0; p < pns.size(); ++p)
     {
-      for (std::size_t p = 0; p < pns.size(); ++p)
+      std::string const read_stats_fn = Options::instance()->stats + "/" + pns[p] + "_reads.tsv";
+      BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf_writer] Generating read statistics to " << read_stats_fn;
+      std::ofstream read_file(read_stats_fn.c_str());
+      read_file << "#InsertSize (IS)\n";
+
+      // Options
+      uint32_t constexpr MIN_REPORTED_INSERT_SIZE = 100;
+      uint32_t constexpr MAX_REPORTED_INSERT_SIZE = 500;
+      uint8_t constexpr MAX_REPORTED_MISMATCHES = 6;
+
+      // Insert sizes with different number of mismatches
       {
-        std::string const read_stats_fn = Options::instance()->stats + "/" + pns[p] + "_reads.tsv";
-        BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf_writer] Generating read statistics to " << read_stats_fn;
-        std::ofstream read_file(read_stats_fn.c_str());
-
+        std::unordered_map<uint64_t, uint32_t> insert_size_mismatches_counts;
         std::unordered_map<uint32_t, uint32_t> insert_size_counts;
+        std::unordered_map<uint8_t, uint32_t> mismatches_counts;
 
-        for (auto const insert_size : read_stats->insert_sizes[p])
+        for (std::size_t j = 0; j < read_stats->insert_sizes[p].size(); ++j)
+        {
+          uint32_t insert_size = read_stats->insert_sizes[p][j];
+          uint8_t mismatches = read_stats->mismatches[p][j];
+
+          if (insert_size <= 0)
+            continue;
+
+          insert_size = std::max(MIN_REPORTED_INSERT_SIZE, static_cast<uint32_t>(insert_size));
+          insert_size = std::min(MAX_REPORTED_INSERT_SIZE, static_cast<uint32_t>(insert_size));
+          mismatches = std::min(MAX_REPORTED_MISMATCHES, static_cast<uint8_t>(mismatches));
+
           ++insert_size_counts[insert_size];
+          ++mismatches_counts[mismatches];
+          ++insert_size_mismatches_counts[static_cast<uint64_t>(insert_size) | (static_cast<uint64_t>(mismatches) << 32)];
+        }
 
-        read_file << (insert_size_counts[0]/2); // Insert size 0 should be half to only count each read pair once
+        // Insert size 0 should be half to only count each read pair once
+        read_file << "IS\t" << MIN_REPORTED_INSERT_SIZE << '\t' << (insert_size_counts[MIN_REPORTED_INSERT_SIZE]/2);
 
-        for (uint32_t i = 1; i < 1000; ++i)
-          read_file << '\n' << insert_size_counts[i];
+        for (uint32_t is = MIN_REPORTED_INSERT_SIZE + 1; is <= MAX_REPORTED_INSERT_SIZE; ++is)
+          read_file << "\nIS\t" << is << '\t' << insert_size_counts[is];
 
         read_file << '\n';
+        read_file << "#MisMatches (MM)\n";
+        read_file << "MM\t0\t" << mismatches_counts[0];
+
+        for (uint32_t m = 1; m <= MAX_REPORTED_MISMATCHES; ++m)
+          read_file << '\n' << "MM\t" << m << '\t' << mismatches_counts[m];
+
+        read_file << '\n';
+
+        // Combine insert size and mismatch in a metric called read likelihood
+        read_file << "#Insert size with different number of read pair Mismatches (IM)\n";
+        read_file << "IM\t" << MIN_REPORTED_INSERT_SIZE;
+
+        for (uint64_t mismatches = 0; mismatches <= MAX_REPORTED_MISMATCHES; ++mismatches)
+          read_file << '\t' << insert_size_mismatches_counts[mismatches << 32];
+
+        for (uint64_t is = MIN_REPORTED_INSERT_SIZE + 1; is <= MAX_REPORTED_INSERT_SIZE; ++is)
+        {
+          read_file << "\nIM\t" << is;
+
+          for (uint64_t m = 0; m <= MAX_REPORTED_MISMATCHES; ++m)
+          {
+            uint64_t const key = is | (m << 32);
+            read_file << '\t' << insert_size_mismatches_counts[key];
+          }
+        }
       }
+
+      read_file << '\n';
+
+      // Coverage
+      {
+        using Tread_cov_map = std::map<std::pair<std::string, uint32_t>, uint32_t>;
+        uint32_t constexpr INTERVAL_SIZE = 5;
+
+        auto add_rounded_pos_lambda = [INTERVAL_SIZE]
+          (Tread_cov_map & read_cov_map, std::pair<uint32_t, uint32_t> const abs_pos_range)
+        {
+          std::pair<std::string, uint32_t> contig_pos1 = absolute_pos.get_contig_position(abs_pos_range.first);
+          contig_pos1.second -= contig_pos1.second % INTERVAL_SIZE;
+          std::pair<std::string, uint32_t> contig_pos2 = absolute_pos.get_contig_position(abs_pos_range.second);
+          contig_pos2.second -= contig_pos2.second % INTERVAL_SIZE;
+
+          // Make sure both are on the same chromosome
+          if (contig_pos1.first == contig_pos2.first)
+          {
+            while (contig_pos1.second <= contig_pos2.second)
+            {
+              ++read_cov_map[contig_pos1];
+              contig_pos1.second += INTERVAL_SIZE;
+            }
+          }
+        };
+
+        // Map of ref coverage by a range of position
+        Tread_cov_map ref_coverage;
+        //read_file << "#Reference Allele Coverage by begin position (RAC)\n";
+
+        for (auto const abs_pos : read_stats->ref_read_abs_pos[p])
+          add_rounded_pos_lambda(ref_coverage, abs_pos);
+
+        // Map of ref coverage by a range of position
+        Tread_cov_map alt_coverage;
+        read_file << "#Coverage of interval (COV). Fields show reference allele coverage,"
+                  << " alternative allele coverage and total coverage.\n";
+
+        for (auto const abs_pos : read_stats->alt_read_abs_pos[p])
+          add_rounded_pos_lambda(alt_coverage, abs_pos);
+
+        auto a_it = alt_coverage.begin();
+        auto r_it = ref_coverage.begin();
+
+        auto print_to_read_file_lambda = [&](Tread_cov_map::iterator it, uint32_t const ref_count, uint32_t const alt_count)
+        {
+          read_file << "COV\t"
+                    << it->first.first << "\t["
+                    << it->first.second << "-"
+                    << (it->first.second + INTERVAL_SIZE - 1) << "]\t"
+                    << ref_count << "\t"
+                    << alt_count << "\t"
+                    << (ref_count + alt_count) << "\n";
+        };
+
+        while (a_it != alt_coverage.end() || r_it != ref_coverage.end())
+        {
+          // Check if either one is at the end
+          if (a_it == alt_coverage.end())
+          {
+            assert (r_it != ref_coverage.end());
+            print_to_read_file_lambda(r_it, r_it->second, 0);
+            ++r_it;
+            continue;
+          }
+
+          if (r_it == ref_coverage.end())
+          {
+            assert (a_it != alt_coverage.end());
+            print_to_read_file_lambda(a_it, 0, a_it->second);
+            ++a_it;
+            continue;
+          }
+
+          // Both are not at the end
+          if (r_it->first < a_it->first)
+          {
+            print_to_read_file_lambda(r_it, r_it->second, 0);
+            ++r_it;
+          }
+          else if (a_it->first < r_it->first)
+          {
+            print_to_read_file_lambda(a_it, 0, a_it->second);
+            ++a_it;
+          }
+          else
+          {
+            print_to_read_file_lambda(r_it, r_it->second, a_it->second);
+            ++r_it;
+            ++a_it;
+          }
+        }
+      } // Coverage ends
     }
+  }
+  else
+  {
+    BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf_writer] Skipped generating read statistics";
   }
 
   // Haplotype statistics
