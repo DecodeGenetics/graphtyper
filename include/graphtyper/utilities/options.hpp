@@ -26,6 +26,7 @@ public:
   unsigned threads = 1; // How many threads should be used by Graphtyper (note that RocksDB may also use some additional threads)
   std::vector<std::string> regions = {"."}; // "." means the entire SAM file is read.
   std::string stats = ""; // Filename for statistics file
+  bool haplotype_statistics = false;
 
   /************************
    * CONSTRUCTOR OPTIONS *

@@ -215,13 +215,20 @@ VcfWriter::update_statistics(GenotypePaths & geno, std::size_t const pn_index, u
         bool const ALT_COV = (num.count() - num.test(0)) > 0;
 
         if (!REF_COV)
+        {
           is_pure_reference = false;
 
+          if (!is_pure_alternative)
+            break;
+        }
+
         if (!ALT_COV)
+        {
           is_pure_alternative = false;
 
-        if (!is_pure_reference && !is_pure_alternative)
-          break;
+          if (!is_pure_reference)
+            break;
+        }
       }
 
       if (is_pure_reference ^ is_pure_alternative)
@@ -248,7 +255,7 @@ VcfWriter::update_statistics(GenotypePaths & geno, std::size_t const pn_index, u
   }
 
   // If the alignment is unique, log the sequence successor and linked haplotypes
-  if (geno.paths.size() == 1)
+  if (Options::instance()->haplotype_statistics && geno.paths.size() == 1)
   {
     auto const & path = geno.paths[0];
 
@@ -799,95 +806,98 @@ VcfWriter::generate_statistics(std::vector<std::string> const & pns)
   }
 
   // Haplotype statistics
-  std::string const hap_stats_fn = Options::instance()->stats + "/" + pns[0] + "_haplotypes.tsv";
-  BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf_writer] Generating haplotype statistics to " << hap_stats_fn;
-  std::ofstream hap_file(hap_stats_fn.c_str());
-
-  // Loop samples
-  for (unsigned i = 0; i < pns.size(); ++i)
+  if (Options::instance()->haplotype_statistics)
   {
-    auto const & pn = pns[i];
+    std::string const hap_stats_fn = Options::instance()->stats + "/" + pns[0] + "_haplotypes.tsv";
+    BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf_writer] Generating haplotype statistics to " << hap_stats_fn;
+    std::ofstream hap_file(hap_stats_fn.c_str());
 
-    // Haplotype statistics
-    for (unsigned ps = 0; ps < haplotypes.size(); ++ps)
+    // Loop samples
+    for (unsigned i = 0; i < pns.size(); ++i)
     {
-      auto const & hap = haplotypes[ps];
-      auto const & gts = hap.gts;
-      assert (hap.hap_samples.size() == pns.size());
-      assert (i < hap.hap_samples.size());
-      auto const & hap_sample = hap.hap_samples[i];
-      assert (hap_sample.stats);
-      uint32_t const cnum = hap.get_genotype_num();
+      auto const & pn = pns[i];
 
-      for (uint32_t c = 0; c < cnum; ++c)
+      // Haplotype statistics
+      for (unsigned ps = 0; ps < haplotypes.size(); ++ps)
       {
-        std::vector<uint32_t> gt_calls;
-        uint32_t call = c;
-        uint32_t q = cnum;
+        auto const & hap = haplotypes[ps];
+        auto const & gts = hap.gts;
+        assert (hap.hap_samples.size() == pns.size());
+        assert (i < hap.hap_samples.size());
+        auto const & hap_sample = hap.hap_samples[i];
+        assert (hap_sample.stats);
+        uint32_t const cnum = hap.get_genotype_num();
 
-        for (uint32_t i = 0; i < gts.size(); ++i)
+        for (uint32_t c = 0; c < cnum; ++c)
         {
-          q /= gts[i].num;
-          assert (q != 0);
-          gt_calls.push_back(call / q);
-          call %= q;
+          std::vector<uint32_t> gt_calls;
+          uint32_t call = c;
+          uint32_t q = cnum;
+
+          for (uint32_t i = 0; i < gts.size(); ++i)
+          {
+            q /= gts[i].num;
+            assert (q != 0);
+            gt_calls.push_back(call / q);
+            call %= q;
+          }
+
+          hap_file << pn << '\t' << ps << '\t' << c; // << "\t" << gt_calls[0];
+
+          //for (uint32_t l = 1; l < gt_calls.size(); ++l)
+          //  hap_file << ">" << gt_calls[l];
+
+          hap_file << '\t' << static_cast<uint16_t>(hap_sample.stats->hap_coverage[c])
+                   << '\t' << static_cast<uint16_t>(hap_sample.stats->hap_unique_coverage[c])
+                   << '\t';
+
+          if (hap_sample.stats->successor[c].size() > 0)
+          {
+            hap_file << std::string(hap_sample.stats->successor[c][0].begin(), hap_sample.stats->successor[c][0].end());
+
+            for (auto it = hap_sample.stats->successor[c].begin() + 1; it != hap_sample.stats->successor[c].end(); ++it)
+              hap_file << "," << std::string(it->begin(), it->end());
+          }
+          else
+          {
+            hap_file << "N/A";
+          }
+
+          hap_file << '\t';
+
+          if (hap_sample.stats->pair_info[c].size() > 0)
+          {
+            hap_file << "(" << hap_sample.stats->pair_info[c][0].first
+                     << "," << hap_sample.stats->pair_info[c][0].second
+                     << ")";
+
+            for (auto it = hap_sample.stats->pair_info[c].begin() + 1; it != hap_sample.stats->pair_info[c].end(); ++it)
+              hap_file << ",(" << it->first << "," << it->second << ")";
+          }
+          else
+          {
+            hap_file << "N/A";
+          }
+
+          // if (hap_sample.stats->predecessor[c].size() > 0)
+          // {
+          //   hap_file << std::string(hap_sample.stats->predecessor[c][0].begin(), hap_sample.stats->predecessor[c][0].end());
+          //
+          //   for (auto it = hap_sample.stats->predecessor[c].begin() + 1; it != hap_sample.stats->predecessor[c].end(); ++it)
+          //     hap_file << "," << std::string(it->begin(), it->end());
+          // }
+          // else
+          // {
+          //   hap_file << "N/A";
+          // }
+
+          // hap_file << "\tPredecessors";
+          //
+          // for (auto const & p : hap_sample.stats->predecessor[c])
+          //   hap_file << ":" << std::string(p.begin(), p.end());
+
+          hap_file << "\n";
         }
-
-        hap_file << pn << '\t' << ps << '\t' << c; // << "\t" << gt_calls[0];
-
-        //for (uint32_t l = 1; l < gt_calls.size(); ++l)
-        //  hap_file << ">" << gt_calls[l];
-
-        hap_file << '\t' << static_cast<uint16_t>(hap_sample.stats->hap_coverage[c])
-                 << '\t' << static_cast<uint16_t>(hap_sample.stats->hap_unique_coverage[c])
-                 << '\t';
-
-        if (hap_sample.stats->successor[c].size() > 0)
-        {
-          hap_file << std::string(hap_sample.stats->successor[c][0].begin(), hap_sample.stats->successor[c][0].end());
-
-          for (auto it = hap_sample.stats->successor[c].begin() + 1; it != hap_sample.stats->successor[c].end(); ++it)
-            hap_file << "," << std::string(it->begin(), it->end());
-        }
-        else
-        {
-          hap_file << "N/A";
-        }
-
-        hap_file << '\t';
-
-        if (hap_sample.stats->pair_info[c].size() > 0)
-        {
-          hap_file << "(" << hap_sample.stats->pair_info[c][0].first
-                   << "," << hap_sample.stats->pair_info[c][0].second
-                   << ")";
-
-          for (auto it = hap_sample.stats->pair_info[c].begin() + 1; it != hap_sample.stats->pair_info[c].end(); ++it)
-            hap_file << ",(" << it->first << "," << it->second << ")";
-        }
-        else
-        {
-          hap_file << "N/A";
-        }
-
-        // if (hap_sample.stats->predecessor[c].size() > 0)
-        // {
-        //   hap_file << std::string(hap_sample.stats->predecessor[c][0].begin(), hap_sample.stats->predecessor[c][0].end());
-        //
-        //   for (auto it = hap_sample.stats->predecessor[c].begin() + 1; it != hap_sample.stats->predecessor[c].end(); ++it)
-        //     hap_file << "," << std::string(it->begin(), it->end());
-        // }
-        // else
-        // {
-        //   hap_file << "N/A";
-        // }
-
-        // hap_file << "\tPredecessors";
-        //
-        // for (auto const & p : hap_sample.stats->predecessor[c])
-        //   hap_file << ":" << std::string(p.begin(), p.end());
-
-        hap_file << "\n";
       }
     }
   }
