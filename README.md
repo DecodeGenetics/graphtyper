@@ -4,11 +4,7 @@ Graphtyper is a highly scalable genotyping software. It represents a reference g
 First author and software maintainer: Hannes Pétur Eggertsson (Hannes.Eggertsson@decode.is)
 
 ## Citation
-The Graphtyper manuscript has not yet been published in a journal, so please cite our [preprint](http://biorxiv.org/content/early/2017/06/09/148403):
-
-`
-Hannes P. Eggertsson, Hakon Jonsson, Snaedis Kristmundsdottir, Eirikur Hjartarson, Birte Kehr, Gisli Masson, Florian Zink, Aslaug Jonasdottir, Adalbjorg Jonasdottir, Ingileif Jonsdottir, Daniel F. Gudbjartsson, Pall Melsted, Kari Stefansson, Bjarni V. Halldorsson. 2017. Graphtyper: Population-scale genotyping using pangenome graphs. bioRxiv doi: 10.1101/123456
-`
+Hannes P. Eggertsson, Hakon Jonsson, Snaedis Kristmundsdottir, Eirikur Hjartarson, Birte Kehr, Gisli Masson, Florian Zink, Kristjan E. Hjorleifsson, Aslaug Jonasdottir, Adalbjorg Jonasdottir, Ingileif Jonsdottir, Daniel F. Gudbjartsson, Pall Melsted, Kari Stefansson, Bjarni V. Halldorsson. Graphtyper enables population-scale genotyping using pangenome graphs. *Nature Genetics*. [doi:10.1038/ng.3964](http://dx.doi.org/10.1038/ng.3964) (2017)
 
 ## Getting started
 ### Dependencies
