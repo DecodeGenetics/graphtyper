@@ -20,3 +20,17 @@ public:
   std::vector<std::vector<std::pair<uint32_t, uint32_t> > > alt_read_abs_pos;
   std::vector<std::vector<std::pair<uint32_t, uint32_t> > > other_read_abs_pos;
 };
+
+/*
+class ReadInfo
+{
+public:
+
+};
+
+class PathInfo
+{
+public:
+
+};
+*/

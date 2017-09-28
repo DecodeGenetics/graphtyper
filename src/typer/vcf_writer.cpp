@@ -21,6 +21,7 @@
 #include <graphtyper/typer/read_stats.hpp>
 #include <graphtyper/typer/vcf_writer.hpp>
 #include <graphtyper/utilities/graph_help_functions.hpp>
+#include <graphtyper/utilities/io.hpp>
 #include <graphtyper/utilities/options.hpp>
 #include <graphtyper/utilities/vcf_help_functions.hpp>
 
@@ -195,6 +196,12 @@ VcfWriter::update_statistics(GenotypePaths & geno, std::size_t const pn_index, u
       read_stats->mismatches[pn_index].push_back(static_cast<uint8_t>(geno.read_pair_mismatches));
     }
   }
+
+  // Insert all paths
+  //for (auto const & path : geno.paths)
+  //{
+  //
+  //}
 
   // Select a path "randomly" and update coverage
   {
@@ -628,9 +635,9 @@ VcfWriter::generate_statistics(std::vector<std::string> const & pns)
 
     for (std::size_t p = 0; p < pns.size(); ++p)
     {
-      std::string const read_stats_fn = Options::instance()->stats + "/" + pns[p] + "_reads.tsv";
+      std::string const read_stats_fn = Options::instance()->stats + "/" + pns[p] + "_reads_stats.tsv.gz";
       BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf_writer] Generating read statistics to " << read_stats_fn;
-      std::ofstream read_file(read_stats_fn.c_str());
+      std::stringstream read_file;
       read_file << "#InsertSize (IS)\n";
 
       // Options
@@ -798,6 +805,8 @@ VcfWriter::generate_statistics(std::vector<std::string> const & pns)
           }
         }
       } // Coverage ends
+
+      write_gzipped_to_file(read_file, read_stats_fn.c_str());
     }
   }
   else
@@ -805,12 +814,44 @@ VcfWriter::generate_statistics(std::vector<std::string> const & pns)
     BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf_writer] Skipped generating read statistics";
   }
 
-  // Haplotype statistics
-  if (Options::instance()->haplotype_statistics)
+  // Haplotypes
   {
-    std::string const hap_stats_fn = Options::instance()->stats + "/" + pns[0] + "_haplotypes.tsv";
+    std::string const hap_stats_fn = Options::instance()->stats + "/" + pns[0] + "_haplotypes_info.tsv.gz";
+    BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf_writer] Generating haplotype info statistics to " << hap_stats_fn;
+    std::stringstream hap_file;
+
+    // Write header file
+    hap_file << "#haplotypeID\talleleID\tcontig\tpos\tsequence\n";
+
+    for (unsigned ps = 0; ps < haplotypes.size(); ++ps)
+    {
+      auto const & hap = haplotypes[ps];
+      uint32_t const cnum = hap.get_genotype_num();
+
+      for (uint32_t c = 0; c < cnum; ++c)
+      {
+        assert (hap.gts.size() > 0);
+        uint32_t const abs_pos = hap.gts[0].id;
+        std::vector<char> seq = graph.get_sequence_of_a_haplotype_call(hap.gts, c);
+        assert (seq.size() > 1);
+        auto contig_pos = absolute_pos.get_contig_position(abs_pos);
+        hap_file << ps << "\t" << c << "\t" << contig_pos.first << "\t" << contig_pos.second << "\t"
+                 << std::string(seq.begin() + 1, seq.end());
+        hap_file << "\n";
+      }
+    }
+
+    write_gzipped_to_file(hap_file, hap_stats_fn);
+  }
+
+  // Haplotype statistics
+  {
+    std::string const hap_stats_fn = Options::instance()->stats + "/" + pns[0] + "_haplotypes_stats.tsv.gz";
     BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf_writer] Generating haplotype statistics to " << hap_stats_fn;
-    std::ofstream hap_file(hap_stats_fn.c_str());
+    std::stringstream hap_file;
+
+    // Write header file
+    hap_file << "#sample\thaplotypeID\talleleID\tcoverage\tunique_coverage\n";
 
     // Loop samples
     for (unsigned i = 0; i < pns.size(); ++i)
@@ -821,7 +862,6 @@ VcfWriter::generate_statistics(std::vector<std::string> const & pns)
       for (unsigned ps = 0; ps < haplotypes.size(); ++ps)
       {
         auto const & hap = haplotypes[ps];
-        auto const & gts = hap.gts;
         assert (hap.hap_samples.size() == pns.size());
         assert (i < hap.hap_samples.size());
         auto const & hap_sample = hap.hap_samples[i];
@@ -834,9 +874,9 @@ VcfWriter::generate_statistics(std::vector<std::string> const & pns)
           uint32_t call = c;
           uint32_t q = cnum;
 
-          for (uint32_t i = 0; i < gts.size(); ++i)
+          for (auto const & gt : hap.gts)
           {
-            q /= gts[i].num;
+            q /= gt.num;
             assert (q != 0);
             gt_calls.push_back(call / q);
             call %= q;
@@ -851,6 +891,7 @@ VcfWriter::generate_statistics(std::vector<std::string> const & pns)
                    << '\t' << static_cast<uint16_t>(hap_sample.stats->hap_unique_coverage[c])
                    << '\t';
 
+          /*
           if (hap_sample.stats->successor[c].size() > 0)
           {
             hap_file << std::string(hap_sample.stats->successor[c][0].begin(), hap_sample.stats->successor[c][0].end());
@@ -878,6 +919,7 @@ VcfWriter::generate_statistics(std::vector<std::string> const & pns)
           {
             hap_file << "N/A";
           }
+          */
 
           // if (hap_sample.stats->predecessor[c].size() > 0)
           // {
@@ -900,6 +942,13 @@ VcfWriter::generate_statistics(std::vector<std::string> const & pns)
         }
       }
     }
+
+    write_gzipped_to_file(hap_file, hap_stats_fn);
+    //std::ofstream compressed(hap_stats_fn.c_str(), std::ofstream::binary);
+    //boost::iostreams::filtering_streambuf<boost::iostreams::input> out;
+    //out.push(boost::iostreams::gzip_compressor());
+    //out.push(hap_file);
+    //boost::iostreams::copy(out, compressed);
   }
 }
 

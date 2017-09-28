@@ -29,6 +29,7 @@ public:
   bool forward_strand = true;
   bool is_originally_unaligned = false;
   bool is_originally_clipped = false;
+  std::string query_name;
 
   /****************
    * CONSTRUCTORS *

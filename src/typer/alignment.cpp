@@ -166,6 +166,10 @@ align_unpaired_read_pairs(TReads & reads, std::vector<GenotypePaths> & genos)
       geno1.is_originally_unaligned = seqan::hasFlagUnmapped(read_it->first);
       geno1.original_pos = read_it->first.beginPos + 1; // Change to 1-based system
       geno1.is_originally_clipped = seqan::hasFlagUnmapped(read_it->first) || is_clipped(read_it->first.cigar);
+
+      if (Options::instance()->stats.size() > 0)
+        geno1.query_name = seqan::toCString(record_it->first.qName);
+
       genos.push_back(std::move(geno1));
       break;
 
@@ -175,6 +179,10 @@ align_unpaired_read_pairs(TReads & reads, std::vector<GenotypePaths> & genos)
       geno2.is_originally_unaligned = seqan::hasFlagUnmapped(read_it->first);
       geno2.original_pos = read_it->first.beginPos + 1; // Change to 1-based system
       geno2.is_originally_clipped = seqan::hasFlagUnmapped(read_it->first) || is_clipped(read_it->first.cigar);
+
+      if (Options::instance()->stats.size() > 0)
+        geno1.query_name = seqan::toCString(record_it->first.qName);
+
       genos.push_back(std::move(geno2));
       break;
     }
@@ -517,6 +525,13 @@ get_best_genotype_paths(std::vector<TReadPair> const & records)
       genos1.second.is_first_in_pair = false;
       genos1.first.original_pos = record_it->first.beginPos + 1;
       genos1.second.original_pos = record_it->second.beginPos + 1;
+
+      if (Options::instance()->stats.size() > 0)
+      {
+        genos1.first.query_name = seqan::toCString(record_it->first.qName);
+        genos1.second.query_name = seqan::toCString(record_it->second.qName);
+      }
+
       genos.push_back(std::move(genos1));
       break;
 
@@ -529,6 +544,13 @@ get_best_genotype_paths(std::vector<TReadPair> const & records)
       genos2.second.is_first_in_pair = false;
       genos2.first.original_pos = record_it->first.beginPos + 1;
       genos2.second.original_pos = record_it->second.beginPos + 1;
+
+      if (Options::instance()->stats.size() > 0)
+      {
+        genos2.first.query_name = seqan::toCString(record_it->first.qName);
+        genos2.second.query_name = seqan::toCString(record_it->second.qName);
+      }
+
       genos.push_back(std::move(genos2));
       break;
     }
