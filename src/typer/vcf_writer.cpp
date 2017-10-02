@@ -72,7 +72,8 @@ namespace gyper
 {
 
 VcfWriter::VcfWriter(std::vector<std::string> const & samples, uint32_t variant_distance)
-  : pn(samples[0])
+  : pns(samples)
+  , pn(samples[0])
 {
   BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf_writer] Getting all haplotypes.";
   BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf_writer] Number of variant nodes in graph "
@@ -106,14 +107,18 @@ VcfWriter::update_haplotype_scores_from_paths(std::vector<GenotypePaths> & genos
                                               std::size_t const pn_index
   )
 {
-  std::lock_guard<std::mutex> lock(haplotype_mutex);
-  assert(!Options::instance()->is_segment_calling);
-
-  for (auto & geno : genos)
   {
-    if (are_genotype_paths_good(geno))
-      update_haplotype_scores_from_path(geno, pn_index, 0 /*unpaired*/);
+    std::lock_guard<std::mutex> lock(haplotype_mutex);
+
+    for (auto & geno : genos)
+    {
+      if (are_genotype_paths_good(geno))
+        update_haplotype_scores_from_path(geno, pn_index, 0 /*unpaired*/);
+    }
   }
+
+  if (Options::instance()->stats.size() > 0)
+    update_statistics(genos, pn_index);
 }
 
 
@@ -123,251 +128,511 @@ VcfWriter::update_haplotype_scores_from_paths(
   std::size_t const pn_index
   )
 {
-  std::lock_guard<std::mutex> lock(haplotype_mutex);
-
-  for (auto & geno : genos)
   {
-    // if (Options::instance()->is_segment_calling)
-    // {
-    //   if (geno.first.paths.size() > 0 && geno.first.all_paths_fully_aligned() &&
-    //       geno.second.paths.size() > 0 && geno.second.all_paths_fully_aligned()
-    //       )
-    //   {
-    //     update_haplotype_scores_from_path(geno.first, pn_index);
-    //     update_haplotype_scores_from_path(geno.second, pn_index);
-    //   }
-    // }
-    // else
-    //{
-    bool const READ1_IS_GOOD = are_genotype_paths_good(geno.first);
-    bool const READ2_IS_GOOD = are_genotype_paths_good(geno.second);
+    std::lock_guard<std::mutex> lock(haplotype_mutex);
 
-    if (Options::instance()->hq_reads)
+    for (auto & geno : genos)
     {
-      // Make sure both read pairs support the same haplotypes
-      if (READ1_IS_GOOD && READ2_IS_GOOD)
-      {
-        update_haplotype_scores_from_path(geno.first, pn_index, 1 /*first in pair*/);
-        update_haplotype_scores_from_path(geno.second, pn_index, 2 /*second in pair*/);
-      }
-    }
-    else
-    {
-      if (READ1_IS_GOOD && READ2_IS_GOOD)
-      {
-        update_haplotype_scores_from_path(geno.first, pn_index, 1 /*first in pair*/);
-        update_haplotype_scores_from_path(geno.second, pn_index, 2 /*second in pair*/);
+      // if (Options::instance()->is_segment_calling)
+      // {
+      //   if (geno.first.paths.size() > 0 && geno.first.all_paths_fully_aligned() &&
+      //       geno.second.paths.size() > 0 && geno.second.all_paths_fully_aligned()
+      //       )
+      //   {
+      //     update_haplotype_scores_from_path(geno.first, pn_index);
+      //     update_haplotype_scores_from_path(geno.second, pn_index);
+      //   }
+      // }
+      // else
+      //{
+      bool const READ1_IS_GOOD = are_genotype_paths_good(geno.first);
+      bool const READ2_IS_GOOD = are_genotype_paths_good(geno.second);
 
-        if (Options::instance()->stats.size() > 0)
+      if (Options::instance()->hq_reads)
+      {
+        // Make sure both read pairs support the same haplotypes
+        if (READ1_IS_GOOD && READ2_IS_GOOD)
         {
-          for (auto & hap : haplotypes)
-            hap.hap_samples[pn_index].stats->pair_stats.clear();
+          update_haplotype_scores_from_path(geno.first, pn_index, 1 /*first in pair*/);
+          update_haplotype_scores_from_path(geno.second, pn_index, 2 /*second in pair*/);
         }
-      }
-      else if (READ1_IS_GOOD)
-      {
-        update_haplotype_scores_from_path(geno.first, pn_index, 0 /*unpaired*/);
-      }
-      else if (READ2_IS_GOOD)
-      {
-        update_haplotype_scores_from_path(geno.second, pn_index, 0 /*unpaired*/);
-      }
-    }
-  }
-}
-
-
-void
-VcfWriter::update_statistics(GenotypePaths & geno, std::size_t const pn_index, unsigned const read_pair)
-{
-  // Update read statistics
-  if (geno.ml_insert_size != 0x7FFFFFFFl)
-  {
-    assert (read_stats);
-    assert (pn_index < read_stats->insert_sizes.size());
-    assert (0 < geno.paths.size());
-    assert (pn_index < read_stats->mismatches.size());
-    assert (geno.read_pair_mismatches != static_cast<uint8_t>(255u));
-
-    // Only log positive values, so each pair only registered once
-    if (geno.ml_insert_size > 0)
-    {
-      read_stats->insert_sizes[pn_index].push_back(static_cast<uint32_t>(geno.ml_insert_size));
-      read_stats->mismatches[pn_index].push_back(static_cast<uint8_t>(geno.read_pair_mismatches));
-    }
-  }
-
-  // Insert all paths
-  //for (auto const & path : geno.paths)
-  //{
-  //
-  //}
-
-  // Select a path "randomly" and update coverage
-  {
-    assert (read_stats);
-    assert (geno.paths.size() > 0);
-    uint32_t const RND = 3 * geno.paths[0].start + 5 * geno.paths[0].end + 7 * geno.paths[0].mismatches;
-    auto const & path = geno.paths.at(RND % geno.paths.size());
-
-    // Check if the path is purely reference
-    if (path.nums.size () > 0)
-    {
-      bool is_pure_reference = true;
-      bool is_pure_alternative = true;
-
-      for (auto const & num : path.nums)
-      {
-        bool const REF_COV = num.test(0);
-        bool const ALT_COV = (num.count() - num.test(0)) > 0;
-
-        if (!REF_COV)
-        {
-          is_pure_reference = false;
-
-          if (!is_pure_alternative)
-            break;
-        }
-
-        if (!ALT_COV)
-        {
-          is_pure_alternative = false;
-
-          if (!is_pure_reference)
-            break;
-        }
-      }
-
-      if (is_pure_reference ^ is_pure_alternative)
-      {
-        if (is_pure_reference)
-          read_stats->ref_read_abs_pos[pn_index].push_back({path.start_correct_pos(), path.end_correct_pos()});
-        else
-          read_stats->alt_read_abs_pos[pn_index].push_back({path.start_correct_pos(), path.end_correct_pos()});
       }
       else
       {
-        // Pick randomly
-        if ((RND + 11 * geno.paths[0].start) % 2 == 0)
-          read_stats->ref_read_abs_pos[pn_index].push_back({path.start_correct_pos(), path.end_correct_pos()});
-        else
-          read_stats->alt_read_abs_pos[pn_index].push_back({path.start_correct_pos(), path.end_correct_pos()});
-      }
-    }
-    else
-    {
-      // The path does not overlap any variants
-      read_stats->other_read_abs_pos[pn_index].push_back({path.start_correct_pos(), path.end_correct_pos()});
-    }
-  }
-
-  // If the alignment is unique, log the sequence successor and linked haplotypes
-  if (Options::instance()->haplotype_statistics && geno.paths.size() == 1)
-  {
-    auto const & path = geno.paths[0];
-
-    for (unsigned i = 0; i < path.var_order.size(); ++i)
-    {
-      if (path.nums[i].count() != 1)
-        continue;
-
-      uint32_t b = 0;
-
-      while (!path.nums[i].test(b))
-      {
-        ++b;
-        assert (b < path.nums[i].size());
-      }
-
-      uint32_t v = 0;
-
-      while (graph.var_nodes[v].get_label().order != path.var_order[i] || graph.var_nodes[v].get_label().variant_num != b)
-      {
-        ++v;
-        assert (v < graph.var_nodes.size());
-      }
-
-      uint32_t const reach = graph.var_nodes[v].get_label().reach();
-      assert(id2hap.count(path.var_order[i]) == 1);
-      std::pair<uint32_t, uint32_t> const type_ids = id2hap.at(path.var_order[i]); //hap_id = first, gen_id = second
-      assert(type_ids.first < haplotypes.size());
-      assert(pn_index < haplotypes[type_ids.first].hap_samples.size());
-      assert(haplotypes[type_ids.first].hap_samples[pn_index].stats);
-      auto const & stats = haplotypes[type_ids.first].hap_samples[pn_index].stats;
-
-      // Read pair information
-      if (read_pair == 1)
-      {
-        stats->pair_stats.push_back({type_ids.first, b}); // Add this pair of haplotype ID and genotype ID
-      }
-      else if (read_pair == 2)
-      {
-        // Check all other haplotypes
-        for (auto & hap : haplotypes)
+        if (READ1_IS_GOOD && READ2_IS_GOOD)
         {
-          auto const & stats_first = hap.hap_samples[pn_index].stats;
+          update_haplotype_scores_from_path(geno.first, pn_index, 1 /*first in pair*/);
+          update_haplotype_scores_from_path(geno.second, pn_index, 2 /*second in pair*/);
 
-          // Add read pair information to stats
-          for (auto const & first_read : stats_first->pair_stats)
+          if (Options::instance()->stats.size() > 0)
           {
-            assert (first_read.gt_id < haplotypes[first_read.hap_id].hap_samples[pn_index].stats->pair_info.size());
-            assert (b < haplotypes[type_ids.first].hap_samples[pn_index].stats->pair_info.size());
-            haplotypes[first_read.hap_id].hap_samples[pn_index].stats->pair_info[first_read.gt_id].push_back({type_ids.first, b});
-            haplotypes[type_ids.first].hap_samples[pn_index].stats->pair_info[b].push_back({first_read.hap_id, first_read.gt_id});
+            for (auto & hap : haplotypes)
+              hap.hap_samples[pn_index].stats->pair_stats.clear();
           }
         }
-      }
-
-      uint32_t constexpr minW = 1;
-      uint32_t constexpr W = 1;
-
-      if (path.end_correct_pos() >= reach + minW && path.end_correct_pos() - reach < geno.read.size())
-      {
-        assert (b < stats->successor.size());
-        auto start_it = geno.read.end() - path.end_correct_pos() + reach;
-        assert (std::distance(start_it, geno.read.end()) >= minW);
-
-        if (std::distance(start_it, geno.read.end()) > W)
-          stats->successor[b].push_back(std::vector<char>(start_it, start_it + W));
-        else
-          stats->successor[b].push_back(std::vector<char>(start_it, geno.read.end()));
-
-        auto qual_start_it = geno.qual.end() - path.end_correct_pos() + reach;
-
-        // Add it again if all bases are high quality
-        if (std::count(qual_start_it, qual_start_it + minW, 33) == 0)
+        else if (READ1_IS_GOOD)
         {
-          if (std::distance(start_it, geno.read.end()) > W)
-            stats->successor[b].push_back(std::vector<char>(start_it, start_it + W));
-          else
-            stats->successor[b].push_back(std::vector<char>(start_it, geno.read.end()));
+          update_haplotype_scores_from_path(geno.first, pn_index, 0 /*unpaired*/);
+        }
+        else if (READ2_IS_GOOD)
+        {
+          update_haplotype_scores_from_path(geno.second, pn_index, 0 /*unpaired*/);
         }
       }
-
-      // Code for predecessor
-      // if (graph.var_nodes[v].get_label().order >= path.start_correct_pos() + minW &&
-      //     graph.var_nodes[v].get_label().order - path.start_correct_pos() < geno.read.size()
-      //    )
-      // {
-      //   assert (b < stats->predecessor.size());
-      //   auto end_it = geno.read.begin() + graph.var_nodes[v].get_label().order - path.start_correct_pos();
-      //   auto qual_end_it = geno.qual.begin() + graph.var_nodes[v].get_label().order - path.start_correct_pos();
-      //
-      //   if (std::count(qual_end_it - minW, qual_end_it, 33) == 0)
-      //   {
-      //     if (std::distance(geno.read.begin(), end_it) > W)
-      //       stats->predecessor[b].push_back(std::vector<char>(end_it - W, end_it));
-      //     else
-      //       stats->predecessor[b].push_back(std::vector<char>(geno.read.begin(), end_it));
-      //   }
-      // }
     }
   }
+
+  if (Options::instance()->stats.size() > 0)
+    update_statistics(genos, pn_index);
+}
+
+
+//void
+//VcfWriter::update_statistics(GenotypePaths & geno, std::size_t const pn_index, unsigned const read_pair)
+//{
+//  // Update read statistics
+//  if (geno.ml_insert_size != 0x7FFFFFFFl)
+//  {
+//    assert (read_stats);
+//    assert (pn_index < read_stats->insert_sizes.size());
+//    assert (0 < geno.paths.size());
+//    assert (pn_index < read_stats->mismatches.size());
+//    assert (geno.read_pair_mismatches != static_cast<uint8_t>(255u));
+//
+//    // Only log positive values, so each pair only registered once
+//    if (geno.ml_insert_size > 0)
+//    {
+//      read_stats->insert_sizes[pn_index].push_back(static_cast<uint32_t>(geno.ml_insert_size));
+//      read_stats->mismatches[pn_index].push_back(static_cast<uint8_t>(geno.read_pair_mismatches));
+//    }
+//  }
+//
+//  // Write read details to file
+//  {
+//    std::string const read_details_fn = Options::instance()->stats + "/reads_details.tsv.gz";
+//    std::stringstream read_details;
+//    read_details << geno.query_name << "\t"
+//                 << std::string(geno.read.begin(), geno.read.end()) << "\t"
+//                 << std::string(geno.qual.begin(), geno.qual.end()) << "\t"
+//                 << geno.longest_path_length << "\t"
+//                 << static_cast<uint16_t>(geno.mapq) << "\t"
+//                 << geno.original_pos << "\t"
+//                 << (geno.ml_insert_size == 0x7FFFFFFFl ? -1 : geno.ml_insert_size) << "\t"
+//                 << static_cast<uint16_t>(geno.read_pair_mismatches) << "\t"
+//                 << geno.is_first_in_pair << "\t"
+//                 << geno.forward_strand << "\t"
+//                 << geno.is_originally_unaligned << "\t"
+//                 << geno.is_originally_clipped << "\t"
+//                 << "\n";
+//
+//    write_gzipped_to_file(read_details, read_details_fn, true /*append*/);
+//  }
+//
+//  // Insert all paths
+//  //for (auto const & path : geno.paths)
+//  //{
+//  //
+//  //}
+//
+//  // Select a path "randomly" and update coverage
+//  {
+//    assert (read_stats);
+//    assert (geno.paths.size() > 0);
+//    uint32_t const RND = 3 * geno.paths[0].start + 5 * geno.paths[0].end + 7 * geno.paths[0].mismatches;
+//    auto const & path = geno.paths.at(RND % geno.paths.size());
+//
+//    // Check if the path is purely reference
+//    if (path.nums.size () > 0)
+//    {
+//      bool is_pure_reference = true;
+//      bool is_pure_alternative = true;
+//
+//      for (auto const & num : path.nums)
+//      {
+//        bool const REF_COV = num.test(0);
+//        bool const ALT_COV = (num.count() - num.test(0)) > 0;
+//
+//        if (!REF_COV)
+//        {
+//          is_pure_reference = false;
+//
+//          if (!is_pure_alternative)
+//            break;
+//        }
+//
+//        if (!ALT_COV)
+//        {
+//          is_pure_alternative = false;
+//
+//          if (!is_pure_reference)
+//            break;
+//        }
+//      }
+//
+//      if (is_pure_reference ^ is_pure_alternative)
+//      {
+//        if (is_pure_reference)
+//          read_stats->ref_read_abs_pos[pn_index].push_back({path.start_correct_pos(), path.end_correct_pos()});
+//        else
+//          read_stats->alt_read_abs_pos[pn_index].push_back({path.start_correct_pos(), path.end_correct_pos()});
+//      }
+//      else
+//      {
+//        // Pick randomly
+//        if ((RND + 11 * geno.paths[0].start) % 2 == 0)
+//          read_stats->ref_read_abs_pos[pn_index].push_back({path.start_correct_pos(), path.end_correct_pos()});
+//        else
+//          read_stats->alt_read_abs_pos[pn_index].push_back({path.start_correct_pos(), path.end_correct_pos()});
+//      }
+//    }
+//    else
+//    {
+//      // The path does not overlap any variants
+//      read_stats->other_read_abs_pos[pn_index].push_back({path.start_correct_pos(), path.end_correct_pos()});
+//    }
+//  }
+//
+//  // If the alignment is unique, log the sequence successor and linked haplotypes
+//  if (Options::instance()->haplotype_statistics && geno.paths.size() == 1)
+//  {
+//    auto const & path = geno.paths[0];
+//
+//    for (unsigned i = 0; i < path.var_order.size(); ++i)
+//    {
+//      if (path.nums[i].count() != 1)
+//        continue;
+//
+//      uint32_t b = 0;
+//
+//      while (!path.nums[i].test(b))
+//      {
+//        ++b;
+//        assert (b < path.nums[i].size());
+//      }
+//
+//      uint32_t v = 0;
+//
+//      while (graph.var_nodes[v].get_label().order != path.var_order[i] || graph.var_nodes[v].get_label().variant_num != b)
+//      {
+//        ++v;
+//        assert (v < graph.var_nodes.size());
+//      }
+//
+//      uint32_t const reach = graph.var_nodes[v].get_label().reach();
+//      assert(id2hap.count(path.var_order[i]) == 1);
+//      std::pair<uint32_t, uint32_t> const type_ids = id2hap.at(path.var_order[i]); //hap_id = first, gen_id = second
+//      assert(type_ids.first < haplotypes.size());
+//      assert(pn_index < haplotypes[type_ids.first].hap_samples.size());
+//      assert(haplotypes[type_ids.first].hap_samples[pn_index].stats);
+//      auto const & stats = haplotypes[type_ids.first].hap_samples[pn_index].stats;
+//
+//      // Read pair information
+//      if (read_pair == 1)
+//      {
+//        stats->pair_stats.push_back({type_ids.first, b}); // Add this pair of haplotype ID and genotype ID
+//      }
+//      else if (read_pair == 2)
+//      {
+//        // Check all other haplotypes
+//        for (auto & hap : haplotypes)
+//        {
+//          auto const & stats_first = hap.hap_samples[pn_index].stats;
+//
+//          // Add read pair information to stats
+//          for (auto const & first_read : stats_first->pair_stats)
+//          {
+//            assert (first_read.gt_id < haplotypes[first_read.hap_id].hap_samples[pn_index].stats->pair_info.size());
+//            assert (b < haplotypes[type_ids.first].hap_samples[pn_index].stats->pair_info.size());
+//            haplotypes[first_read.hap_id].hap_samples[pn_index].stats->pair_info[first_read.gt_id].push_back({type_ids.first, b});
+//            haplotypes[type_ids.first].hap_samples[pn_index].stats->pair_info[b].push_back({first_read.hap_id, first_read.gt_id});
+//          }
+//        }
+//      }
+//
+//      uint32_t constexpr minW = 1;
+//      uint32_t constexpr W = 1;
+//
+//      if (path.end_correct_pos() >= reach + minW && path.end_correct_pos() - reach < geno.read.size())
+//      {
+//        assert (b < stats->successor.size());
+//        auto start_it = geno.read.end() - path.end_correct_pos() + reach;
+//        assert (std::distance(start_it, geno.read.end()) >= minW);
+//
+//        if (std::distance(start_it, geno.read.end()) > W)
+//          stats->successor[b].push_back(std::vector<char>(start_it, start_it + W));
+//        else
+//          stats->successor[b].push_back(std::vector<char>(start_it, geno.read.end()));
+//
+//        auto qual_start_it = geno.qual.end() - path.end_correct_pos() + reach;
+//
+//        // Add it again if all bases are high quality
+//        if (std::count(qual_start_it, qual_start_it + minW, 33) == 0)
+//        {
+//          if (std::distance(start_it, geno.read.end()) > W)
+//            stats->successor[b].push_back(std::vector<char>(start_it, start_it + W));
+//          else
+//            stats->successor[b].push_back(std::vector<char>(start_it, geno.read.end()));
+//        }
+//      }
+//
+//      // Code for predecessor
+//      // if (graph.var_nodes[v].get_label().order >= path.start_correct_pos() + minW &&
+//      //     graph.var_nodes[v].get_label().order - path.start_correct_pos() < geno.read.size()
+//      //    )
+//      // {
+//      //   assert (b < stats->predecessor.size());
+//      //   auto end_it = geno.read.begin() + graph.var_nodes[v].get_label().order - path.start_correct_pos();
+//      //   auto qual_end_it = geno.qual.begin() + graph.var_nodes[v].get_label().order - path.start_correct_pos();
+//      //
+//      //   if (std::count(qual_end_it - minW, qual_end_it, 33) == 0)
+//      //   {
+//      //     if (std::distance(geno.read.begin(), end_it) > W)
+//      //       stats->predecessor[b].push_back(std::vector<char>(end_it - W, end_it));
+//      //     else
+//      //       stats->predecessor[b].push_back(std::vector<char>(geno.read.begin(), end_it));
+//      //   }
+//      // }
+//    }
+//  }
+//}
+
+
+void
+VcfWriter::print_haplotype_details() const
+{
+  std::string const hap_stats_fn = Options::instance()->stats + "/" + pns[0] + "_haplotype_details.tsv.gz";
+  BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf_writer] Generating haplotype info statistics to " << hap_stats_fn;
+  std::stringstream hap_file;
+
+  // Write header file
+  hap_file << "#haplotypeID\talleleID\tcontig\tposition\tsequence\n";
+
+  for (unsigned ps = 0; ps < haplotypes.size(); ++ps)
+  {
+    auto const & hap = haplotypes[ps];
+    uint32_t const cnum = hap.get_genotype_num();
+
+    for (uint32_t c = 0; c < cnum; ++c)
+    {
+      assert (hap.gts.size() > 0);
+      uint32_t const abs_pos = hap.gts[0].id;
+      std::vector<char> seq = graph.get_sequence_of_a_haplotype_call(hap.gts, c);
+      assert (seq.size() > 1);
+      auto contig_pos = absolute_pos.get_contig_position(abs_pos);
+
+      hap_file << ps << "\t" << c << "\t"
+               << contig_pos.first << "\t" << contig_pos.second << "\t"
+               << std::string(seq.begin() + 1, seq.end());
+      hap_file << "\n";
+     }
+  }
+
+  write_gzipped_to_file(hap_file, hap_stats_fn);
 }
 
 
 void
-VcfWriter::update_haplotype_scores_from_path(GenotypePaths & geno, std::size_t const pn_index, unsigned const read_pair)
+VcfWriter::print_variant_details() const
+{
+  std::string const variant_details_fn =
+    Options::instance()->stats + "/" + pns[0] + "_variant_details.tsv.gz";
+
+  BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf_writer] Generating variant info statistics to "
+                          << variant_details_fn;
+
+  std::stringstream variant_file;
+
+  // Write header file
+  variant_file << "#variantID\tcontig\tposition\tallele_num\tsequence\n";
+
+  for (std::size_t v = 0; v < graph.var_nodes.size(); ++v)
+  {
+    auto const & label = graph.var_nodes[v].get_label();
+    auto contig_pos = absolute_pos.get_contig_position(label.order);
+
+    variant_file << v << "\t"
+                 << contig_pos.first << "\t"
+                 << contig_pos.second << "\t"
+//                 << label.order << "\t"
+                 << label.variant_num << "\t"
+                 << std::string(label.dna.begin(), label.dna.end())
+                 << "\n";
+  }
+
+  write_gzipped_to_file(variant_file, variant_details_fn);
+}
+
+
+void
+VcfWriter::print_statistics_headers() const
+{
+  assert (Options::instance()->stats.size() > 0);
+
+  // Get filenames
+  std::string const read_details_fn =
+    Options::instance()->stats + "/" + pn + "_read_details.tsv.gz";
+
+  std::string const path_details_fn =
+    Options::instance()->stats + "/" + pn + "_read_path_details.tsv.gz";
+
+  std::stringstream read_ss;
+  std::stringstream path_ss;
+  read_ss << "#query\t" << "read_group\t" << "sample\t" << "read\t" << "read_qual\t"
+          << "alignment_length\t" << "mapping_quality\t" << "original_mapped_pos\t"
+          << "ml_insert_size\t" << "is_originally_unaligned\t"  << "is_originally_clipped" << "\n";
+
+  path_ss << "#query\t" << "pathID\t" << "read_start_index\t" << "read_end_index\t"
+          << "num_mismatches\t" << "strand\t" << "contig\t" << "alignment_begin\t"
+          << "alignment_end\t" << "overlapping_variant_nodes\n";
+
+  std::lock_guard<std::mutex> lock(io_mutex);
+  write_gzipped_to_file(read_ss, read_details_fn, false /*append*/);
+  write_gzipped_to_file(path_ss, path_details_fn, false /*append*/);
+}
+
+void
+VcfWriter::print_geno_statistics(std::stringstream & read_ss,
+                                 std::stringstream & path_ss,
+                                 GenotypePaths const & geno,
+                                 std::size_t const pn_index
+  )
+{
+  std::stringstream id;
+  assert (geno.details);
+  id << geno.details->query_name << "/" << (geno.is_first_in_pair ? 1 : 2);
+
+  read_ss << id.str() << "\t"
+          << geno.details->read_group << "\t"
+          << pns[pn_index] << "\t"
+          << std::string(geno.read.begin(), geno.read.end()) << "\t"
+          << std::string(geno.qual.begin(), geno.qual.end()) << "\t"
+          << geno.longest_path_length << "\t"
+          << static_cast<uint16_t>(geno.mapq) << "\t"
+          << geno.original_pos << "\t";
+
+  if (geno.ml_insert_size == 0x7FFFFFFFl)
+    read_ss << "NA";
+  else
+    read_ss << geno.ml_insert_size;
+
+  read_ss << "\t"
+          << (geno.is_originally_unaligned ? "Y" : "N") << "\t"
+          << (geno.is_originally_clipped ? "Y" : "N") << "\n";
+
+  for (std::size_t p = 0; p < geno.paths.size(); ++p)
+  {
+    auto const & path = geno.paths[p];
+    uint32_t const ref_reach_start = path.start_ref_reach_pos();
+    uint32_t const ref_reach_end = path.end_ref_reach_pos();
+
+    auto const contig_pos_start = absolute_pos.get_contig_position(ref_reach_start);
+    auto const contig_pos_end = absolute_pos.get_contig_position(ref_reach_end);
+
+    std::vector<std::size_t> overlapping_vars;
+
+    // Find
+    for (std::size_t i = 0; i < path.var_order.size(); ++i)
+    {
+      auto const & var_order = path.var_order[i];
+      auto const & num = path.nums[i];
+
+      auto find_it = id2hap.find(var_order);
+      assert (find_it->second.first < haplotypes.size());
+      auto const & hap = haplotypes[find_it->second.first];
+      assert (find_it->second.second < hap.gts.size());
+      auto const & gt = hap.gts[find_it->second.second];
+
+      for (uint32_t g = 0; g < gt.num; ++g)
+      {
+        if (num.test(g))
+          overlapping_vars.push_back(gt.first_variant_node + g);
+      }
+    }
+
+    path_ss << id.str() << "\t"
+            << p << "\t"
+            << path.read_start_index << "\t"
+            << path.read_end_index << "\t"
+            << path.mismatches << "\t"
+            << (geno.forward_strand ? "F" : "B") << "\t"
+            << contig_pos_start.first << "\t"
+            << contig_pos_start.second << "\t"
+            << contig_pos_end.second << "\t";
+
+    std::sort(overlapping_vars.begin(), overlapping_vars.end());
+
+    if (overlapping_vars.size() == 0)
+    {
+      path_ss << "NA";
+    }
+    else
+    {
+      path_ss << overlapping_vars[0];
+
+      for (std::size_t o = 1; o < overlapping_vars.size(); ++o)
+        path_ss << "," << overlapping_vars[o];
+    }
+
+    path_ss << "\n";
+  }
+}
+
+void
+VcfWriter::update_statistics(std::vector<GenotypePaths> & genos, std::size_t const pn_index)
+{
+  // Get filenames
+  std::string const read_details_fn =
+    Options::instance()->stats + "/" + pn + "_read_details.tsv.gz";
+
+  std::string const path_details_fn =
+    Options::instance()->stats + "/" + pn + "_read_path_details.tsv.gz";
+
+  // Write reads and paths to these streams and then write those in a gzipped file
+  std::stringstream read_ss;
+  std::stringstream path_ss;
+
+  for (auto const & geno : genos)
+    print_geno_statistics(read_ss, path_ss, geno, pn_index);
+
+  std::lock_guard<std::mutex> lock(io_mutex);
+  write_gzipped_to_file(read_ss, read_details_fn, true /*append*/);
+  write_gzipped_to_file(path_ss, path_details_fn, true /*append*/);
+}
+
+
+void
+VcfWriter::update_statistics(std::vector<std::pair<GenotypePaths, GenotypePaths> > & genos,
+                             std::size_t const pn_index
+  )
+{
+  // Get filenames
+  std::string const read_details_fn =
+    Options::instance()->stats + "/" + pn + "_read_details.tsv.gz";
+
+  std::string const path_details_fn =
+    Options::instance()->stats + "/" + pn + "_read_path_details.tsv.gz";
+
+  // Write reads and paths to these streams and then write those in a gzipped file
+  std::stringstream read_ss;
+  std::stringstream path_ss;
+
+  for (auto const & geno : genos)
+  {
+    print_geno_statistics(read_ss, path_ss, geno.first, pn_index);
+    print_geno_statistics(read_ss, path_ss, geno.second, pn_index);
+  }
+
+  std::lock_guard<std::mutex> lock(io_mutex);
+  write_gzipped_to_file(read_ss, read_details_fn, true /*append*/);
+  write_gzipped_to_file(path_ss, path_details_fn, true /*append*/);
+}
+
+
+void
+VcfWriter::update_haplotype_scores_from_path(GenotypePaths & geno,
+                                             std::size_t const pn_index,
+                                             unsigned const /*read_pair*/
+  )
 {
   assert (are_genotype_paths_good(geno));
 
@@ -377,8 +642,8 @@ VcfWriter::update_haplotype_scores_from_path(GenotypePaths & geno, std::size_t c
   std::size_t const mismatches = geno.paths[0].mismatches;
   assert (geno.read.size() >= 63);
 
-  if (Options::instance()->stats.size() > 0) // Update statistics if '--stats' was passed
-    this->update_statistics(geno, pn_index, read_pair);
+  //if (Options::instance()->stats.size() > 0) // Update statistics if '--stats' was passed
+  //  this->update_statistics(geno, pn_index, read_pair);
 
   std::vector<uint32_t> recent_ids;
   bool has_low_quality_snp = false;
@@ -582,7 +847,6 @@ VcfWriter::explain_map_specific_indexes_to_haplotype_scores(
     hap_score += haplotypes[it->first].best_score_of_a_path(pn_index, it->second[index.first], it->second[index.second]);
   }
 
-
   return hap_score;
 }
 
@@ -623,7 +887,7 @@ VcfWriter::find_path_explanation(GenotypePaths const & gt_path,
 
 
 void
-VcfWriter::generate_statistics(std::vector<std::string> const & pns)
+VcfWriter::generate_statistics()
 {
   if (Options::instance()->stats.size() == 0 || pns.size() == 0)
     return;

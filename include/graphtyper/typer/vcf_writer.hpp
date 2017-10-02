@@ -5,6 +5,7 @@
 #include <iostream>
 #include <map>
 #include <vector>
+#include <sstream>
 #include <string>
 #include <mutex>
 
@@ -38,7 +39,22 @@ public:
    * CLASS MODIFIERS *
    *******************/
   // read_pair = 0 is unpaired, 1 is first in pair, 2 is second in pair
-  void update_statistics(GenotypePaths & geno, std::size_t const pn_index, unsigned const read_pair);
+  //void update_statistics(GenotypePaths & geno, std::size_t const pn_index, unsigned const read_pair);
+
+  void print_haplotype_details() const;
+  void print_statistics_headers() const;
+  void print_variant_details() const;
+  void print_geno_statistics(std::stringstream & read_ss,
+                             std::stringstream & path_ss,
+                             GenotypePaths const & geno,
+                             std::size_t const pn_index
+    );
+
+  void update_statistics(std::vector<GenotypePaths> & genos, std::size_t const pn_index);
+  void update_statistics(std::vector<std::pair<GenotypePaths, GenotypePaths> > & genos,
+                         std::size_t const pn_index
+    );
+
   void update_haplotype_scores_from_path(GenotypePaths & geno, std::size_t const pn_index, unsigned const read_pair);
   void update_haplotype_scores_from_paths(std::vector<GenotypePaths> & genos, std::size_t const pn_index);
   void update_haplotype_scores_from_paths(std::vector<std::pair<GenotypePaths, GenotypePaths> > & genos, std::size_t const pn_index);
@@ -68,6 +84,8 @@ public:
 
 private:
   std::mutex mutable haplotype_mutex;
+  std::mutex mutable io_mutex;
+  std::vector<std::string> pns;
   std::string pn;
   std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t> > id2hap; // first = haplotype, second = local genotype id
   std::unique_ptr<ReadStats> read_stats = nullptr;
@@ -76,7 +94,7 @@ private:
 
 public:
   std::vector<Haplotype> haplotypes;
-  void generate_statistics(std::vector<std::string> const & pns);
+  void generate_statistics();
 
 };
 

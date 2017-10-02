@@ -79,7 +79,12 @@ namespace gyper
 
 GenotypePaths::GenotypePaths()
   : read(0), paths(0), longest_path_length(0)
-{}
+{
+  if (Options::instance()->stats.size() > 0)
+  {
+    details = std::unique_ptr<GenotypePathsDetails>(new GenotypePathsDetails);
+  }
+}
 
 
 GenotypePaths::GenotypePaths(seqan::IupacString const & _read,
@@ -90,7 +95,12 @@ GenotypePaths::GenotypePaths(seqan::IupacString const & _read,
   , qual(seqan::begin(_qual), seqan::end(_qual))
   , longest_path_length(0)
   , mapq(_mapq)
-{}
+{
+  if (Options::instance()->stats.size() > 0)
+  {
+    details = std::unique_ptr<GenotypePathsDetails>(new GenotypePathsDetails);
+  }
+}
 
 
 bool
@@ -249,7 +259,7 @@ GenotypePaths::remove_paths_with_too_many_mismatches()
   if (paths.size() == 0)
     return;
 
-  std::size_t min_mismatches = Options::instance()->is_segment_calling ? 2 : 12; // Maximum mismatches allowed
+  uint16_t min_mismatches = Options::instance()->is_segment_calling ? 2 : 12; // Maximum mismatches allowed
 
   // Find the minimum number of mismatches in the aligned paths
   for (auto const & path : paths)
@@ -890,7 +900,7 @@ compare_pair_of_genotype_paths(std::pair<GenotypePaths, GenotypePaths> const & g
   else if (MAX_SIZE_1 >= MINIMUM_PATH_SIZE && MAX_SIZE_2 >= MINIMUM_PATH_SIZE)
   {
     assert(MAX_SIZE_1 == MAX_SIZE_2); // This should be implied
-    std::size_t mismatches1 = 10;
+    uint16_t mismatches1 = 10;
 
     // Get mismatches for the first pair of genotype paths
     {
@@ -907,7 +917,7 @@ compare_pair_of_genotype_paths(std::pair<GenotypePaths, GenotypePaths> const & g
       }
     }
 
-    std::size_t mismatches2 = 10;
+    uint16_t mismatches2 = 10;
 
     // Get mismatches for the second pair of genotype paths
     {

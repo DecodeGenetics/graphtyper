@@ -130,6 +130,48 @@ find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read, gyp
 }
 
 
+std::string
+get_read_group(seqan::CharString tag_string)
+{
+  seqan::BamTagsDict tags_dict(tag_string);
+  unsigned tagIdx = 0;
+  std::string read_group("NA");
+
+  if (seqan::findTagKey(tagIdx, tags_dict, "RG"))
+  {
+    seqan::CharString read_group_raw;
+
+    if (seqan::extractTagValue(read_group_raw, tags_dict, tagIdx))
+      read_group = std::string(seqan::toCString(read_group_raw));
+  }
+
+  return read_group;
+
+  /*
+  std::string tag_string(seqan::toCString(tag_seqan_string));
+  std::size_t const n = tag_string.size();
+  std::string const key = "RG:Z:";
+  std::size_t i = 0;
+  std::string read_group("NA");
+
+  while (i != std::string::npos && i + key.size() < n)
+  {
+    std::cerr << "reading tag: " << std::string(tag_string.begin() + i, tag_string.begin() + i + n) << "\n";
+
+    if (std::equal(key.begin(), key.end(), tag_string.begin() + i))
+    {
+      auto find_it = std::find(tag_string.begin() + i + key.size(), tag_string.end(), '\t');
+      return std::string(tag_string.begin() + i, find_it);
+    }
+
+    i = tag_string.find('\t', i + 1);
+  }
+
+  return read_group;
+  */
+}
+
+
 } // anon namespace
 
 
@@ -168,7 +210,11 @@ align_unpaired_read_pairs(TReads & reads, std::vector<GenotypePaths> & genos)
       geno1.is_originally_clipped = seqan::hasFlagUnmapped(read_it->first) || is_clipped(read_it->first.cigar);
 
       if (Options::instance()->stats.size() > 0)
-        geno1.query_name = seqan::toCString(record_it->first.qName);
+      {
+        geno1.query_name = seqan::toCString(read_it->first.qName);
+        geno1.details->query_name = seqan::toCString(read_it->first.qName);
+        geno1.details->read_group = ::get_read_group(read_it->first.tags);
+      }
 
       genos.push_back(std::move(geno1));
       break;
@@ -181,7 +227,11 @@ align_unpaired_read_pairs(TReads & reads, std::vector<GenotypePaths> & genos)
       geno2.is_originally_clipped = seqan::hasFlagUnmapped(read_it->first) || is_clipped(read_it->first.cigar);
 
       if (Options::instance()->stats.size() > 0)
-        geno1.query_name = seqan::toCString(record_it->first.qName);
+      {
+        geno2.query_name = seqan::toCString(read_it->first.qName);
+        geno2.details->query_name = seqan::toCString(read_it->first.qName);
+        geno2.details->read_group = ::get_read_group(read_it->first.tags);
+      }
 
       genos.push_back(std::move(geno2));
       break;
@@ -528,8 +578,15 @@ get_best_genotype_paths(std::vector<TReadPair> const & records)
 
       if (Options::instance()->stats.size() > 0)
       {
+        // First read
         genos1.first.query_name = seqan::toCString(record_it->first.qName);
+        genos1.first.details->query_name = seqan::toCString(record_it->first.qName);
+        genos1.first.details->read_group = ::get_read_group(record_it->first.tags);
+
+        // Second read
         genos1.second.query_name = seqan::toCString(record_it->second.qName);
+        genos1.second.details->query_name = seqan::toCString(record_it->second.qName);
+        genos1.second.details->read_group = ::get_read_group(record_it->second.tags);
       }
 
       genos.push_back(std::move(genos1));
@@ -548,7 +605,12 @@ get_best_genotype_paths(std::vector<TReadPair> const & records)
       if (Options::instance()->stats.size() > 0)
       {
         genos2.first.query_name = seqan::toCString(record_it->first.qName);
+        genos2.first.details->query_name = seqan::toCString(record_it->first.qName);
+        genos2.first.details->read_group = ::get_read_group(record_it->first.tags);
+
         genos2.second.query_name = seqan::toCString(record_it->second.qName);
+        genos2.second.details->query_name = seqan::toCString(record_it->second.qName);
+        genos2.second.details->read_group = ::get_read_group(record_it->second.tags);
       }
 
       genos.push_back(std::move(genos2));

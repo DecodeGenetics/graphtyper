@@ -286,9 +286,12 @@ write_to_file(std::string && data, std::string const & file_name)
 }
 
 void
-write_gzipped_to_file(std::stringstream & ss, std::string const & file_name)
+write_gzipped_to_file(std::stringstream & ss, std::string const & file_name, bool const append)
 {
-  std::ofstream compressed(file_name.c_str(), std::ofstream::binary);
+  std::ofstream compressed(file_name.c_str(),
+                           append ? (std::ofstream::binary | std::ofstream::app) : std::ofstream::binary
+    );
+
   boost::iostreams::filtering_streambuf<boost::iostreams::input> out;
   out.push(boost::iostreams::gzip_compressor());
   out.push(ss);

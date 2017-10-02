@@ -22,6 +22,6 @@ std::vector<std::pair<seqan::CharString, seqan::Dna5String> > read_fasta_sequenc
 std::map<std::string, std::vector<seqan::Dna5String> > read_haplotypes_from_fasta(std::string const & fasta_filename);
 void append_to_file(std::string && data, std::string const & file_name);
 void write_to_file(std::string && data, std::string const & file_name);
-void write_gzipped_to_file(std::stringstream & ss, std::string const & file_name);
+void write_gzipped_to_file(std::stringstream & ss, std::string const & file_name, bool const append = false);
 
 } // namespace gyper

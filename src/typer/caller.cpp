@@ -140,6 +140,7 @@ call(std::vector<std::string> hts_paths,
     if (new_samples.size() == 0)
     {
       std::string sample_name = hts_path.substr(hts_path.rfind('/') + 1, hts_path.rfind('.'));
+      BOOST_LOG_TRIVIAL(info) << "[graphtyper::caller] Got sample name from filename";
 
       if (std::count(sample_name.begin(), sample_name.end(), '.') > 0)
         sample_name = sample_name.substr(0, sample_name.find('.'));
@@ -148,7 +149,8 @@ call(std::vector<std::string> hts_paths,
     }
     else if (new_samples.size() > 1)
     {
-      BOOST_LOG_TRIVIAL(error) << "[graphtyper::caller] Sorry, currently Graphtyper does not support merged SAM/BAM files. Only one sample per file, please.";
+      BOOST_LOG_TRIVIAL(error) << "[graphtyper::caller] Sorry, currently Graphtyper does not "
+                               << "support merged SAM/BAM files. Only one sample per file, please.";
       std::exit(1);
     }
 
@@ -178,6 +180,12 @@ call(std::vector<std::string> hts_paths,
   else
     writer = std::make_shared<VcfWriter>(samples, Options::instance()->max_merge_variant_dist /*variant distance*/);
 
+  if (Options::instance()->stats.size() > 0)
+  {
+    writer->print_statistics_headers();
+    writer->print_variant_details();
+  }
+
   std::vector<ReferenceDepth> reference_depth_per_sample;
 
   {
@@ -192,7 +200,6 @@ call(std::vector<std::string> hts_paths,
 
       for (std::size_t i = 0; i < hts_paths.size(); ++i)
       {
-        //std::cerr << "PN = " << i << "\n";
         SamReader sam_reader(hts_paths[i], regions);
 
         // Flush logs
@@ -232,7 +239,7 @@ call(std::vector<std::string> hts_paths,
   }
 
   // Generate statistics
-  writer->generate_statistics(samples);
+  //writer->generate_statistics();
 
   // Write genotype calls
   {

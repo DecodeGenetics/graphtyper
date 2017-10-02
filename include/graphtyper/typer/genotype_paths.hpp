@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint> // uint8_t, uint16_t
+#include <memory>
 #include <vector>
 
 #include <seqan/sequence.h>
@@ -13,6 +14,14 @@
 
 namespace gyper
 {
+
+class GenotypePathsDetails
+{
+public:
+  std::string query_name;
+  std::string read_group;
+};
+
 
 class GenotypePaths
 {
@@ -29,6 +38,7 @@ public:
   bool forward_strand = true;
   bool is_originally_unaligned = false;
   bool is_originally_clipped = false;
+  std::unique_ptr<GenotypePathsDetails> details; // Only used when statistics are kept
   std::string query_name;
 
   /****************
