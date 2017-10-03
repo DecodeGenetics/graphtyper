@@ -41,7 +41,7 @@ public:
   // read_pair = 0 is unpaired, 1 is first in pair, 2 is second in pair
   //void update_statistics(GenotypePaths & geno, std::size_t const pn_index, unsigned const read_pair);
 
-  void print_haplotype_details() const;
+  void print_variant_group_details() const;
   void print_statistics_headers() const;
   void print_variant_details() const;
   void print_geno_statistics(std::stringstream & read_ss,

@@ -398,14 +398,14 @@ VcfWriter::update_haplotype_scores_from_paths(
 
 
 void
-VcfWriter::print_haplotype_details() const
+VcfWriter::print_variant_group_details() const
 {
-  std::string const hap_stats_fn = Options::instance()->stats + "/" + pns[0] + "_haplotype_details.tsv.gz";
-  BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf_writer] Generating haplotype info statistics to " << hap_stats_fn;
+  std::string const hap_stats_fn = Options::instance()->stats + "/" + pns[0] + "_variant_group_details.tsv.gz";
+  BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf_writer] Generating variant group info statistics to " << hap_stats_fn;
   std::stringstream hap_file;
 
   // Write header file
-  hap_file << "#haplotypeID\talleleID\tcontig\tposition\tsequence\n";
+  hap_file << "#groupID\talleleID\tcontig\tposition\tsequence\n";
 
   for (unsigned ps = 0; ps < haplotypes.size(); ++ps)
   {
