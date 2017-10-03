@@ -183,6 +183,7 @@ call(std::vector<std::string> hts_paths,
   if (Options::instance()->stats.size() > 0)
   {
     writer->print_statistics_headers();
+    writer->print_haplotype_details();
     writer->print_variant_details();
   }
 
