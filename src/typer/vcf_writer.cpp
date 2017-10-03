@@ -427,6 +427,7 @@ VcfWriter::print_variant_group_details() const
      }
   }
 
+  std::lock_guard<std::mutex> lock(io_mutex);
   write_gzipped_to_file(hap_file, hap_stats_fn);
 }
 
@@ -459,6 +460,7 @@ VcfWriter::print_variant_details() const
                  << "\n";
   }
 
+  std::lock_guard<std::mutex> lock(io_mutex);
   write_gzipped_to_file(variant_file, variant_details_fn);
 }
 
@@ -1070,6 +1072,7 @@ VcfWriter::generate_statistics()
         }
       } // Coverage ends
 
+      std::lock_guard<std::mutex> lock(io_mutex);
       write_gzipped_to_file(read_file, read_stats_fn.c_str());
     }
   }
@@ -1105,6 +1108,7 @@ VcfWriter::generate_statistics()
       }
     }
 
+    std::lock_guard<std::mutex> lock(io_mutex);
     write_gzipped_to_file(hap_file, hap_stats_fn);
   }
 
@@ -1207,6 +1211,7 @@ VcfWriter::generate_statistics()
       }
     }
 
+    std::lock_guard<std::mutex> lock(io_mutex);
     write_gzipped_to_file(hap_file, hap_stats_fn);
     //std::ofstream compressed(hap_stats_fn.c_str(), std::ofstream::binary);
     //boost::iostreams::filtering_streambuf<boost::iostreams::input> out;
