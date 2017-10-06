@@ -848,16 +848,18 @@ Vcf::write_segments()
     assert(sample_names.size() == segment.segment_calls.size());
     auto contig_pos = absolute_pos.get_contig_position(segment.id);
 
-    // Parse CHROM and POS
+    // Write CHROM and POS
     *vcf_file << contig_pos.first << "\t" << contig_pos.second;
 
-    // Parse the ID
+    // Write the ID
     *vcf_file << "\t" << contig_pos.first << ":" << contig_pos.second << ":" << segment.var_type;
 
-    if (segment.extra_id != -1)
+    if (segment.segment_name.size() > 0)
+      *vcf_file << ":" << segment.segment_name;
+    else if (segment.extra_id != -1)
       *vcf_file << ":" << std::to_string(segment.extra_id);
 
-    // Parse the sequences
+    // Write the sequences
     *vcf_file << "\t" << segment.get_ref_string() << "\t" << segment.get_alt_string();
 
     // Parse QUAL

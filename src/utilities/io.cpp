@@ -189,7 +189,6 @@ read_haplotypes_from_fasta(std::string const & fasta_filename)
     }
 
     assert(seqan::length(allele) > 1);
-
     std::string allele_str(seqan::toCString(allele));
 
     // Add "HLA-" in front if it is missing

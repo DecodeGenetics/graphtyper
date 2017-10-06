@@ -431,10 +431,13 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
   for (auto & haplototype : writer.haplotypes)
     haplototype.update_max_log_score();
 
-  BOOST_LOG_TRIVIAL(info) << "[graphtyper::segment_calling] Gathering segments from " << segment_fasta_files.size() << " segments.";
+  BOOST_LOG_TRIVIAL(info) << "[graphtyper::segment_calling] Gathering segments from "
+                          << segment_fasta_files.size() << " segments.";
   std::vector<Segment> segments;
   using THapPaths = std::vector<GenotypePaths>;
-  std::vector<std::map<std::string, THapPaths> > all_haplotype_paths; // haplotype ID to a all its genotype paths results
+
+  // haplotype ID to a all its genotype paths results
+  std::vector<std::map<std::string, THapPaths> > all_haplotype_paths;
   std::vector<std::vector<uint8_t> > has_long_exon; // haplotype ID to a all its genotype paths results
 
   {
@@ -468,7 +471,10 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
 
   BOOST_LOG_TRIVIAL(info) << "[graphtyper::segment_calling] Iterating paths of segments. ";
 
-  for (auto haplotype_paths_it = all_haplotype_paths.cbegin(); haplotype_paths_it != all_haplotype_paths.cend(); ++haplotype_paths_it)
+  for (auto haplotype_paths_it = all_haplotype_paths.cbegin();
+       haplotype_paths_it != all_haplotype_paths.cend();
+       ++haplotype_paths_it
+      )
   {
     // Type of haplotype_paths_it is std::map<std::string, THapPaths>::iterator
     std::vector<std::string> hap_ids;
@@ -483,26 +489,21 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
       {
         // Type of it->first is std::string
         // Type of it->second is std::vector<std::vector<GenotypePaths> >
-        // if (it->second.size() > 0)
-        //   std::cout << "[graphtyper::segment_calling] Name = " << it->first << std::endl;
-        // std::cout << "[graphtyper::segment_calling] INFO: Number of genotype paths = " << it->second.size() << std::endl;
+        if (it->second.size() > 0)
+          BOOST_LOG_TRIVIAL(info) << "[graphtyper::segment_calling] Name = " << it->first;
+
+        BOOST_LOG_TRIVIAL(info) << "[graphtyper::segment_calling] Number of genotype paths = "
+                                << it->second.size();
 
         std::size_t const & k = std::distance(all_haplotype_paths.cbegin(), haplotype_paths_it);
-        std::vector<std::vector<std::pair<uint32_t, std::bitset<MAX_NUMBER_OF_HAPLOTYPES> > > > path_explanations; // Previous path explanation
+        // Previous path explanation
+        std::vector<std::vector<std::pair<uint32_t, std::bitset<MAX_NUMBER_OF_HAPLOTYPES> > > > path_explanations;
 
         for (unsigned j = 0; j < it->second.size(); ++j)
         {
           std::vector<std::pair<uint32_t, std::bitset<MAX_NUMBER_OF_HAPLOTYPES> > > path_explanation;
           GenotypePaths const & path = it->second[j];
-
-          // std::cout << "[graphtyper::segment_calling] INFO: Index " << j << " gt path size = " << it->second[0].paths.size() << std::endl;
-          //
-          // if (it->second[j].paths.size() == 0)
-          //   continue;
-
-          // assert (it->second[j].paths.size() > 0);
-
-          std::cout << "[graphtyper::segment_calling] INFO: " << it->first << ", index " << j << std::endl;
+          BOOST_LOG_TRIVIAL(info) << "[graphtyper::segment_calling] " << it->first << ", index " << j;
 
           if (it->second[j].paths.size() == 0)
           {
@@ -512,7 +513,9 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
           {
             std::cout << "UNIQUE PATH "
                       << absolute_pos.get_contig_position(it->second[j].paths[0].start_ref_reach_pos()).second << "-"
-                      << absolute_pos.get_contig_position(it->second[j].paths[0].end_ref_reach_pos()).second << std::endl;
+                      << absolute_pos.get_contig_position(it->second[j].paths[0].end_ref_reach_pos()).second << " "
+                      << static_cast<uint64_t>(it->second[j].paths[0].mismatches)
+                      << "\n";
           }
           else if (it->second[j].paths.size() > 1)
           {
@@ -520,7 +523,7 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
             {
               std::cout << "DUPLICATED PATH "
                         << absolute_pos.get_contig_position(dup_path.start_ref_reach_pos()).second << "-"
-                        << absolute_pos.get_contig_position(dup_path.end_ref_reach_pos()).second << std::endl;
+                        << absolute_pos.get_contig_position(dup_path.end_ref_reach_pos()).second << "\n";
             }
           }
 
