@@ -42,7 +42,7 @@ are_genotype_paths_good(gyper::GenotypePaths const & geno)
 {
   bool const fully_aligned = geno.all_paths_fully_aligned();
 
-  if (geno.paths.size() == 0 || (!fully_aligned && (!geno.all_paths_unique() || geno.paths[0].size() < 95)))
+  if (geno.paths.size() == 0 || (!fully_aligned && (!geno.all_paths_unique() || geno.paths[0].size() < 63)))
     return false;
 
   if (gyper::Options::instance()->hq_reads)
@@ -50,7 +50,10 @@ are_genotype_paths_good(gyper::GenotypePaths const & geno)
     if (!fully_aligned) // Require reads to be fully aligned
       return false;
 
-    if (geno.paths[0].mismatches > 4)
+    if (geno.paths[0].size() < 63)
+      return false;
+
+    if (geno.paths[0].mismatches > 5)
       return false;
 
     //// Any path overlapping a variant must also not have too many mismatches
@@ -501,7 +504,7 @@ VcfWriter::print_geno_statistics(std::stringstream & read_ss,
 {
   std::stringstream id;
   assert (geno.details);
-  id << geno.details->query_name << "/" << (geno.is_first_in_pair ? 1 : 2);
+  id << pns[pn_index] << "_" << geno.details->query_name << "/" << (geno.is_first_in_pair ? 1 : 2);
 
   read_ss << id.str() << "\t"
           << geno.details->read_group << "\t"

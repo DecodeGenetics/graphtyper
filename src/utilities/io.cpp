@@ -210,25 +210,6 @@ read_haplotypes_from_fasta(std::string const & fasta_filename)
   }
 
   assert (haplotypes.size() > 0);
-
-  for (unsigned i = 0; i < haplotypes.begin()->second.size(); ++i)
-  {
-    auto find_it = std::find_if(haplotypes.begin(),
-                                haplotypes.end(),
-                                [i]
-                                (std::pair<std::string, std::vector<seqan::Dna5String> > const & p)
-                                {
-                                  return seqan::length(p.second[i]) < 50;
-                                });
-
-    if (find_it != haplotypes.end())
-    {
-      std::cout << "I found a short sequence" << std::endl;
-      std::cout << "!! hap first i = " << i << " " << seqan::length(find_it->second[i]) << ", " << find_it->first << std::endl;
-    }
-  }
-
-
   return haplotypes;
 }
 
