@@ -239,9 +239,6 @@ call(std::vector<std::string> hts_paths,
     segment_calling(segment_fasta_files, *writer, segment_calls_path.str(), samples);
   }
 
-  // Generate statistics
-  //writer->generate_statistics();
-
   // Write genotype calls
   {
     std::ostringstream hap_calls_path;

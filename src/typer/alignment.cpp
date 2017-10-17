@@ -146,29 +146,6 @@ get_read_group(seqan::CharString tag_string)
   }
 
   return read_group;
-
-  /*
-  std::string tag_string(seqan::toCString(tag_seqan_string));
-  std::size_t const n = tag_string.size();
-  std::string const key = "RG:Z:";
-  std::size_t i = 0;
-  std::string read_group("NA");
-
-  while (i != std::string::npos && i + key.size() < n)
-  {
-    std::cerr << "reading tag: " << std::string(tag_string.begin() + i, tag_string.begin() + i + n) << "\n";
-
-    if (std::equal(key.begin(), key.end(), tag_string.begin() + i))
-    {
-      auto find_it = std::find(tag_string.begin() + i + key.size(), tag_string.end(), '\t');
-      return std::string(tag_string.begin() + i, find_it);
-    }
-
-    i = tag_string.find('\t', i + 1);
-  }
-
-  return read_group;
-  */
 }
 
 
@@ -528,7 +505,7 @@ find_genotype_paths_of_a_sequence_pair(seqan::BamAlignmentRecord const & record1
       }
       else if (genos.first.paths.size() > 1 || genos.second.paths.size() > 1)
       {
-        int64_t HQ_THRESHOLD = std::min(static_cast<int64_t>(THRESHOLD), static_cast<int64_t>(SHORTEST_DISTANCE + 5ll));
+        int64_t HQ_THRESHOLD = std::min(static_cast<int64_t>(THRESHOLD), static_cast<int64_t>(SHORTEST_DISTANCE + 5));
         remove_distant_paths(genos.first, genos.second, HQ_THRESHOLD, OPTIMAL, REVERSE_COMPLEMENT);
         assert(genos.first.paths.size() > 0 && genos.second.paths.size() > 1);
       }
