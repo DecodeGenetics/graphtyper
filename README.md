@@ -44,7 +44,7 @@ make test # Will run the unit tests
 Please use the [recommended pipeline](https://github.com/DecodeGenetics/graphtyper-pipelines).
 
 ## Variant filtering
-Graphtyper is designed to have high specificity. That also means it often has many false positive sequence variant calls, in particular when genotyping large datasets. If you want to reduce false positives, you can post-process the VCF files using a tool called `vcffilter` which is a part of [vcflib](https://github.com/vcflib/vcflib).
+Graphtyper is designed to be highly sensitive. That also means it often has many false positive sequence variant calls, in particular when genotyping large datasets. If you want to reduce false positives, you can post-process the VCF files using a tool called `vcffilter` which is a part of [vcflib](https://github.com/vcflib/vcflib).
 
 In our manuscript we used the following commands to filter:
 * Single sample filtering: `vcffilter -f "ABHet < 0.0 | ABHet > 0.30" -f "MQ > 30" -f "QD > 6.0" <VCF>`
