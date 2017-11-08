@@ -6,7 +6,6 @@ before_install:
   - git submodule update --init --recursive
 
 install:
-  - export CXX=g++-4.8
   - wget https://github.com/Viq111/travis-container-packets/releases/download/boost-1.57.0/boost.tar.bz2 # Get boost
   - tar -xjf boost.tar.bz2
   - rm boost.tar.bz2
@@ -15,17 +14,6 @@ install:
   - cmake ..
   - VERBOSE=1 make -j4
   - cd ..
-
-addons:
-  apt:
-    sources:
-      - ubuntu-toolchain-r-test
-    packages:
-      - cmake
-      - gcc-4.8
-      - g++-4.8
-      - zlib1g-dev
-      - libbz2-dev
 
 script:
   - cd build
