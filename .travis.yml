@@ -11,9 +11,9 @@ install:
   - tar -xjf boost.tar.bz2
   - rm boost.tar.bz2
   - export BOOST_ROOT=$(pwd)/boost
-  - mkdir build; cd build
+  - mkdir -p build && cd build
   - cmake ..
-  - make
+  - VERBOSE=1 make -j4
   - cd ..
 
 addons:
