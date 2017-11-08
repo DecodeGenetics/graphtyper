@@ -179,7 +179,7 @@ VcfWriter::print_variant_group_details() const
   std::stringstream hap_file;
 
   // Write header file
-  hap_file << "#groupID\talleleID\tcontig\tposition\tsequence\n";
+  hap_file << "groupID\talleleID\tcontig\tposition\tsequence\n";
 
   for (unsigned ps = 0; ps < haplotypes.size(); ++ps)
   {
@@ -218,7 +218,7 @@ VcfWriter::print_variant_details() const
   std::stringstream variant_file;
 
   // Write header file
-  variant_file << "#variantID\tcontig\tposition\tallele_num\tsequence\n";
+  variant_file << "variantID\tcontig\tposition\tallele_num\tsequence\n";
 
   for (std::size_t v = 0; v < graph.var_nodes.size(); ++v)
   {
@@ -228,7 +228,6 @@ VcfWriter::print_variant_details() const
     variant_file << v << "\t"
                  << contig_pos.first << "\t"
                  << contig_pos.second << "\t"
-//                 << label.order << "\t"
                  << label.variant_num << "\t"
                  << std::string(label.dna.begin(), label.dna.end())
                  << "\n";
@@ -253,11 +252,11 @@ VcfWriter::print_statistics_headers() const
 
   std::stringstream read_ss;
   std::stringstream path_ss;
-  read_ss << "#query\t" << "read_group\t" << "sample\t" << "read\t" << "read_qual\t"
+  read_ss << "query\t" << "read_group\t" << "sample\t" << "read\t" << "read_qual\t"
           << "alignment_length\t" << "mapping_quality\t" << "original_mapped_pos\t"
           << "ml_insert_size\t" << "is_originally_unaligned\t"  << "is_originally_clipped" << "\n";
 
-  path_ss << "#query\t" << "pathID\t" << "read_start_index\t" << "read_end_index\t"
+  path_ss << "query\t" << "pathID\t" << "read_start_index\t" << "read_end_index\t"
           << "num_mismatches\t" << "strand\t" << "contig\t" << "alignment_begin\t"
           << "alignment_end\t" << "overlapping_variant_nodes\n";
 
@@ -416,7 +415,6 @@ VcfWriter::update_haplotype_scores_from_path(GenotypePaths & geno,
   bool const fully_aligned = geno.all_paths_fully_aligned();
   bool const non_unique_paths = !geno.all_paths_unique();
   std::size_t const mismatches = geno.paths[0].mismatches;
-  assert (geno.read.size() >= 63);
   std::vector<uint32_t> recent_ids;
   bool has_low_quality_snp = false;
 
