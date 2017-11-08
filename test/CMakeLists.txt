@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 2.8.8)
 
+# Compile test.cpp as the main Catch file
+add_library(catch OBJECT test.cpp)
+
 add_subdirectory(graph)
 add_subdirectory(index)
 add_subdirectory(typer)

@@ -4,11 +4,7 @@ Graphtyper is a highly scalable genotyping software. It represents a reference g
 First author and software maintainer: Hannes Pétur Eggertsson (Hannes.Eggertsson@decode.is)
 
 ## Citation
-The Graphtyper manuscript has not yet been published in a journal, so please cite our [preprint](http://biorxiv.org/content/early/2017/06/09/148403):
-
-`
-Hannes P. Eggertsson, Hakon Jonsson, Snaedis Kristmundsdottir, Eirikur Hjartarson, Birte Kehr, Gisli Masson, Florian Zink, Aslaug Jonasdottir, Adalbjorg Jonasdottir, Ingileif Jonsdottir, Daniel F. Gudbjartsson, Pall Melsted, Kari Stefansson, Bjarni V. Halldorsson. 2017. Graphtyper: Population-scale genotyping using pangenome graphs. bioRxiv doi: 10.1101/123456
-`
+Hannes P. Eggertsson, Hakon Jonsson, Snaedis Kristmundsdottir, Eirikur Hjartarson, Birte Kehr, Gisli Masson, Florian Zink, Kristjan E. Hjorleifsson, Aslaug Jonasdottir, Adalbjorg Jonasdottir, Ingileif Jonsdottir, Daniel F. Gudbjartsson, Pall Melsted, Kari Stefansson, Bjarni V. Halldorsson. Graphtyper enables population-scale genotyping using pangenome graphs. *Nature Genetics* **49**, 1654–1660 (2017). [doi:10.1038/ng.3964](http://dx.doi.org/10.1038/ng.3964)
 
 ## Getting started
 ### Dependencies
@@ -48,7 +44,7 @@ make test # Will run the unit tests
 Please use the [recommended pipeline](https://github.com/DecodeGenetics/graphtyper-pipelines).
 
 ## Variant filtering
-Graphtyper is designed to have high specificity. That also means it often has many false positive sequence variant calls, in particular when genotyping large datasets. If you want to reduce false positives, you can post-process the VCF files using a tool called `vcffilter` which is a part of [vcflib](https://github.com/vcflib/vcflib).
+Graphtyper is designed to be highly sensitive. That also means it often has many false positive sequence variant calls, in particular when genotyping large datasets. If you want to reduce false positives, you can post-process the VCF files using a tool called `vcffilter` which is a part of [vcflib](https://github.com/vcflib/vcflib).
 
 In our manuscript we used the following commands to filter:
 * Single sample filtering: `vcffilter -f "ABHet < 0.0 | ABHet > 0.30" -f "MQ > 30" -f "QD > 6.0" <VCF>`
