@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/DecodeGenetics/graphtyper.svg?branch=master)](https://travis-ci.org/DecodeGenetics/graphtyper)
+
 # Graphtyper
 Graphtyper is a highly scalable genotyping software. It represents a reference genome and known variants of a genomic region using an acyclic mathematical graph structure (a "pangenome reference"), which high-throughput sequence reads are re-aligned to for the purpose of discovering and genotyping SNPs and small indels.
 
