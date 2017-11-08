@@ -5,7 +5,7 @@ include(ExternalProject)
 
 # The version number.
 set (graphtyper_VERSION_MAJOR 1)
-set (graphtyper_VERSION_MINOR 1)
+set (graphtyper_VERSION_MINOR 2)
 
 # SeqAn options
 set(SEQAN_BUILD_SYSTEM "SEQAN_RELEASE_LIBRARY" CACHE TYPE STRING)
@@ -15,25 +15,21 @@ if ($ENV{GT_BUILD_TYPE})
 endif()
 
 message(STATUS "Build type: ${GT_BUILD_TYPE}")
+set(GT_COMMON_FLAGS "-Wall -Wextra -Wfatal-errors -pedantic -Wno-variadic-macros -std=c++11 -DSEQAN_HAS_ZLIB=1 -DSEQAN_USE_HTSLIB=1 -DSEQAN_ENABLE_TESTING=0 -march=core2 -mtune=generic")
 
 if(GT_BUILD_TYPE STREQUAL "DEBUG" OR CMAKE_BUILD_TYPE STREQUAL "Debug")
   message(STATUS "Building in debug mode.")
-  set (CMAKE_CXX_FLAGS "-g -W -Wall -Wextra -Wfatal-errors -pedantic -Wno-variadic-macros -std=c++11 -O0 -DDEBUG -DSEQAN_USE_HTSLIB=1 -DSEQAN_HAS_ZLIB=1 -DSEQAN_ENABLE_TESTING=0 -DSEQAN_ENABLE_DEBUG=1")
-elseif(GT_BUILD_TYPE STREQUAL "RELDEB" OR GT_BUILD_TYPE STREQUAL "RELDEB")
+  set (CMAKE_CXX_FLAGS "${GT_COMMON_FLAGS} -g -O0 -DDEBUG -DSEQAN_ENABLE_DEBUG=1")
+elseif(GT_BUILD_TYPE STREQUAL "RELDEB" OR GT_BUILD_TYPE STREQUAL "Reldeb")
   message(STATUS "Building in release (with assertions and debug info) mode.")
-  set (CMAKE_CXX_FLAGS "-g -W -Wall -Wextra -Wfatal-errors -pedantic -march=core2 -mtune=generic -std=c++11 -O2 -DDEBUG -DSEQAN_USE_HTSLIB=1 -DSEQAN_HAS_ZLIB=1 -DSEQAN_ENABLE_TESTING=0 -DSEQAN_ENABLE_DEBUG=1")
-elseif(GT_BUILD_TYPE STREQUAL "PROFILING" OR GT_BUILD_TYPE STREQUAL "PROFILING")
-  message(STATUS "Building in profiling mode, which is basicly release mode with extra profiling overhead.")
-  set (CMAKE_CXX_FLAGS "-pg -W -Wall -Wfatal-errors -pedantic -march=core2 -mtune=generic -W -Wall -std=c++11 -DSEQAN_USE_HTSLIB=1 -DSEQAN_HAS_ZLIB=1 -O3 -DNDEBUG -DSEQAN_ENABLE_TESTING=0 -DSEQAN_ENABLE_DEBUG=0")
+  set (CMAKE_CXX_FLAGS "${GT_COMMON_FLAGS} -g -O3 -DDEBUG -DSEQAN_ENABLE_DEBUG=1")
+elseif(GT_BUILD_TYPE STREQUAL "PROFILING" OR GT_BUILD_TYPE STREQUAL "Profiling")
+  message(STATUS "Building in profiling mode, which is release mode with profiling mode enabled.")
+  set (CMAKE_CXX_FLAGS "${GT_COMMON_FLAGS} -pg -O3 -DNDEBUG -DSEQAN_ENABLE_DEBUG=0")
 else()
   message(STATUS "Building in release mode.")
-  set (CMAKE_CXX_FLAGS "-march=core2 -mtune=generic -W -Wall -Wfatal-errors -pedantic -std=c++11 -DSEQAN_USE_HTSLIB=1 -DSEQAN_HAS_ZLIB=1 -O3 -DNDEBUG -DSEQAN_ENABLE_TESTING=0 -DSEQAN_ENABLE_DEBUG=0")
+  set (CMAKE_CXX_FLAGS "${GT_COMMON_FLAGS} -O3 -DNDEBUG -DSEQAN_ENABLE_DEBUG=0")
 endif()
-
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-  message(STATUS "Using GCC")
-  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -lrt")
-endif ()
 
 message(STATUS "CXX flags are: ${CMAKE_CXX_FLAGS}")
 
@@ -52,19 +48,17 @@ include_directories("${PROJECT_BINARY_DIR}")
 # zlib
 message (STATUS "Checking for zlib")
 find_package(ZLIB REQUIRED)
-include_directories(SYSTEM ${ZLIB_INCLUDE_DIRS} )
+include_directories(SYSTEM ${ZLIB_INCLUDE_DIRS})
 
 # bzip2
 message (STATUS "Checking for bzip2")
 find_package (BZip2 REQUIRED)
-include_directories(SYSTEM ${BZIP_INCLUDE_DIRS} )
+include_directories(SYSTEM ${BZIP_INCLUDE_DIRS})
 
 # boost
-set(Boost_USE_STATIC_LIBS OFF)
-set(Boost_USE_STATIC_RUNTIME OFF)
+set(Boost_USE_STATIC_LIBS ON)
 message (STATUS "Checking for Boost")
-ADD_DEFINITIONS(-DBOOST_ALL_DYN_LINK)
-find_package(Boost 1.57.0 REQUIRED COMPONENTS iostreams log thread serialization system REQUIRED)
+find_package(Boost 1.57.0 REQUIRED COMPONENTS system iostreams log thread serialization filesystem REQUIRED)
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 
 # snappy
@@ -196,11 +190,16 @@ set(graphtyper_all_libraries
   snappy
   htslib
   statgen
+  ${Boost_LIBRARIES}
   pthread
   ${ZLIB_LIBRARIES}
   ${BZIP2_LIBRARIES}
-  ${Boost_LIBRARIES}
 )
+
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+  message(STATUS "Using GCC")
+  list(APPEND graphtyper_all_libraries "rt")
+endif ()
 
 # If lz4 is optional for rocksdb
 find_package (Lz4)
