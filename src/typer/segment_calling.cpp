@@ -431,10 +431,13 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
   for (auto & haplototype : writer.haplotypes)
     haplototype.update_max_log_score();
 
-  BOOST_LOG_TRIVIAL(info) << "[graphtyper::segment_calling] Gathering segments from " << segment_fasta_files.size() << " segments.";
+  BOOST_LOG_TRIVIAL(info) << "[graphtyper::segment_calling] Gathering segments from "
+                          << segment_fasta_files.size() << " segments.";
   std::vector<Segment> segments;
   using THapPaths = std::vector<GenotypePaths>;
-  std::vector<std::map<std::string, THapPaths> > all_haplotype_paths; // haplotype ID to a all its genotype paths results
+
+  // haplotype ID to a all its genotype paths results
+  std::vector<std::map<std::string, THapPaths> > all_haplotype_paths;
   std::vector<std::vector<uint8_t> > has_long_exon; // haplotype ID to a all its genotype paths results
 
   {
@@ -456,10 +459,13 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
       {
         // if (i % 2 == 1 && seqan::length(mhc_hap.begin()->second[i]) >= 2 * K)
         if (i % 2 == 1 && i < 10) // Only check exons 1-4
-          gene_has_long_exons.push_back(1);
+          gene_has_long_exons.push_back(1u);
         else
-          gene_has_long_exons.push_back(0);
+          gene_has_long_exons.push_back(0u);
       }
+
+      //if (gene_has_long_exons.size() == 1)
+      //  gene_has_long_exons[0] = 1u;
 
       has_long_exon.push_back(std::move(gene_has_long_exons));
       all_haplotype_paths.push_back(std::move(haplotype_paths));
@@ -468,7 +474,10 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
 
   BOOST_LOG_TRIVIAL(info) << "[graphtyper::segment_calling] Iterating paths of segments. ";
 
-  for (auto haplotype_paths_it = all_haplotype_paths.cbegin(); haplotype_paths_it != all_haplotype_paths.cend(); ++haplotype_paths_it)
+  for (auto haplotype_paths_it = all_haplotype_paths.cbegin();
+       haplotype_paths_it != all_haplotype_paths.cend();
+       ++haplotype_paths_it
+      )
   {
     // Type of haplotype_paths_it is std::map<std::string, THapPaths>::iterator
     std::vector<std::string> hap_ids;
@@ -483,47 +492,52 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
       {
         // Type of it->first is std::string
         // Type of it->second is std::vector<std::vector<GenotypePaths> >
-        // if (it->second.size() > 0)
-        //   std::cout << "[graphtyper::segment_calling] Name = " << it->first << std::endl;
-        // std::cout << "[graphtyper::segment_calling] INFO: Number of genotype paths = " << it->second.size() << std::endl;
+        if (it->second.size() > 0)
+          BOOST_LOG_TRIVIAL(info) << "[graphtyper::segment_calling] Name = " << it->first;
 
-        std::size_t const & k = std::distance(all_haplotype_paths.cbegin(), haplotype_paths_it);
-        std::vector<std::vector<std::pair<uint32_t, std::bitset<MAX_NUMBER_OF_HAPLOTYPES> > > > path_explanations; // Previous path explanation
+        BOOST_LOG_TRIVIAL(info) << "[graphtyper::segment_calling] Number of genotype paths = "
+                                << it->second.size();
+
+        std::size_t const k = std::distance(all_haplotype_paths.cbegin(), haplotype_paths_it);
+        // Previous path explanation
+        std::vector<std::vector<std::pair<uint32_t, std::bitset<MAX_NUMBER_OF_HAPLOTYPES> > > > path_explanations;
 
         for (unsigned j = 0; j < it->second.size(); ++j)
         {
-          std::vector<std::pair<uint32_t, std::bitset<MAX_NUMBER_OF_HAPLOTYPES> > > path_explanation;
           GenotypePaths const & path = it->second[j];
-
-          // std::cout << "[graphtyper::segment_calling] INFO: Index " << j << " gt path size = " << it->second[0].paths.size() << std::endl;
-          //
-          // if (it->second[j].paths.size() == 0)
-          //   continue;
-
-          // assert (it->second[j].paths.size() > 0);
-
-          std::cout << "[graphtyper::segment_calling] INFO: " << it->first << ", index " << j << std::endl;
+          BOOST_LOG_TRIVIAL(info) << "[graphtyper::segment_calling] INFO: "
+                                  << it->first
+                                  << ", index "
+                                  << j << ", long exon? "
+                                  << static_cast<uint16_t>(has_long_exon[k][j]);
 
           if (it->second[j].paths.size() == 0)
           {
-            std::cout << "NO PATHS" << std::endl;
+            if (has_long_exon[k][j])
+              BOOST_LOG_TRIVIAL(warning) << "[graphtyper::segment_calling] WARNING: No path found for a long exon sequence";
+            else
+              BOOST_LOG_TRIVIAL(info) << "[graphtyper::segment_calling] INFO: No path found for a short sequence or an intron";
           }
           else if (it->second[j].paths.size() == 1)
           {
-            std::cout << "UNIQUE PATH "
-                      << absolute_pos.get_contig_position(it->second[j].paths[0].start_ref_reach_pos()).second << "-"
-                      << absolute_pos.get_contig_position(it->second[j].paths[0].end_ref_reach_pos()).second << std::endl;
+            BOOST_LOG_TRIVIAL(info)
+              << "[graphtyper::segment_calling] INFO: Unique path found: "
+              << absolute_pos.get_contig_position(it->second[j].paths[0].start_ref_reach_pos()).second << "-"
+              << absolute_pos.get_contig_position(it->second[j].paths[0].end_ref_reach_pos()).second << " "
+              << static_cast<uint64_t>(it->second[j].paths[0].mismatches);
           }
           else if (it->second[j].paths.size() > 1)
           {
             for (auto const & dup_path : it->second[j].paths)
             {
-              std::cout << "DUPLICATED PATH "
-                        << absolute_pos.get_contig_position(dup_path.start_ref_reach_pos()).second << "-"
-                        << absolute_pos.get_contig_position(dup_path.end_ref_reach_pos()).second << std::endl;
+              BOOST_LOG_TRIVIAL(info)
+                << "[graphtyper::segment_calling] INFO: Multiple paths found: "
+                << absolute_pos.get_contig_position(dup_path.start_ref_reach_pos()).second << "-"
+                << absolute_pos.get_contig_position(dup_path.end_ref_reach_pos()).second;
             }
           }
 
+          std::vector<std::pair<uint32_t, std::bitset<MAX_NUMBER_OF_HAPLOTYPES> > > path_explanation;
           writer.find_path_explanation(path, path_explanation);
           path_explanations.push_back(std::move(path_explanation));
         }
@@ -681,6 +695,7 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
     {
       for (uint32_t s = 0; s < samples.size(); ++s)
       {
+        BOOST_LOG_TRIVIAL(info) << "[graphtyper::segment_calling] Sample name is " << samples[s];
         // std::cout << "derp function starting" << std::endl;
         std::vector<uint32_t> hap_score = writer.explain_map_to_haplotype_scores(s, exon_explain_map);
         // std::cout << "derp function done" << std::endl;
@@ -774,6 +789,7 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
     {
       for (uint32_t s = 0; s < samples.size(); ++s)
       {
+        BOOST_LOG_TRIVIAL(info) << "[graphtyper::segment_calling] Sample name is " << samples[s];
         assert(intron_explain_map.size() > 0);
         std::vector<uint32_t> hap_score = writer.explain_map_to_haplotype_scores(s, intron_explain_map);
         assert (hap_score.size() > 0);

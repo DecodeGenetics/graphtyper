@@ -1,0 +1,20 @@
+language: cpp
+
+compiler: gcc
+
+before_install:
+  - git submodule update --init --recursive
+
+install:
+  - wget https://github.com/Viq111/travis-container-packets/releases/download/boost-1.57.0/boost.tar.bz2 # Get boost
+  - tar -xjf boost.tar.bz2
+  - rm boost.tar.bz2
+  - export BOOST_ROOT=$(pwd)/boost
+  - mkdir -p build && cd build
+  - cmake ..
+  - VERBOSE=1 make -j4
+  - cd ..
+
+script:
+  - cd build
+  - ctest -V

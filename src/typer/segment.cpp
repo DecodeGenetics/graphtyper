@@ -167,6 +167,7 @@ Segment::get_biallelic_segments() const
     Segment new_segment;
     new_segment.id = this->id;
     new_segment.ref_size = this->ref_size;
+    new_segment.segment_name = allele_names[alt_id];
     new_segment.var_type = this->var_type;
     new_segment.allele_names.push_back(std::string("!")+this->allele_names[alt_id]);
     new_segment.allele_names.push_back(this->allele_names[alt_id]);

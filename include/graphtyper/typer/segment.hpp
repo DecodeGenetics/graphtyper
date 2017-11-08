@@ -22,6 +22,7 @@ public:
   std::size_t ref_size;
   std::vector<std::string> allele_names;
   std::vector<SegmentCall> segment_calls;
+  std::string segment_name;
   std::string var_type;
   int32_t extra_id = -1;
 

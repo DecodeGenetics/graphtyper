@@ -453,45 +453,45 @@ Haplotype::find_with_how_many_errors_haplotypes_explain_the_read(uint32_t const 
 
 
 void
-Haplotype::explain_to_score(std::size_t const pn_index, bool const has_low_quality_snp, bool const non_unique_paths, uint8_t const mapq, bool const fully_aligned, std::size_t const mismatches)
+Haplotype::explain_to_score(std::size_t const pn_index,
+                            bool const has_low_quality_snp,
+                            bool const non_unique_paths,
+                            uint8_t const mapq,
+                            bool const fully_aligned,
+                            std::size_t const mismatches)
 {
   // Update log_score
   uint16_t epsilon_exponent;
 
   if (Options::instance()->is_segment_calling)
   {
-    uint16_t constexpr MISMATCH_PENALTY = 2;
-    uint16_t constexpr MAX_MISMATCHES = 2;
-    uint16_t constexpr NOT_FULLY_ALIGNED_READ_PENALTY = 3;
-    uint16_t constexpr BAD_MAPQ_PENALTY = 1;
-    uint16_t constexpr MAPQ_ZERO_PENALTY = 1;
-    uint16_t constexpr MAX_PENALTY = MISMATCH_PENALTY * MAX_MISMATCHES + NOT_FULLY_ALIGNED_READ_PENALTY + BAD_MAPQ_PENALTY + MAPQ_ZERO_PENALTY;
+    uint16_t constexpr MISMATCH_PENALTY = 1;
+    uint16_t constexpr MAX_MISMATCHES_PENALTY = 5;
+    uint16_t constexpr NON_UNIQUE_MAPPING = 4;
+    uint16_t constexpr MAX_PENALTY = MISMATCH_PENALTY * MAX_MISMATCHES_PENALTY + NON_UNIQUE_MAPPING;
 
     epsilon_exponent = std::max(MAX_PENALTY, static_cast<uint16_t>(12));
 
     // Penalize for mismatches with regards to the graph
-    epsilon_exponent -= MISMATCH_PENALTY * std::min(mismatches, static_cast<std::size_t>(MAX_MISMATCHES));
+    epsilon_exponent -= MISMATCH_PENALTY * std::min(mismatches, static_cast<std::size_t>(MAX_MISMATCHES_PENALTY));
 
     // Penalize reads which do not fully align to the graph
-    epsilon_exponent -= NOT_FULLY_ALIGNED_READ_PENALTY;
-
-    if (non_unique_paths /*local graph mapping qual*/ || mapq <= 25 /*global mapping qual*/)
-      epsilon_exponent -= BAD_MAPQ_PENALTY;
-
-    // Further increase epsilon if the mapping quality is zero
-    if (mapq == 0)
-      epsilon_exponent -= MAPQ_ZERO_PENALTY;
+    if (non_unique_paths)
+      epsilon_exponent -= NON_UNIQUE_MAPPING;
   }
   else
   {
+    uint16_t constexpr MISMATCH_PENALTY = 1;
+    uint16_t constexpr MAX_MISMATCHES_PENALTY = 4;
     uint16_t constexpr LOW_QUALITY_SNP_PENALTY = 1;
     uint16_t constexpr BAD_MAPQ_PENALTY = 2;
     uint16_t constexpr MAPQ_ZERO_PENALTY = 1;
     uint16_t constexpr NOT_FULLY_ALIGNED_READ_PENALTY = 3;
-    uint16_t constexpr MAX_PENALTY = LOW_QUALITY_SNP_PENALTY + BAD_MAPQ_PENALTY + MAPQ_ZERO_PENALTY + NOT_FULLY_ALIGNED_READ_PENALTY;
+    uint16_t constexpr MAX_PENALTY = MISMATCH_PENALTY * MAX_MISMATCHES_PENALTY + LOW_QUALITY_SNP_PENALTY + BAD_MAPQ_PENALTY + MAPQ_ZERO_PENALTY + NOT_FULLY_ALIGNED_READ_PENALTY;
 
     // Make sure we do not underflow
-    epsilon_exponent = std::max(MAX_PENALTY, Options::instance()->epsilon_0_exponent); // epsilon_0 = (1/2)^{epsilon_0_exponent} is the lowest epsilon
+    epsilon_exponent = std::max(MAX_PENALTY, Options::instance()->epsilon_0_exponent);
+    // epsilon_0 = (1/2)^{epsilon_0_exponent} is the lowest epsilon
 
     if (has_low_quality_snp)
       epsilon_exponent -= LOW_QUALITY_SNP_PENALTY;

@@ -4,6 +4,10 @@
 
 #include <boost/algorithm/string.hpp>
 #include <boost/log/trivial.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filtering_streambuf.hpp>
+#include <boost/iostreams/copy.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
 
 #include <seqan/basic.h>
 #include <seqan/sequence.h>
@@ -80,7 +84,7 @@ get_sample_names_from_bam_header(std::string const & hts_filename, std::unordere
 
 
 std::vector<std::pair<seqan::CharString, seqan::Dna5String> >
-read_fasta_sequences(std::string fasta_filename)
+read_fasta_sequences(std::string const & fasta_filename)
 {
   std::vector<std::pair<seqan::CharString, seqan::Dna5String> > fasta_sequences;
 
@@ -108,7 +112,7 @@ read_fasta_sequences(std::string fasta_filename)
 
 
 std::map<std::string, std::vector<seqan::Dna5String> >
-read_haplotypes_from_fasta(std::string fasta_filename)
+read_haplotypes_from_fasta(std::string const & fasta_filename)
 {
   std::map<std::string, std::vector<seqan::Dna5String> > haplotypes;
   seqan::SeqFileIn fasta_file(fasta_filename.c_str());
@@ -185,7 +189,6 @@ read_haplotypes_from_fasta(std::string fasta_filename)
     }
 
     assert(seqan::length(allele) > 1);
-
     std::string allele_str(seqan::toCString(allele));
 
     // Add "HLA-" in front if it is missing
@@ -207,31 +210,12 @@ read_haplotypes_from_fasta(std::string fasta_filename)
   }
 
   assert (haplotypes.size() > 0);
-
-  for (unsigned i = 0; i < haplotypes.begin()->second.size(); ++i)
-  {
-    auto find_it = std::find_if(haplotypes.begin(),
-                                haplotypes.end(),
-                                [i]
-                                (std::pair<std::string, std::vector<seqan::Dna5String> > const & p)
-                                {
-                                  return seqan::length(p.second[i]) < 50;
-                                });
-
-    if (find_it != haplotypes.end())
-    {
-      std::cout << "I found a short sequence" << std::endl;
-      std::cout << "!! hap first i = " << i << " " << seqan::length(find_it->second[i]) << ", " << find_it->first << std::endl;
-    }
-  }
-
-
   return haplotypes;
 }
 
 
 void
-append_to_file(std::string && data, std::string file_name)
+append_to_file(std::string && data, std::string const & file_name)
 {
   if (file_name == "-")
   {
@@ -257,7 +241,7 @@ append_to_file(std::string && data, std::string file_name)
 
 
 void
-write_to_file(std::string && data, std::string file_name)
+write_to_file(std::string && data, std::string const & file_name)
 {
   if (file_name == "-")
   {
@@ -279,6 +263,19 @@ write_to_file(std::string && data, std::string file_name)
     myfile.flush();
     myfile.close();
   }
+}
+
+void
+write_gzipped_to_file(std::stringstream & ss, std::string const & file_name, bool const append)
+{
+  std::ofstream compressed(file_name.c_str(),
+                           append ? (std::ofstream::binary | std::ofstream::app) : std::ofstream::binary
+    );
+
+  boost::iostreams::filtering_streambuf<boost::iostreams::input> out;
+  out.push(boost::iostreams::gzip_compressor());
+  out.push(ss);
+  boost::iostreams::copy(out, compressed);
 }
 
 

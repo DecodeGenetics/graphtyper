@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint> // uint8_t, uint16_t
+#include <memory>
 #include <vector>
 
 #include <seqan/sequence.h>
@@ -14,6 +15,14 @@
 namespace gyper
 {
 
+class GenotypePathsDetails
+{
+public:
+  std::string query_name;
+  std::string read_group;
+};
+
+
 class GenotypePaths
 {
 public:
@@ -23,10 +32,14 @@ public:
   uint32_t longest_path_length = 0;
   uint8_t mapq = 255u;
   uint32_t original_pos = 0; /* 0-based position from global alignment */
+  int32_t ml_insert_size = 0x7FFFFFFFl;
+  uint8_t read_pair_mismatches = 255u; /* Total mismatches in the read-pair. 255 if the either read is not aligned. */
   bool is_first_in_pair = true;
   bool forward_strand = true;
   bool is_originally_unaligned = false;
   bool is_originally_clipped = false;
+  std::unique_ptr<GenotypePathsDetails> details; // Only used when statistics are kept
+  std::string query_name;
 
   /****************
    * CONSTRUCTORS *

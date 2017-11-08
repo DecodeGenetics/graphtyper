@@ -130,6 +130,25 @@ find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read, gyp
 }
 
 
+std::string
+get_read_group(seqan::CharString tag_string)
+{
+  seqan::BamTagsDict tags_dict(tag_string);
+  unsigned tagIdx = 0;
+  std::string read_group("NA");
+
+  if (seqan::findTagKey(tagIdx, tags_dict, "RG"))
+  {
+    seqan::CharString read_group_raw;
+
+    if (seqan::extractTagValue(read_group_raw, tags_dict, tagIdx))
+      read_group = std::string(seqan::toCString(read_group_raw));
+  }
+
+  return read_group;
+}
+
+
 } // anon namespace
 
 
@@ -166,6 +185,14 @@ align_unpaired_read_pairs(TReads & reads, std::vector<GenotypePaths> & genos)
       geno1.is_originally_unaligned = seqan::hasFlagUnmapped(read_it->first);
       geno1.original_pos = read_it->first.beginPos + 1; // Change to 1-based system
       geno1.is_originally_clipped = seqan::hasFlagUnmapped(read_it->first) || is_clipped(read_it->first.cigar);
+
+      if (Options::instance()->stats.size() > 0)
+      {
+        geno1.query_name = seqan::toCString(read_it->first.qName);
+        geno1.details->query_name = seqan::toCString(read_it->first.qName);
+        geno1.details->read_group = ::get_read_group(read_it->first.tags);
+      }
+
       genos.push_back(std::move(geno1));
       break;
 
@@ -175,6 +202,14 @@ align_unpaired_read_pairs(TReads & reads, std::vector<GenotypePaths> & genos)
       geno2.is_originally_unaligned = seqan::hasFlagUnmapped(read_it->first);
       geno2.original_pos = read_it->first.beginPos + 1; // Change to 1-based system
       geno2.is_originally_clipped = seqan::hasFlagUnmapped(read_it->first) || is_clipped(read_it->first.cigar);
+
+      if (Options::instance()->stats.size() > 0)
+      {
+        geno2.query_name = seqan::toCString(read_it->first.qName);
+        geno2.details->query_name = seqan::toCString(read_it->first.qName);
+        geno2.details->read_group = ::get_read_group(read_it->first.tags);
+      }
+
       genos.push_back(std::move(geno2));
       break;
     }
@@ -224,6 +259,7 @@ find_shortest_distance(GenotypePaths const & geno1,
                        bool const REVERSE_COMPLEMENT
   )
 {
+  int64_t shortest_distance_diff = 0x00000000FFFFFFFFll;
   int64_t shortest_distance = 0x00000000FFFFFFFFll;
 
   for (auto it1 = geno1.paths.cbegin(); it1 != geno1.paths.cend(); ++it1)
@@ -231,8 +267,13 @@ find_shortest_distance(GenotypePaths const & geno1,
     for (auto it2 = geno2.paths.cbegin(); it2 != geno2.paths.cend(); ++it2)
     {
       int64_t distance = get_insert_size(it1, it2, OPTIMAL, REVERSE_COMPLEMENT);
-      distance = std::abs(distance - static_cast<int64_t>(OPTIMAL));
-      shortest_distance = std::min(distance, shortest_distance);
+      int64_t distance_diff = std::llabs(distance - static_cast<int64_t>(OPTIMAL));
+
+      if (distance_diff < shortest_distance_diff)
+      {
+        shortest_distance_diff = distance_diff;
+        shortest_distance = distance;
+      }
     }
   }
 
@@ -432,13 +473,32 @@ find_genotype_paths_of_a_sequence_pair(seqan::BamAlignmentRecord const & record1
   {
     uint32_t const OPTIMAL = Options::instance()->optimal_insert_size;
     uint32_t const THRESHOLD = Options::instance()->max_insert_size_threshold;
+    int64_t const INSERT_SIZE = find_shortest_distance(genos.first, genos.second, OPTIMAL, REVERSE_COMPLEMENT);
     int64_t const SHORTEST_DISTANCE = std::min(static_cast<int64_t>(Options::instance()->max_insert_size),
-                                               find_shortest_distance(genos.first, genos.second, OPTIMAL, REVERSE_COMPLEMENT)
+                                               static_cast<int64_t>(std::llabs(INSERT_SIZE - static_cast<int64_t>(OPTIMAL)))
                                                );
+
+    if (REVERSE_COMPLEMENT)
+    {
+      genos.first.ml_insert_size = -INSERT_SIZE;
+      genos.second.ml_insert_size = INSERT_SIZE;
+    }
+    else
+    {
+      genos.first.ml_insert_size = INSERT_SIZE;
+      genos.second.ml_insert_size = -INSERT_SIZE;
+    }
+
+    // Store total mismatches in each read pair
+    {
+      uint8_t const READ_PAIR_MISMATCHES = genos.first.paths[0].mismatches + genos.second.paths[0].mismatches;
+      genos.first.read_pair_mismatches = READ_PAIR_MISMATCHES;
+      genos.second.read_pair_mismatches = READ_PAIR_MISMATCHES;
+    }
 
     if (Options::instance()->hq_reads)
     {
-      if (SHORTEST_DISTANCE > THRESHOLD || !support_same_path(genos))
+      if (SHORTEST_DISTANCE > static_cast<int64_t>(THRESHOLD) || !support_same_path(genos))
       {
         genos.first.clear_paths();
         genos.second.clear_paths();
@@ -492,6 +552,20 @@ get_best_genotype_paths(std::vector<TReadPair> const & records)
       genos1.second.is_first_in_pair = false;
       genos1.first.original_pos = record_it->first.beginPos + 1;
       genos1.second.original_pos = record_it->second.beginPos + 1;
+
+      if (Options::instance()->stats.size() > 0)
+      {
+        // First read
+        genos1.first.query_name = seqan::toCString(record_it->first.qName);
+        genos1.first.details->query_name = seqan::toCString(record_it->first.qName);
+        genos1.first.details->read_group = ::get_read_group(record_it->first.tags);
+
+        // Second read
+        genos1.second.query_name = seqan::toCString(record_it->second.qName);
+        genos1.second.details->query_name = seqan::toCString(record_it->second.qName);
+        genos1.second.details->read_group = ::get_read_group(record_it->second.tags);
+      }
+
       genos.push_back(std::move(genos1));
       break;
 
@@ -504,6 +578,18 @@ get_best_genotype_paths(std::vector<TReadPair> const & records)
       genos2.second.is_first_in_pair = false;
       genos2.first.original_pos = record_it->first.beginPos + 1;
       genos2.second.original_pos = record_it->second.beginPos + 1;
+
+      if (Options::instance()->stats.size() > 0)
+      {
+        genos2.first.query_name = seqan::toCString(record_it->first.qName);
+        genos2.first.details->query_name = seqan::toCString(record_it->first.qName);
+        genos2.first.details->read_group = ::get_read_group(record_it->first.tags);
+
+        genos2.second.query_name = seqan::toCString(record_it->second.qName);
+        genos2.second.details->query_name = seqan::toCString(record_it->second.qName);
+        genos2.second.details->read_group = ::get_read_group(record_it->second.tags);
+      }
+
       genos.push_back(std::move(genos2));
       break;
     }

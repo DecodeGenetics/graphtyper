@@ -21,7 +21,7 @@ public:
   uint16_t read_end_index = 0;
   std::vector<uint32_t> var_order;
   std::vector<std::bitset<MAX_NUMBER_OF_HAPLOTYPES> > nums;
-  std::size_t mismatches;
+  uint16_t mismatches;
 
   /*********************
    * PATH CONSTRUCTORS *
