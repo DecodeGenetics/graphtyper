@@ -9,34 +9,34 @@
 namespace gyper
 {
 
-// Accumulate
-uint32_t static const CHR01_LENGTH = 248956422ul; // 248 956 422
-uint32_t static const CHR02_LENGTH = 242193529ul; // 491 149 951
-uint32_t static const CHR03_LENGTH = 198295559ul; // 689 445 510
-uint32_t static const CHR04_LENGTH = 190214555ul;
+// Maximum allowed length for each chromosomes (current lengths allow both GRChb37 and GRCh38)
+uint32_t static const CHR01_LENGTH = 249250621ul;
+uint32_t static const CHR02_LENGTH = 243199373ul;
+uint32_t static const CHR03_LENGTH = 198295559ul;
+uint32_t static const CHR04_LENGTH = 191154276ul;
 uint32_t static const CHR05_LENGTH = 181538259ul;
-uint32_t static const CHR06_LENGTH = 170805979ul;
+uint32_t static const CHR06_LENGTH = 171115067ul;
 uint32_t static const CHR07_LENGTH = 159345973ul;
-uint32_t static const CHR08_LENGTH = 145138636ul;
-uint32_t static const CHR09_LENGTH = 138394717ul;
-uint32_t static const CHR10_LENGTH = 133797422ul;
+uint32_t static const CHR08_LENGTH = 146364022ul;
+uint32_t static const CHR09_LENGTH = 141213431ul;
+uint32_t static const CHR10_LENGTH = 135534747ul;
 uint32_t static const CHR11_LENGTH = 135086622ul;
-uint32_t static const CHR12_LENGTH = 133275309ul;
-uint32_t static const CHR13_LENGTH = 114364328ul;
-uint32_t static const CHR14_LENGTH = 107043718ul;
-uint32_t static const CHR15_LENGTH = 101991189ul;
-uint32_t static const CHR16_LENGTH = 90338345ul;
+uint32_t static const CHR12_LENGTH = 133851895ul;
+uint32_t static const CHR13_LENGTH = 115169878ul;
+uint32_t static const CHR14_LENGTH = 107349540ul;
+uint32_t static const CHR15_LENGTH = 102531392ul;
+uint32_t static const CHR16_LENGTH = 90354753ul;
 uint32_t static const CHR17_LENGTH = 83257441ul;
 uint32_t static const CHR18_LENGTH = 80373285ul;
-uint32_t static const CHR19_LENGTH = 58617616ul;  // 2'713'028'904 2713028904ull
-uint32_t static const CHR20_LENGTH = 64444167ul;  // 2'777'473'071 2777473071ull
-uint32_t static const CHR21_LENGTH = 46709983ul;
-uint32_t static const CHR22_LENGTH = 50818468ul;
+uint32_t static const CHR19_LENGTH = 59128983ul;
+uint32_t static const CHR20_LENGTH = 64444167ul;
+uint32_t static const CHR21_LENGTH = 48129895ul;
+uint32_t static const CHR22_LENGTH = 51304566ul;
 uint32_t static const CHR0X_LENGTH = 156040895ul;
-uint32_t static const CHR0Y_LENGTH = 57227415ul;  // 3'088'269'832
+uint32_t static const CHR0Y_LENGTH = 59373566ul;
 uint32_t static const CHR0M_LENGTH = 16569;
 uint32_t static const CHRUN_LENGTH = 400000000ul;
-// Special position start is at 3489660928
+// Special position start after all the other chromosomes
 
 std::array<uint32_t, 26u> const chromosome_lengths =
 {{

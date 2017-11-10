@@ -82,6 +82,9 @@ public:
   uint32_t MAX_NUM_LOCATIONS_PER_PATH = 256;
   uint32_t MAX_UNIQUE_KMER_POSITIONS = 512;
 
+  // VCF output options
+  bool chr_prefix = true;
+
   /********************************
    * HAPLOTYPE EXTRACTION OPTIONS *
    ********************************/

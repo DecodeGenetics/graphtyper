@@ -426,18 +426,15 @@ vcf_break_down(std::string const & vcf, std::string const & output, std::string 
   // Copy sample names
   std::copy(vcf_in.sample_names.begin(), vcf_in.sample_names.end(), std::back_inserter(vcf_out.sample_names));
 
+  // Read first record
+  bool not_at_end = vcf_in.read_record();
+
   // Write header to output
   vcf_out.write_header();
 
   // Loop over the entire VCF in file, line by line
-  while (true)
+  for (; not_at_end; not_at_end = vcf_in.read_record())
   {
-    assert(vcf_in.variants.size() == 0);
-
-    // Stop when we can't read any more records
-    if (!vcf_in.read_record())
-      break;
-
     vcf_in.variants[0].add_base_in_front(); // First add a single base in front
     assert(vcf_in.variants.size() == 1);
     assert(vcf_out.variants.size() == 0);
@@ -445,7 +442,8 @@ vcf_break_down(std::string const & vcf, std::string const & output, std::string 
     // Make sure the number of calls matches the number of samples
     if (vcf_in.variants[0].calls.size() != vcf_in.sample_names.size())
     {
-      BOOST_LOG_TRIVIAL(error) << "[graphtyper::vcf_operations::vcf_break_down] The number of calls, " << vcf_in.variants[0].calls.size()
+      BOOST_LOG_TRIVIAL(error) << "[graphtyper::vcf_operations::vcf_break_down] The number of calls, "
+                               << vcf_in.variants[0].calls.size()
                                << " did not match the number of samples, " << vcf_in.sample_names.size();
       std::exit(1);
     }
