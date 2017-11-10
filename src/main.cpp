@@ -855,9 +855,6 @@ main(int argc, char ** argv)
     for (auto & reg : regions)
       reg.erase(std::remove(reg.begin(), reg.end(), ','), reg.end());
 
-    if (regions.size() > 0 && regions[0].substr(0, 3) != std::string("chr"))
-      gyper::Options::instance()->chr_prefix = false;
-
     if (!SUCCESS)
     {
       std::cerr << construct_parser;
@@ -989,9 +986,6 @@ main(int argc, char ** argv)
     for (auto & reg : regions)
       reg.erase(std::remove(reg.begin(), reg.end(), ','), reg.end());
 
-    if (regions.size() > 0 && regions[0].substr(0, 3) != std::string("chr"))
-      gyper::Options::instance()->chr_prefix = false;
-
     // Either sam or sams is required
     if (!*sam_arg && !*sams_arg)
     {
@@ -1114,11 +1108,6 @@ main(int argc, char ** argv)
       BOOST_LOG_TRIVIAL(error) << "[graphtyper::main] Could not find a graph located at '" << args::get(*graph_arg) << "'.";
       return 1;
     }
-
-    std::string region = args::get(*region_arg);
-
-    if (region.substr(0, 3) != std::string("chr"))
-      gyper::Options::instance()->chr_prefix = false;
 
     gyper::extract_to_vcf(args::get(*graph_arg),
                           args::get(*haplotypes_arg),

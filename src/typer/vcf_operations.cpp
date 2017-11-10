@@ -154,7 +154,8 @@ vcf_merge(std::vector<std::string> vcfs, std::string const & output)
 
       if (!SUCCESS)
       {
-        BOOST_LOG_TRIVIAL(error) << "[graphtyper::vcf_operations::vcf_merge] There was a problem reading " << next_vcf.filename << ".";
+        BOOST_LOG_TRIVIAL(error) << "[graphtyper::vcf_operations::vcf_merge] There was a problem reading "
+                                 << next_vcf.filename << ".";
         std::exit(1);
       }
 

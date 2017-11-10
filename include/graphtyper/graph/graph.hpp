@@ -28,6 +28,7 @@ class Graph
   friend class boost::serialization::access; // boost is my friend
 
 public:
+  bool use_prefix_chr = true;
   bool use_absolute_positions = true;
   std::vector<GenomicRegion> genomic_regions;
   std::vector<char> reference;
