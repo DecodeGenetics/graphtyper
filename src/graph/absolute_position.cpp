@@ -24,16 +24,24 @@ AbsolutePosition::AbsolutePosition()
 uint32_t
 AbsolutePosition::get_absolute_position(std::string const & chromosome, uint32_t const contig_position) const
 {
+  std::string chr;
+
+  if (chromosome.substr(0, 3) != std::string("chr"))
+    chr = "chr" + chromosome;
+  else
+    chr = chromosome;
+
   uint32_t abs_pos;
 
   try
   {
-    abs_pos = chromosome_to_offset.at(chromosome) + contig_position;
+    abs_pos = chromosome_to_offset.at(chr) + contig_position;
   }
   catch (std::out_of_range const &)
   {
     abs_pos = chromosome_to_offset.at("chrUn") + contig_position;
-    BOOST_LOG_TRIVIAL(warning) << "[gyper::graph::absolute_position] No chromosome \"" << chromosome << "\" available, using \"chrUn\" instead";
+    BOOST_LOG_TRIVIAL(warning) << "[gyper::graph::absolute_position] No chromosome \"" << chr
+                               << "\" available, using \"chrUn\" instead";
   }
 
   return abs_pos;

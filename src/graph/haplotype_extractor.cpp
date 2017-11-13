@@ -296,6 +296,7 @@ extract_to_vcf(std::string graph_path, std::string haps_path, std::string output
 {
   std::vector<std::vector<Genotype> > gts;
   load_graph(graph_path);
+  Options::instance()->chr_prefix = gyper::graph.use_prefix_chr;
   std::vector<std::vector<uint32_t> > hap_calls = read_haplotype_calls_from_file(haps_path, gts);
 
   for (auto it = hap_calls.begin(); it != hap_calls.end(); ++it)

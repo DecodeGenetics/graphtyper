@@ -274,3 +274,51 @@ TEST_CASE("Construct test graph (chr3)")
   REQUIRE(std::distance(graph.ref_reach_to_special_pos.begin(), graph.ref_reach_to_special_pos.end()) == 1);
   REQUIRE(graph.ref_reach_to_special_pos.count(34) == 1);
 }
+
+
+TEST_CASE("Construct test graph (chromosome 1, without chr in front)")
+{
+  using namespace gyper;
+
+  // AAAACAAAATAAAACAAAATAAAAGAAAACAAAATAAAACAAAATAAAAGAAAACATTATAAAACA
+  // chr3 31 rs4 A G,GA
+
+  create_graph("/test/data/reference/index_test_b37.fa", "/test/data/reference/index_test_b37.vcf.gz", "1", false);
+
+  REQUIRE(gyper::graph.ref_nodes.size() == 2);
+  REQUIRE(gyper::graph.var_nodes.size() == 2);
+
+  std::vector<gyper::RefNode> const & ref_nodes = gyper::graph.ref_nodes;
+  std::vector<gyper::VarNode> const & var_nodes = gyper::graph.var_nodes;
+
+  SECTION("The nodes should be correctly connected")
+  {
+    REQUIRE(ref_nodes[0].out_degree() == 2);
+    REQUIRE(ref_nodes[0].get_var_index(0) == 0);
+    REQUIRE(ref_nodes[0].get_var_index(1) == 1);
+
+    REQUIRE(var_nodes[0].out_degree() == 1);
+    REQUIRE(var_nodes[0].get_out_ref_index() == 1);
+
+    REQUIRE(var_nodes[1].out_degree() == 1);
+    REQUIRE(var_nodes[1].get_out_ref_index() == 1);
+
+    REQUIRE(ref_nodes[1].out_degree() == 0);
+  }
+
+  SECTION("The nodes should have the correct order")
+  {
+    REQUIRE(ref_nodes[0].get_label().order == 0);
+    REQUIRE(var_nodes[0].get_label().order == 36);
+    REQUIRE(var_nodes[1].get_label().order == 36);
+    REQUIRE(ref_nodes[1].get_label().order == 37);
+  }
+
+  SECTION("The nodes should have a label with the correct DNA bases")
+  {
+    REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("AGGTTTCCCCAGGTTTCCCCAGGTTTCCCCAGGTTT"));
+    REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("C"));
+    REQUIRE(var_nodes[1].get_label().dna == gyper::to_vec("A"));
+    REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec("CCCAGGTTTCCCCAGGTTTCCCCTTTGGA"));
+  }
+}

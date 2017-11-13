@@ -473,6 +473,7 @@ Graph::serialize(Archive & ar, const unsigned int /*version*/)
 {
   ar & ref_nodes;
   ar & var_nodes;
+  ar & use_prefix_chr;
   ar & use_absolute_positions;
   ar & genomic_regions;
   ar & ref_reach_poses;

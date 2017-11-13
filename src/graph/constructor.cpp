@@ -106,6 +106,9 @@ construct_graph(std::string const & reference_filename,
   seqan::FaiIndex fasta_index;
   graph = Graph(use_absolute_positions);
 
+  if (regions.size() > 0 && regions[0].substr(0, 3) != "chr" && regions[0].substr(0, 1) != ".")
+    graph.use_prefix_chr = false;
+
   for (auto region_it = regions.begin(); region_it != regions.end(); ++region_it)
   {
     BOOST_LOG_TRIVIAL(info) << "[graphtyper::constructor] Constructing graph for region " << *region_it;
@@ -172,6 +175,9 @@ construct_graph(std::string const & reference_filename, std::vector<std::string>
 {
   seqan::FaiIndex fasta_index;
   graph = Graph(use_absolute_positions);
+
+  if (regions.size() > 0 && regions[0].substr(0, 3) != "chr" && regions[0].substr(0, 1) != ".")
+    graph.use_prefix_chr = false;
 
   for (auto region_it = regions.begin(); region_it != regions.end(); ++region_it)
   {

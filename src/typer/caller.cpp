@@ -169,6 +169,7 @@ call(std::vector<std::string> hts_paths,
   mem_index.load(); // Loads the in-memory index
   //mem_index.generate_hamming1_hash_map(); // Generate a hashmap with edit distance 1
   index.close(); // Close the RocksDB index, we will use the in-memory index for querying reads
+  Options::instance()->chr_prefix = gyper::graph.use_prefix_chr;
 
   // Increasing variant distance can increase computational time and file sizes of *.hap files.
   std::shared_ptr<VcfWriter> writer;

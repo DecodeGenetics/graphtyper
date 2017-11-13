@@ -10,6 +10,7 @@
 #include <boost/algorithm/string/predicate.hpp> // boost::algorithm::ends_with
 #include <boost/log/trivial.hpp>
 
+#include <graphtyper/constants.hpp>
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/genomic_region.hpp>
 #include <graphtyper/graph/var_record.hpp>
@@ -269,6 +270,11 @@ Vcf::read_record()
   std::string const alts = get_string_at_tab_index(line, tabs, 4);
   std::vector<std::size_t> const alt_commas = get_all_pos(alts, ',');
 
+  if (chrom.substr(0, 3) == "chr")
+    gyper::Options::instance()->chr_prefix = true;
+  else
+    gyper::Options::instance()->chr_prefix = false;
+
   Variant new_var; // Create a new variant for this position
   new_var.abs_pos = absolute_pos.get_absolute_position(chrom, pos); // Parse positions
 
@@ -499,9 +505,18 @@ Vcf::write_header()
   *vcf_file << "##fileformat=VCFv4.2\n";
   *vcf_file << "##fileDate=" << current_date() << "\n";
   *vcf_file << "##source=Graphtyper\n";
+  *vcf_file << "##graphtyperVersion=" << graphtyper_VERSION_MAJOR << "." << graphtyper_VERSION_MINOR;
+
+  if (std::string(GIT_NUM_DIRTY_FILES) != std::string("0"))
+    *vcf_file << "-dirty";
+
+  *vcf_file << "\n";
+  *vcf_file << "##graphtyperGitBranch=" << GIT_BRANCH << '\n';
+  *vcf_file << "##graphtyperSHA1=" << GIT_COMMIT_LONG_HASH << '\n';
   //*vcf_file << "##reference=\n"; // TODO: Add file location of the reference genome used.
 
   // Contigs
+  if (Options::instance()->chr_prefix)
   {
     *vcf_file << "##contig=<ID=chr1,length=248956422>\n";
     *vcf_file << "##contig=<ID=chr2,length=242193529>\n";
@@ -527,8 +542,37 @@ Vcf::write_header()
     *vcf_file << "##contig=<ID=chr22,length=50818468>\n";
     *vcf_file << "##contig=<ID=chrX,length=156040895>\n";
     *vcf_file << "##contig=<ID=chrY,length=57227415>\n";
-    *vcf_file << "##contig=<ID=chrM>\n";
+    *vcf_file << "##contig=<ID=chrM,length=16569>\n";
     *vcf_file << "##contig=<ID=chrUn>\n";
+  }
+  else
+  {
+    *vcf_file << "##contig=<ID=1,length=249250621>\n";
+    *vcf_file << "##contig=<ID=2,length=243199373>\n";
+    *vcf_file << "##contig=<ID=3,length=198022430>\n";
+    *vcf_file << "##contig=<ID=4,length=191154276>\n";
+    *vcf_file << "##contig=<ID=5,length=180915260>\n";
+    *vcf_file << "##contig=<ID=6,length=171115067>\n";
+    *vcf_file << "##contig=<ID=7,length=159138663>\n";
+    *vcf_file << "##contig=<ID=8,length=146364022>\n";
+    *vcf_file << "##contig=<ID=9,length=141213431>\n";
+    *vcf_file << "##contig=<ID=10,length=135534747>\n";
+    *vcf_file << "##contig=<ID=11,length=135006516>\n";
+    *vcf_file << "##contig=<ID=12,length=133851895>\n";
+    *vcf_file << "##contig=<ID=13,length=115169878>\n";
+    *vcf_file << "##contig=<ID=14,length=107349540>\n";
+    *vcf_file << "##contig=<ID=15,length=102531392>\n";
+    *vcf_file << "##contig=<ID=16,length=90354753>\n";
+    *vcf_file << "##contig=<ID=17,length=81195210>\n";
+    *vcf_file << "##contig=<ID=18,length=78077248>\n";
+    *vcf_file << "##contig=<ID=19,length=59128983>\n";
+    *vcf_file << "##contig=<ID=20,length=63025520>\n";
+    *vcf_file << "##contig=<ID=21,length=48129895>\n";
+    *vcf_file << "##contig=<ID=22,length=51304566>\n";
+    *vcf_file << "##contig=<ID=X,length=155270560>\n";
+    *vcf_file << "##contig=<ID=Y,length=59373566>\n";
+    *vcf_file << "##contig=<ID=MT,length=16569>\n";
+    *vcf_file << "##contig=<ID=Un>\n";
   }
 
   // INFO
@@ -636,14 +680,19 @@ Vcf::write_record(Variant const & var, std::string const & suffix, const bool FI
   if (FILTER_ZERO_QUAL && variant_qual == 0)
     return;
 
-  *vcf_file << contig_pos.first << "\t" << contig_pos.second;
+  if (Options::instance()->chr_prefix)
+    *vcf_file << contig_pos.first; // Keep the 'chr'
+  else
+    *vcf_file << contig_pos.first.substr(3); // Remove the 'chr'
+
+  *vcf_file << '\t' << contig_pos.second;
 
   // Parse the ID
-  *vcf_file << "\t" << contig_pos.first << ":" << contig_pos.second << ":" << var.determine_variant_type() << suffix;
+  *vcf_file << '\t' << contig_pos.first << ':' << contig_pos.second << ':' << var.determine_variant_type() << suffix;
 
   // Parse the sequences
   assert(var.seqs.size() >= 2);
-  *vcf_file << "\t" << std::string(var.seqs[0].begin(), var.seqs[0].end()) << "\t" << std::string(var.seqs[1].begin(), var.seqs[1].end());
+  *vcf_file << '\t' << std::string(var.seqs[0].begin(), var.seqs[0].end()) << '\t' << std::string(var.seqs[1].begin(), var.seqs[1].end());
 
   for (auto it = var.seqs.begin() + 2; it != var.seqs.end(); ++it)
     *vcf_file << "," << std::string(it->begin(), it->end());
