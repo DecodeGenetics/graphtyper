@@ -10,6 +10,7 @@
 #include <boost/algorithm/string/predicate.hpp> // boost::algorithm::ends_with
 #include <boost/log/trivial.hpp>
 
+#include <graphtyper/constants.hpp>
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/genomic_region.hpp>
 #include <graphtyper/graph/var_record.hpp>
@@ -504,6 +505,14 @@ Vcf::write_header()
   *vcf_file << "##fileformat=VCFv4.2\n";
   *vcf_file << "##fileDate=" << current_date() << "\n";
   *vcf_file << "##source=Graphtyper\n";
+  *vcf_file << "##graphtyperVersion=" << graphtyper_VERSION_MAJOR << "." << graphtyper_VERSION_MINOR;
+
+  if (std::string(GIT_NUM_DIRTY_FILES) != std::string("0"))
+    *vcf_file << "-dirty";
+
+  *vcf_file << "\n";
+  *vcf_file << "##graphtyperGitBranch=" << GIT_BRANCH << '\n';
+  *vcf_file << "##graphtyperSHA1=" << GIT_COMMIT_LONG_HASH << '\n';
   //*vcf_file << "##reference=\n"; // TODO: Add file location of the reference genome used.
 
   // Contigs

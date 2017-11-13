@@ -56,10 +56,14 @@ print_default_help()
             << "~   `-~ `-`   `-~ `-`   `-~ `-~   `-~ `-`   `-~ `-`   `\n\n"
             << "Graphtyper is a program which aligns and genotype calls sequenced reads using an acyclic graph structure.\n"
             << "\n"
-            << "Version: " << graphtyper_VERSION_MAJOR << "." << graphtyper_VERSION_MINOR << "\n"
-            << "\n"
+            << "Version: " << graphtyper_VERSION_MAJOR << "." << graphtyper_VERSION_MINOR;
+
+  if (std::string(GIT_NUM_DIRTY_FILES) != std::string("0"))
+    std::cerr << "-dirty";
+
+  std::cerr << " (" << GIT_COMMIT_SHORT_HASH << ")\n\n"
             << "Usage: graphtyper <COMMAND> [OPTIONS...]\n"
-            << "\n"
+            << '\n'
             << "Available commands are:\n"
             << "  call             Genotype calls sample(s).\n"
             << "  construct        Construct a graph.\n"

@@ -5,7 +5,40 @@ include(ExternalProject)
 
 # The version number.
 set (graphtyper_VERSION_MAJOR 1)
-set (graphtyper_VERSION_MINOR 2)
+set (graphtyper_VERSION_MINOR 3)
+
+# Get the current working branch
+execute_process(
+  COMMAND git rev-parse --abbrev-ref HEAD
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  OUTPUT_VARIABLE GIT_BRANCH
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+# Get the latest abbreviated SHA commit hash of the working branch
+execute_process(
+  COMMAND git log -1 --format=%h
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  OUTPUT_VARIABLE GIT_COMMIT_SHORT_HASH
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+# Get the latest SHA commit hash of the working branch
+execute_process(
+  COMMAND git rev-parse HEAD
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  OUTPUT_VARIABLE GIT_COMMIT_LONG_HASH
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+# Get the latest SHA commit hash of the working branch
+execute_process(
+  COMMAND git diff-files COMMAND wc -l
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  OUTPUT_VARIABLE GIT_NUM_DIRTY_FILES
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
 
 # SeqAn options
 set(SEQAN_BUILD_SYSTEM "SEQAN_RELEASE_LIBRARY" CACHE TYPE STRING)
