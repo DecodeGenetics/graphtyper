@@ -14,29 +14,71 @@
 namespace gyper
 {
 
+uint16_t constexpr Haplotype::NO_COVERAGE;
+uint16_t constexpr Haplotype::MULTI_ALT_COVERAGE;
+uint16_t constexpr Haplotype::MULTI_REF_COVERAGE;
+
+
+void
+HapSample::increment_ambiguous_depth()
+{
+  // Check for overflow
+  if (ambiguous_depth < 0xFFu)
+    ++ambiguous_depth;
+}
+
+
+void
+HapSample::increment_ambiguous_depth_alt()
+{
+  // Check for overflow
+  if (ambiguous_depth_alt < 0xFFu)
+    ++ambiguous_depth_alt;
+}
+
+void
+HapSample::increment_allele_depth(std::size_t const variant_index,
+                                  std::size_t const allele_index
+  )
+{
+  assert(variant_index < gt_coverage.size());
+  assert(allele_index < gt_coverage[variant_index].size());
+
+  // Check for overflow
+  if (gt_coverage[variant_index][allele_index] < 0xFFFFu)
+    ++gt_coverage[variant_index][allele_index];
+}
+
+
+void
+HapSample::increment_alt_proper_pair_depth()
+{
+  if (alt_proper_pair_depth < 0xFFu)
+    ++alt_proper_pair_depth;
+}
+
+
 Haplotype::Haplotype() noexcept
   : gts(0)
   , hap_samples(0)
-#ifndef NDEBUG
-  , unique_gts(0)
-#endif // NDEBUG
 {}
 
 
 void
 Haplotype::add_genotype(Genotype && gt)
 {
+  var_stats.push_back(VarStats(gt.num));
   gts.push_back(std::move(gt));
   explains.push_back(std::bitset<MAX_NUMBER_OF_HAPLOTYPES>(0));
-  coverage.push_back(0xFFFFu);
-  var_stats.push_back(VarStats(gts.back().num));
+  coverage.push_back(gyper::Haplotype::NO_COVERAGE);
 }
 
 
-#ifndef NDEBUG // Only check for duplicate haplotypes in debug mode
 void
 Haplotype::check_for_duplicate_haplotypes()
 {
+  std::vector<std::bitset<MAX_NUMBER_OF_HAPLOTYPES> > unique_gts; // One per gt
+
   // No need to check if there is only one genotype
   if (gts.size() == 1)
     return;
@@ -65,7 +107,7 @@ Haplotype::check_for_duplicate_haplotypes()
   // Get unique genotypes
   if (duplicate_haplotypes.size() > 0)
   {
-    std::cerr << "[graphtyper::haplotype] WARNING: Found a duplicated haplotype, i.e. two haplotypes with the same sequence." << std::endl;
+    BOOST_LOG_TRIVIAL(warning) << "[graphtyper::haplotype] Found a duplicated haplotype, i.e. two haplotypes with the same sequence.";
     unique_gts.resize(gts.size());
 
     for (auto const & c : duplicate_haplotypes)
@@ -92,7 +134,6 @@ Haplotype::check_for_duplicate_haplotypes()
       uniq_gt.flip();
   }
 }
-#endif // NDEBUG
 
 
 void
@@ -104,19 +145,22 @@ Haplotype::clear_and_resize_samples(std::size_t const new_size)
   for (std::size_t i = 0; i < new_size; ++i)
   {
     HapSample new_sample;
-    std::size_t cnum = get_genotype_num();
+    std::size_t const cnum = get_genotype_num();
     new_sample.log_score.resize(cnum * (cnum + 1) / 2, 0u);
+    new_sample.gt_coverage.reserve(gts.size());
 
     for (auto const & gt : gts)
+    {
       new_sample.gt_coverage.push_back(std::vector<uint16_t>(gt.num, 0u));
+    }
 
     if (Options::instance()->stats.size() > 0)
     {
       new_sample.stats = std::unique_ptr<HapStats>(new HapStats);
       new_sample.stats->hap_coverage.resize(cnum, 0u);
       new_sample.stats->hap_unique_coverage.resize(cnum, 0u);
-      new_sample.stats->predecessor.resize(cnum);
-      new_sample.stats->successor.resize(cnum);
+      //new_sample.stats->predecessor.resize(cnum);
+      //new_sample.stats->successor.resize(cnum);
       new_sample.stats->pair_info.resize(cnum);
     }
 
@@ -153,29 +197,32 @@ Haplotype::get_genotype_num() const
 bool
 Haplotype::has_too_many_genotypes() const
 {
-  uint32_t cnum = 1;
+  long cnum = 1;
 
-  for (uint32_t i = 0; i < gts.size(); ++i)
+  for (unsigned i = 0; i < gts.size(); ++i)
   {
-    cnum *= gts[i].num;
-
+    cnum *= static_cast<long>(gts[i].num);
+    /*
     if (Options::instance()->phased_output)
     {
       if (cnum >= (MAX_NUMBER_OF_HAPLOTYPES - 1))
         return true;
     }
-    else if (Options::instance()->is_segment_calling)
-    {
-      if (cnum >= 337)
-        return true;
-    }
-    else if (cnum > 97u) // 97 is a prime
-    {
+    else*/
+
+    if (cnum > 337u)
       return true;
-    }
   }
 
   return false;
+}
+
+
+void
+Haplotype::set_coverage(uint32_t const i, uint16_t const c)
+{
+  assert (i < coverage.size());
+  coverage[i] = c;
 }
 
 
@@ -186,20 +233,54 @@ Haplotype::add_coverage(uint32_t const i, uint16_t const c)
   // c is coverage for this local genotype id
   assert(i < gts.size());
   assert(i < coverage.size());
+  assert(c < 0xFFFEu);
+  assert(c < gts[i].num);
 
-  if (c == 0xFFFEu)
+  switch(coverage[i])
   {
+  case NO_COVERAGE:
+  {
+    // Coverage has not been set, so we set it (uniquely) to c
     coverage[i] = c;
+    break;
   }
-  else
-  {
-    assert(c < gts[i].num);
-    assert(c < 0xFFFEu);
 
-    if (coverage[i] == 0xFFFFu)
-      coverage[i] = c;   // Coverage has not been set, so we set it to c
-    else if (coverage[i] != c)
-      coverage[i] = 0xFFFEu;   // Multiple matches
+  case MULTI_ALT_COVERAGE:
+  {
+    if (c == 0)
+    {
+      // Coverage for the reference allele
+      coverage[i] = MULTI_REF_COVERAGE;
+    }
+
+    break;
+  }
+
+  case MULTI_REF_COVERAGE:
+  {
+    break;
+  }
+
+  default:
+  {
+    if (coverage[i] != c)
+    {
+      // Multiple alleles are covered
+      if (coverage[i] == 0 || c == 0)
+      {
+        // One of the allele is the reference allele
+        coverage[i] = MULTI_REF_COVERAGE;
+      }
+      else
+      {
+        // None of the alleles are the reference allele
+        coverage[i] = MULTI_ALT_COVERAGE;
+      }
+    }
+
+    break;
+  }
+
   }
 }
 
@@ -214,8 +295,7 @@ Haplotype::clipped_reads_to_stats(bool const fully_aligned)
 
     for (std::size_t i = 0; i < var_stats.size(); ++i)
     {
-      // coverage[i] == 0xFFFFu means there is no coverage
-      if (coverage[i] != 0xFFFFu) // && coverage[i] != 0xFFFEu)
+      if (coverage[i] != NO_COVERAGE)
         ++var_stats[i].clipped_reads;
     }
   }
@@ -240,8 +320,7 @@ Haplotype::mapq_to_stats(uint8_t const new_mapq)
 
   for (std::size_t i = 0; i < var_stats.size(); ++i)
   {
-    // coverage[i] == 0xFFFFu means there is no coverage
-    if (coverage[i] != 0xFFFFu && coverage[i] != 0xFFFEu)
+    if (coverage[i] < MULTI_REF_COVERAGE) // true when the coverage is unique to a particular allele
       var_stats[i].add_mapq(coverage[i], new_mapq);
   }
 }
@@ -268,7 +347,7 @@ Haplotype::realignment_to_stats(bool const is_unaligned_read,
   {
     for (std::size_t i = 0; i < var_stats.size(); ++i)
     {
-      if (coverage[i] != 0xFFFFu && coverage[i] != 0xFFFEu)
+      if (coverage[i] < MULTI_REF_COVERAGE) // true when the coverage is unique to a particular allele
       {
         assert(coverage[i] < var_stats[i].originally_clipped.size());
 
@@ -290,8 +369,7 @@ Haplotype::strand_to_stats(bool const forward_strand, bool const is_first_in_pai
 
   for (std::size_t i = 0; i < var_stats.size(); ++i)
   {
-    // coverage[i] == 0xFFFFu means there is no coverage
-    if (coverage[i] != 0xFFFFu && coverage[i] != 0xFFFEu)
+    if (coverage[i] < MULTI_REF_COVERAGE) // true when the coverage is unique to a particular allele
     {
       assert(coverage[i] < var_stats[i].r1_strand_forward.size());
       assert(coverage[i] < var_stats[i].r2_strand_forward.size());
@@ -319,36 +397,62 @@ Haplotype::strand_to_stats(bool const forward_strand, bool const is_first_in_pai
 
 
 void
-Haplotype::coverage_to_gts(std::size_t const pn_index)
+Haplotype::coverage_to_gts(std::size_t const pn_index, bool const is_proper_pair)
 {
   assert(coverage.size() == gts.size());
   assert(pn_index < hap_samples.size());
+  auto & hap_sample = hap_samples[pn_index];
 
   // Loop over the coverage values and add the coverage to its respected genotype
   for (unsigned i = 0; i < coverage.size(); ++i)
   {
-    // coverage[i] == 0xFFFFu means there is no coverage
-    // coverage[i] == 0xFFFEu means there are more than one coverage match
-    if (coverage[i] < 0xFFFEu) // same as coverage[i] != 0xFFFFu && coverage[i] != 0xFFFEu
-    {
-      assert(i < hap_samples[pn_index].gt_coverage.size());
-      assert(coverage[i] < gts[i].num);
-      assert(coverage[i] < hap_samples[pn_index].gt_coverage[i].size());
+    std::size_t const cov = coverage[i];
 
-      // Check for overflow
-      if (hap_samples[pn_index].gt_coverage[i][coverage[i]] < 0xFFFFul)
-        ++hap_samples[pn_index].gt_coverage[i][coverage[i]];
-    }
-    else if (coverage[i] == 0xFFFEu)
+    switch(cov)
     {
-      // More than one coverage match means we need to update ambiguous depth
-      if (hap_samples[pn_index].ambiguous_depth < 255)
-        ++hap_samples[pn_index].ambiguous_depth;
+    case NO_COVERAGE:
+    {
+      // Do nothing
+      break;
+    }
+
+    case MULTI_REF_COVERAGE:
+    {
+      // More than one allele has coverage means we need to update ambiguous depth, including the reference allele
+      hap_sample.increment_ambiguous_depth();
+      break;
+    }
+
+    case MULTI_ALT_COVERAGE:
+    {
+      // The reference alleles does not have coverage but 2 or more alternative alleles have coverage
+      hap_sample.increment_ambiguous_depth();
+      hap_sample.increment_ambiguous_depth_alt();
+
+      if (is_proper_pair)
+        hap_sample.increment_alt_proper_pair_depth();
+
+      break;
+    }
+
+
+    default:
+    {
+      // when the coverage is unique to a particular allele
+      assert(cov < gts[i].num);
+      hap_sample.increment_allele_depth(i /*variant_index*/, cov /*allele_index*/);
+
+      if (cov > 0 && is_proper_pair)
+        hap_sample.increment_alt_proper_pair_depth();
+
+      break;
+    }
+
     }
   }
 
   // Reset coverage
-  coverage = std::vector<uint16_t>(gts.size(), 0xFFFFu);
+  coverage.assign(gts.size(), NO_COVERAGE);
 }
 
 
@@ -454,7 +558,6 @@ Haplotype::find_with_how_many_errors_haplotypes_explain_the_read(uint32_t const 
 
 void
 Haplotype::explain_to_score(std::size_t const pn_index,
-                            bool const has_low_quality_snp,
                             bool const non_unique_paths,
                             uint8_t const mapq,
                             bool const fully_aligned,
@@ -467,7 +570,7 @@ Haplotype::explain_to_score(std::size_t const pn_index,
   {
     uint16_t constexpr MISMATCH_PENALTY = 1;
     uint16_t constexpr MAX_MISMATCHES_PENALTY = 5;
-    uint16_t constexpr NON_UNIQUE_MAPPING = 4;
+    uint16_t constexpr NON_UNIQUE_MAPPING = 3;
     uint16_t constexpr MAX_PENALTY = MISMATCH_PENALTY * MAX_MISMATCHES_PENALTY + NON_UNIQUE_MAPPING;
 
     epsilon_exponent = std::max(MAX_PENALTY, static_cast<uint16_t>(12));
@@ -483,25 +586,28 @@ Haplotype::explain_to_score(std::size_t const pn_index,
   {
     uint16_t constexpr MISMATCH_PENALTY = 1;
     uint16_t constexpr MAX_MISMATCHES_PENALTY = 4;
-    uint16_t constexpr LOW_QUALITY_SNP_PENALTY = 1;
-    uint16_t constexpr BAD_MAPQ_PENALTY = 2;
-    uint16_t constexpr MAPQ_ZERO_PENALTY = 1;
+    //uint16_t constexpr LOW_QUALITY_SNP_PENALTY = 1;
+    uint16_t constexpr BAD_MAPQ_PENALTY = 1;
+    //uint16_t constexpr MAPQ_ZERO_PENALTY = 1;
     uint16_t constexpr NOT_FULLY_ALIGNED_READ_PENALTY = 3;
-    uint16_t constexpr MAX_PENALTY = MISMATCH_PENALTY * MAX_MISMATCHES_PENALTY + LOW_QUALITY_SNP_PENALTY + BAD_MAPQ_PENALTY + MAPQ_ZERO_PENALTY + NOT_FULLY_ALIGNED_READ_PENALTY;
+
+    uint16_t constexpr MAX_PENALTY = MISMATCH_PENALTY * MAX_MISMATCHES_PENALTY +
+      BAD_MAPQ_PENALTY +
+      NOT_FULLY_ALIGNED_READ_PENALTY;
 
     // Make sure we do not underflow
     epsilon_exponent = std::max(MAX_PENALTY, Options::instance()->epsilon_0_exponent);
     // epsilon_0 = (1/2)^{epsilon_0_exponent} is the lowest epsilon
 
-    if (has_low_quality_snp)
-      epsilon_exponent -= LOW_QUALITY_SNP_PENALTY;
+    //if (has_low_quality_snp)
+    //  epsilon_exponent -= LOW_QUALITY_SNP_PENALTY;
 
     if (non_unique_paths /*local graph mapping qual*/ || mapq <= 25 /*global mapping qual*/)
       epsilon_exponent -= BAD_MAPQ_PENALTY;
 
     // Further increase epsilon if the mapping quality is zero
-    if (mapq == 0)
-      epsilon_exponent -= MAPQ_ZERO_PENALTY;
+    //if (mapq == 0)
+    //  epsilon_exponent -= MAPQ_ZERO_PENALTY;
 
     // Decrease epsilon if the path was not fully aligned, i.e. it has been clipped
     if (!fully_aligned)
@@ -534,14 +640,15 @@ Haplotype::explain_to_score(std::size_t const pn_index,
   if (Options::instance()->stats.size() > 0)
   {
     assert (hap_sample.stats);
-    // assert (haplotype_errors.size() == hap_sample.stats->hap_anti_coverage.size());
 
     if (std::count(haplotype_errors.begin(), haplotype_errors.end(), 0) == 1)
     {
       // Update unique coverage
       auto it = std::find(haplotype_errors.begin(), haplotype_errors.end(), 0);
       assert (it != haplotype_errors.end());
-      size_t const i = std::distance(haplotype_errors.begin(), it);
+      long const i = std::distance(haplotype_errors.begin(), it);
+      assert(i >= 0);
+      assert(i < static_cast<long>(hap_sample.stats->hap_unique_coverage.size()));
 
       if (hap_sample.stats->hap_unique_coverage[i] < 0xFFul)
         ++hap_sample.stats->hap_unique_coverage[i];
@@ -567,13 +674,13 @@ Haplotype::explain_to_score(std::size_t const pn_index,
   if (hap_sample.max_log_score < 0xFFFFul - epsilon_exponent)
   {
     hap_sample.max_log_score += epsilon_exponent;
-    uint32_t i = 0;
+    int i = 0;
 
-    for (uint32_t y = 0; y < cnum; ++y)
+    for (std::size_t y = 0; y < cnum; ++y)
     {
-      for (uint32_t x = 0; x <= y; ++x, ++i)
+      for (std::size_t x = 0; x <= y; ++x, ++i)
       {
-        assert(to_index(x, y) < hap_sample.log_score.size());
+        assert(to_index(x, y) < static_cast<long>(hap_sample.log_score.size()));
         assert(i == to_index(x, y));
 
         if (haplotype_errors[x] == 0 && haplotype_errors[y] == 0)
@@ -595,6 +702,7 @@ Haplotype::explain_to_score(std::size_t const pn_index,
 
   // Clear all bitsets
   assert(gts.size() == explains.size());
+
   for (std::size_t i = 0; i < gts.size(); ++i)
     explains[i] = std::bitset<MAX_NUMBER_OF_HAPLOTYPES>(0);
 }
@@ -631,9 +739,9 @@ Haplotype::get_genotype_ids() const
 std::vector<uint16_t>
 Haplotype::get_haplotype_calls() const
 {
-  std::vector<uint16_t> all_calls = {0, 0};
-  std::size_t const cnum = get_genotype_num();
-  std::size_t const MINIMUM_VARIANT_SUPPORT = Options::instance()->minimum_variant_support;
+  std::vector<uint16_t> all_calls{0u};
+  int const cnum = get_genotype_num();
+  int const MINIMUM_VARIANT_SUPPORT = Options::instance()->minimum_variant_support;
 
   for (auto const & hap_sample : hap_samples)
   {
@@ -641,17 +749,18 @@ Haplotype::get_haplotype_calls() const
     // Note: It is possible to get false negatives from this calculations, but no false positives.
     auto coverage_above_cutoff = [&](uint16_t call)
     {
-      uint32_t q = cnum;
+      int q = cnum;
       assert (gts.size() == hap_sample.gt_coverage.size());
 
-      for (uint32_t i = 0; i < hap_sample.gt_coverage.size(); ++i)
+      for (int i = 0; i < static_cast<int>(hap_sample.gt_coverage.size()); ++i)
       {
         q /= gts[i].num;
         assert (q != 0);
-        assert (call / q < hap_sample.gt_coverage[i].size());
+        assert (call / q < static_cast<int>(hap_sample.gt_coverage[i].size()));
 
-        // Require 'MINIMUM_VARIANT_SUPPORT'-many reads to overlap at least one of the alleles of the genotype call
-        if (static_cast<uint32_t>(hap_sample.gt_coverage[i][call / q]) >= MINIMUM_VARIANT_SUPPORT)
+        // Require 'MINIMUM_VARIANT_SUPPORT'-many reads to overlap at least one of the alleles of
+        // the genotype call
+        if (static_cast<int>(hap_sample.gt_coverage[i][call / q]) >= MINIMUM_VARIANT_SUPPORT)
           return true;
 
         call %= q;
@@ -660,55 +769,51 @@ Haplotype::get_haplotype_calls() const
       return false;
     };
 
-    if (Options::instance()->output_all_variants)
-    {
-      for (uint16_t call = 1; call < cnum; ++call)
-      {
-        if (!hap_sample.stats || hap_sample.stats->hap_unique_coverage[call] >= MINIMUM_VARIANT_SUPPORT)
-          all_calls.push_back(call);
-      }
-
-      continue;
-    }
-
     // Favor homozygous calls
-    uint16_t call1 = 0xFFFFul;
-    uint16_t call2 = 0xFFFFul;
-    uint16_t local_max_log_score = 0;
+    int call1 = 0;
+    int call2 = 0;
+
+    // score*3 is approximately genotype quality compared to reference
+    int constexpr REQUIRED_SCORE = 10;
+    int local_max_log_score = hap_sample.log_score[to_index(0, 0)] + REQUIRED_SCORE;
 
     // Homozugous first, because we want to have the least amount af haplotypes extracted
-    for (uint16_t y = 0; y < cnum; ++y)
+    for (int y = 1; y < cnum; ++y)
     {
-      if (hap_sample.log_score[to_index(y, y)] > local_max_log_score)
+      // Skip 0/0
+      int const score = hap_sample.log_score[to_index(y, y)];
+
+      if (score > local_max_log_score &&
+          score > (hap_sample.log_score[to_index(0, y)] + MINIMUM_VARIANT_SUPPORT)
+        )
       {
-        local_max_log_score = hap_sample.log_score[to_index(y, y)];
+        // For homozygous calls, also check if there are enough read supporting the alternative allele
+        local_max_log_score = score;
         call1 = y;
         call2 = y;
       }
     }
 
-    for (uint16_t y = 1; y < cnum; ++y)
+    for (int y = 1; y < cnum; ++y)
     {
-      for (uint16_t x = 0; x < y; ++x)
+      for (int x = 0; x < y; ++x)
       {
-        if (hap_sample.log_score[to_index(x, y)] > local_max_log_score)
+        int const score = hap_sample.log_score[to_index(x, y)];
+
+        if (score > local_max_log_score)
         {
-          local_max_log_score = hap_sample.log_score[to_index(x, y)];
+          local_max_log_score = score;
           call1 = x;
           call2 = y;
         }
       }
     }
 
-    // call1 == 0xFFFFul means no read overlapped this haplotype
-    if (call1 != 0xFFFFul)
-    {
-      if (call1 != 0 && coverage_above_cutoff(call1))
-        all_calls.push_back(call1);
+    if (call1 != 0 && coverage_above_cutoff(call1))
+      all_calls.push_back(call1);
 
-      if (call2 != 0 && coverage_above_cutoff(call2))
-        all_calls.push_back(call2);
-    }
+    if (call2 != 0 && coverage_above_cutoff(call2))
+      all_calls.push_back(call2);
   }
 
   return all_calls;
@@ -719,17 +824,10 @@ uint32_t
 Haplotype::best_score_of_a_path(std::size_t const pn_index,
                                 std::bitset<MAX_NUMBER_OF_HAPLOTYPES> const & e1,
                                 std::bitset<MAX_NUMBER_OF_HAPLOTYPES> const & e2
-                                /*std::vector<uint16_t> const & max_scores_per_y*/
                                 ) const
 {
   assert (pn_index < hap_samples.size());
   assert (hap_samples[pn_index].log_score.size() > 0);
-  // std::size_t const e1_count = e1.count();
-  // std::size_t const e2_count = e2.count();
-
-  // assert (pn_index < calls.size());
-  // assert (calls[pn_index].first != 0xFFFFu);
-  // assert (calls[pn_index].second != 0xFFFFu);
 
   if (e1.none() or e2.none())
     return 0;
@@ -740,8 +838,6 @@ Haplotype::best_score_of_a_path(std::size_t const pn_index,
   if ((e1[call.first] and e2[call.second]) or (e2[call.first] and e1[call.second]))
     return hap_sample.max_log_score;
 
-  // if (e1_count * e2_count <= 4000)
-  // {
   uint16_t max_path_score = 0;
   std::vector<uint16_t> e2_bit_on;
   uint32_t const cnum = this->get_genotype_num();
@@ -777,83 +873,7 @@ Haplotype::best_score_of_a_path(std::size_t const pn_index,
     }
   }
 
-  // std::cout << "max_path_score = " << max_path_score << std::endl;
   return max_path_score;
-
-  // if (idx1 <= idx2)
-  //   return hap_sample.log_score[to_index(idx1, idx2)];
-  // else
-  //   return hap_sample.log_score[to_index(idx2, idx1)];
-  // }
-  // else
-  // {
-  //   // std::cout << "High amount of possibilities: " << (e1.count() * e2.count()) << std::endl;
-  //   // Approximate score for this case, otherwise the process takes too much time
-  //   if (e1[call.first] or e2[call.first] or e1[call.second] or e2[call.second])
-  //     return std::max(static_cast<int32_t>(0), static_cast<int32_t>(hap_sample.max_log_score) - 2 * 15);
-  //   else
-  //     return std::max(static_cast<int32_t>(0), static_cast<int32_t>(hap_sample.max_log_score) - 100);
-  // }
-
-  // // uint16_t max_path_score = std::max(static_cast<int32_t>(0), static_cast<int32_t>(hap_sample.max_log_score - 100));
-  // uint16_t max_path_score = 0;
-  // uint32_t const cnum = this->get_genotype_num();
-  // // assert(max_scores_per_y.size() == cnum);
-  //
-  // for (uint32_t y = 0; y < cnum; ++y)
-  // {
-  //   assert (to_index(0, y) < hap_sample.log_score.size());
-  //   assert (to_index(y, y) < hap_sample.log_score.size());
-  //   // if (max_path_score > max_scores_per_y[y])
-  //   //   continue;
-  //
-  //   // We split this check into two loops
-  //   // if (!e1.test(y) && !e2.test(y))
-  //   //   continue;
-  //
-  //   if (e1.test(y))
-  //   {
-  //     for (uint32_t x = 0; x <= y; ++x)
-  //     {
-  //       // Only use solutions which are explained by the bitsets
-  //       if (e2.test(x))
-  //       {
-  //         uint16_t const score = hap_sample.log_score[to_index(x, y)];
-  //
-  //         if (score > max_path_score)
-  //         {
-  //           if (score == hap_sample.max_log_score)
-  //             return score;
-  //
-  //           max_path_score = score;
-  //         }
-  //       }
-  //     }
-  //   }
-  //
-  //   if (e2.test(y))
-  //   {
-  //     for (uint32_t x = 0; x <= y; ++x)
-  //     {
-  //       // Only use solutions which are explained by the bitsets
-  //       if (e1.test(x))
-  //       {
-  //         uint16_t const score = hap_sample.log_score[to_index(x, y)];
-  //
-  //         if (score > max_path_score)
-  //         {
-  //           if (score == hap_sample.max_log_score)
-  //             return score;
-  //
-  //           max_path_score = score;
-  //         }
-  //       }
-  //     }
-  //   }
-  // }
-  //
-  // return max_path_score;
 }
-
 
 } // namespace gyper

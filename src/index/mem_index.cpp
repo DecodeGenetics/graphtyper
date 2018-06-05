@@ -1,24 +1,16 @@
 #include <array> // std::array
-#include <cstdint> // uint64_t
 #include <vector> // std::vector
 #include <unordered_map> // std::unordered_map
+#include <utility>
 
 #include <graphtyper/graph/graph.hpp> // gyper::Graph
 #include <graphtyper/index/indexer.hpp>
-#include <graphtyper/index/rocksdb.hpp> // gyper::index
 #include <graphtyper/index/mem_index.hpp> // gyper::MemIndex
-#include <graphtyper/utilities/type_conversions.hpp>
 #include <graphtyper/utilities/options.hpp> // gyper::Options
-
-#include <google/dense_hash_map> // google::dense_hash_map
 
 
 namespace gyper
 {
-
-MemIndex::MemIndex()
-{}
-
 
 void
 MemIndex::load()
@@ -50,7 +42,7 @@ MemIndex::load()
   delete it;
 }
 
-
+/*
 void
 MemIndex::generate_hamming1_hash_map()
 {
@@ -76,6 +68,7 @@ MemIndex::generate_hamming1_hash_map()
   for (auto const & d_key : duplicate_keys)
     hamming1.erase(d_key);
 }
+*/
 
 
 std::vector<std::vector<KmerLabel> >

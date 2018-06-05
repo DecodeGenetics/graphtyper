@@ -52,9 +52,9 @@ std::pair<std::string, uint32_t>
 AbsolutePosition::get_contig_position(uint32_t const absolute_position) const
 {
   auto offset_it = std::lower_bound(offsets.begin(), offsets.end(), absolute_position);
-  std::size_t const i = std::distance(offsets.begin(), offset_it);
+  long const i = std::distance(offsets.begin(), offset_it);
   assert(i > 0);
-  assert(i <= chromosome_names.size());
+  assert(i <= static_cast<long>(chromosome_names.size()));
   return std::make_pair<std::string, uint32_t>(std::string(chromosome_names[i - 1]), absolute_position - offsets[i - 1]);
 }
 

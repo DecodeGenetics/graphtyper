@@ -15,10 +15,15 @@ count_mismatches(std::vector<char> const & read,
   uint32_t mismatches = 0;
   auto read_it = read.begin() + read_offset;
   auto graph_it = graph_dna.begin() + dna_index;
+  // If we find a '<' we allow anything to align there without mismatches
 
   while (graph_it != graph_dna.end() and read_it != read.end())
   {
-    if (*graph_it != *read_it && *read_it != 'N' && *graph_it != 'N')
+    if (*graph_it == '>' || *graph_it == '<')
+    {
+      return max_mismatches + 1; // Do not allow paths with >
+    }
+    else if (*graph_it != *read_it && *read_it != 'N' && *graph_it != 'N')
     {
       ++mismatches;
 
@@ -45,10 +50,15 @@ count_mismatches_backward(std::vector<char> const & read,
   uint32_t mismatches = 0;
   auto read_it = read.rbegin() + read_offset;
   auto graph_it = graph_dna.rbegin() + dna_index;
+  // If we find a '>' we allow anything to align there without mismatches
 
-  while (graph_it != graph_dna.rend() and read_it != read.rend())
+  while (graph_it != graph_dna.rend() && read_it != read.rend())
   {
-    if (*graph_it != *read_it && *read_it != 'N' && *graph_it != 'N')
+    if (*graph_it == '>' || *graph_it == '<')
+    {
+      return max_mismatches + 1; // Do not allow paths with <
+    }
+    else if (*graph_it != *read_it && *read_it != 'N' && *graph_it != 'N')
     {
       ++mismatches;
 
@@ -72,25 +82,23 @@ add_node_dna_to_sequence(std::vector<char> & seq, gyper::Label const & label, ui
   if (to <= from or dna_end <= from or label.order >= to)
     return;
 
+  auto it1 = label.dna.begin();
+  auto it2 = label.dna.end();
+
   if (label.order >= from)
   {
-    if (to >= dna_end)
-    {
-      // Copy the entire reference label
-      seq.insert(seq.end(), label.dna.begin(), label.dna.end());
-    }
-    else
-    {
-      // Copy the reference label partially
-      seq.insert(seq.end(), label.dna.begin(), label.dna.end() - (dna_end - to));
-    }
+    if (to < dna_end)
+      it2 -= dna_end - to;
   }
   else if (dna_end >= to)
   {
-    seq.insert(seq.end(), label.dna.begin() + (from - label.order), label.dna.end() - (dna_end - to));
+    it1 += from - label.order;
+    it2 -= dna_end - to;
   }
   else
   {
-    seq.insert(seq.end(), label.dna.begin() + (from - label.order), label.dna.end());
+    it1 += from - label.order;
   }
+
+  std::copy(it1, it2, std::back_inserter(seq));
 }

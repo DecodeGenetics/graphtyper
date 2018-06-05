@@ -7,11 +7,9 @@
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/graph_serialization.hpp>
 #include <graphtyper/index/indexer.hpp>
-#include <graphtyper/index/rocksdb.hpp>
-#include <graphtyper/utilities/type_conversions.hpp> // For to_uint64(), to_dna(), and map_swap().
 
-#include <seqan/basic.h>
 #include <seqan/stream.h>
+
 
 namespace
 {
@@ -52,12 +50,20 @@ index_reference_label(Index<RocksDB> & new_index, TEntryList & mers, Label const
     }
 
     // Add a new element with the new DNA base
-    mers.push_front(TEntrySublist(1, IndexEntry(to_uint64(label.dna[d]), label.order + d)));
+    {
+      IndexEntry index_entry(label.order + d);
+      index_entry.add_to_dna(label.dna[d]);
+      mers.push_front(TEntrySublist(1, index_entry));
+    }
 
     if (mers.size() >= K)
     {
       for (auto q_it = mers.back().begin(); q_it != mers.back().end(); ++q_it)
       {
+        // Skip invalid labels (e.g. labels with '*')
+        if (q_it->valid > 0)
+          continue;
+
         if (q_it->variant_id.size() == 0)
         {
           new_index.put(q_it->dna, KmerLabel(q_it->start_index, label.order + d)); // KmerLabel has implicit var_id = INVALID_ID
@@ -90,7 +96,6 @@ insert_variant_label(Index<RocksDB> & new_index,
                      std::size_t const ref_reach
                      )
 {
-  // std::cout << "Index variant label " << seqan::length(label.dna) << std::endl;
   for (unsigned d = 0; d < seqan::length(label.dna); ++d)
   {
     for (auto sublist_it = mers.begin(); sublist_it != mers.end(); ++sublist_it)
@@ -100,7 +105,7 @@ insert_variant_label(Index<RocksDB> & new_index,
         entry_it->add_to_dna(label.dna[d]);
 
         if (std::find(entry_it->variant_id.begin(), entry_it->variant_id.end(), v) == entry_it->variant_id.end())
-          entry_it->variant_id.push_back(v);
+          entry_it->variant_id.push_back(static_cast<unsigned>(v));
       }
     }
 
@@ -108,9 +113,10 @@ insert_variant_label(Index<RocksDB> & new_index,
     uint32_t pos = label.order + d;
 
     if (pos > ref_reach)
-      pos = graph.get_special_pos(pos, ref_reach);
+      pos = graph.get_special_pos(pos, static_cast<uint32_t>(ref_reach));
 
-    IndexEntry new_index_entry(to_uint64(label.dna[d]), pos, v, is_reference, var_count);
+    IndexEntry new_index_entry(pos, static_cast<uint32_t>(v), is_reference, var_count);
+    new_index_entry.add_to_dna(label.dna[d]);
 
     // If we are using a list
     mers.push_front(TEntrySublist(1, new_index_entry));
@@ -120,6 +126,10 @@ insert_variant_label(Index<RocksDB> & new_index,
       // Insert to map
       for (auto q_it = mers.back().begin(); q_it != mers.back().end(); ++q_it)
       {
+        // Skip invalid labels (e.g. labels with '*')
+        if (q_it->valid > 0)
+          continue;
+
         std::vector<KmerLabel> new_labels;
         new_labels.reserve(q_it->variant_id.size());
 
@@ -136,30 +146,19 @@ insert_variant_label(Index<RocksDB> & new_index,
 
 
 void
-append_list(TEntryList & mers, TEntryList const && list)
+append_list(TEntryList & mers, TEntryList && list)
 {
-  // std::cout << "1: " << list.size() << " " << mers.size() << std::endl;
+  if (mers.size() < list.size())
+    mers.resize(list.size());
+
   auto mer_it = mers.begin();
-  auto list_it = list.cbegin();
+  auto list_it = list.begin();
 
-  while (list_it != list.end() and mer_it != mers.end())
-  {
-    for (auto list_kmer_it = list_it->cbegin(); list_kmer_it != list_it->cend(); ++list_kmer_it)
-    {
-      mer_it->push_back(std::move(*list_kmer_it));
-    }
-
-    ++list_it;
-    ++mer_it;
-  }
-
-  // std::cout << "2: " << list.size() << " " << mers.size() << std::endl;
-
-  // Continue extracting list, in case it is larger than mers
   while (list_it != list.end())
   {
-    mers.push_back(std::move(*list_it));
+    std::move(list_it->begin(), list_it->end(), std::back_inserter(*mer_it));
     ++list_it;
+    ++mer_it;
   }
 
   assert(list.size() <= mers.size());
@@ -167,7 +166,7 @@ append_list(TEntryList & mers, TEntryList const && list)
 
 
 void
-remove_large_variants_from_list(TEntryList & list, unsigned var_count)
+remove_large_variants_from_list(TEntryList & list, unsigned const var_count)
 {
   for (auto sublist_it = list.begin(); sublist_it != list.end(); ++sublist_it)
   {
@@ -183,7 +182,12 @@ remove_large_variants_from_list(TEntryList & list, unsigned var_count)
 
 
 void
-index_variant(Index<RocksDB> & new_index, std::vector<VarNode> const & var_nodes, TEntryList & mers, unsigned var_count, TNodeIndex v)
+index_variant(Index<RocksDB> & new_index,
+              std::vector<VarNode> const & var_nodes,
+              TEntryList & mers,
+              unsigned var_count,
+              TNodeIndex v
+  )
 {
   TEntryList clean_list(mers); // copies all mers, we find new kmers using the copy.
 
@@ -218,47 +222,54 @@ index_graph(std::string const & graph_path, std::string const & index_path)
 {
   Index<RocksDB> new_index(index_path, true /*clear_first*/, false /*read_only*/);
 
-  {
+  if (graph.size() == 0)
     load_graph(graph_path);
 
-    if (graph.size() == 0)
-    {
-      BOOST_LOG_TRIVIAL(error) << "[graphtyper::indexer] Trying to index empty graph.";
-      return;
-    }
-
-    assert(graph.ref_nodes.back().out_degree() == 0);
-    uint32_t const start_order = graph.ref_nodes.front().get_label().order;
-    uint32_t const end_order = graph.ref_nodes.back().get_label().order + graph.ref_nodes.back().get_label().dna.size();
-    uint32_t goal_order = start_order;
-    uint32_t goal = 0;
-
-    TNodeIndex r = 0; // Reference node index
-    // TNodeIndex v = 0; // Variant node index
-    TEntryList mers;
-    BOOST_LOG_TRIVIAL(info) << "[graphtyper::indexer] The number of reference nodes are " << graph.ref_nodes.size();
-
-    while (r < graph.ref_nodes.size() - 1)
-    {
-      if (graph.ref_nodes[r].get_label().order >= goal_order)
-      {
-        BOOST_LOG_TRIVIAL(info) << "[graphtyper::indexer] Indexing progress: " << goal << '%';
-        goal_order += (end_order - start_order) / 5;
-        goal += 20;
-      }
-
-      index_reference_label(new_index, mers, graph.ref_nodes[r].get_label());
-
-      if (graph.ref_nodes[r].out_degree() > 0)
-        index_variant(new_index, graph.var_nodes, mers, graph.ref_nodes[r].out_degree(), graph.ref_nodes[r].get_var_index(0));
-
-      ++r;
-    }
-
-    index_reference_label(new_index, mers, graph.ref_nodes.back().get_label());
-    BOOST_LOG_TRIVIAL(info) << "[graphtyper::indexer] Indexing progress: 100" << '%';
-    mers.clear();
+  if (graph.size() == 0)
+  {
+    BOOST_LOG_TRIVIAL(error) << "[graphtyper::indexer] Trying to index empty graph.";
+    return;
   }
+
+  assert(graph.ref_nodes.back().out_degree() == 0);
+  uint32_t const start_order = graph.ref_nodes.front().get_label().order;
+  uint32_t const end_order = static_cast<uint32_t>(graph.ref_nodes.back().get_label().order +
+      graph.ref_nodes.back().get_label().dna.size());
+  uint32_t goal_order = start_order;
+  uint32_t goal = 0;
+
+  TNodeIndex r = 0; // Reference node index
+  // TNodeIndex v = 0; // Variant node index
+  TEntryList mers;
+  BOOST_LOG_TRIVIAL(info) << "[graphtyper::indexer] The number of reference nodes are " << graph.ref_nodes.size();
+
+  while (r < graph.ref_nodes.size() - 1)
+  {
+    if (graph.ref_nodes[r].get_label().order >= goal_order)
+    {
+      BOOST_LOG_TRIVIAL(info) << "[graphtyper::indexer] Indexing progress: " << goal << '%';
+      goal_order += (end_order - start_order) / 5;
+      goal += 20;
+    }
+
+    index_reference_label(new_index, mers, graph.ref_nodes[r].get_label());
+
+    if (graph.ref_nodes[r].out_degree() > 0)
+    {
+      index_variant(new_index,
+                    graph.var_nodes,
+                    mers,
+                    static_cast<int>(graph.ref_nodes[r].out_degree()),
+                    graph.ref_nodes[r].get_var_index(0)
+                    );
+    }
+
+    ++r;
+  }
+
+  index_reference_label(new_index, mers, graph.ref_nodes.back().get_label());
+  BOOST_LOG_TRIVIAL(info) << "[graphtyper::indexer] Indexing progress: 100" << '%';
+  mers.clear();
 
   // Commit the rest of the buffer before closing
   BOOST_LOG_TRIVIAL(info) << "[graphtyper::indexer] Writing index to disk...";

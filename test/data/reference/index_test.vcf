@@ -5,3 +5,7 @@ chr2	2	rs2	C	A	0	.	.
 chr2	3	rs3	C	A	0	.	.
 chr3	31	rs4	A	G,GA	0	.	.
 chr4	2	.	A	T	0	.	.
+chr5	70	.	A	<DEL>	0	.	SVTYPE=DEL;SVSIZE=70
+chr6	70	.	A	<DUP>	0	.	SVTYPE=DUP;SVSIZE=5
+chr6	207	.	G	<INV>	0	.	SVTYPE=INV;SVSIZE=5
+chr7	70	.	A	<INS:ME:ALU>	0	.	SVTYPE=INS:ME:ALU;SVSIZE=10;ORSTART=141;OREND=200

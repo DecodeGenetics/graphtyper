@@ -3,11 +3,6 @@
 	url = https://github.com/hannespetur/SeqAnHTS.git
 	branch = master
 	ignore = dirty
-[submodule "stations"]
-	path = stations
-	url = https://github.com/hannespetur/stations.git
-	branch = master
-	ignore = dirty
 [submodule "htslib"]
 	path = htslib
 	url = https://github.com/samtools/htslib.git
@@ -35,4 +30,8 @@
 [submodule "sparsehash"]
 	path = sparsehash
 	url = https://github.com/sparsehash/sparsehash.git
+	ignore = dirty
+[submodule "paw"]
+	path = paw
+	url = https://github.com/hannespetur/paw.git
 	ignore = dirty

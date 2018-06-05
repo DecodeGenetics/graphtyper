@@ -19,8 +19,10 @@ public:
   uint32_t abs_pos;
   std::vector<std::vector<char> > seqs;
   std::vector<SampleCall> calls;
+  //std::unique_ptr<std::vector<DiscoveryInfo> > discovery_info;
   std::map<std::string, std::string> infos;
   std::vector<uint8_t> phase;
+  std::string suffix_id;
 
   Variant() noexcept;
   Variant(Variant const & var) noexcept;
@@ -33,7 +35,6 @@ public:
    * CLASS MODIFERS *
    ******************/
   void generate_infos();
-  void add_call(Haplotype const & hap);
   bool add_base_in_back(bool const add_N = false);
   bool add_base_in_front(bool const add_N = false);
   void normalize(); /** \brief Defined here: http://genome.sph.umich.edu/wiki/Variant_Normalization */

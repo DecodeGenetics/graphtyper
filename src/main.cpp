@@ -19,10 +19,10 @@
 #include <graphtyper/graph/graph_serialization.hpp>
 #include <graphtyper/index/rocksdb.hpp>
 #include <graphtyper/index/indexer.hpp>
-#include <graphtyper/typer/aligner.hpp>
 #include <graphtyper/typer/caller.hpp>
 #include <graphtyper/typer/discovery.hpp>
 #include <graphtyper/typer/vcf_operations.hpp>
+#include <graphtyper/typer/variant_map.hpp>
 #include <graphtyper/utilities/adapter_remover.hpp>
 #include <graphtyper/utilities/options.hpp>
 
@@ -31,7 +31,7 @@ namespace
 {
 
 bool
-is_file(std::string filename)
+is_file(std::string const & filename)
 {
   struct stat sb;
   return stat(filename.c_str(), &sb) == 0 && (S_ISREG(sb.st_mode) || S_ISLNK(sb.st_mode));
@@ -39,7 +39,7 @@ is_file(std::string filename)
 
 
 bool
-is_directory(std::string filename)
+is_directory(std::string const & filename)
 {
   struct stat sb;
   return stat(filename.c_str(), &sb) == 0;
@@ -54,11 +54,12 @@ print_default_help()
             << "||\\|||\\ /|R|\\|||\\ /|P|\\|||\\ /|T|\\|||\\ /|P|\\|||\\ /|R||\\|\n"
             << "|/ \\|G|\\|||/ \\|A|\\|||/ \\|H|\\|||/ \\|Y|\\|||/ \\|E|\\|||/ \\|\n"
             << "~   `-~ `-`   `-~ `-`   `-~ `-~   `-~ `-`   `-~ `-`   `\n\n"
-            << "Graphtyper is a program which aligns and genotype calls sequenced reads using an acyclic graph structure.\n"
+            << "Graphtyper is a program which aligns and genotype calls sequenced reads "
+            << "using an acyclic graph structure.\n"
             << "\n"
             << "Version: " << graphtyper_VERSION_MAJOR << "." << graphtyper_VERSION_MINOR;
 
-  if (std::string(GIT_NUM_DIRTY_FILES) != std::string("0"))
+  if (std::string(GIT_NUM_DIRTY_LINES) != std::string("0"))
     std::cerr << "-dirty";
 
   std::cerr << " (" << GIT_COMMIT_SHORT_HASH << ")\n\n"
@@ -67,6 +68,7 @@ print_default_help()
             << "Available commands are:\n"
             << "  call             Genotype calls sample(s).\n"
             << "  construct        Construct a graph.\n"
+            << "  discover         Discover variants directly from the BAM (no graph involved).\n"
             << "  haplotypes       Extracts called haplotypes into a VCF file.\n"
             << "  index            Indexes a graph.\n"
             << "  vcf_break_down   Breaks down variants in Graphtyper VCF files.\n"
@@ -174,6 +176,29 @@ add_arg_region_val(args::ArgumentParser & parser)
   return std::unique_ptr<TRegionVal>(new TRegionVal(parser, "REGION", "Region to use.", {"r", "region"}, "."));
 }
 
+/* sites only arg */
+std::unique_ptr<args::Flag>
+add_arg_sites_only(args::ArgumentParser & parser)
+{
+  return std::unique_ptr<args::Flag>(new args::Flag(parser, "N", "When set it will only parsing site information.", {"s", "sites_only"}));
+}
+
+
+/* one_genotype_per_haplotype arg */
+std::unique_ptr<args::Flag>
+add_arg_one_genotype_per_haplotype(args::ArgumentParser & parser)
+{
+  return std::unique_ptr<args::Flag>(new args::Flag(parser, "N", "When set, never merge more than one variant in a haplotype. Useful if it is the last iteration.", {"one_genotype_per_haplotype"}));
+}
+
+
+void
+parse_one_genotype_per_haplotype(args::Flag const & one_genotype_per_haplotype_arg)
+{
+  if (one_genotype_per_haplotype_arg)
+    gyper::Options::instance()->is_one_genotype_per_haplotype = true;
+}
+
 
 /** LOG argument */
 using TLog = args::ValueFlag<std::string>;
@@ -258,6 +283,25 @@ std::unique_ptr<TSegment>
 add_arg_segment(args::ArgumentParser & parser)
 {
   return std::unique_ptr<TSegment>(new TSegment(parser, "segment.fa", "FASTA file with segments.", {"e", "segment"}));
+}
+
+
+/** SV graph argument */
+using TSvGraph = args::ValueFlag<std::string>;
+std::unique_ptr<TSvGraph>
+add_arg_sv_graph(args::ArgumentParser & parser)
+{
+  return std::unique_ptr<TSvGraph>(new TSvGraph(parser, "GRAPH", "Graph used for SV variant predictions.", {"sv_graph"}));
+}
+
+
+void
+parse_sv_graph_arg(TSvGraph & sv_graph_arg)
+{
+  if (sv_graph_arg)
+  {
+    gyper::Options::instance()->sv_graph = args::get(sv_graph_arg);
+  }
 }
 
 
@@ -573,30 +617,6 @@ parse_minimum_variant_support_ratio(TMinVarSupRatio & minimum_variant_support_ra
 }
 
 
-/** Maximum homozygous allele balance */
-using TMaximumHomozygousAlleleBalance = args::ValueFlag<double>;
-
-std::unique_ptr<TMaximumHomozygousAlleleBalance>
-add_arg_maximum_homozygous_allele_balance(args::ArgumentParser & parser)
-{
-  return std::unique_ptr<TMaximumHomozygousAlleleBalance>(
-    new TMaximumHomozygousAlleleBalance(parser,
-                        "D",
-                        "Maxmimum homozygous allele balance allowed when adding new variants (Default is 0.08)",
-                        {"maximum_homozygous_allele_balance"}
-                        )
-    );
-}
-
-
-void
-parse_maximum_homozygous_allele_balance(TMaximumHomozygousAlleleBalance & maximum_homozygous_allele_balance_arg)
-{
-  if (maximum_homozygous_allele_balance_arg)
-    gyper::Options::instance()->maximum_homozygous_allele_balance = args::get(maximum_homozygous_allele_balance_arg);
-}
-
-
 /** Epsilon 0 exponent */
 using TEpsilonZeroExponent = args::ValueFlag<uint16_t>;
 
@@ -639,6 +659,39 @@ parse_read_chunk_size(TChunkSize & read_chunk_size_arg)
 }
 
 
+/** Filelist argument */
+using TFileList = args::ValueFlag<std::string>;
+
+std::unique_ptr<TFileList>
+add_arg_file_list(args::ArgumentParser & parser)
+{
+  return std::unique_ptr<TFileList>(new TFileList(parser, "FILE", "File with a newline separated list of files.", {"f", "file_list"}));
+}
+
+
+/** ID suffix argument */
+std::unique_ptr<args::ValueFlag<std::string> >
+add_arg_suffix_id(args::ArgumentParser & parser)
+{
+  return std::unique_ptr<args::ValueFlag<std::string> >(
+    new args::ValueFlag<std::string>(parser,
+                                     "SUFFIX",
+                                     "Suffix for variant IDs of genotyped variants.",
+      {"suffix_id"})
+    );
+}
+
+
+void
+parse_suffix_id(args::ValueFlag<std::string> & suffix_id_arg)
+{
+  if (suffix_id_arg)
+  {
+    gyper::Options::instance()->variant_suffix_id = args::get(suffix_id_arg);
+  }
+}
+
+
 /** Haplotypes argument */
 using THaplotypes = args::ValueFlag<std::string>;
 
@@ -646,6 +699,13 @@ std::unique_ptr<THaplotypes>
 add_arg_haplotypes(args::ArgumentParser & parser)
 {
   return std::unique_ptr<THaplotypes>(new THaplotypes(parser, "FILE", "File with a newline separated list of .hap files.", {"haplotypes"}));
+}
+
+
+std::unique_ptr<TGraph>
+add_arg_file(args::ArgumentParser & parser)
+{
+  return std::unique_ptr<TGraph>(new TGraph(parser, "FILE", "File to use."));
 }
 
 
@@ -663,6 +723,20 @@ parse_phased(args::Flag & use_phased_arg)
   if (use_phased_arg)
     gyper::Options::instance()->phased_output = true;
 }
+
+///** Phased argument */
+//std::unique_ptr<args::Flag>
+//add_arg_ref_vs_all(args::ArgumentParser & parser)
+//{
+//  return std::unique_ptr<args::Flag>(new args::Flag(parser, "PHASED", "Set to output phased haplotypes.", {"ref_vs_all"}));
+//}
+//
+//
+//void
+//parse_ref_vs_all(args::Flag & is_ref_vs_all)
+//{
+//  gyper::Options::instance()->is_ref_vs_all = is_ref_vs_all;
+//}
 
 
 /** always_query_hamming_distance_one argument */
@@ -721,7 +795,7 @@ check_required_argument(T & arg, std::string const arg_name)
 {
   if (!*arg)
   {
-    std::cerr << "ERROR: Argument '" << arg_name << "' was not passed but is required." << std::endl;
+    std::cerr << "ERROR: Argument '" << arg_name << "' was not passed but is required.\n";
     return false;
   }
 
@@ -764,11 +838,26 @@ main(int argc, char ** argv)
   }
 
   std::string const given_command = argv[1];
-  std::vector<std::string> available_commands = {"count_index_keys", "call", "check", "construct", "haplotypes", "index", "vcf_merge", "vcf_concatenate", "vcf_break_down", "vcf_update_info"};
+  std::vector<std::string> available_commands = {"call",
+                                                 "check",
+                                                 "construct",
+                                                 "discover",
+                                                 "discovery_vcf",
+                                                 "haplotypes",
+                                                 "index",
+                                                 "vcf_merge",
+                                                 "vcf_concatenate",
+                                                 "vcf_break_down",
+                                                 "vcf_update_info"
+    };
 
   if (std::find(available_commands.begin(), available_commands.end(), given_command) == available_commands.end())
   {
-    BOOST_LOG_TRIVIAL(error) << "[graphtyper::main] Command '" << given_command << "' is not avaiable.\n";
+    // Do not use boost log as it has not been properly set up here
+    std::cerr << "[graphtyper::main] ERROR: Command '"
+              << given_command
+              << "' is not avaiable.\n";
+
     print_default_help();
     std::exit(1);
   }
@@ -779,60 +868,7 @@ main(int argc, char ** argv)
     boost::log::trivial::severity >= boost::log::trivial::warning
   );
 
-  //
-
-  if (std::string(argv[1]) == std::string("count_index_keys"))
-  {
-    args::ArgumentParser count_index_keys_parser("Graphtyper's count index keys");
-    auto help_arg = add_arg_help(count_index_keys_parser);
-    auto command_arg = add_arg_command(count_index_keys_parser, argv[1]);
-    auto graph_arg = add_arg_graph(count_index_keys_parser);
-    auto index_arg = add_arg_index(count_index_keys_parser);
-
-    parse_command_line(count_index_keys_parser, argc, argv);
-
-    std::string index_path;
-
-    if (*index_arg)
-      index_path = args::get(*index_arg);
-    else
-      index_path = args::get(*graph_arg) + std::string("_gti");
-
-    // Check if graph exists
-    if (!is_file(args::get(*graph_arg)))
-    {
-      BOOST_LOG_TRIVIAL(error) << "[graphtyper::main] Could not find a graph located at '" << args::get(*graph_arg) << "'.";
-      return 1;
-    }
-
-    // Check if index exists
-    if (!is_directory(index_path))
-    {
-      BOOST_LOG_TRIVIAL(error) << "[graphtyper::main] Could not find an index located at '" << args::get(*graph_arg) << "'.";
-      return 1;
-    }
-
-    gyper::load_graph(args::get(*graph_arg));
-    gyper::load_index(index_path);
-
-    // Get all reads
-    {
-      std::size_t num_keys = 0;
-      std::size_t num_values = 0; // Count the number of keys
-
-      rocksdb::Iterator* it = gyper::index.hamming0.db->NewIterator(rocksdb::ReadOptions());
-
-      for (it->SeekToFirst(); it->Valid(); it->Next())
-      {
-        ++num_keys;
-        num_values += gyper::value_to_labels(it->value().ToString()).size();
-      }
-
-      std::cout << "Read " << num_keys << " keys and " << num_values << " values from index." << std::endl;
-      delete it;
-    }
-  }
-  else if (std::string(argv[1]) == std::string("construct"))
+  if (std::string(argv[1]) == std::string("construct"))
   {
     args::ArgumentParser construct_parser("Graphtyper's graph construction tool");
     auto help_arg = add_arg_help(construct_parser);
@@ -842,10 +878,12 @@ main(int argc, char ** argv)
     auto regions_arg = add_arg_region(construct_parser);
     auto vcf_arg = add_arg_vcf(construct_parser);
     auto log_arg = add_arg_log(construct_parser);
+    auto sv_graph_arg = add_arg_sv_graph(construct_parser);
 
     parse_command_line(construct_parser, argc, argv);
 
     parse_log(*log_arg);
+    parse_sv_graph_arg(*sv_graph_arg);
 
     bool SUCCESS = true;
     SUCCESS &= check_required_argument(command_arg, "command");
@@ -853,11 +891,8 @@ main(int argc, char ** argv)
     SUCCESS &= check_required_argument(fasta_arg, "fasta");
     SUCCESS &= check_required_argument(regions_arg, "regions");
 
-    std::vector<std::string> regions;
-    regions.push_back(args::get(*regions_arg));
-
-    for (auto & reg : regions)
-      reg.erase(std::remove(reg.begin(), reg.end(), ','), reg.end());
+    std::string region = args::get(*regions_arg);
+    region.erase(std::remove(region.begin(), region.end(), ','), region.end());
 
     if (!SUCCESS)
     {
@@ -880,9 +915,9 @@ main(int argc, char ** argv)
     }
 
     if (*vcf_arg)
-      gyper::construct_graph(args::get(*fasta_arg), args::get(*vcf_arg), regions);
+      gyper::construct_graph(args::get(*fasta_arg), args::get(*vcf_arg), region);
     else
-      gyper::construct_graph(args::get(*fasta_arg), regions);
+      gyper::construct_graph(args::get(*fasta_arg), "", region);
 
     gyper::save_graph(args::get(*graph_arg));
   }
@@ -942,7 +977,7 @@ main(int argc, char ** argv)
     auto soft_cap_of_variants_in_100_bp_window_arg = add_arg_soft_cap_of_variants_in_100_bp_window(call_parser);
     auto hard_cap_of_non_snps_in_100_bp_window_arg = add_arg_hard_cap_of_non_snps_in_100_bp_window(call_parser);
     auto hard_cap_of_variants_in_100_bp_window_arg = add_arg_hard_cap_of_variants_in_100_bp_window(call_parser);
-    auto maximum_homozygous_allele_balance_arg = add_arg_maximum_homozygous_allele_balance(call_parser);
+    //auto maximum_homozygous_allele_balance_arg = add_arg_maximum_homozygous_allele_balance(call_parser);
     auto epsilon_0_exponent_arg = add_arg_epsilon_0_exponent(call_parser);
     auto no_new_variants_arg = add_arg_no_new_variants(call_parser);
     auto hq_reads_arg = add_arg_hq_reads(call_parser);
@@ -952,8 +987,11 @@ main(int argc, char ** argv)
     auto threads_arg = add_arg_threads(call_parser);
     auto get_sample_names_from_filename_arg = add_arg_get_sample_names_from_filename(call_parser);
     auto phased_arg = add_arg_phased(call_parser);
+//    auto ref_vs_all_arg = add_arg_ref_vs_all(call_parser);
     auto always_query_hamming_distance_one_arg = add_arg_always_query_hamming_distance_one(call_parser);
+    auto one_genotype_per_haplotype_arg = add_arg_one_genotype_per_haplotype(call_parser);
     // auto use_read_cache_arg = add_arg_use_read_cache(call_parser);
+    auto suffix_id_arg = add_arg_suffix_id(call_parser);
 
     parse_command_line(call_parser, argc, argv);
 
@@ -967,7 +1005,7 @@ main(int argc, char ** argv)
     parse_soft_cap_of_variants_in_100_bp_window(*soft_cap_of_variants_in_100_bp_window_arg);
     parse_hard_cap_of_non_snps_in_100_bp_window(*hard_cap_of_non_snps_in_100_bp_window_arg);
     parse_hard_cap_of_variants_in_100_bp_window(*hard_cap_of_variants_in_100_bp_window_arg);
-    parse_maximum_homozygous_allele_balance(*maximum_homozygous_allele_balance_arg);
+    //parse_maximum_homozygous_allele_balance(*maximum_homozygous_allele_balance_arg);
     parse_epsilon_0_exponent(*epsilon_0_exponent_arg);
     parse_stats(*stats_arg);
     parse_max_index_labels(*max_index_labels_arg);
@@ -978,7 +1016,10 @@ main(int argc, char ** argv)
     parse_hq_reads(*hq_reads_arg);
     parse_output_all_variants(*output_all_variants_arg);
     parse_phased(*phased_arg);
+//    parse_ref_vs_all(*ref_vs_all_arg);
     parse_always_query_hamming_distance_one(*always_query_hamming_distance_one_arg);
+    parse_one_genotype_per_haplotype(*one_genotype_per_haplotype_arg);
+    parse_suffix_id(*suffix_id_arg);
 
     bool SUCCESS = true;
     SUCCESS &= check_required_argument(command_arg, "command");
@@ -1000,7 +1041,7 @@ main(int argc, char ** argv)
     if (!SUCCESS)
     {
       std::cerr << call_parser;
-      return 1; // Exit if it failed to get all requred arguments
+      return 1; // Exit if it failed to get all required arguments
     }
 
     if (!is_directory(args::get(*output_arg)))
@@ -1089,12 +1130,14 @@ main(int argc, char ** argv)
     if (!SUCCESS)
     {
       std::cerr << haplotypes_parser;
-      return 1; // Exit if it failed to get all requred arguments
+      return 1; // Exit if it failed to get all required arguments
     }
 
     if (not is_file(args::get(*haplotypes_arg)))
     {
-      BOOST_LOG_TRIVIAL(error) << "[graphtyper::main] Haplotype file '" << args::get(*haplotypes_arg) << "' was not found.";
+      BOOST_LOG_TRIVIAL(error) << "[graphtyper::main] Haplotype file '"
+                               << args::get(*haplotypes_arg)
+                               << "' was not found.";
       return 1;
     }
 
@@ -1109,7 +1152,8 @@ main(int argc, char ** argv)
     // Check if graph exists
     if (!is_file(args::get(*graph_arg)))
     {
-      BOOST_LOG_TRIVIAL(error) << "[graphtyper::main] Could not find a graph located at '" << args::get(*graph_arg) << "'.";
+      BOOST_LOG_TRIVIAL(error) << "[graphtyper::main] Could not find a graph located at '"
+                               << args::get(*graph_arg) << "'.";
       return 1;
     }
 
@@ -1119,6 +1163,117 @@ main(int argc, char ** argv)
                           args::get(*region_arg)
                           );
   }
+  else if (std::string(argv[1]) == std::string("discover"))
+  {
+    args::ArgumentParser discover_parser("Discovery variants based on the alignment to the "
+      "reference genome"
+      );
+    auto help_arg = add_arg_help(discover_parser);
+    auto command_arg = add_arg_command(discover_parser, argv[1]);
+    auto graph_arg = add_arg_graph(discover_parser);
+    auto regions_arg = add_arg_regions(discover_parser);
+    auto sam_arg = add_arg_sam(discover_parser);
+    auto sams_arg = add_arg_sams(discover_parser);
+    auto output_arg = add_arg_output_dir(discover_parser);
+    auto minimum_variant_support_arg = add_arg_min_var_sup(discover_parser);
+    auto minimum_variant_support_ratio_arg = add_arg_min_var_sup_ratio(discover_parser);
+
+    parse_command_line(discover_parser, argc, argv);
+
+    parse_minimum_variant_support(*minimum_variant_support_arg);
+    parse_minimum_variant_support_ratio(*minimum_variant_support_ratio_arg);
+
+    bool SUCCESS = true;
+    SUCCESS &= check_required_argument(command_arg, "command");
+    SUCCESS &= check_required_argument(graph_arg, "graph");
+    SUCCESS &= check_required_argument(regions_arg, "regions");
+
+    std::vector<std::string> regions = args::get(*regions_arg);
+
+    for (auto & reg : regions)
+      reg.erase(std::remove(reg.begin(), reg.end(), ','), reg.end());
+
+    // Either sam or sams is required
+    if (!*sam_arg && !*sams_arg)
+    {
+      BOOST_LOG_TRIVIAL(error) << "[graphtyper::main] Either the 'sam' or 'sams' argument "
+                               << "must be passed.";
+      SUCCESS = false;
+    }
+
+    if (!SUCCESS)
+    {
+      std::cerr << discover_parser;
+      return 1; // Exit if it failed to get all required arguments
+    }
+
+    // Parse SAM files
+    std::vector<std::string> sams;
+
+    if (*sam_arg)
+      sams.push_back(args::get(*sam_arg));
+
+    if (*sams_arg)
+    {
+      std::ifstream file_in(args::get(*sams_arg));
+      std::string line;
+
+      while (std::getline(file_in, line))
+        sams.push_back(line);
+    }
+
+    if (!is_directory(args::get(*output_arg)))
+      mkdir(args::get(*output_arg).c_str(), 0755);
+
+    gyper::discover_directly_from_bam(args::get(*graph_arg),
+                                      sams,
+                                      regions,
+                                      args::get(*output_arg)
+      );
+  }
+  else if (std::string(argv[1]) == std::string("discovery_vcf"))
+  {
+    args::ArgumentParser discovery_vcf_parser("Graphtyper's discovery VCF creation tool.");
+    auto help_arg = add_arg_help(discovery_vcf_parser);
+    auto command_arg = add_arg_command(discovery_vcf_parser, argv[1]);
+    auto graph_arg = add_arg_graph(discovery_vcf_parser);
+    auto file_arg = add_arg_file(discovery_vcf_parser);
+    auto log_arg = add_arg_log(discovery_vcf_parser);
+    auto output_arg = add_arg_output(discovery_vcf_parser);
+
+    parse_command_line(discovery_vcf_parser, argc, argv);
+
+    parse_log(*log_arg);
+
+    bool SUCCESS = true;
+    SUCCESS &= check_required_argument(command_arg, "command");
+    SUCCESS &= check_required_argument(graph_arg, "graph");
+    SUCCESS &= check_required_argument(file_arg, "file");
+
+    if (!SUCCESS)
+    {
+      std::cerr << discovery_vcf_parser;
+      return 1; // Exit if it failed to get all required arguments
+    }
+
+    if (not is_file(args::get(*file_arg)))
+    {
+      BOOST_LOG_TRIVIAL(error) << "[graphtyper::main] File '"
+                               << args::get(*file_arg) << "' was not found.";
+      return 1;
+    }
+
+    std::string output_file("-");
+
+    if (*output_arg)
+      output_file = args::get(*output_arg);
+
+    gyper::load_graph(args::get(*graph_arg));
+    gyper::graph.generate_reference_genome();
+    gyper::global_varmap.load_many_variant_maps(args::get(*file_arg));
+    gyper::global_varmap.filter_varmap_for_all();
+    gyper::global_varmap.write_vcf(output_file);
+  }
   else if (std::string(argv[1]) == std::string("vcf_merge"))
   {
     args::ArgumentParser vcf_merge_parser("Graphtyper's VCF merging tool. This tool is used to merge Graphtyper's genotype calls of multiple sample pools.");
@@ -1127,6 +1282,7 @@ main(int argc, char ** argv)
     auto log_arg = add_arg_log(vcf_merge_parser);
     auto output_arg = add_arg_output(vcf_merge_parser);
     auto vcfs_arg = add_arg_vcfs(vcf_merge_parser);
+    auto file_list_arg = add_arg_file_list(vcf_merge_parser);
 
     parse_command_line(vcf_merge_parser, argc, argv);
 
@@ -1134,12 +1290,14 @@ main(int argc, char ** argv)
 
     bool SUCCESS = true;
     SUCCESS &= check_required_argument(command_arg, "command");
-    SUCCESS &= check_required_argument(vcfs_arg, "vcfs");
+
+    if (!*vcfs_arg && !*file_list_arg) // Either is required
+      SUCCESS &= check_required_argument(vcfs_arg, "vcfs");
 
     if (!SUCCESS)
     {
       std::cerr << vcf_merge_parser;
-      return 1; // Exit if it failed to get all requred arguments
+      return 1; // Exit if it failed to get all required arguments
     }
 
     std::string output = "-";
@@ -1147,7 +1305,29 @@ main(int argc, char ** argv)
     if (*output_arg)
       output = args::get(*output_arg);
 
-    gyper::vcf_merge(args::get(*vcfs_arg), output);
+    std::vector<std::string> vcfs;
+
+    if (*vcfs_arg)
+    {
+      vcfs = args::get(*vcfs_arg);
+    }
+    else
+    {
+      assert (*file_list_arg);
+      std::ifstream files;
+      files.open(args::get(*file_list_arg));
+
+      if (!files.is_open())
+      {
+        std::cerr << "[graphtyper::main] ERROR: Could not open file '" << args::get(*file_list_arg) << "'\n\n" << vcf_merge_parser;
+        return 1;
+      }
+
+      for (std::string line; std::getline(files, line);)
+        vcfs.push_back(line);
+    }
+
+    gyper::vcf_merge(vcfs, output);
   }
   else if (std::string(argv[1]) == std::string("vcf_concatenate"))
   {
@@ -1159,6 +1339,7 @@ main(int argc, char ** argv)
     auto vcfs_arg = add_arg_vcfs(vcf_concatenate_parser);
     auto no_sort_arg = add_arg_no_sort(vcf_concatenate_parser);
     auto region_arg = add_arg_region_val(vcf_concatenate_parser);
+    auto sites_only_arg = add_arg_sites_only(vcf_concatenate_parser);
 
     parse_command_line(vcf_concatenate_parser, argc, argv);
 
@@ -1166,12 +1347,12 @@ main(int argc, char ** argv)
 
     bool SUCCESS = true;
     SUCCESS &= check_required_argument(command_arg, "command");
-    SUCCESS &= check_required_argument(vcfs_arg, "vcfs");
+    //SUCCESS &= check_required_argument(vcfs_arg, "vcfs");
 
     if (!SUCCESS)
     {
       std::cerr << vcf_concatenate_parser;
-      return 1; // Exit if it failed to get all requred arguments
+      return 1; // Exit if it failed to get all required arguments
     }
 
     std::string output = "-";
@@ -1184,7 +1365,7 @@ main(int argc, char ** argv)
     if (*region_arg)
       region = args::get(*region_arg);
 
-    gyper::vcf_concatenate(args::get(*vcfs_arg), output, *no_sort_arg, region);
+    gyper::vcf_concatenate(args::get(*vcfs_arg), output, *no_sort_arg, *sites_only_arg, region);
   }
   else if (std::string(argv[1]) == std::string("vcf_break_down"))
   {
@@ -1209,7 +1390,7 @@ main(int argc, char ** argv)
     if (!SUCCESS)
     {
       std::cerr << vcf_break_down_parser;
-      return 1; // Exit if it failed to get all requred arguments
+      return 1; // Exit if it failed to get all required arguments
     }
 
     std::string output = "-";
@@ -1253,7 +1434,7 @@ main(int argc, char ** argv)
     if (!SUCCESS)
     {
       std::cerr << vcf_update_info_parser;
-      return 1; // Exit if it failed to get all requred arguments
+      return 1; // Exit if it failed to get all required arguments
     }
 
     std::string output = "-";
@@ -1262,6 +1443,29 @@ main(int argc, char ** argv)
       output = args::get(*output_arg);
 
     gyper::vcf_update_info(args::get(*vcf_pos_arg), output);
+  }
+  else if (std::string(argv[1]) == std::string("check"))
+  {
+    args::ArgumentParser check_parser("Graphtyper's check graph tool. Useful for debugging graphs.");
+    auto help_arg = add_arg_help(check_parser);
+    auto command_arg = add_arg_command(check_parser, argv[1]);
+    auto graph_arg = add_arg_graph(check_parser);
+
+    parse_command_line(check_parser, argc, argv);
+
+    bool SUCCESS = true;
+    SUCCESS &= check_required_argument(command_arg, "command");
+    SUCCESS &= check_required_argument(graph_arg, "graph");
+
+    if (!SUCCESS)
+    {
+      std::cerr << check_parser;
+      return 1; // Exit if it failed to get all required arguments
+    }
+
+    gyper::load_graph(args::get(*graph_arg));
+    gyper::graph.check();
+    gyper::graph.print();
   }
 
   if (gyper::Options::instance()->sink)

@@ -104,8 +104,8 @@ class AbsolutePosition
 public:
   AbsolutePosition();
 
-  uint32_t get_absolute_position(std::string const & chromosome, uint32_t const contig_position) const;
-  std::pair<std::string, uint32_t> get_contig_position(uint32_t const absolute_position) const;
+  uint32_t get_absolute_position(std::string const & chromosome, uint32_t contig_position) const;
+  std::pair<std::string, uint32_t> get_contig_position(uint32_t absolute_position) const;
 
   std::array<uint32_t, 26u> offsets;
   std::unordered_map<std::string, uint32_t> chromosome_to_offset;

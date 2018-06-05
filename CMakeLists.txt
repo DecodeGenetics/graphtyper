@@ -33,9 +33,9 @@ execute_process(
 
 # Get the latest SHA commit hash of the working branch
 execute_process(
-  COMMAND git diff-files COMMAND wc -l
+  COMMAND git diff COMMAND wc -l
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  OUTPUT_VARIABLE GIT_NUM_DIRTY_FILES
+  OUTPUT_VARIABLE GIT_NUM_DIRTY_LINES
   OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 
@@ -48,7 +48,7 @@ if ($ENV{GT_BUILD_TYPE})
 endif()
 
 message(STATUS "Build type: ${GT_BUILD_TYPE}")
-set(GT_COMMON_FLAGS "-Wall -Wextra -Wfatal-errors -pedantic -Wno-variadic-macros -std=c++11 -DSEQAN_HAS_ZLIB=1 -DSEQAN_USE_HTSLIB=1 -DSEQAN_ENABLE_TESTING=0 -march=core2 -mtune=generic")
+set(GT_COMMON_FLAGS "-Wall -Wextra -Wfatal-errors -pedantic -Wno-variadic-macros -std=c++11 -DSEQAN_HAS_ZLIB=1 -DSEQAN_USE_HTSLIB=1 -DSEQAN_ENABLE_TESTING=0")
 
 if(GT_BUILD_TYPE STREQUAL "DEBUG" OR CMAKE_BUILD_TYPE STREQUAL "Debug")
   message(STATUS "Building in debug mode.")
@@ -61,7 +61,7 @@ elseif(GT_BUILD_TYPE STREQUAL "PROFILING" OR GT_BUILD_TYPE STREQUAL "Profiling")
   set (CMAKE_CXX_FLAGS "${GT_COMMON_FLAGS} -pg -O3 -DNDEBUG -DSEQAN_ENABLE_DEBUG=0")
 else()
   message(STATUS "Building in release mode.")
-  set (CMAKE_CXX_FLAGS "${GT_COMMON_FLAGS} -O3 -DNDEBUG -DSEQAN_ENABLE_DEBUG=0")
+  set (CMAKE_CXX_FLAGS "${GT_COMMON_FLAGS} -O3 -DNDEBUG -DSEQAN_ENABLE_DEBUG=0 -march=core2 -mtune=generic")
 endif()
 
 message(STATUS "CXX flags are: ${CMAKE_CXX_FLAGS}")
@@ -72,10 +72,10 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/utilitie
 # configure a header file to pass some of the CMake settings to the source code
 configure_file (
   "${PROJECT_SOURCE_DIR}/include/graphtyper/constants.hpp.in"
-  "${PROJECT_BINARY_DIR}/graphtyper/constants.hpp"
+  "${PROJECT_BINARY_DIR}/include/graphtyper/constants.hpp"
 )
 
-include_directories("${PROJECT_BINARY_DIR}")
+include_directories("${PROJECT_BINARY_DIR}/include")
 
 # Find external libraries
 # zlib
@@ -189,15 +189,15 @@ ExternalProject_Add(
 
 include_directories(SYSTEM sparsehash/src)
 
-# Find a threads (which will be pthreads on unix)
+# Find a multi-thread library (which will likely be pthread on unix)
 find_package(Threads)
 
 # ExternalProject_Get_Property(htslib source_dir)
 # set(htslib_INCLUDE_DIRS ${source_dir} CACHE INTERNAL "Path to include folder for htslib.")
 # set(HTSlib_LIBRARY ${source_dir}/libhts.a CACHE INTERNAL "Path to htslib library files.")
 
-# stations
-include_directories(SYSTEM stations/include)
+# paw
+include_directories(SYSTEM paw/include)
 
 # args
 include_directories(SYSTEM args)
@@ -224,7 +224,7 @@ set(graphtyper_all_libraries
   htslib
   statgen
   ${Boost_LIBRARIES}
-  pthread
+  ${CMAKE_THREAD_LIBS_INIT}
   ${ZLIB_LIBRARIES}
   ${BZIP2_LIBRARIES}
 )
@@ -234,7 +234,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   list(APPEND graphtyper_all_libraries "rt")
 endif ()
 
-# If lz4 is optional for rocksdb
+# lz4 is optional for rocksdb
 find_package (Lz4)
 
 if (LZ4_FOUND)
@@ -247,6 +247,14 @@ find_package (LibLZMA)
 if (LIBLZMA_FOUND)
   list(APPEND graphtyper_all_libraries ${LIBLZMA_LIBRARIES})
 endif ()
+
+# zstd is optional for rocksdb
+find_package (ZStd)
+
+if (ZSTD_FOUND)
+  list(APPEND graphtyper_all_libraries ${ZSTD_LIBRARIES})
+endif()
+
 
 message(STATUS "Libraries: ${graphtyper_all_libraries}")
 

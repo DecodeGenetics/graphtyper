@@ -11,15 +11,17 @@
 #include <graphtyper/graph/genomic_region.hpp>
 #include <graphtyper/graph/haplotype.hpp>
 #include <graphtyper/graph/location.hpp>
+#include <graphtyper/graph/sv.hpp>
 #include <graphtyper/index/kmer_label.hpp>
+#include <graphtyper/typer/path.hpp>
 
 
 namespace gyper
 {
 
+class Path;
 class Variant;
 class VarRecord;
-class Path;
 
 using TSVKey = std::tuple<uint32_t, std::vector<char>, std::vector<std::vector<char> > >; // pos, ref, alts
 
@@ -35,11 +37,12 @@ public:
   uint32_t reference_offset = 0;
   std::vector<RefNode> ref_nodes;
   std::vector<VarNode> var_nodes;
+  std::vector<SV> SVs;
 
   /****************
    * CONSTRUCTORS *
    ****************/
-  Graph(bool _use_absolute_positions = true);
+  explicit Graph(bool _use_absolute_positions = true);
 
   void clear();
 
@@ -51,7 +54,6 @@ public:
   /******************
    * GRAPH CREATION *
    ******************/
-  void create_graph();
   void generate_reference_genome();
   void create_special_positions();
 
@@ -72,22 +74,46 @@ public:
   std::size_t size() const;
   uint16_t get_variant_num(uint32_t v) const;
   std::vector<Haplotype> get_all_haplotypes(uint32_t variant_distance = MAX_READ_LENGTH) const;
-  std::vector<char> get_sequence_of_a_haplotype_call(std::vector<Genotype> const & gts, uint32_t const haplotype_call) const;
+
+  std::vector<char> get_sequence_of_a_haplotype_call(std::vector<Genotype> const & gts,
+                                                     uint32_t const haplotype_call
+    ) const;
+
   std::vector<std::vector<char> > get_all_sequences_of_a_genotype(Genotype const & gt) const;
-  RefNode const & get_ref_in(TNodeIndex const & var_index) const;
-  std::vector<std::vector<char> > get_all_sequences(uint32_t start, uint32_t end) const;
+
+//  std::vector<std::vector<char> >
+//  get_all_sequences(uint32_t start,
+//                    uint32_t end,
+//                    std::vector<char> const & prefix = std::vector<char>(0)
+//    ) const;
+
+  std::vector<std::vector<char> >
+  get_sequence_from_location(Location const & loc,
+                             uint32_t const length,
+                             std::vector<char> const & prefix
+    ) const;
+
+  std::vector<std::vector<char> >
+  get_all_sequences_of_length(uint32_t start, uint32_t length,
+                              std::vector<char> const & prefix
+    ) const;
+
   bool is_variant_in_graph(Variant const & var) const;
   uint8_t get_10log10_num_paths(TNodeIndex const v, uint32_t const MAX_DISTANCE = 60);
 
   /*************************
    * GRAPH LOCAL ALIGNMENT *
    *************************/
-  std::unordered_set<int64_t>
+  std::unordered_set<long>
   reference_distance_between_locations(std::vector<Location> const & ll1,
                                        std::vector<Location> const & ll2
     ) const;
 
-  std::vector<Location> get_locations_of_a_position(uint32_t pos, gyper::Path const & path) const;
+  std::vector<Location> get_locations_of_a_position(uint32_t pos, Path const & path) const;
+  std::vector<Location> get_locations_of_an_actual_position(uint32_t pos,
+                                                            Path const & path = Path(),
+                                                            bool const is_special = false
+    ) const;
 
   std::vector<KmerLabel>
   get_labels_forward(Location const & s,
@@ -111,11 +137,11 @@ public:
   /*********************
    * SPECIAL POSITIONS *
    *********************/
-  void add_special_pos(uint32_t const reach, uint32_t const ref_reach);
-  bool is_special_pos(uint32_t const pos) const;
-  uint32_t get_special_pos(uint32_t const pos, uint32_t const ref_reach) const;
-  uint32_t get_ref_reach_pos(uint32_t const pos) const;
-  uint32_t get_actual_pos(uint32_t const pos) const;
+  void add_special_pos(uint32_t reach, uint32_t ref_reach);
+  bool is_special_pos(uint32_t pos) const;
+  uint32_t get_special_pos(uint32_t pos, uint32_t ref_reach) const;
+  uint32_t get_ref_reach_pos(uint32_t pos) const;
+  uint32_t get_actual_pos(uint32_t pos) const;
 
   std::unordered_map<uint32_t, std::vector<uint32_t> > ref_reach_to_special_pos;
   std::vector<uint32_t> ref_reach_poses;
@@ -133,21 +159,27 @@ public:
   /**
    * Other
    */
-  bool is_snp(uint32_t const var_id) const;
-  bool is_on_var_id(uint32_t const pos, uint32_t const var_id) const;
   std::vector<uint32_t> get_var_orders(uint32_t const start, uint32_t const end) const;
-
+  void print() const;
 
 private:
   template <typename Archive>
-  void serialize(Archive & ar, const unsigned int);
+  void serialize(Archive & ar, unsigned int);
 
   /**********************
    * GRAPH MODIFICATION *
    **********************/
-  void add_reference(unsigned end_pos, unsigned const & num_var, std::vector<char> const & reference_sequence);
+  void add_reference(unsigned end_pos,
+                     unsigned const & num_var,
+                     std::vector<char> const & reference_sequence
+    );
+
   void add_variants(VarRecord && record);
-  void break_apart_haplotypes(std::vector<Genotype> gts, std::vector<Haplotype> & haplotypes, int32_t max_read_length) const;
+
+  void break_apart_haplotypes(std::vector<Genotype> gts,
+                              std::vector<Haplotype> & haplotypes,
+                              int32_t max_read_length
+    ) const;
 };
 
 extern Graph graph;

@@ -1,8 +1,8 @@
 #include <bitset> // std::bitset
 #include <iomanip> // std::hex
-#include <iostream> // std::cerr, std::endl
 
 #include <graphtyper/utilities/type_conversions.hpp>
+#include <boost/log/trivial.hpp>
 
 
 namespace gyper
@@ -28,7 +28,7 @@ to_uint64(char const c)
     case 'T':
       return 3ul;
     default:
-      std::cerr << "[graphtyper::type_conversions] WARNING: Invalid character " << c << std::endl;
+      BOOST_LOG_TRIVIAL(warning) << "[graphtyper::type_conversions] Invalid character " << c;
       return 0ul;
   }
 }
@@ -37,12 +37,12 @@ to_uint64(char const c)
 uint64_t
 to_uint64(seqan::DnaString const & s, std::size_t i)
 {
-  SEQAN_ASSERT_MSG(seqan::length(s) - i >= gyper::K, "Cannot read 32 bases from read!");
+  SEQAN_ASSERT_MSG(seqan::length(s) - i >= 32, "Cannot read 32 bases from read!");
   uint64_t d = 0;
 
-  for (std::size_t const j = i + K; i < j; ++i)
+  for (std::size_t const j = i + 32; i < j; ++i)
   {
-    d *= 4;
+    d <<= 2;
     d += seqan::ordValue(s[i]);
   }
 
@@ -54,12 +54,45 @@ uint64_t
 to_uint64(std::vector<char> const & s)
 {
   assert(s.size() == 32u);
-  uint64_t d = 0;
+  uint64_t d = 0ull;
 
   for (unsigned i = 0; i < 32; ++i)
   {
-    d *= 4u;
+    d <<= 2;
     d += to_uint64(s[i]);
+  }
+
+  return d;
+}
+
+
+uint16_t
+to_uint16(char const c)
+{
+  switch(c)
+  {
+    case 'A':
+      return 0u;
+    case 'C':
+      return 1u;
+    case 'G':
+      return 2u;
+    default:
+      return 3u; // 'T' or anything else
+  }
+}
+
+
+uint16_t
+to_uint16(std::vector<char> const & s, std::size_t i)
+{
+  assert(s.size() >= 8 + i);
+  uint16_t d = 0u;
+
+  for (std::size_t const j = i + 8; i < j; ++i)
+  {
+    d <<= 2;
+    d += to_uint16(s[i]);
   }
 
   return d;
@@ -70,10 +103,10 @@ template <typename TSeq>
 std::vector<uint64_t>
 to_uint64_vec(TSeq const & s, std::size_t i)
 {
-  assert(seqan::length(s) - i >= gyper::K);  // Cannot read 32 bases from read!"
+  assert(seqan::length(s) >= 32 + i);  // Cannot read 32 bases from read!"
   std::vector<uint64_t> uints(1, 0u);
 
-  for (unsigned const j = i + K; i < j; ++i)
+  for (unsigned const j = i + 32; i < j; ++i)
   {
     std::size_t const origin_size = uints.size();
 
@@ -89,7 +122,7 @@ to_uint64_vec(TSeq const & s, std::size_t i)
         uints.push_back(uints[u] * 4 + 0); // A
         uints.push_back(uints[u] * 4 + 1); // C
         uints.push_back(uints[u] * 4 + 2); // G
-        uints[u] *= 4;     uints[u] += 3;  // T
+        uints[u] <<= 2; uints[u] += 3;     // T
       }
       else
       {
@@ -153,36 +186,6 @@ to_uint64_vec_hamming_distance_1(uint64_t const key)
   return hamming1;
 }
 
-/*
-std::array<uint64_t, 2160>
-to_uint64_vec_hamming_distance_2(uint64_t const key)
-{
-  std::array<uint64_t, 2160> hamming2;
-  uint16_t i = 0;
-
-  for (uint8_t bb = 0; bb < 16; ++bb)
-  {
-    // We add mask1 ^ mask2 ^ exact kmer where mask1 and mask2 do not change the same DNA base
-    for (uint8_t cc = 0; cc < 16; ++cc)
-    {
-      if (cc == bb)
-        continue;
-
-      hamming2[i++] = (1 << (bb * 2)) ^ (1 << cc * 2) ^ key;
-      hamming2[i++] = (1 << (bb * 2)) ^ (2 << cc * 2) ^ key;
-      hamming2[i++] = (1 << (bb * 2)) ^ (3 << cc * 2) ^ key;
-      hamming2[i++] = (2 << (bb * 2)) ^ (1 << cc * 2) ^ key;
-      hamming2[i++] = (2 << (bb * 2)) ^ (2 << cc * 2) ^ key;
-      hamming2[i++] = (2 << (bb * 2)) ^ (3 << cc * 2) ^ key;
-      hamming2[i++] = (3 << (bb * 2)) ^ (1 << cc * 2) ^ key;
-      hamming2[i++] = (3 << (bb * 2)) ^ (2 << cc * 2) ^ key;
-      hamming2[i++] = (3 << (bb * 2)) ^ (3 << cc * 2) ^ key;
-    }
-  }
-
-  return hamming2;
-}
-*/
 
 seqan::DnaString
 to_dna(uint64_t const & d, uint8_t k)

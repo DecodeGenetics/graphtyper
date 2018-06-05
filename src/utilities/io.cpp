@@ -122,43 +122,6 @@ read_haplotypes_from_fasta(std::string const & fasta_filename)
 
   for (unsigned i = 0; i < seqan::length(ids); ++i)
   {
-    // std::cout << "Id, seq = " << ids[i] << '\n' << seqan::length(seqs[i]) << std::endl;
-    // if (seqan::length(seqs[i]) < n * K - (n - 1))
-    // {
-    //   std::size_t const bases_needed = n * K / 2 - (n - 1) / 2 - seqan::length(seqs[i]) / 2;
-    //
-    //   // std::cout << "Sequence is short: " << seqs[i] << std::endl;
-    //   seqan::Dna5String prev;
-    //   seqan::Dna5String next;
-    //
-    //   if (i > 0 && seqan::back(ids[i]) != 'P') // Dont check prev at the 5P feature
-    //   {
-    //     prev = seqs[i - 1];
-    //     std::cout << "prev is " << prev << std::endl;
-    //   }
-    //
-    //   if (i < seqan::length(ids) - 1 && seqan::back(ids[i]) != '3') // Dont check next at the P3 feature
-    //   {
-    //     next = seqs[i + 1];
-    //     std::cout << "next is " << next << std::endl;
-    //   }
-    //
-    //   if (bases_needed < seqan::length(prev))
-    //     seqan::erase(prev, 0, seqan::length(prev) - bases_needed);
-    //
-    //   if (bases_needed < seqan::length(next))
-    //     seqan::resize(next, bases_needed);
-    //
-    //   seqan::append(prev, seqs[i]);
-    //   seqan::append(prev, next);
-    //
-    //   if (seqan::length(prev) > (n * K - (n - 1)))
-    //     seqan::resize(prev, (n * K - (n - 1)));
-    //
-    //   seqs[i] = prev;
-    //   // std::cout << "Sequence is now longer " << seqs[i] << std::endl;
-    // }
-
     seqan::CharString allele;
     bool found_star = false;
 
@@ -228,8 +191,7 @@ append_to_file(std::string && data, std::string const & file_name)
 
     if (!myfile.is_open())
     {
-      std::cerr << "[io] ERROR: Cannot write to " << file_name << std::endl;
-      myfile.close();
+      BOOST_LOG_TRIVIAL(error) << "[graphtyper::io] Cannot write to " << file_name;
       std::exit(1);
     }
 
@@ -254,8 +216,7 @@ write_to_file(std::string && data, std::string const & file_name)
 
     if (!myfile.is_open())
     {
-      std::cerr << "[io] ERROR: Cannot write to " << file_name << std::endl;
-      myfile.close();
+      BOOST_LOG_TRIVIAL(error) << "[graphtyper::io] Cannot write to " << file_name;
       std::exit(1);
     }
 
@@ -271,6 +232,12 @@ write_gzipped_to_file(std::stringstream & ss, std::string const & file_name, boo
   std::ofstream compressed(file_name.c_str(),
                            append ? (std::ofstream::binary | std::ofstream::app) : std::ofstream::binary
     );
+
+  if (!compressed.is_open())
+  {
+    BOOST_LOG_TRIVIAL(error) << "[graphtyper::io] Could not open file '" << file_name << "'";
+    std::exit(3);
+  }
 
   boost::iostreams::filtering_streambuf<boost::iostreams::input> out;
   out.push(boost::iostreams::gzip_compressor());

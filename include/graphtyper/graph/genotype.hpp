@@ -18,11 +18,11 @@ public:
   uint32_t first_variant_node;
 
   Genotype();
-  Genotype(uint32_t const i, uint16_t const n, uint32_t const fvn);
+  Genotype(uint32_t i, uint16_t n, uint32_t fvn);
 
 private:
   template <class Archive>
-  void serialize(Archive & ar, const unsigned int version);
+  void serialize(Archive & ar, unsigned int version);
 };
 
 } // namespace gyper

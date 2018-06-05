@@ -26,7 +26,6 @@ public:
   unsigned threads = 1; // How many threads should be used by Graphtyper (note that RocksDB may also use some additional threads)
   std::vector<std::string> regions = {"."}; // "." means the entire SAM file is read.
   std::string stats = ""; // Filename for statistics file
-  bool haplotype_statistics = false;
 
   /************************
    * CONSTRUCTOR OPTIONS *
@@ -34,6 +33,7 @@ public:
   std::string fasta = "";
   std::string vcf = "";
   bool add_all_variants = false;
+  std::string sv_graph = "";
 
   /********************
    * INDEXING OPTIONS *
@@ -45,17 +45,13 @@ public:
    *******************/
   std::vector<std::string> sam;
   uint16_t epsilon_0_exponent = 13;
-  uint32_t ploidy = 2;
   std::size_t minimum_variant_support = 5;
-  double minimum_variant_support_ratio = 0.20;
+  double minimum_variant_support_ratio = 0.25;
   std::size_t certain_variant_support = 14;
   double certain_variant_support_ratio = 0.49;
-  double maximum_homozygous_allele_balance = 0.015;
   bool no_new_variants = false;
   bool hq_reads = false;
-  bool no_writing_vcfs = false;
   std::size_t read_chunk_size = 16384ul; // 2^14
-  bool gather_unmapped = false;
   bool phased_output = false;
   std::size_t soft_cap_of_variants_in_100_bp_window = 11;
   std::size_t soft_cap_of_non_snps_in_100_bp_window = 7;
@@ -66,15 +62,13 @@ public:
   bool get_sample_names_from_filename = false;
   bool output_all_variants = false;
   bool always_query_hamming_distance_one = false;
+  bool is_one_genotype_per_haplotype = false;
+  std::string variant_suffix_id = "";
 
   // Insert size options
   uint32_t max_insert_size = 1000;
   uint32_t optimal_insert_size = 300;
   uint32_t max_insert_size_threshold = 150; // Allowed threshold from the optimal insert size to be considered HQ
-
-  // Caching options
-  bool use_read_cache = false;
-  uint16_t read_cache_maximum_mismatches = 0;
 
   // Alignment constraints
   uint32_t MAX_SEED_NUMBER_ALLOWING_MISMATCHES = 64;
