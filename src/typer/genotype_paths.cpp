@@ -1,4 +1,5 @@
 #include <cassert>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -124,7 +125,7 @@ void
 GenotypePaths::add_prev_kmer_labels(std::vector<KmerLabel> const & ll,
                                     uint32_t const read_start_index,
                                     uint32_t const read_end_index,
-                                    std::size_t const mismatches
+                                    int const mismatches
                                     )
 {
   assert(read_end_index > read_start_index);
@@ -186,11 +187,16 @@ void
 GenotypePaths::add_next_kmer_labels(std::vector<KmerLabel> const & ll,
                                     uint32_t const read_start_index,
                                     uint32_t const read_end_index,
-                                    std::size_t const mismatches
+                                    int const mismatches
                                     )
 {
   assert(read_end_index > read_start_index);
-  std::vector<Path> const pp = find_all_nonduplicated_paths(ll, read_start_index, read_end_index, mismatches);
+  std::vector<Path> const pp = find_all_nonduplicated_paths(ll,
+                                                            read_start_index,
+                                                            read_end_index,
+                                                            mismatches
+                                                            );
+
   std::size_t const original_size = paths.size();
 
   // Keep track of which new paths did matches with any previous paths
@@ -259,7 +265,7 @@ GenotypePaths::remove_paths_with_too_many_mismatches()
   if (paths.size() == 0)
     return;
 
-  uint16_t min_mismatches = Options::instance()->is_segment_calling ? 2 : 12; // Maximum mismatches allowed
+  uint16_t min_mismatches = Options::instance()->is_segment_calling ? 2 : 10; // Maximum mismatches allowed
 
   // Find the minimum number of mismatches in the aligned paths
   for (auto const & path : paths)
@@ -272,6 +278,75 @@ GenotypePaths::remove_paths_with_too_many_mismatches()
 
   // Finally, update the longest path size
   update_longest_path_size();
+}
+
+
+void
+GenotypePaths::remove_paths_within_variant_node()
+{
+  if (paths.size() <= 1)
+    return;
+
+  auto is_path_within_one_variant_node = [&](Path const & path)
+  {
+    std::vector<Location> s_locs = graph.get_locations_of_a_position(path.start, path);
+    std::vector<Location> e_locs = graph.get_locations_of_a_position(path.end, path);
+
+    for (auto const & s : s_locs)
+    {
+      if (s.node_type != 'V')
+        continue;
+
+      for (auto const & e : e_locs)
+      {
+        if (e.node_type == 'V' && s.node_order == e.node_order)
+        {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  };
+
+  // Erase paths which are within a single variant node
+  paths.erase(std::remove_if(paths.begin(), paths.end(), is_path_within_one_variant_node), paths.end());
+
+  // Finally, update the longest path size
+  update_longest_path_size();
+}
+
+
+void
+GenotypePaths::remove_non_ref_paths_when_read_matches_ref()
+{
+  if (all_paths_unique()) // paths.size() == 0
+    return;
+
+  // Check if there are any paths that support purely reference, and in that case delete every other path.
+  auto find_path_it = std::find_if(paths.begin(), paths.end(), [](Path const & p){return p.is_reference();});
+
+  if (find_path_it != paths.end())
+  {
+    // I found a path that is purely reference... delete all other paths
+    paths.erase(std::remove_if(paths.begin(), paths.end(), [](Path const & p){return !p.is_reference();}), paths.end());
+  }
+}
+
+
+void
+GenotypePaths::remove_fully_special_paths()
+{
+  auto is_fully_special = [](Path const & p) -> bool
+  {
+    return p.start_ref_reach_pos() == p.end_ref_reach_pos();
+  };
+
+  paths.erase(std::remove_if(paths.begin(),
+                             paths.end(),
+                             is_fully_special
+              )
+    , paths.end());
 }
 
 
@@ -422,34 +497,27 @@ GenotypePaths::walk_read_starts(seqan::IupacString const & seq, int maximum_mism
 std::vector<VariantCandidate>
 GenotypePaths::find_new_variants() const
 {
+  std::vector<VariantCandidate> new_variants;
+
   // Don't try to find variants in perfect reads
   if (paths.size() == 0 || (all_paths_fully_aligned() && paths[0].mismatches == 0))
-    return std::vector<VariantCandidate>(0);
+    return new_variants;
 
-  //if (Options::instance()->hq_reads && (!all_paths_fully_aligned() || paths[0].mismatches != 1))
-  //  return std::vector<VariantCandidate>(0);
-
-  // if (all_paths_fully_aligned() && paths[0].mismatches == 1)
-  // {
-  //   BOOST_LOG_TRIVIAL(debug) << "[graphtyper::genotype_paths] Read with one mismatch = " << std::string(read.begin(), read.end());
-  // }
-
-  assert(read.size() > 1);
-
+  auto const & path = paths[0];
   // Check if the paths is fully aligned (with mismatches) and is purely on the reference,
   // in this case we assume all the variants are SNPs
   if (all_paths_fully_aligned() && is_purely_reference())
   {
-    uint32_t pos = paths[0].start_ref_reach_pos();
-    uint32_t end_pos = paths[0].end_ref_reach_pos() + 1;
+    // Discover SNPs
+    uint32_t pos = path.start_ref_reach_pos();
+    uint32_t end_pos = path.end_ref_reach_pos() + 1;
     std::vector<char> const reference = graph.get_generated_reference_genome(pos, end_pos);
-    assert(pos == paths[0].start);
-    assert(end_pos == paths[0].end_pos() + 1);
+    assert(pos == path.start);
+    assert(end_pos == path.end_pos() + 1);
     assert(reference.size() == read.size());
-    std::vector<VariantCandidate> variants;
 
     {
-      int matches = -1;   // -1 means we have not found a mismatch yet
+      int matches = -1; // -1 means we have not found a mismatch yet
       std::vector<char> ref;
       std::vector<char> alt;
       int64_t const MIN_VAR_THRESHOLD = 5;
@@ -460,7 +528,7 @@ GenotypePaths::find_new_variants() const
         assert(i < seqan::length(read));
         assert(i < seqan::length(qual));
 
-        if (reference[i] != read[i] && read[i] != 'N' /*&& qual[i] >= static_cast<char>(25)*/)
+        if (reference[i] != read[i] && read[i] != 'N')
         {
           if (matches == -1)
             var_pos = pos + i;
@@ -502,20 +570,15 @@ GenotypePaths::find_new_variants() const
 
               // Determine if the variant is low quality
               {
-                unsigned r = 1u + i - matches - new_var.seqs[0].size();
-                // std::cout << "r = " << r << std::endl;
-                // std::cout << "REF = " << std::string(new_var.seqs[0].begin(), new_var.seqs[0].end()) << std::endl;
-                // std::cout << "ALT = " << std::string(new_var.seqs[1].begin(), new_var.seqs[1].end()) << std::endl;
+                unsigned const r = 1u + i - matches - new_var.seqs[0].size();
                 assert(new_var.seqs[1].size() > 0);
-                // std::cout << "READ[r] = " << std::string(read.begin() + r, read.begin() + r + new_var.seqs[1].size()) << std::endl;
-                unsigned const MIN_QUAL = *std::min_element(qual.begin() + r, qual.begin() + r + new_var.seqs[1].size()) - 33u;
-                // std::cout << "minimum quality is " << MIN_QUAL << std::endl;
-
-                if (MIN_QUAL < 25u)
-                  new_var.is_low_qual = true;
+                unsigned const MAX_QUAL = *std::max_element(qual.begin() + r, qual.begin() + r + new_var.seqs[1].size()) - 33u;
+                new_var.is_low_qual = MAX_QUAL < 25u;
               }
 
-              variants.push_back(std::move(new_var));
+              // Determine if it is a proper pair
+              new_var.normalize();
+              new_variants.push_back(std::move(new_var));
             }
           }
 
@@ -548,56 +611,49 @@ GenotypePaths::find_new_variants() const
 
             // Determine if the variant is low quality
             {
-              unsigned r = read.size() - matches - new_var.seqs[0].size();
-              // std::cout << "r = " << r << std::endl;
-              // std::cout << "REF = " << std::string(new_var.seqs[0].begin(), new_var.seqs[0].end()) << std::endl;
-              // std::cout << "ALT = " << std::string(new_var.seqs[1].begin(), new_var.seqs[1].end()) << std::endl;
+              unsigned const r = read.size() - matches - new_var.seqs[0].size();
               assert(new_var.seqs[1].size() > 0);
-              // std::cout << "READ[r] = " << std::string(read.begin() + r, read.begin() + r + new_var.seqs[1].size()) << std::endl;
-              unsigned const MIN_QUAL = *std::min_element(qual.begin() + r, qual.begin() + r + new_var.seqs[1].size()) - 33u;
-              // std::cout << "minimum quality is " << MIN_QUAL << std::endl;
-
-              if (MIN_QUAL < 25u)
-                new_var.is_low_qual = true;
+              unsigned const MAX_QUAL = *std::max_element(qual.begin() + r, qual.begin() + r + new_var.seqs[1].size()) - 33u;
+              new_var.is_low_qual = MAX_QUAL < 25u;
             }
 
             // Make sure the sequences are not empty
             assert(new_var.seqs[0].size() > 0);
             assert(new_var.seqs[1].size() > 0);
-            variants.push_back(std::move(new_var));
+
+            new_var.normalize();
+            new_variants.push_back(std::move(new_var));
           }
         }
       }
     }
-
-    //if (variants.size() > 0)
-    //{
-    //  BOOST_LOG_TRIVIAL(debug) << std::string(read.begin(), read.end());
-    //   //BOOST_LOG_TRIVIAL(debug) << "[graphtyper::genotype_paths] Found variants. " << paths[0].read_start_index << "-" << paths[0].read_end_index << " " << read.size() << " " << paths[0].mismatches;
-    //   //for (auto const & var : variants)
-    //   //  BOOST_LOG_TRIVIAL(debug) << var.print();
-    //}
-
-    return variants;
   }
-
-  assert(paths.size() > 0);
-  uint32_t pos = paths[0].start_ref_reach_pos() - paths[0].read_start_index;
-
-  // Parameters
-  uint32_t constexpr EXTRA_BASES_BEFORE = 50;
-  uint32_t constexpr EXTRA_BASES_AFTER = 50;
-  uint32_t ref_pos_start;
-
-  // Check if we underflew, and if we didn't prevent an underflow
-  if (pos <= paths[0].start_ref_reach_pos() && pos > EXTRA_BASES_BEFORE)
-    ref_pos_start = pos - EXTRA_BASES_BEFORE;
   else
-    ref_pos_start = 0;
+  {
+    // Discover SNPs and indels
+    uint32_t pos = path.start_ref_reach_pos() - path.read_start_index;
 
-  uint32_t ref_pos_end = pos + read.size() + EXTRA_BASES_AFTER;
-  std::vector<char> const reference = graph.get_generated_reference_genome(ref_pos_start, ref_pos_end);
-  std::vector<VariantCandidate> new_variants = find_variants_in_alignment(ref_pos_start, std::move(reference), static_cast<seqan::Dna5String>(read));
+    // Parameters
+    uint32_t constexpr EXTRA_BASES_BEFORE = 50;
+    uint32_t constexpr EXTRA_BASES_AFTER = 50;
+    uint32_t ref_pos_start;
+
+    // Check if we underflew, and if we didn't prevent an underflow
+    if (pos <= path.start_ref_reach_pos() && pos > EXTRA_BASES_BEFORE)
+      ref_pos_start = pos - EXTRA_BASES_BEFORE;
+    else
+      ref_pos_start = 0;
+
+    uint32_t ref_pos_end = pos + read.size() + EXTRA_BASES_AFTER;
+    std::vector<char> reference = graph.get_generated_reference_genome(ref_pos_start, ref_pos_end);
+
+    // Disocvery new variants (SNPs and indels)
+    new_variants = find_variants_in_alignment(ref_pos_start,
+                                              std::move(reference),
+                                              static_cast<seqan::Dna5String>(read),
+                                              qual
+      );
+  }
 
   for (auto & new_var : new_variants)
   {
@@ -606,15 +662,14 @@ GenotypePaths::find_new_variants() const
     assert(new_var.seqs[0].size() > 0);
     assert(new_var.seqs[1].size() > 0);
     new_var.normalize();
+    new_var.is_in_proper_pair = this->is_proper_pair();
+    new_var.is_mapq0 = mapq == 0;
+    new_var.is_unaligned = is_originally_unaligned;
+    new_var.is_clipped = is_originally_clipped;
+    new_var.is_first_in_pair = is_first_in_pair;
+    new_var.is_seq_reversed = not forward_strand;
+    new_var.original_pos = original_pos;
   }
-
-  //if (new_variants.size() > 0)
-  //{
-  //  BOOST_LOG_TRIVIAL(debug) << std::string(read.begin(), read.end());
-  //   //BOOST_LOG_TRIVIAL(debug) << "[graphtyper::genotype_paths] Found variants. " << paths[0].read_start_index << "-" << paths[0].read_end_index << " " << read.size() << " " << paths[0].mismatches;
-  //   //for (auto const & var : new_variants)
-  //   //  BOOST_LOG_TRIVIAL(debug) << var.print();
-  //}
 
   return new_variants;
 }
@@ -634,6 +689,7 @@ GenotypePaths::remove_short_paths()
 }
 
 
+/*
 void
 GenotypePaths::remove_paths_with_no_variants()
 {
@@ -641,6 +697,7 @@ GenotypePaths::remove_paths_with_no_variants()
       return p.var_order.size() == 0;
     }), paths.end());
 }
+*/
 
 
 bool
@@ -661,11 +718,8 @@ GenotypePaths::is_purely_reference() const
 {
   for (auto const & path : paths)
   {
-    for (auto const & num : path.nums)
-    {
-      if (not num.test(0) or num.count() > 1)
-        return false;
-    }
+    if (!path.is_purely_reference())
+      return false;
   }
 
   return true;
@@ -750,6 +804,47 @@ GenotypePaths::check_no_variant_is_missing() const
   }
 
   return true;
+}
+
+
+std::string
+GenotypePaths::to_string() const
+{
+  std::ostringstream ss;
+  ss << "read_name=" << details->query_name
+     << " first_in_pair=" << (is_first_in_pair ? "Y" : "N")
+     << " read=" << std::string(read.begin(), read.end())
+     << " paths.size()=" << paths.size()
+     << " pos=" << original_pos
+     << " mapq=" << static_cast<unsigned>(mapq)
+     << "\n";
+
+  for (auto const & path : paths)
+  {
+    ss << "  path_start=" << path.start_pos()
+       << " path_end=" << path.end_pos()
+       << " path_start_correct=" << path.start_correct_pos()
+       << " path_end_correct=" << path.end_correct_pos()
+       << " read_start_index=" << path.read_start_index
+       << " read_end_index=" << path.read_end_index
+       << " mismatches=" << path.mismatches
+       << " path.var_order.size()=" << path.var_order.size()
+       << " var_orders=";
+
+    for (auto const var_order : path.var_order)
+      ss << var_order << " ";
+
+    ss << "\n";
+  }
+
+  return ss.str();
+}
+
+
+bool
+GenotypePaths::is_proper_pair() const
+{
+  return ml_insert_size != INSERT_SIZE_WHEN_NOT_PROPER_PAIR;
 }
 
 

@@ -1,14 +1,12 @@
-#include <graphtyper/typer/path.hpp>
+#include <bitset> // std::bitset<Size>
+#include <vector> // std::vector<Type>
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/typer/path.hpp>
+#include <graphtyper/graph/graph.hpp>
 
 
 namespace gyper
 {
-
-Path::Path() noexcept
-{}
-
 
 Path::Path(KmerLabel const & l, uint16_t const _read_start_index, uint16_t const _read_end_index, uint16_t const _mismatches) noexcept
   : start(l.start_index)
@@ -145,7 +143,7 @@ uint32_t
 Path::size() const
 {
   assert(read_end_index != read_start_index);
-  return read_end_index - read_start_index + 1;
+  return read_end_index - read_start_index + 1u;
 }
 
 
@@ -153,6 +151,39 @@ uint32_t
 Path::get_read_end_index(uint32_t const read_length) const
 {
   return std::min(read_start_index + size() * (K - 1), read_length - 1);
+}
+
+
+bool
+Path::is_reference() const
+{
+  for (auto const & num : nums)
+  {
+    if (not num.test(0))
+      return false;
+  }
+
+  return true;
+}
+
+
+bool
+Path::is_purely_reference() const
+{
+  for (auto const & num : nums)
+  {
+    if (not num.test(0) or num.count() > 1)
+      return false;
+  }
+
+  return true;
+}
+
+
+bool
+Path::is_empty() const
+{
+  return start == end;
 }
 
 

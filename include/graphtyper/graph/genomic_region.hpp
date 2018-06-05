@@ -4,12 +4,11 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include <boost/serialization/access.hpp>
 
 #include <graphtyper/constants.hpp>
-#include <graphtyper/graph/absolute_position.hpp>
-#include <graphtyper/graph/var_record.hpp>
 
 
 namespace gyper
@@ -17,6 +16,7 @@ namespace gyper
 
 static const uint32_t AS_LONG_AS_POSSIBLE = 0xFFFFFFFFULL;
 
+class VarRecord;
 
 class GenomicRegion
 {
@@ -35,9 +35,9 @@ public:
   /****************
    * CONSTRUCTORS *
    ****************/
-  GenomicRegion(uint32_t _region_to_refnode = 0);
+  explicit GenomicRegion(uint32_t _region_to_refnode = 0);
   GenomicRegion(uint16_t && r, std::string && c, uint32_t && b, uint32_t && e, uint32_t _region_to_refnode = 0);
-  GenomicRegion(std::string region, uint32_t _region_to_refnode = 0);
+  explicit GenomicRegion(std::string region, uint32_t _region_to_refnode = 0);
 
   uint32_t get_absolute_begin_position() const;
   uint32_t get_absolute_end_position() const;
@@ -53,7 +53,7 @@ public:
 
 private:
   template <typename Archive>
-  void serialize(Archive & ar, const unsigned int);
+  void serialize(Archive & ar, unsigned int);
 };
 
 } // namespace gyper

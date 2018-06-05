@@ -1,14 +1,15 @@
 # Build files
 /release/
 /reldeb/
-/build*/
-/debug*/
+/*build*/
+/*debug*/
 /*-build/
 /profiling/
 example_test.vcf
 *.log
 .nfs*
 *.bak
+/.*/
 
 # ggtags
 /GPATH

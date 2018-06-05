@@ -1,16 +1,15 @@
 #pragma once
 
-#include <string>
-#include <unordered_map>
-#include <unordered_set>
-#include <utility>
-#include <vector>
+#include <string> // std::String
+#include <unordered_map> // std::unordered_map
+#include <utility> // std::pair
+#include <vector> // std::vector
 
 #include <seqan/basic.h>
 #include <seqan/sequence.h>
-#include <seqan/seq_io.h>
+#include <seqan/hts_io.h> // seqan::HtsFileIn, seqan::BamAlignmentRecord
 
-#include <graphtyper/utilities/hash_seqan.hpp>
+#include <graphtyper/utilities/hash_seqan.hpp> // For std::unordered_map<seqan::String<char>, seqan::BamAlignmentRecord>
 
 
 namespace gyper

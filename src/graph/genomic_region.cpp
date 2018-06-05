@@ -5,7 +5,9 @@
 #include <seqan/basic.h>
 #include <seqan/bam_io.h>
 
+#include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/genomic_region.hpp>
+#include <graphtyper/graph/var_record.hpp>
 
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
@@ -52,7 +54,17 @@ has_matching_longest_prefix(std::vector<char> const & ref, std::vector<std::vect
     for (uint32_t j = i + 1; j < alts.size(); ++j)
     {
       if (prefix_match(alts[i], alts[j]))
+      {
+        // Detect if there are duplicate alt alleles
+        if (alts[i] == alts[j])
+        {
+          BOOST_LOG_TRIVIAL(fatal) << "Duplicated alt. alleles detected. "
+                                   << "Aborting constructing graph.";
+          std::exit(1);
+        }
+
         return true;
+      }
     }
   }
 
@@ -86,8 +98,8 @@ GenomicRegion::GenomicRegion(std::string region, uint32_t _region_to_refnode)
   if (region == std::string("."))
     return;
 
-  assert (std::count(region.begin(), region.end(), ':') <= 1);
-  assert (std::count(region.begin(), region.end(), '-') <= 1);
+  assert(std::count(region.begin(), region.end(), ':') <= 1);
+  assert(std::count(region.begin(), region.end(), '-') <= 1);
 
   if (std::count(region.begin(), region.end(), ':') == 0)
   {
@@ -184,25 +196,30 @@ GenomicRegion::get_contig_position(uint32_t absolute_position) const
 void
 GenomicRegion::check_if_var_records_match_reference_genome(std::vector<VarRecord> const & var_records, std::vector<char> const & reference)
 {
-  for (auto record_it = var_records.cbegin(); record_it != var_records.cend(); ++record_it)
+  for (auto const & record : var_records)
   {
-    uint32_t const pos = record_it->pos;
-    assert(pos < GenomicRegion::begin + reference.size());
+    uint32_t const pos = record.pos;
 
-    std::vector<char> vcf_ref(record_it->ref);
-    assert(vcf_ref.size() > 0);
-    assert(vcf_ref[0] != '.');
+    if (pos >= GenomicRegion::begin + reference.size())
+      continue;
+
+    assert(record.ref.size() > 0);
+    assert(record.ref[0] != '.');
 
     auto start_it = reference.begin() + (pos - GenomicRegion::begin);
-    auto end_it = start_it + vcf_ref.size();
-    std::vector<char> reference_ref(start_it, end_it);
+    std::size_t const ref_len = std::min(static_cast<std::size_t>(std::distance(start_it, reference.end())),
+                                         record.ref.size()
+                                         );
 
-    if (reference_ref != vcf_ref)
+    std::vector<char> const reference_ref(start_it, start_it + ref_len);
+
+    if (reference_ref.size() > 0 && !prefix_match(record.ref, reference_ref))
     {
-      BOOST_LOG_TRIVIAL(error) << "[graphtyper::genomic_region] Record @ position " << std::to_string(pos)
-                               << " (REF = " << std::string(vcf_ref.begin(), vcf_ref.end())
-                               << ") did not match the reference genome (" << std::string(reference_ref.begin(), reference_ref.end()) << ")";
-      std::exit(1);
+      BOOST_LOG_TRIVIAL(warning) << "[graphtyper::genomic_region] Record @ position " << pos
+                                 << " (REF = " << std::string(record.ref.begin(), record.ref.end()) << ')'
+                                 << " did not match the reference genome ("
+                                 << std::string(reference_ref.begin(), reference_ref.end()) << ")";
+      //std::exit(1);
     }
   }
 }
@@ -211,10 +228,15 @@ GenomicRegion::check_if_var_records_match_reference_genome(std::vector<VarRecord
 void
 GenomicRegion::add_reference_to_record_if_they_have_a_matching_prefix(VarRecord & var_record, std::vector<char> const & reference)
 {
+  if (var_record.is_sv)
+    return;
+
   auto start_it = reference.begin() + (var_record.pos - GenomicRegion::begin) + var_record.ref.size();
   assert(std::distance(reference.begin(), start_it) <= static_cast<int64_t>(reference.size()));
 
-  while (start_it != reference.end() && *start_it != 'N' && has_matching_longest_prefix(var_record.ref, var_record.alts))
+  while (start_it != reference.end() && *start_it != 'N' &&
+    has_matching_longest_prefix(var_record.ref, var_record.alts)
+    )
   {
     // Add base to back
     var_record.ref.push_back(*start_it);
@@ -229,21 +251,13 @@ GenomicRegion::add_reference_to_record_if_they_have_a_matching_prefix(VarRecord 
 
 template <typename Archive>
 void
-GenomicRegion::serialize(Archive & ar, const unsigned int version)
+GenomicRegion::serialize(Archive & ar, unsigned const /*version*/)
 {
   ar & rID;
   ar & chr;
   ar & begin;
   ar & end;
-
-  if (version > 0)
-  {
-    ar & region_to_refnode;
-  }
-  else
-  {
-    region_to_refnode = 0;
-  }
+  ar & region_to_refnode;
 }
 
 

@@ -18,6 +18,7 @@
 #include <graphtyper/graph/node.hpp>
 #include <graphtyper/graph/reference_depth.hpp>
 #include <graphtyper/graph/sequence_extractor.hpp>
+#include <graphtyper/graph/sv.hpp>
 #include <graphtyper/graph/var_record.hpp>
 #include <graphtyper/index/index_entry.hpp>
 #include <graphtyper/index/indexer.hpp>
@@ -25,7 +26,6 @@
 #include <graphtyper/index/kmer_label.hpp>
 #include <graphtyper/index/mem_index.hpp>
 #include <graphtyper/index/rocksdb.hpp>
-#include <graphtyper/typer/aligner.hpp>
 #include <graphtyper/typer/alignment.hpp>
 #include <graphtyper/typer/caller.hpp>
 #include <graphtyper/typer/discovery.hpp>
@@ -44,6 +44,7 @@
 #include <graphtyper/typer/vcf_writer.hpp>
 #include <graphtyper/utilities/adapter_removal.hpp>
 #include <graphtyper/utilities/adapter_remover.hpp>
+#include <graphtyper/utilities/bgzf_stream.hpp>
 #include <graphtyper/utilities/graph_help_functions.hpp>
 #include <graphtyper/utilities/hash_seqan.hpp>
 #include <graphtyper/utilities/io.hpp>

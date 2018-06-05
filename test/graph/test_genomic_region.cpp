@@ -1,12 +1,7 @@
-#include <string>
-#include <vector>
-#include <stdio.h>
-#include <climits>
-#include <cstdio>
+#include <string> //std::string
 
-#include <iostream>
-#include <fstream>
-
+#include <graphtyper/graph/absolute_position.hpp>
+#include <graphtyper/graph/genomic_region.hpp>
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/label.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>

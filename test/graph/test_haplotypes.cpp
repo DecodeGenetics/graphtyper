@@ -1,14 +1,10 @@
 #include <string>
 #include <vector>
-#include <stdio.h>
-#include <climits>
-#include <cstdio>
-
-#include <iostream>
-#include <fstream>
 
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/label.hpp>
+#include <graphtyper/graph/haplotype.hpp>
+#include <graphtyper/graph/var_record.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
 
 #include <catch.hpp>

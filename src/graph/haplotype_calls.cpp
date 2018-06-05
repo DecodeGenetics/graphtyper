@@ -1,24 +1,42 @@
+#include <fstream>
+#include <string>
+
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
+#include <boost/log/trivial.hpp>
 #include <boost/serialization/vector.hpp>
-#include <boost/serialization/utility.hpp>
 
 #include <graphtyper/graph/haplotype_calls.hpp>
+
 
 namespace gyper
 {
 
-HaplotypeCalls::HaplotypeCalls()
-  : hap_calls(0)
+HaplotypeCall::HaplotypeCall(std::vector<uint16_t> && _calls,
+                             std::vector<Genotype> const & _gts
+  )
+  : calls(std::move(_calls))
+  , gts(_gts)
 {}
+
+
+template<class Archive>
+void
+HaplotypeCall::serialize(Archive &ar, unsigned const int /*version*/)
+{
+  ar & calls;
+  ar & gts;
+}
+
 
 HaplotypeCalls::HaplotypeCalls(THapCalls const & _hap_calls)
   : hap_calls(_hap_calls)
 {}
 
+
 template <typename Archive>
 void
-HaplotypeCalls::serialize(Archive & ar, const unsigned int)
+HaplotypeCalls::serialize(Archive & ar, unsigned const int /*version*/)
 {
   ar & hap_calls;
 }
@@ -36,13 +54,15 @@ template void HaplotypeCalls::serialize<boost::archive::binary_oarchive>(boost::
  *********************************/
 
 void
-save_calls(HaplotypeCalls & calls, std::string filename)
+save_calls(HaplotypeCalls & calls, std::string const & filename)
 {
   std::ofstream ofs(filename.c_str(), std::ios::binary);
 
   if (!ofs.is_open())
   {
-    std::cerr << "Could not save calls to location '" << filename << "'" << std::endl;
+    BOOST_LOG_TRIVIAL(error) << "[graphtyper::haplotype_calls] Could not save calls to location '"
+                             << filename
+                             << "'";
     std::exit(1);
   }
 
@@ -51,25 +71,15 @@ save_calls(HaplotypeCalls & calls, std::string filename)
 }
 
 
-void
-load_calls(HaplotypeCalls & calls, std::string filename)
-{
-  std::ifstream ifs(filename.c_str(), std::ios::binary);
-  assert(ifs.is_open());
-  boost::archive::binary_iarchive ia(ifs);
-  ia >> calls;
-}
-
-
 THapCalls
 load_calls(std::string filename)
 {
-  HaplotypeCalls calls;
+  HaplotypeCalls calls{};
   std::ifstream ifs(filename.c_str(), std::ios::binary);
   assert(ifs.is_open());
   boost::archive::binary_iarchive ia(ifs);
   ia >> calls;
-  return calls.hap_calls;
+  return calls.get_hap_calls();
 }
 
 

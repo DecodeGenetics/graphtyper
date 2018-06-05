@@ -1,6 +1,7 @@
-#include <iostream>
-#include <sstream>
-#include <fstream>
+#include <string> // std::string
+#include <vector> // std::vector
+
+#include <seqan/hts_io.h>
 
 #include <boost/log/trivial.hpp>
 
@@ -190,9 +191,31 @@ SamReader::insert_reads(TReads & reads, seqan::BamAlignmentRecord && record)
   if (results_it != reads_first.end())
   {
     if (seqan::hasFlagFirst(record))
-      reads.push_back({record, results_it->second});
+    {
+      if (seqan::hasFlagFirst(results_it->second))
+      {
+        BOOST_LOG_TRIVIAL(warning) << "[graphtyper::sam_reader] "
+                                   << "Two first-in-pair reads with identical read name found. "
+                                   << "Are you reading the same region more than once?";
+      }
+      else
+      {
+        reads.push_back({record, results_it->second});
+      }
+    }
     else
-      reads.push_back({results_it->second, record});
+    {
+      if (!seqan::hasFlagFirst(results_it->second))
+      {
+        BOOST_LOG_TRIVIAL(warning) << "[graphtyper::sam_reader] "
+                                   << "Two second-in-pair reads with identical read name found. "
+                                   << "Are you reading the same region more than once?";
+      }
+      else
+      {
+        reads.push_back({results_it->second, record});
+      }
+    }
 
     reads_first.erase(results_it);
   }

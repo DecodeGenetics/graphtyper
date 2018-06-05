@@ -9,6 +9,7 @@
 
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/label.hpp>
+#include <graphtyper/graph/var_record.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
 #include <graphtyper/utilities/options.hpp>
 
@@ -1336,7 +1337,7 @@ TEST_CASE("Check if the above creates the graph correctly")
 }
 
 
-TEST_CASE("Bug issue #26, variant overlapping a N on the reference genome")
+TEST_CASE("Variant overlapping a N on the reference genome")
 {
   using namespace gyper;
   Options::instance()->add_all_variants = true;
@@ -1509,15 +1510,15 @@ TEST_CASE("Merge one path should check if we can remove the suffix of a variant 
   SECTION("We have the correct labels on the reference nodes")
   {
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("S"));
-    REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec("F"));
+    REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec("ATF"));
   }
 
   SECTION("We have the correct labels on the variant nodes")
   {
-    REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("TAAAAT"));
-    REQUIRE(var_nodes[1].get_label().dna == gyper::to_vec("TAAAT"));
-    REQUIRE(var_nodes[2].get_label().dna == gyper::to_vec("TAATAT"));
-    REQUIRE(var_nodes[3].get_label().dna == gyper::to_vec("TATAT"));
+    REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("TAAA"));
+    REQUIRE(var_nodes[1].get_label().dna == gyper::to_vec("TAA"));
+    REQUIRE(var_nodes[2].get_label().dna == gyper::to_vec("TAAT"));
+    REQUIRE(var_nodes[3].get_label().dna == gyper::to_vec("TAT"));
   }
 
   Options::instance()->add_all_variants = true;

@@ -23,21 +23,21 @@ uint64_t key_to_uint64_t(std::string const & key_str);
 class RocksDB
 {
 public:
-  RocksDB() = default;
-  RocksDB & operator=(RocksDB const &) = default;
-  RocksDB & operator=(RocksDB &&) = default;
-  RocksDB(RocksDB const &) = default;
-
   rocksdb::DB * db = nullptr;
   rocksdb::Status s;
   rocksdb::Options options;
   bool destroy_db_after_use = true;
   bool opened = false;
   std::string filename;
+
+  /** CONSTRUCTORS */
+  RocksDB() = default;
+  RocksDB & operator=(RocksDB const &) = default;
+  RocksDB & operator=(RocksDB &&) = default;
+  RocksDB(RocksDB const &) = default;
 };
 
 
-
-extern Index<RocksDB> index;
+extern Index<RocksDB> index; // Global index
 
 } // namespace gyper

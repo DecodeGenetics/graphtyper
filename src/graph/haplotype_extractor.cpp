@@ -32,7 +32,9 @@ namespace
 {
 
 std::vector<std::vector<uint32_t> >
-read_haplotype_calls_from_file(std::string const haps_path, std::vector<std::vector<gyper::Genotype> > & gts)
+read_haplotype_calls_from_file(std::string const haps_path,
+                               std::vector<std::vector<gyper::Genotype> > & gts
+  )
 {
   using namespace gyper;
 
@@ -59,19 +61,21 @@ read_haplotype_calls_from_file(std::string const haps_path, std::vector<std::vec
 
       for (unsigned i = 0; i < new_calls.size(); ++i)
       {
-        assert(not new_calls[i].second.empty());
-        uint32_t const gt_id = new_calls[i].second[0].id; // The first genotype in a haplotype is its ID
+        assert(not new_calls[i].gts.empty());
+
+        // The first genotype in a haplotype is its ID
+        uint32_t const gt_id = new_calls[i].gts[0].id;
 
         if (FIRST_LINE)
         {
           // Initialize all vectors with 0 (i.e. the reference haplotype).
           gt2hapcalls[gt_id] = {0u};
-          gts.push_back(new_calls[i].second);
+          gts.push_back(new_calls[i].gts);
         }
 
-        assert(new_calls[i].first.size() >= 2);
+        //assert(new_calls[i].first.size() >= 2);
 
-        for (auto const & hap_call : new_calls[i].first)
+        for (auto const & hap_call : new_calls[i].calls)
           gt2hapcalls.at(gt_id).push_back(hap_call);
       }
     };
@@ -83,7 +87,7 @@ read_haplotype_calls_from_file(std::string const haps_path, std::vector<std::vec
   }
   else
   {
-    std::cerr << "[graphtyper::haplotype_extractor] No haplotype calls were extracted" << std::endl;
+    BOOST_LOG_TRIVIAL(info) << "[graphtyper::haplotype_extractor] No haplotype calls were extracted";
     std::exit(0);
   }
 
@@ -120,52 +124,86 @@ read_haplotype_calls_from_file(std::string const haps_path, std::vector<std::vec
 namespace gyper
 {
 
-std::vector<VariantCandidate>
-find_variants_in_alignment(uint32_t pos,
-                           std::vector<char> const & ref,
-                           seqan::Dna5String const & read
-                           )
+/**
+ * \brief * Aligns reference sequence to read and gets a gapped sequence of both
+ * \param gapped_ref Output gapped reference sequence
+ * \param gapped_alt Output gapped alternative sequence
+ * \param ref Input reference sequence.
+ * \param read Input read sequence.
+ * \return True if we should use this alignment, False if we should throw it away
+ */
+bool
+get_capped_strings(std::string & gapped_ref,
+                   std::string & gapped_alt,
+                   std::vector<char> const & ref,
+                   seqan::Dna5String const & read
+  )
 {
-  using namespace seqan;
-
-  std::vector<VariantCandidate> variants;
-
-  assert(ref.size() > 1);
-  assert(seqan::length(read) > 1);
-
-  Align<Dna5String> alignment;
-  resize(rows(alignment), 2);
-  assignSource(row(alignment, 0), ref);
-  assignSource(row(alignment, 1), read);
+  seqan::Align<seqan::Dna5String> alignment;
+  seqan::resize(seqan::rows(alignment), 2);
+  seqan::assignSource(seqan::row(alignment, 0), ref);
+  seqan::assignSource(seqan::row(alignment, 1), read);
 
   {
-    int const SCORE_MATCH = 2;
+    int constexpr SCORE_MATCH = 2;
     int score = seqan::globalAlignment(alignment,
-                                       seqan::Score<int, seqan::Simple>(SCORE_MATCH /*match*/, -2 /*mismatch*/, -1 /*gap extend*/, -7 /*gap open*/),
+                                       seqan::Score<int, seqan::Simple>(SCORE_MATCH /*match*/,
+                                                                        -3 /*mismatch*/,
+                                                                        -1 /*gap extend*/,
+                                                                        -6 /*gap open*/),
                                        seqan::AlignConfig<true, false, false, true>(),
                                        -10 /* lower diagonal */,
                                        100 /* upper diagonal */
-                                       );
+    );
 
     if (score == SCORE_MATCH * static_cast<int>(seqan::length(read)))
-      return variants; // Perfect match
+      return false; // Perfect match
     else if (score < 42)
-      return variants; // Very poor alignment
+      return false; // Very poor alignment
   }
 
-  auto a_reference_begin = iter(row(alignment, 0), 0);
-  auto a_sequence_begin = iter(row(alignment, 1), 0);
-  auto a_reference_end = iter(row(alignment, 0), length(row(alignment, 0)) - 1);
-  auto a_sequence_end = iter(row(alignment, 1), length(row(alignment, 1)) - 1);
+  {
+    std::ostringstream ref_ss;
+    ref_ss << row(alignment, 0);
+    gapped_ref = ref_ss.str();
+  }
 
+  {
+    std::ostringstream alt_ss;
+    alt_ss << row(alignment, 1);
+    gapped_alt = alt_ss.str();
+  }
+
+  return true;
+}
+
+
+Variant
+make_variant_of_gapped_strings(std::string & gapped_ref,
+                               std::string & gapped_alt,
+                               long pos,
+                               long & ref_to_seq_offset
+  )
+{
+  Variant new_var_c;
+  new_var_c.abs_pos = 0;
+  auto a_reference_begin = gapped_ref.begin();
+  auto a_sequence_begin = gapped_alt.begin();
+  auto a_reference_end = gapped_ref.end();
+  auto a_sequence_end = gapped_alt.end();
+
+  /*
   if (*a_sequence_begin != '-')
   {
     // BOOST_LOG_TRIVIAL(debug) << "I did not start on a gap, perhaps increasing the EXTRA_BASES can help.";
-    return variants;
+    return new_var_c;
   }
+   */
 
   // Remove clipping prefix
-  while ((*a_sequence_begin == '-' || *a_sequence_begin != *a_reference_begin) && a_sequence_begin != a_sequence_end)
+  while ((*a_sequence_begin == '-' || *a_sequence_begin != *a_reference_begin) &&
+         a_sequence_begin != a_sequence_end
+    )
   {
     if (*a_reference_begin != '-')
       ++pos;
@@ -174,7 +212,8 @@ find_variants_in_alignment(uint32_t pos,
     ++a_reference_begin;
   }
 
-  std::size_t const READ_END_MATCHES = 2; // We require to find at least READ_END_MATCHES matches before starting new variant discovery
+  // We require to find at least READ_END_MATCHES matches before starting new variant discovery
+  std::size_t const READ_END_MATCHES = 2;
 
   {
     std::size_t start_matches = 0;
@@ -182,7 +221,7 @@ find_variants_in_alignment(uint32_t pos,
     while (start_matches < READ_END_MATCHES)
     {
       if (a_sequence_begin == a_sequence_end)
-        return variants;
+        return new_var_c;
 
       if (*a_sequence_begin == *a_reference_begin)
         ++start_matches;
@@ -197,11 +236,14 @@ find_variants_in_alignment(uint32_t pos,
     }
   }
 
+  // Descripes how to go from the reference position to the read position (r)
+  ref_to_seq_offset = pos - 2;
+
   // ..and then remove common prefix
   while (*a_sequence_begin == *a_reference_begin)
   {
     if (a_sequence_begin == a_sequence_end)
-      return variants;
+      return new_var_c;
 
     if (*a_reference_begin != '-')
       ++pos;
@@ -218,7 +260,7 @@ find_variants_in_alignment(uint32_t pos,
   while (*a_sequence_end == '-')
   {
     if (a_sequence_begin == a_sequence_end)
-      return variants;
+      return new_var_c;
 
     --a_sequence_end;
     --a_reference_end;
@@ -231,7 +273,7 @@ find_variants_in_alignment(uint32_t pos,
     while (end_matches < READ_END_MATCHES)
     {
       if (a_sequence_begin == a_sequence_end)
-        return variants;
+        return new_var_c;
 
       if (*a_sequence_end == *a_reference_end)
         ++end_matches;
@@ -247,7 +289,7 @@ find_variants_in_alignment(uint32_t pos,
   ++a_reference_end;
 
   // Get first base
-  char const first_base = seqan::getValue(a_reference_begin);
+  char const first_base = *a_reference_begin;
   assert(first_base != '-');
 
   std::vector<char> reference(1, first_base);
@@ -255,36 +297,83 @@ find_variants_in_alignment(uint32_t pos,
 
   while (a_reference_begin != a_reference_end)
   {
-    reference.push_back(seqan::getValue(a_reference_begin));
+    reference.push_back(*a_reference_begin);
     ++a_reference_begin;
   }
 
   if (reference.size() == 1)
-    return variants;
+    return new_var_c;
 
   std::vector<char> alt(1, first_base);
 
   while (a_sequence_begin != a_sequence_end)
   {
-    alt.push_back(seqan::getValue(a_sequence_begin));
+    alt.push_back(*a_sequence_begin);
     ++a_sequence_begin;
   }
 
   // Check if there are any variants
   if (reference == alt)
-    return variants;
+    return new_var_c;
 
-  Variant new_var;
-  new_var.abs_pos = pos;
-  new_var.seqs.push_back(std::move(reference));
-  new_var.seqs.push_back(std::move(alt));
-  std::vector<Variant> new_vars = extract_sequences_from_aligned_variant(std::move(new_var), SPLIT_VAR_THRESHOLD);
-  std::vector<VariantCandidate> new_var_candidates(new_vars.size());
+  new_var_c.abs_pos = pos;
+  new_var_c.seqs.push_back(std::move(reference));
+  new_var_c.seqs.push_back(std::move(alt));
+  return new_var_c;
+}
+
+
+std::vector<VariantCandidate>
+find_variants_in_alignment(uint32_t const pos,
+                           std::vector<char> const & ref,
+                           seqan::Dna5String const & read,
+                           std::vector<char> const & qual
+                           )
+{
+  std::vector<VariantCandidate> new_var_candidates;
+
+  assert(ref.size() > 1);
+  assert(seqan::length(read) > 1);
+
+  std::string gapped_ref;
+  std::string gapped_alt;
+
+  if(!get_capped_strings(gapped_ref, gapped_alt, ref, read))
+    return new_var_candidates;
+
+  long ref_to_seq_offset = 0;
+  Variant new_var = make_variant_of_gapped_strings(gapped_ref, gapped_alt, pos, ref_to_seq_offset);
+
+  if (new_var.abs_pos == 0)
+    return new_var_candidates;
+
+  std::vector<Variant> new_vars =
+    extract_sequences_from_aligned_variant(std::move(new_var), SPLIT_VAR_THRESHOLD);
+
+  new_var_candidates.resize(new_vars.size());
 
   for (unsigned i = 0; i < new_vars.size(); ++i)
   {
-    new_var_candidates[i].abs_pos = new_vars[i].abs_pos;
-    new_var_candidates[i].seqs = std::move(new_vars[i].seqs);
+    assert(i < new_var_candidates.size());
+    auto & new_var = new_vars[i];
+    auto & new_var_candidate = new_var_candidates[i];
+    assert(new_var.seqs.size() >= 2);
+    new_var.normalize();
+
+    // Check if high or low quality
+    int64_t const r = new_var.abs_pos - ref_to_seq_offset;
+    int64_t const r_end = r + new_var.seqs[1].size();
+    ref_to_seq_offset += new_var.seqs[0].size() - new_var.seqs[1].size();
+
+    // In case no qual is available
+    if (r_end < static_cast<int>(qual.size()))
+    {
+      int const MAX_QUAL = *std::max_element(qual.begin() + r, qual.begin() + r_end) - 33;
+      new_var_candidate.is_low_qual = MAX_QUAL < 25;
+    }
+
+    new_var_candidate.abs_pos = new_var.abs_pos;
+    new_var_candidate.seqs = std::move(new_var.seqs);
   }
 
   return new_var_candidates;
@@ -292,7 +381,11 @@ find_variants_in_alignment(uint32_t pos,
 
 
 void
-extract_to_vcf(std::string graph_path, std::string haps_path, std::string output, std::string const & region)
+extract_to_vcf(std::string const & graph_path,
+               std::string const & haps_path,
+               std::string const & output,
+               std::string const & region
+  )
 {
   std::vector<std::vector<Genotype> > gts;
   load_graph(graph_path);
@@ -313,16 +406,16 @@ extract_to_vcf(std::string graph_path, std::string haps_path, std::string output
       auto find_it = occurences.find(call);
 
       if (find_it == occurences.end())
-        occurences[call] = 1;
+        occurences[call] = 1u;
       else
         ++find_it->second;
     }
 
-    unsigned min_calls = 1;
+    unsigned min_calls{1u};
 
     while (true)
     {
-      std::size_t unique_calls = 0;
+      std::size_t unique_calls{0u};
 
       for (auto map_it = occurences.cbegin(); map_it != occurences.cend(); ++map_it)
       {
@@ -341,7 +434,8 @@ extract_to_vcf(std::string graph_path, std::string haps_path, std::string output
     it->erase(std::unique(it->begin(), it->end()), it->end());
     it->erase(std::remove_if(it->begin(), it->end(), [min_calls, &occurences](uint32_t const val){
         return val > 0 && occurences.at(val) < min_calls;
-      }), it->end());
+      }), it->end()
+      );
   }
 
   Vcf hap_extract_vcf(WRITE_BGZF_MODE, output);

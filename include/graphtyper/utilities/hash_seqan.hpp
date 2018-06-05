@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 
 #include <seqan/basic.h>
 #include <seqan/sequence.h>
@@ -22,73 +23,16 @@ std::size_t
 hash_value(String<Dna> const & s)
 {
   std::size_t hash_val = 0;
+  std::size_t const MAX_VAL = std::max(seqan::length(s), static_cast<std::size_t>(32));
 
-  for (unsigned i = 0; i < length(s); ++i)
+  for (unsigned i = 0; i < MAX_VAL; ++i)
   {
     hash_val *= 4;
     hash_val += ordValue(s[i]);
-
-    if (i == 32)
-      return hash_val;
   }
 
   return hash_val;
 }
-
-
-inline
-std::size_t
-hash_value_optional1(String<Dna> const & s)
-{
-  std::size_t hash_val = 0;
-
-  for (unsigned i = 0; i < length(s); ++i)
-  {
-    hash_val = hash_val * 4 + ordValue(s[i]);
-
-    if (i == 32)
-      return hash_val;
-  }
-
-  return hash_val;
-}
-
-
-inline
-std::size_t
-hash_value_optional2(String<Dna> const & s)
-{
-  std::size_t hash_val = 0;
-
-  for (Iterator<String<Dna> const>::Type it = begin(s); it != end(s); ++it)
-  {
-    hash_val = hash_val * 4 + ordValue(*it);
-  }
-
-  return hash_val;
-}
-
-
-inline
-std::size_t
-hash_value_optional3(String<Dna> const & s)
-{
-  std::size_t hash_val = 0;
-  unsigned i = 0;
-
-  for (Iterator<String<Dna> const>::Type it = begin(s); it != end(s); ++it, ++i)
-  {
-    hash_val = hash_val * 4 + ordValue(*it);
-
-    if (i == 32)
-    {
-      break;
-    }
-  }
-
-  return hash_val;
-}
-
 
 } // namespace seqan
 
