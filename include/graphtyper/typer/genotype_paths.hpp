@@ -2,6 +2,7 @@
 
 #include <cstdint> // uint8_t, uint16_t
 #include <memory>
+#include <string> // std::string
 #include <vector>
 
 #include <seqan/sequence.h>
@@ -20,8 +21,10 @@ class GenotypePathsDetails
 public:
   std::string query_name;
   std::string read_group;
+  uint32_t score_diff = 0u;
 };
 
+constexpr int32_t INSERT_SIZE_WHEN_NOT_PROPER_PAIR = 0x7FFFFFFFl;
 
 class GenotypePaths
 {
@@ -32,14 +35,12 @@ public:
   uint32_t longest_path_length = 0;
   uint8_t mapq = 255u;
   uint32_t original_pos = 0; /* 0-based position from global alignment */
-  int32_t ml_insert_size = 0x7FFFFFFFl;
-  uint8_t read_pair_mismatches = 255u; /* Total mismatches in the read-pair. 255 if the either read is not aligned. */
+  int32_t ml_insert_size = INSERT_SIZE_WHEN_NOT_PROPER_PAIR;
   bool is_first_in_pair = true;
   bool forward_strand = true;
   bool is_originally_unaligned = false;
   bool is_originally_clipped = false;
   std::unique_ptr<GenotypePathsDetails> details; // Only used when statistics are kept
-  std::string query_name;
 
   /****************
    * CONSTRUCTORS *
@@ -53,8 +54,17 @@ public:
   /***********************
    * CLASS MODIFICATIONS *
    ***********************/
-  void add_next_kmer_labels(std::vector<KmerLabel> const & ll, uint32_t const start_index, uint32_t const read_end_index, std::size_t const mismatches = 0);
-  void add_prev_kmer_labels(std::vector<KmerLabel> const & ll, uint32_t const read_start_index, uint32_t const read_end_index, std::size_t const mismatches = 0);
+  void add_next_kmer_labels(std::vector<KmerLabel> const & ll,
+                            uint32_t start_index,
+                            uint32_t read_end_index,
+                            int mismatches = 0
+    );
+
+  void add_prev_kmer_labels(std::vector<KmerLabel> const & ll,
+                            uint32_t const read_start_index,
+                            uint32_t const read_end_index,
+                            int const mismatches = 0
+    );
 
   void clear_paths();
 
@@ -63,8 +73,11 @@ public:
 
   // Path filtering
   void remove_short_paths();
-  void remove_paths_with_no_variants();
+  // void remove_paths_with_no_variants();
+  void remove_paths_within_variant_node();
   void remove_paths_with_too_many_mismatches();
+  void remove_non_ref_paths_when_read_matches_ref();
+  void remove_fully_special_paths();
 
   std::vector<VariantCandidate> find_new_variants() const;
 
@@ -79,6 +92,9 @@ public:
   bool all_paths_fully_aligned() const;
   bool is_purely_reference() const;
   bool check_no_variant_is_missing() const;
+  std::string to_string() const;
+
+  bool is_proper_pair() const;
 
 };
 

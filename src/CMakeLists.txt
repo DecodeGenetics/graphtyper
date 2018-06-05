@@ -14,12 +14,12 @@ set(graphtyper_SOURCE_FILES
   graph/reference_depth.cpp
   graph/ref_node.cpp
   graph/sequence_extractor.cpp
+  graph/sv.cpp
   graph/var_node.cpp
   graph/var_record.cpp
   index/indexer.cpp
   index/mem_index.cpp
   index/rocksdb.cpp
-  typer/aligner.cpp
   typer/alignment.cpp
   typer/caller.cpp
   typer/discovery.cpp
@@ -51,7 +51,7 @@ add_dependencies(graphtyper_objects project_htslib) # Depends on building htslib
 add_dependencies(graphtyper_objects project_sparsehash) # Depends on building sparsehash
 add_dependencies(graphtyper_objects project_statgen) # Depends on building statgen
 add_dependencies(graphtyper_objects project_snappy) # Depends on building snappy
-# add_dependencies(graphtyper_objects project_rocksdb) # Depends on building rocksdb
+add_dependencies(graphtyper_objects project_rocksdb) # Depends on building rocksdb
 
 # Static library
 add_library(static STATIC $<TARGET_OBJECTS:graphtyper_objects>)

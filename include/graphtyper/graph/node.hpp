@@ -40,6 +40,9 @@ class VarNode
   friend class boost::serialization::access;
 
 public:
+  Label label;
+  TNodeIndex out_ref_id;
+
   VarNode();
   VarNode(Label && l, TNodeIndex && ori) noexcept;
   VarNode(VarNode const & vn) noexcept;
@@ -51,9 +54,6 @@ public:
   TNodeIndex get_out_ref_index() const;
 
 private:
-  Label label;
-  TNodeIndex out_ref_id;
-
   template <class Archive>
   void serialize(Archive & ar, const unsigned int);
 };

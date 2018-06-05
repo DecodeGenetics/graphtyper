@@ -1,5 +1,6 @@
 #include <algorithm>
-#include <assert.h>
+#include <cassert>
+#include <cmath>
 #include <iostream>
 #include <unordered_set> // std::unordered_set
 
@@ -17,6 +18,7 @@
 #include <graphtyper/graph/label.hpp>
 #include <graphtyper/graph/node.hpp>
 #include <graphtyper/graph/var_record.hpp>
+#include <graphtyper/graph/sv.hpp>
 #include <graphtyper/typer/path.hpp>
 #include <graphtyper/typer/variant.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
@@ -25,7 +27,7 @@
 
 namespace
 {
-
+// count_mismatches, count_mismatches_backward, add_node_dna_to_sequence
 #include <graphtyper/graph/graph_utils.hpp>
 
 } // anon namespace
@@ -63,41 +65,52 @@ Graph::add_genomic_region(std::vector<char> && reference_sequence,
                           GenomicRegion && region
                           )
 {
-  region.region_to_refnode = ref_nodes.size();
+  region.region_to_refnode = static_cast<uint32_t>(ref_nodes.size());
   genomic_regions.push_back(region);
 
-  // Remove alternative alleles with any 'N'
+  // Ignore alternative alleles with any 'N' or empty alleles
   for (auto & var : var_records)
   {
     var.alts.erase(
-      std::remove_if(var.alts.begin(), var.alts.end(), [](std::vector<char> const & alt)
-                                                       {
-                                                         return std::count(alt.begin(), alt.end(), 'N') > 0 || alt.size() == 0;
-                                                       }
-                    ), var.alts.end());
+      std::remove_if(var.alts.begin(),
+                     var.alts.end(),
+                     [](std::vector<char> const & alt)
+                     {
+                       return std::find(alt.begin(), alt.end(), 'N') != alt.end() ||
+                         alt.size() == 0;
+                     }
+        ), var.alts.end());
   }
 
-  // Remove records with no alternative alleles or N in reference allele
-  var_records.erase(std::remove_if(var_records.begin(),
-                                   var_records.end(),
-                                   [](VarRecord const & rec)
-                                   {
-                                     return std::count(rec.ref.begin(), rec.ref.end(), 'N') > 0 || rec.alts.size() == 0;
-                                   }
-                                  ),
-                   var_records.end()
-                   );
+  // Remove records with no alternative alleles or N/* in reference allele
+  var_records.erase(
+    std::remove_if(var_records.begin(),
+                   var_records.end(),
+                   [](VarRecord const & rec)
+                   {
+                     return std::find(rec.ref.begin(), rec.ref.end(), 'N') != rec.ref.end() ||
+                       std::find(rec.ref.begin(), rec.ref.end(), '*') != rec.ref.end() ||
+                       rec.alts.size() == 0;
+                   }
+      ),
+    var_records.end()
+    );
 
   if (Options::instance()->add_all_variants)
   {
-    BOOST_LOG_TRIVIAL(info) << "[graphtyper::graph] Constructing graph by finding all possible paths";
+    BOOST_LOG_TRIVIAL(info) << "[graphtyper::graph] Constructing graph by finding all possible "
+                            << "paths";
 
     for (unsigned i = 0; i < var_records.size(); ++i)
     {
       // Check if the variation record overlaps the next one, and merge them if so
-      while (i + 1 < var_records.size() && var_records[i + 1].pos < var_records[i].pos + var_records[i].ref.size())
+      while (i + 1 < var_records.size() &&
+             var_records[i + 1].pos < var_records[i].pos + var_records[i].ref.size()
+             )
       {
-        if (var_records[i].alts.size() * (var_records[i + 1].alts.size() + 1) >= (MAX_NUMBER_OF_HAPLOTYPES - 1))
+        if (var_records[i].alts.size() * (var_records[i + 1].alts.size() + 1) >=
+          (MAX_NUMBER_OF_HAPLOTYPES - 1)
+            )
         {
           // Take backup in case we will need to revert
           VarRecord backup_record_i(var_records[i]);
@@ -108,16 +121,27 @@ Graph::add_genomic_region(std::vector<char> && reference_sequence,
           // Check if there will be too many variants in this record
           if (var_records[i + 1].alts.size() >= (MAX_NUMBER_OF_HAPLOTYPES - 1))
           {
-            // BOOST_LOG_TRIVIAL(warning) << "[graph] Not all possible paths can be made around this variant position: "
-            //                            << var_records[i].pos << " (REF = " << to_string(var_records[i].ref) << ")";
+            BOOST_LOG_TRIVIAL(warning) << "[graphtyper::graph] Not all possible paths can be made "
+                                       << "around this variant position: "
+                                       << var_records[i].pos
+                                       << " (REF = " << to_string(var_records[i].ref) << ")";
             var_records[i] = backup_record_i;
             var_records[i + 1] = backup_record_i1;
 
-            if (var_records[i + 1].alts.size() + var_records[i].alts.size() < (MAX_NUMBER_OF_HAPLOTYPES - 1))
+            if (var_records[i + 1].alts.size() + var_records[i].alts.size() <
+              (MAX_NUMBER_OF_HAPLOTYPES - 1)
+              )
+            {
               var_records[i + 1].merge_one_path(std::move(var_records[i]));
+            }
             else
-              BOOST_LOG_TRIVIAL(warning) << "[graph] Could not even add a single path for that variant!"
-                                         << var_records[i].pos << " (REF = " << to_string(var_records[i].ref) << ")";
+            {
+              BOOST_LOG_TRIVIAL(warning) << "[graphtyper::graph] Could not even add a single path "
+                                         << "for that variant!"
+                                         << var_records[i].pos
+                                         << " (REF = "
+                                         << to_string(var_records[i].ref) << ")";
+            }
           }
         }
         else
@@ -127,7 +151,10 @@ Graph::add_genomic_region(std::vector<char> && reference_sequence,
 
         if (var_records[i + 1].alts.size() >= (MAX_NUMBER_OF_HAPLOTYPES - 1))
         {
-          BOOST_LOG_TRIVIAL(error) << "[graph] Found a variant with too many alleles!";
+          BOOST_LOG_TRIVIAL(error) << "[graphtyper::graph] Found a variant with too many alleles! ("
+                                   << (var_records[i + 1].alts.size() + 1)
+                                   << ">="
+                                   << MAX_NUMBER_OF_HAPLOTYPES << ')';
           std::exit(1);
         }
 
@@ -138,46 +165,62 @@ Graph::add_genomic_region(std::vector<char> && reference_sequence,
   }
   else
   {
-    BOOST_LOG_TRIVIAL(info) << "[graphtyper::graph] Constructing graph.";
+    BOOST_LOG_TRIVIAL(info) << "[graphtyper::graph] Constructing graph of "
+        << var_records.size()
+        << " variants.";
 
-    for (unsigned i = 0; i < var_records.size(); ++i)
+    for (long i = 0; i < static_cast<long>(var_records.size()); ++i)
     {
+
+
       // Check if the variation record overlaps the next one, and merge them if so
-      while (i + 1 < var_records.size() &&
+      while (i + 1 < static_cast<long>(var_records.size()) &&
              var_records[i + 1].pos <= var_records[i].pos + var_records[i].ref.size()
              )
       {
         std::vector<char> suffix = var_records[i].get_common_suffix();
 
-        if (var_records[i + 1].pos == var_records[i].pos + var_records[i].ref.size())
+        if (!var_records[i].is_sv &&
+            !var_records[i + 1].is_sv &&
+            var_records[i + 1].pos == var_records[i].pos + var_records[i].ref.size()
+            )
         {
           var_records[i + 1].merge(std::move(var_records[i]));
         }
-        else if (var_records[i].alts.size() > 33 || (var_records[i + 1].pos - var_records[i].pos) < 3)
+        else if (var_records[i].alts.size() > 33 ||
+                 (var_records[i + 1].pos - var_records[i].pos) < 3
+                 )
         {
           var_records[i + 1].merge_one_path(std::move(var_records[i]));
         }
         else if (var_records[i + 1].pos >= var_records[i].pos + var_records[i].ref.size() - suffix.size())
         {
-          int32_t suffix_to_remove = var_records[i].pos + var_records[i].ref.size() - var_records[i + 1].pos;
+          long suffix_to_remove =
+            var_records[i].pos + var_records[i].ref.size() - var_records[i + 1].pos;
 
           // Check if it is possible to remove enough suffix so we can safely join the two records
-          if (suffix_to_remove <= 0 || suffix_to_remove > static_cast<int32_t>(suffix.size()))
+          if (suffix_to_remove <= 0 || suffix_to_remove > static_cast<long>(suffix.size()))
           {
             var_records[i + 1].merge_one_path(std::move(var_records[i]));
           }
           else
           {
             // Erase from previous record so that it ends where the next record starts
+            assert(static_cast<long>(var_records[i].ref.size()) > suffix_to_remove);
             var_records[i].ref.erase(var_records[i].ref.end() - suffix_to_remove, var_records[i].ref.end());
 
             for (auto & alt : var_records[i].alts)
+            {
+              assert(static_cast<long>(alt.size()) > suffix_to_remove);
               alt.erase(alt.end() - suffix_to_remove, alt.end());
+            }
 
             assert(var_records[i + 1].pos == var_records[i].pos + var_records[i].ref.size());
 
             // Merge the two records
-            int32_t const suffix_to_add = suffix_to_remove - var_records[i + 1].ref.size();
+            long const suffix_to_add = suffix_to_remove -
+              static_cast<long>(var_records[i + 1].ref.size());
+
             var_records[i + 1].merge(std::move(var_records[i]));
 
             if (suffix_to_add > 0)
@@ -228,13 +271,32 @@ Graph::add_genomic_region(std::vector<char> && reference_sequence,
                                    }
                                    ), var_records.end());
 
+  // Remove common suffix
+  for (auto & var_record : var_records)
+  {
+    std::vector<char> const suffix = var_record.get_common_suffix();
+
+    if (suffix.size() > 0)
+    {
+      assert (suffix.size() < var_record.ref.size());
+      var_record.ref.erase(var_record.ref.begin() + (var_record.ref.size() - suffix.size()), var_record.ref.end());
+      assert (var_record.ref.size() > 0);
+
+      for (auto & alt : var_record.alts)
+      {
+        alt.erase(alt.begin() + (alt.size() - suffix.size()), alt.end());
+        assert (alt.size() > 0);
+      }
+    }
+  }
+
   for (unsigned i = 0; i < var_records.size(); ++i)
   {
-    add_reference(var_records[i].pos, var_records[i].alts.size() + 1, reference_sequence);
+    add_reference(var_records[i].pos, var_records[i].alts.size() + 1u, reference_sequence);
     add_variants(std::move(var_records[i]));
   }
 
-  add_reference(reference_sequence.size() + region.begin, 0, reference_sequence);
+  add_reference(static_cast<uint32_t>(reference_sequence.size()) + region.begin, 0, reference_sequence);
 
   // If we chose to use absolute positions we need to change all labels
   if (use_absolute_positions)
@@ -336,11 +398,6 @@ Graph::create_special_positions()
 std::vector<char>
 Graph::get_generated_reference_genome(uint32_t & from, uint32_t & to) const
 {
-  if (to < from)
-  {
-    BOOST_LOG_TRIVIAL(debug) << "reference_offset=" << reference_offset << ", to=" << to << ", from=" << from;
-  }
-
   // TODO: Handle multiregions
   // std::string const & chrom = genomic_regions[0].chr;
   uint32_t const abs_first_from = genomic_regions[0].get_absolute_position(reference_offset + 1);
@@ -351,12 +408,23 @@ Graph::get_generated_reference_genome(uint32_t & from, uint32_t & to) const
 
   if (to < from)
   {
-    BOOST_LOG_TRIVIAL(warning) << "[graphtyper::graph] Read end is before the reference genome starts.";
-    BOOST_LOG_TRIVIAL(debug) << "reference_offset=" << reference_offset << ", to=" << to << ", from=" << from << ", abs_first_from=" << abs_first_from;
+    BOOST_LOG_TRIVIAL(warning) << "[graphtyper::graph] Read end is before the reference genome "
+                               << "starts.";
+    BOOST_LOG_TRIVIAL(debug) << "reference_offset="
+                             << reference_offset
+                             << ", to="
+                             << to
+                             << ", from="
+                             << from
+                             << ", abs_first_from="
+                             << abs_first_from;
+
     return std::vector<char>(0);
   }
 
-  return std::vector<char>(reference.begin() + from - abs_first_from, reference.begin() + to - abs_first_from);
+  return std::vector<char>(reference.begin() + from - abs_first_from,
+                           reference.begin() + to - abs_first_from
+    );
 }
 
 
@@ -376,7 +444,9 @@ Graph::get_reference_ref(uint32_t & from, uint32_t & to) const
   }
 
   from = std::max(ref_nodes.front().get_label().order, from);
-  to = std::min(ref_nodes.back().get_label().order + ref_nodes.back().get_label().dna.size(), static_cast<std::size_t>(to));
+  to = std::min(ref_nodes.back().get_label().order + ref_nodes.back().get_label().dna.size(),
+                static_cast<std::size_t>(to)
+    );
 
   std::vector<char> ref(0);
   unsigned r = 0;
@@ -479,6 +549,7 @@ Graph::serialize(Archive & ar, const unsigned int /*version*/)
   ar & ref_reach_poses;
   ar & actual_poses;
   ar & ref_reach_to_special_pos;
+  ar & SVs;
 }
 
 
@@ -541,9 +612,15 @@ Graph::add_reference(unsigned end_pos, unsigned const & num_var, std::vector<cha
 
 
 void
-Graph::break_apart_haplotypes(std::vector<Genotype> gts, std::vector<Haplotype> & haplotypes, int32_t max_read_length) const
+Graph::break_apart_haplotypes(std::vector<Genotype> gts,
+                              std::vector<Haplotype> & haplotypes,
+                              int32_t max_read_length
+  ) const
 {
-  if (max_read_length <= 0 or gts.size() == 1)
+  if (gts.size() == 0)
+    return;
+
+  if (max_read_length <= 1 || gts.size() == 1)
   {
     for (auto const & gt : gts)
     {
@@ -552,7 +629,8 @@ Graph::break_apart_haplotypes(std::vector<Genotype> gts, std::vector<Haplotype> 
       if (gt.num > MAX_NUMBER_OF_HAPLOTYPES)
       {
         BOOST_LOG_TRIVIAL(warning) << "[graph] There is a single genotype with " << gt.num
-                                   << " variant sequences, more than the maximum number of haplotypes.";
+                                   << " variant sequences, more than the maximum number of "
+                                   << "haplotypes.";
       }
 
       new_hap.add_genotype(Genotype(gt));
@@ -571,7 +649,9 @@ Graph::break_apart_haplotypes(std::vector<Genotype> gts, std::vector<Haplotype> 
     uint32_t const v = gts[i].first_variant_node;
     uint32_t const r = var_nodes[v].get_out_ref_index();
 
-    if (ref_nodes[r].get_label().dna.size() >= static_cast<uint32_t>(max_read_length) or i == gts.size() - 1)
+    if (ref_nodes[r].get_label().dna.size() >= static_cast<uint32_t>(max_read_length) ||
+      i == gts.size() - 1
+      )
     {
       // Check if we need to lower the max read length further
       if (new_hap.has_too_many_genotypes())
@@ -598,38 +678,64 @@ Graph::get_all_haplotypes(uint32_t variant_distance) const
     return std::vector<Haplotype>(0);
 
   std::vector<Haplotype> haplotypes;
-  Haplotype hap;
-  uint32_t r = 0;
   uint32_t v = 0;
 
-  // out_degree() == 1 means we have reached a sequence of Ns
-  while (ref_nodes[r].out_degree() > 1)
+  if (Options::instance()->is_one_genotype_per_haplotype)
   {
-    // std::cout << "r = " << r << " " << v << std::endl;
-    hap.add_genotype(Genotype(var_nodes[v].get_label().order, ref_nodes[r].out_degree(), uint32_t(v)));
-    assert(v + ref_nodes[r].out_degree() >= var_nodes.size() || var_nodes[v].get_label().order != var_nodes[v + ref_nodes[r].out_degree()].get_label().order);
-    assert(var_nodes[v].get_out_ref_index() != r);
-    assert(r + 1 < ref_nodes.size());
+    for (uint32_t r = 0; r < ref_nodes.size() - 1; ++r)
+    {
+      assert (v < var_nodes.size());
+      auto const & ref_node = ref_nodes[r];
+      auto const & var_node = var_nodes[v];
 
-    // Check if we should move on to the next haplotype, instead of adding more to this one
-    if (ref_nodes[r + 1].get_label().dna.size() >= variant_distance)
+      Haplotype hap;
+      hap.add_genotype(Genotype(var_node.get_label().order, ref_node.out_degree(), uint32_t(v)));
+      haplotypes.push_back(std::move(hap));
+
+      v += ref_node.out_degree();
+    }
+  }
+  else
+  {
+    Haplotype hap;
+
+    // out_degree() == 1 means we have reached a sequence of Ns
+    for (uint32_t r = 0; r < ref_nodes.size() - 1; ++r)
+    {
+      auto const & ref_node = ref_nodes[r];
+      auto const & var_node = var_nodes[v];
+
+      hap.add_genotype(Genotype(var_node.get_label().order, ref_node.out_degree(), uint32_t(v)));
+
+      assert(v + ref_node.out_degree() >= var_nodes.size() ||
+               var_node.get_label().order != var_nodes[v + ref_node.out_degree()].get_label().order
+        );
+
+      assert(var_node.get_out_ref_index() == r + 1);
+
+      // Check if we should move on to the next haplotype, instead of adding more to this one
+      if (ref_nodes[r + 1].get_label().dna.size() >= variant_distance)
+      {
+        if (hap.has_too_many_genotypes())
+          break_apart_haplotypes(hap.gts, haplotypes, variant_distance - 1);
+        else
+          haplotypes.push_back(std::move(hap));
+
+        hap.clear(); // This haplotype has been added, clear this one and move on to the next one
+      }
+
+      v += ref_node.out_degree();
+    }
+
+    // Add the last haplotype, if it is not empty
+    if (!hap.gts.empty())
     {
       if (hap.has_too_many_genotypes())
         break_apart_haplotypes(hap.gts, haplotypes, variant_distance - 1);
       else
         haplotypes.push_back(std::move(hap));
-
-      hap.clear(); // This haplotype has been added, clear this one and move on to the next one
     }
-
-    v += ref_nodes[r].out_degree();
-    ++r;
   }
-
-  if (hap.has_too_many_genotypes())
-    break_apart_haplotypes(hap.gts, haplotypes, variant_distance - 1);
-  else if (hap.gts.size() > 0)
-    haplotypes.push_back(std::move(hap));
 
 // #ifndef NDEBUG
 //   for (auto & hap : haplotypes)
@@ -641,7 +747,9 @@ Graph::get_all_haplotypes(uint32_t variant_distance) const
 
 
 std::vector<char>
-Graph::get_sequence_of_a_haplotype_call(std::vector<Genotype> const & gts, uint32_t const haplotype_call) const
+Graph::get_sequence_of_a_haplotype_call(std::vector<Genotype> const & gts,
+                                        uint32_t const haplotype_call
+  ) const
 {
   assert(gts.size() > 0);
   uint32_t rem = haplotype_call;
@@ -817,123 +925,228 @@ Graph::get_10log10_num_paths(TNodeIndex const v, uint32_t const MAX_DISTANCE)
   if (num_paths >= 254.5)
     return 255u;
   else
-    return static_cast<uint8_t>(num_paths + 0.5);
+    return static_cast<uint8_t>(std::lround(num_paths));
 }
 
 
-RefNode const &
-Graph::get_ref_in(TNodeIndex const & var_index) const
+std::vector<Location>
+Graph::get_locations_of_an_actual_position(uint32_t pos, Path const & path, bool const is_special) const
 {
-  assert(var_index < var_nodes.size());
-  return ref_nodes[var_nodes[var_index].get_out_ref_index() - 1];
+  assert(ref_nodes.size() != 0);
+  std::vector<Location> locs(0);
+
+  if ((pos < ref_nodes[0].get_label().order) ||
+      (pos > (ref_nodes.back().get_label().reach()))
+    )
+  {
+    return locs;
+  }
+
+  for (uint32_t r = 1; r <= ref_nodes.size(); ++r)
+  {
+    if (r < ref_nodes.size() && ref_nodes[r].get_label().order <= pos)
+      continue;
+
+    int rr = r - 1;
+
+    if (pos < (ref_nodes[rr].get_label().order + ref_nodes[rr].get_label().dna.size()))
+    {
+      // Ref covers this location
+      if (!is_special)
+      {
+        locs.push_back(Location('R' /*type*/,
+                                static_cast<uint32_t>(rr) /*node_id*/,
+                                ref_nodes[rr].get_label().order /*node_order*/,
+                                pos - ref_nodes[rr].get_label().order /*offset*/
+                       )
+        );
+        break; // There is no way there are also variants at this location if the position is not special
+      }
+
+      assert (rr > 0);
+      --rr; // Variants behind the reference can only have this location
+    }
+
+    // Check variants behind this reference
+    while (rr >= 0 && ref_nodes[rr].get_label().reach() + 5000u > pos)
+    {
+      // Assume there is no variants larger than 5000 bp
+      for (unsigned i = 0; i < ref_nodes[rr].out_degree(); ++i)
+      {
+        uint32_t const v = static_cast<uint32_t>(ref_nodes[rr].get_var_index(i));
+
+        if (pos >= var_nodes[v].get_label().order and pos <= var_nodes[v].get_label().reach())
+        {
+          // Only add this node if the path has it
+          auto find_it = std::find(path.var_order.cbegin(),
+                                   path.var_order.cend(),
+                                   var_nodes[v].get_label().order
+          );
+
+          long const j = std::distance(path.var_order.cbegin(), find_it);
+          assert(j >= 0);
+          assert(i == this->get_variant_num(v));
+
+          if (path.is_empty() || (j < static_cast<long>(path.nums.size()) && path.nums[j].test(i)))
+          {
+            locs.push_back(
+              {'V' /*type*/,
+               v /*node_id*/,
+               var_nodes[v].get_label().order /*node_order*/,
+               pos - var_nodes[v].get_label().order  /*offset*/
+              }
+            );
+          }
+        }
+      }
+
+      --rr;
+    }
+
+    break;
+  }
+
+  return locs;
 }
 
 
 std::vector<std::vector<char> >
-Graph::get_all_sequences(uint32_t start, uint32_t end) const
+Graph::get_sequence_from_location(Location const & loc,
+                                  uint32_t const length,
+                                  std::vector<char> const & prefix
+  ) const
 {
-  assert(start <= end);
+  std::vector<std::vector<char> > seqs(1, prefix);
+  long r = ref_nodes.size();
 
-  if (start == end)
+  if (loc.node_type == 'V')
   {
-    return std::vector<std::vector<char> >(0);
+    auto const & l = var_nodes[loc.node_index].get_label();
+    assert(loc.offset < l.dna.size());
+    std::copy(l.dna.begin() + loc.offset, l.dna.end(), std::back_inserter(seqs[0]));
+
+    if (seqs[0].size() < length)
+    {
+      r = var_nodes[loc.node_index].get_out_ref_index();
+      long const dist = std::min(static_cast<long>(ref_nodes[r].get_label().dna.size()),
+                                 static_cast<long>(length - seqs[0].size())
+      );
+
+      if (dist > 0)
+      {
+        std::copy(ref_nodes[r].get_label().dna.begin(),
+                  ref_nodes[r].get_label().dna.begin() + dist,
+                  std::back_inserter(seqs[0])
+          );
+      }
+    }
+  }
+  else
+  {
+    assert(loc.node_type == 'R');
+    auto const & l = ref_nodes[loc.node_index].get_label();
+    assert(loc.offset < l.dna.size());
+    std::copy(l.dna.begin() + loc.offset, l.dna.end(), std::back_inserter(seqs[0]));
+    r = loc.node_index;
   }
 
-  // This function is very risky, because the output has the potential to be extremely big
-  std::vector<std::vector<char> > seqs(1, std::vector<char>(0));
-
-  unsigned j = 0;
-
-  for (unsigned i = 0; i < ref_nodes.size(); ++i)
+  while (r < static_cast<long>(ref_nodes.size() - 1))
   {
-    if (ref_nodes[i].get_label().order > start)
+    // Add reference sequence on alternative node
+    long v = ref_nodes[r].get_var_index(0);
+
+    // Label of the reference variant node
+    auto const & l = var_nodes[v].get_label();
+
+    // Add alternative sequence alternative node
+    for (v = 1; v < static_cast<int>(ref_nodes[r].out_degree()); ++v)
     {
-      j = i - 1;
+      auto const & lv = var_nodes[v].get_label();
+
+      // Skip if the same size as the reference allele
+      if (lv.dna.size() == l.dna.size())
+        continue;
+
+      seqs.push_back(seqs[0]);
+      std::copy(lv.dna.begin(),
+                lv.dna.end(),
+                std::back_inserter(seqs[seqs.size() - 1])
+      );
+    }
+
+    // Extend the reference sequence with the reference variant node
+    std::copy(l.dna.begin(), l.dna.end(), std::back_inserter(seqs[0]));
+
+    ++r;
+    auto const & lr = ref_nodes[r].get_label();
+    bool is_any_remaining = false;
+
+    for (auto & seq : seqs)
+    {
+      long const dist = std::min(static_cast<long>(lr.dna.size()),
+                                 static_cast<long>(length) - static_cast<long>(seq.size())
+        );
+
+      if (dist > 0)
+      {
+        std::copy(lr.dna.begin(), lr.dna.begin() + dist, std::back_inserter(seq));
+
+        if (seq.size() < length)
+          is_any_remaining = true;
+      }
+    }
+
+    if (!is_any_remaining)
       break;
-    }
-  }
-
-  while (j < ref_nodes.size())
-  {
-    if (ref_nodes[j].get_label().order + ref_nodes[j].get_label().dna.size() > start)
-    {
-      // Reference first
-      assert(start >= ref_nodes[j].get_label().order);
-      assert(end   >= ref_nodes[j].get_label().order);
-      uint32_t diff_start = start - ref_nodes[j].get_label().order;
-      uint32_t diff_end   = end   - ref_nodes[j].get_label().order;
-
-      if (diff_end < ref_nodes[j].get_label().dna.size())
-      {
-        for (auto seq_it = seqs.begin(); seq_it != seqs.end(); ++seq_it)
-        {
-          seq_it->insert(seq_it->end(),
-                         ref_nodes[j].get_label().dna.begin() + diff_start,
-                         ref_nodes[j].get_label().dna.begin() + diff_end
-                         );
-        }
-
-        return seqs;
-      }
-
-      for (auto seq_it = seqs.begin(); seq_it != seqs.end(); ++seq_it)
-      {
-        seq_it->insert(seq_it->end(),
-                       ref_nodes[j].get_label().dna.begin() + diff_start,
-                       ref_nodes[j].get_label().dna.end()
-                       );
-      }
-    }
-
-    if (seqs.size() * ref_nodes[j].out_degree() > 32000u)
-    {
-      // Too many variants
-      BOOST_LOG_TRIVIAL(warning) << "[graph] Too many variants extracted. Sequences will be clipped.";
-      return seqs;
-    }
-
-    std::vector<std::vector<char> > new_seqs;
-
-    // Variant time
-    for (unsigned i = 0; i < ref_nodes[j].out_degree(); ++i)
-    {
-      VarNode const & var_node = var_nodes[ref_nodes[j].get_var_index(i)];
-      uint32_t diff_end = end - var_node.get_label().order;
-
-      for (auto seq_it = seqs.begin(); seq_it != seqs.end(); ++seq_it)
-      {
-        std::vector<char> c_seq(*seq_it);
-
-        if (diff_end < var_node.get_label().dna.size())
-        {
-          c_seq.insert(c_seq.end(), var_node.get_label().dna.begin(), var_node.get_label().dna.begin() + diff_end);
-        }
-        else
-        {
-          c_seq.insert(c_seq.end(), var_node.get_label().dna.begin(), var_node.get_label().dna.end());
-        }
-
-        new_seqs.push_back(c_seq);
-      }
-    }
-
-    seqs.swap(new_seqs);
-    VarNode const & ref_var_node = var_nodes[ref_nodes[j].get_var_index(0)];
-
-    if (end - ref_var_node.get_label().order < ref_var_node.get_label().dna.size())
-      return seqs; // Nothing more to add
-
-    ++j;
-    start = ref_nodes[j].get_label().order;
   }
 
   return seqs;
 }
 
 
-std::unordered_set<int64_t>
-Graph::reference_distance_between_locations(std::vector<Location> const & ll1, std::vector<Location> const & ll2) const
+std::vector<std::vector<char> >
+Graph::get_all_sequences_of_length(uint32_t start,
+                                   uint32_t const length,
+                                   std::vector<char> const & prefix
+  ) const
 {
+  std::vector<Location> locs = get_locations_of_an_actual_position(start + 1);
+
+  std::cerr << "DEBUG From pos "
+            << start
+            << " I found "
+            << locs.size()
+            << " locations.";
+
+  std::vector<std::vector<char> > seqs;
+
+  for (auto const & loc : locs)
+  {
+    std::vector<std::vector<char> > new_seqs = get_sequence_from_location(loc, length, prefix);
+    std::move(new_seqs.begin(), new_seqs.end(), std::back_inserter(seqs));
+  }
+
+  // Resize sequences
+  for (auto & seq : seqs)
+  {
+    if (seq.size() > length)
+      seq.resize(length);
+  }
+
+  // Remove duplicates
+  std::sort(seqs.begin(), seqs.end());
+  seqs.erase(std::unique(seqs.begin(), seqs.end()), seqs.end());
+  return seqs;
+}
+
+
+std::unordered_set<long>
+Graph::reference_distance_between_locations(std::vector<Location> const & ll1,
+                                            std::vector<Location> const & ll2
+  ) const
+{
+  std::unordered_set<long> distance_map;
+
   auto get_ref_pos_lambda = [&](Location const & l)
   {
     uint32_t pos;
@@ -945,14 +1158,13 @@ Graph::reference_distance_between_locations(std::vector<Location> const & ll1, s
     else
     {
       assert(l.node_type == 'V');
-      uint32_t const node_remainder = var_nodes[l.node_index].get_label().dna.size() - l.offset;
+      long const node_remainder = var_nodes[l.node_index].get_label().dna.size() - l.offset;
+      assert(node_remainder >= 0);
       pos = this->var_nodes[l.node_index].get_label().reach() + 1 - node_remainder;
     }
 
     return pos;
   };
-
-  std::unordered_set<int64_t> distance_map;
 
   for (auto const & l1 : ll1)
   {
@@ -977,76 +1189,12 @@ Graph::get_locations_of_a_position(uint32_t pos, gyper::Path const & path) const
   if (IS_SPECIAL)
     pos = actual_poses.at(pos - SPECIAL_START);
 
-  assert(ref_nodes.size() != 0);
-  std::vector<Location> locs;
+  std::vector<Location> locs = this->get_locations_of_an_actual_position(pos, path, IS_SPECIAL);
 
-  if ((pos < ref_nodes[0].get_label().order) ||
-      (pos > (ref_nodes.back().get_label().order + ref_nodes.back().get_label().dna.size()))
-     )
-  {
-    return locs;
-  }
-
-  for (uint32_t r = 1; r <= ref_nodes.size(); ++r)
-  {
-    if (r < ref_nodes.size() && ref_nodes[r].get_label().order <= pos)
-      continue;
-
-    int rr = r - 1;
-
-    if (pos < (ref_nodes[rr].get_label().order + ref_nodes[rr].get_label().dna.size()))
-    {
-      // Ref covers this location
-      if (!IS_SPECIAL)
-      {
-        locs.push_back(Location('R' /*type*/,
-                                static_cast<uint32_t>(rr) /*node_id*/,
-                                ref_nodes[rr].get_label().order /*node_order*/,
-                                pos - ref_nodes[rr].get_label().order /*offset*/
-                                )
-                       );
-        break; // There is no way there are also variants at this location if the position is not special
-      }
-
-      --rr; // Variants behind the reference can only have this location
-    }
-
-    // Check variants behind this reference
-    while (rr >= 0)
-    {
-      // Assume there is no variants larger than 10000 bp
-      if (ref_nodes[rr].get_label().order + 10000 <= pos)
-        break;
-
-      for (unsigned i = 0; i < ref_nodes[rr].out_degree(); ++i)
-      {
-        uint32_t const v = ref_nodes[rr].get_var_index(i);
-
-        if (pos >= var_nodes[v].get_label().order and pos <= var_nodes[v].get_label().reach())
-        {
-          // Only add this node if the path has it
-          auto find_it = std::find(path.var_order.cbegin(), path.var_order.cend(), var_nodes[v].get_label().order);
-          std::size_t const j = std::distance(path.var_order.begin(), find_it);
-          assert (i == this->get_variant_num(v));
-
-          if (j < path.nums.size() && path.nums[j].test(i))
-          {
-            locs.push_back(
-              {'V' /*type*/,
-               v /*node_id*/,
-               var_nodes[v].get_label().order /*node_order*/,
-               pos - var_nodes[v].get_label().order  /*offset*/
-              }
-            );
-          }
-        }
-      }
-
-      --rr;
-    }
-
-    break;
-  }
+#ifndef NDEBUG
+  if (locs.size() == 0)
+    BOOST_LOG_TRIVIAL(warning) << "[graphtyper::graph] Found no location for position " << pos;
+#endif
 
   return locs;
 }
@@ -1070,14 +1218,19 @@ Graph::get_labels_forward(Location const & s,
     assert(s.node_index < var_nodes.size());
     VarNode const & var = var_nodes[s.node_index];
     var_ids[0].push_back(s.node_index);
-    var_and_refs[0] = std::vector<char>(var.get_label().dna.begin() + s.offset, var.get_label().dna.end());
+    var_and_refs[0] = std::vector<char>(var.get_label().dna.begin() + s.offset,
+                                        var.get_label().dna.end()
+      );
 
     // Check if variant is enough
     if (var_and_refs[0].size() >= read.size())
     {
       // variant is enough
-      end_pos[0] = var.get_label().reach() - (var_and_refs[0].size() - read.size());
-      uint32_t const ref_reach = var_nodes[ref_nodes[var.get_out_ref_index() - 1].get_vars()[0]].get_label().reach();
+      end_pos[0] =
+        static_cast<uint32_t>(var.get_label().reach() - (var_and_refs[0].size() - read.size()));
+
+      uint32_t const ref_reach =
+        var_nodes[ref_nodes[var.get_out_ref_index() - 1].get_vars()[0]].get_label().reach();
 
       if (end_pos[0] > ref_reach)
         end_pos[0] = get_special_pos(end_pos[0], ref_reach);
@@ -1087,8 +1240,14 @@ Graph::get_labels_forward(Location const & s,
       // We also need to add a reference
       RefNode const & ref = ref_nodes[var.get_out_ref_index()];
       vars = ref.get_vars();
-      var_and_refs[0].insert(var_and_refs[0].end(), ref.get_label().dna.begin(), ref.get_label().dna.end());
-      end_pos[0] = ref.get_label().reach() - (var_and_refs[0].size() - read.size());
+
+      var_and_refs[0].insert(var_and_refs[0].end(),
+                             ref.get_label().dna.begin(),
+                             ref.get_label().dna.end()
+        );
+
+      end_pos[0] =
+        static_cast<uint32_t>(ref.get_label().reach() - (var_and_refs[0].size() - read.size()));
     }
   }
   else
@@ -1097,8 +1256,13 @@ Graph::get_labels_forward(Location const & s,
     assert(s.node_index < ref_nodes.size());
     RefNode const & ref = ref_nodes[s.node_index];
     vars = ref.get_vars();
-    var_and_refs[0] = std::vector<char>(ref.get_label().dna.begin() + s.offset, ref.get_label().dna.end());
-    end_pos[0] = ref.get_label().reach() - (var_and_refs[0].size() - read.size());
+
+    var_and_refs[0] = std::vector<char>(ref.get_label().dna.begin() + s.offset,
+                                        ref.get_label().dna.end()
+      );
+
+    end_pos[0] =
+      static_cast<uint32_t>(ref.get_label().reach() - (var_and_refs[0].size() - read.size()));
   }
 
   // We are starting on a variant node
@@ -1518,7 +1682,7 @@ Graph::get_labels_backward(Location const & e,
     if (var_and_refs[j].size() < read.size())
       continue;
 
-    uint32_t mismatches = count_mismatches_backward(read, 0, var_and_refs[j], 0, max_mismatches);
+    uint32_t const mismatches = count_mismatches_backward(read, 0, var_and_refs[j], 0, max_mismatches);
 
     if (mismatches < max_mismatches)
     {
@@ -1589,19 +1753,10 @@ Graph::iterative_dfs(std::vector<Location> const & start_locations,
   assert(start_locations.size() > 0);
   assert(end_locations.size() > 0);
   assert(subread.size() > 0);
-  std::size_t const MAX_LOCATIONS = 2048;
-  //std::size_t const MAX_LOCATIONS = 512;
+  std::size_t const MAX_LOCATIONS = 1024;
 
-  if (start_locations.size() > MAX_LOCATIONS)
-  {
-    //BOOST_LOG_TRIVIAL(warning) << "[graph] Too many unique start locations " << start_locations.size();
+  if (start_locations.size() > MAX_LOCATIONS || end_locations.size() > MAX_LOCATIONS)
     return labels;
-  }
-  else if (end_locations.size() > MAX_LOCATIONS)
-  {
-    //BOOST_LOG_TRIVIAL(warning) << "[graph] Too many unique end locations " << end_locations.size();
-    return labels;
-  }
 
   auto add_if_better =
     [&labels, &max_mismatches](std::vector<KmerLabel> && new_labels, uint32_t const mismatches)
@@ -1715,8 +1870,8 @@ Graph::check() const
   return (size() > 0)
          && check_ACGTN_only()
          && check_empty_variant_dna()
-         && check_increasing_order()
-         && check_if_order_follows_reference();
+         && check_increasing_order();
+         //&& check_if_order_follows_reference();
 }
 
 
@@ -1754,19 +1909,27 @@ Graph::check_ACGTN_only() const
   // Variant nodes
   for (std::size_t v = 0; v < var_nodes.size(); ++v)
   {
-    for (auto c : var_nodes[v].get_label().dna)
+    Label const & label = var_nodes[v].get_label();
+
+    for (std::size_t i = 0; i < label.dna.size(); ++i)
     {
+      char const c = label.dna[i];
+
       switch (c)
       {
-      case 'A': continue;
-
-      case 'C': continue;
-
-      case 'G': continue;
-
-      case 'T': continue;
-
+      case 'A':
+      case 'C':
+      case 'G':
+      case 'T':
       case 'N': continue;
+      case '<': // Ignore tag
+      {
+        ++i;
+        while (i < label.dna.size() && label.dna[i] != '>')
+          ++i;
+
+        continue;
+      }
 
       default:
       {
@@ -1886,36 +2049,6 @@ Graph::check_if_order_follows_reference() const
 }
 
 
-bool
-Graph::is_snp(uint32_t const var_id) const
-{
-  if (var_id >= var_nodes.size())
-  {
-    return false;
-  }
-
-  uint32_t const r = var_nodes[var_id].get_out_ref_index() - 1; // Ref in index
-  assert(r < ref_nodes.size()); // Underflow checking
-  std::vector<TNodeIndex> const vars = ref_nodes[r].get_vars();
-
-  for (auto const v : vars)
-  {
-    if (var_nodes[v].get_label().dna.size() != 1)
-      return false;
-  }
-
-  return true;
-}
-
-
-bool
-Graph::is_on_var_id(uint32_t const pos, uint32_t const var_id) const
-{
-  assert(var_id == INVALID_ID || var_id < var_nodes.size());
-  return var_id != INVALID_ID && pos >= var_nodes[var_id].get_label().order && pos <= var_nodes[var_id].get_label().reach();
-}
-
-
 std::vector<uint32_t>
 Graph::get_var_orders(uint32_t const start, uint32_t const end) const
 {
@@ -1938,6 +2071,73 @@ Graph::get_var_orders(uint32_t const start, uint32_t const end) const
   }
 
   return var_orders;
+}
+
+
+void
+Graph::print() const
+{
+  long r = 0;
+  long v = 0;
+
+  while (ref_nodes[r].out_degree() != 0)
+  {
+    {
+      auto const & label = ref_nodes[r].get_label();
+      auto contig_pos = genomic_regions[0].get_contig_position(label.order);
+      std::cout << contig_pos.first << ":" << contig_pos.second << " ";
+
+      if (label.dna.size() < 60)
+      {
+        std::cout << std::string(label.dna.begin(), label.dna.end()) << "\n";
+      }
+      else
+      {
+        std::cout << std::string(label.dna.begin(), label.dna.begin() + 60)
+                  << "..(size " << label.dna.size() << ").." << "\n";
+      }
+    }
+
+    {
+      auto const & var_label = var_nodes[v].get_label();
+      auto contig_pos = genomic_regions[0].get_contig_position(var_label.order);
+      std::cout << contig_pos.first << ":" << contig_pos.second << " ";
+    }
+
+    for (long i = 0; i < static_cast<long>(ref_nodes[r].out_degree()); ++i)
+    {
+      auto const & var_label = var_nodes[v + i].get_label();
+
+      if (var_label.dna.size() < 50)
+      {
+        std::cout << std::string(var_label.dna.begin(), var_label.dna.end()) << "|";
+      }
+      else
+      {
+        std::cout << std::string(var_label.dna.begin(), var_label.dna.begin() + 50)
+                  << "..(size " << var_label.dna.size() << ")|";
+      }
+    }
+
+    std::cout << "\n";
+    v += ref_nodes[r].out_degree();
+    ++r;
+  }
+
+  auto const & label = ref_nodes[r].get_label();
+  auto contig_pos = genomic_regions[0].get_contig_position(label.order);
+  std::cout << contig_pos.first << ":" << contig_pos.second << " ";
+
+  if (label.dna.size() < 60)
+  {
+    std::cout << std::string(label.dna.begin(), label.dna.end()) << "\n";
+  }
+  else
+  {
+    std::cout << std::string(label.dna.begin(), label.dna.begin() + 60)
+              << "..(size " << label.dna.size() << ").." << "\n";
+  }
+  //std::cout << ref_nodes[r].size() << " " r << "\n";
 }
 
 

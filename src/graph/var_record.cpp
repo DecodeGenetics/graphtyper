@@ -1,46 +1,13 @@
-#include <assert.h>
 #include <algorithm>
+#include <cassert>
 #include <iostream>
 #include <iterator>
 #include <string>
 #include <sstream>
 
-#include <htslib/bgzf.h>
-#include <htslib/tbx.h>
+#include <boost/log/trivial.hpp>
 
 #include <graphtyper/graph/var_record.hpp>
-
-
-std::ostream &
-operator<<(std::ostream & os, std::vector<char> const & dt)
-{
-  for (auto it = dt.begin(); it != dt.end(); ++it)
-  {
-    os << *it;
-  }
-  return os;
-}
-
-
-std::string
-to_string(std::vector<char> const & dt)
-{
-  std::stringstream ss;
-  ss << dt;
-  return ss.str();
-}
-
-
-void
-print_var_record(gyper::VarRecord const & var_record)
-{
-  std::cout << var_record.ref << " @ " << var_record.pos << ":";
-  for (auto const & alt : var_record.alts)
-  {
-    std::cout << " " << alt;
-  }
-  std::cout << std::endl;
-}
 
 
 namespace
@@ -63,13 +30,37 @@ compare_two_alleles(std::vector<char> const & lhs, std::vector<char> const & rhs
 } // anon namespace
 
 
+std::ostream &
+operator<<(std::ostream & os, std::vector<char> const & dt)
+{
+  for (auto it = dt.begin(); it != dt.end(); ++it)
+  {
+    os << *it;
+  }
+  return os;
+}
+
+
+std::string
+to_string(std::vector<char> const & dt)
+{
+  std::stringstream ss;
+  ss << dt;
+  return ss.str();
+}
+
+
 namespace gyper
 {
 
 VarRecord::VarRecord()
   :  pos(0u), ref(0), alts(0) {}
 
-VarRecord::VarRecord(uint32_t && p, std::vector<char> && r, std::vector<std::vector<char> > && a)
+VarRecord::VarRecord(uint32_t const p)
+  : pos(p)
+{}
+
+VarRecord::VarRecord(uint32_t const p, std::vector<char> && r, std::vector<std::vector<char> > && a)
   : pos(std::move(p))
   , ref(std::move(r))
   , alts(std::move(a))
@@ -81,6 +72,19 @@ VarRecord::clear()
   pos = 0;
   ref.clear();
   alts.clear();
+}
+
+
+std::string
+VarRecord::to_string() const
+{
+  std::ostringstream ss;
+  ss << ref << " @ " << pos << ":";
+
+  for (auto const & alt : alts)
+    ss << " " << alt;
+
+  return ss.str();
 }
 
 
@@ -185,8 +189,6 @@ VarRecord::merge(VarRecord && prev_record)
     }
 
     std::move(new_alts.begin(), new_alts.end(), std::back_inserter(alts));
-    // std::cout << "Current record2 = "; print_var_record(*this);
-    // std::cout << "Prev record2 = "; print_var_record(prev_record);
 
     // Update C,D,E to RC,RD,RE
     for (std::size_t i = 0; i < ORIGINAL_NUMBER_OF_CURR_ALTS; ++i)
@@ -270,8 +272,6 @@ VarRecord::merge(VarRecord && prev_record)
 
   std::sort(alts.begin(), alts.end(), compare_two_alleles);
   alts.erase(std::unique(alts.begin(), alts.end(), allele_uniqueness), alts.end());
-
-  // std::cout << "Current record final = "; print_var_record(*this);
 }
 
 
@@ -281,7 +281,7 @@ VarRecord::get_common_suffix()
   uint64_t suffix_size = 0;
   auto ref_it = ref.rbegin();
 
-  while(ref_it != ref.rend() &&
+  while(ref_it != ref.rend() && suffix_size < ref.size() - 1 &&
         std::all_of(alts.begin(),
                     alts.end(),
                     [&](std::vector<char> const & alt)

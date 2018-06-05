@@ -10,25 +10,47 @@
 namespace gyper
 {
 
-using THapCalls = std::vector<std::pair<std::vector<uint16_t>, std::vector<Genotype> > >;
+class HaplotypeCall
+{
+  friend class boost::serialization::access;
+
+public:
+  std::vector<uint16_t> calls{};
+  std::vector<Genotype> gts{};
+
+  HaplotypeCall() = default;
+  explicit HaplotypeCall(std::vector<uint16_t> && _calls,
+                std::vector<Genotype> const & _gts
+    );
+
+private:
+  template <class Archive>
+  void serialize(Archive & ar, unsigned int version);
+};
+
+
+using THapCalls = std::vector<HaplotypeCall>;
 
 class HaplotypeCalls
 {
   friend class boost::serialization::access;
 
 public:
-  HaplotypeCalls();
-  HaplotypeCalls(THapCalls const & hap_calls);
-  THapCalls hap_calls;
+  HaplotypeCalls() = default;
+  explicit HaplotypeCalls(THapCalls const & hap_calls);
+
+  /** \brief Return a list of haplotype calls. */
+  THapCalls inline get_hap_calls(){return hap_calls;}
 
 private:
+  THapCalls hap_calls;
+
   template <class Archive>
-  void serialize(Archive & ar, const unsigned int version);
+  void serialize(Archive & ar, unsigned int version);
 };
 
 
-void save_calls(HaplotypeCalls & calls, std::string filename);
-void load_calls(HaplotypeCalls & calls, std::string filename);
+void save_calls(HaplotypeCalls & calls, std::string const & filename);
 THapCalls load_calls(std::string filename);
 
 }

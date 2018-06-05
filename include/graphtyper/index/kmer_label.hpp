@@ -9,7 +9,6 @@
 
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
-#include <boost/serialization/forward_list.hpp>
 
 #include <graphtyper/constants.hpp>
 

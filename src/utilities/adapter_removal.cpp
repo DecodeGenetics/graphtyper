@@ -7,6 +7,7 @@
 
 #include <seqan/align.h>
 #include <seqan/stream.h>
+#include <seqan/hts_io.h>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/utilities/adapter_removal.hpp>

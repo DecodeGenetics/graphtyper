@@ -1,6 +1,5 @@
 #pragma once
-#include <cstdint> // For uint64_t
-#include <cstdio> // For size_t
+#include <cstdint> // uintN_t
 
 // CMake variables
 #define graphtyper_VERSION_MAJOR @graphtyper_VERSION_MAJOR@
@@ -10,13 +9,12 @@
 #define GIT_BRANCH "@GIT_BRANCH@"
 #define GIT_COMMIT_SHORT_HASH "@GIT_COMMIT_SHORT_HASH@"
 #define GIT_COMMIT_LONG_HASH "@GIT_COMMIT_LONG_HASH@"
-#define GIT_NUM_DIRTY_FILES "@GIT_NUM_DIRTY_FILES@"
-
-#define __GYPER_USE_ROCKSDB__
+#define GIT_NUM_DIRTY_LINES "@GIT_NUM_DIRTY_LINES@"
 
 
 namespace gyper
 {
+
 uint8_t const  K = 32;   /** \brief The size of the k-mers. */
 uint32_t const INVALID_ID = 0xFFFFFFFFul;
 uint16_t const INVALID_NUM = 0xFFFFul;
@@ -32,4 +30,5 @@ uint32_t const MAX_READ_LENGTH = 151u;
 uint32_t const SPECIAL_START = 0xD0000000ul; // == 3489660928
 
 using TNodeIndex = uint64_t;
-}
+
+} // namespace gyper

@@ -1,13 +1,11 @@
+#include <cassert>
+#include <cstdint>
 #include <string>
+#include <vector>
 
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/index/rocksdb.hpp>
-#include <graphtyper/utilities/options.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
-
-#include <seqan/basic.h>
-#include <seqan/sequence.h>
-#include <seqan/stream.h>
 
 #include <boost/log/trivial.hpp>
 
@@ -23,7 +21,7 @@
 namespace gyper
 {
 
-uint8_t const LABEL_SIZE = 10;
+uint8_t const LABEL_SIZE = 12;
 
 // Any number of labels
 std::vector<gyper::KmerLabel>
@@ -35,16 +33,17 @@ value_to_labels(std::string const & value)
   for (unsigned i = 0; i < value.size() / LABEL_SIZE; ++i)
   {
     memcpy(&results[i].start_index, value.data() + i * LABEL_SIZE, sizeof(uint32_t));
-    int16_t offset;
-    memcpy(&offset, value.data() + 4 + i * LABEL_SIZE, sizeof(int16_t));
-
-    // When offset < 0 then end index is a special pos
-    if (offset < 0)
-      results[i].end_index = gyper::SPECIAL_START - offset - 1;
-    else
-      results[i].end_index = graph.get_ref_reach_pos(results[i].start_index) + offset;
-
-    memcpy(&results[i].variant_id, value.data() + 6 + i * LABEL_SIZE, sizeof(uint32_t));
+    memcpy(&results[i].end_index, value.data() + sizeof(uint32_t) + i * LABEL_SIZE, sizeof(uint32_t));
+    //int16_t offset;
+    //memcpy(&offset, value.data() + 4 + i * LABEL_SIZE, sizeof(int16_t));
+    //
+    //// When offset < 0 then end index is a special pos
+    //if (offset < 0)
+    //  results[i].end_index = gyper::SPECIAL_START - offset - 1;
+    //else
+    //  results[i].end_index = graph.get_ref_reach_pos(results[i].start_index) + offset;
+    //
+    memcpy(&results[i].variant_id, value.data() + sizeof(uint32_t) + sizeof(uint32_t) + i * LABEL_SIZE, sizeof(uint32_t));
 
     if (results[i].variant_id != gyper::INVALID_ID)
     {
@@ -79,22 +78,24 @@ labels_to_value(std::vector<gyper::KmerLabel> const & labels)
   for (unsigned i = 0; i < labels.size(); ++i)
   {
     memcpy(v.data() + i * t, &labels[i].start_index, sizeof(uint32_t));
-    int16_t offset;
+    memcpy(v.data() + sizeof(uint32_t) + i * t, &labels[i].end_index, sizeof(uint32_t));
 
-    if (labels[i].end_index >= gyper::SPECIAL_START)
-    {
-      assert(static_cast<int16_t>(gyper::SPECIAL_START - labels[i].end_index - 1) < 0);
-      offset = static_cast<int16_t>(gyper::SPECIAL_START - labels[i].end_index - 1);
-    }
-    else
-    {
-      assert(labels[i].end_index > graph.get_ref_reach_pos(labels[i].start_index));
-      assert(static_cast<int16_t>(labels[i].end_index - graph.get_ref_reach_pos(labels[i].start_index)) >= 0);
-      offset = static_cast<int16_t>(labels[i].end_index - graph.get_ref_reach_pos(labels[i].start_index));
-    }
-
-    memcpy(v.data() + 4 + i * t, &offset, sizeof(int16_t));
-    memcpy(v.data() + 6 + i * t, &labels[i].variant_id, sizeof(uint32_t));
+    //int16_t offset;
+    //
+    //if (labels[i].end_index >= gyper::SPECIAL_START)
+    //{
+    //  assert(static_cast<int16_t>(gyper::SPECIAL_START - labels[i].end_index - 1) < 0);
+    //  offset = static_cast<int16_t>(gyper::SPECIAL_START - labels[i].end_index - 1);
+    //}
+    //else
+    //{
+    //  assert(labels[i].end_index > graph.get_ref_reach_pos(labels[i].start_index));
+    //  assert(static_cast<int16_t>(labels[i].end_index - graph.get_ref_reach_pos(labels[i].start_index)) >= 0);
+    //  offset = static_cast<int16_t>(labels[i].end_index - graph.get_ref_reach_pos(labels[i].start_index));
+    //}
+    //
+    //memcpy(v.data() + 4 + i * t, &offset, sizeof(int16_t));
+    memcpy(v.data() + sizeof(uint32_t) + sizeof(uint32_t) + i * t, &labels[i].variant_id, sizeof(uint32_t));
   }
 
   return std::string(v.data(), t * labels.size());
@@ -147,7 +148,7 @@ using namespace rocksdb;
 
 template <>
 void
-Index<RocksDB>::construct(bool);
+Index<RocksDB>::construct(bool const);
 
 template <>
 void
@@ -160,7 +161,7 @@ Index<RocksDB>::commit();
 
 template <>
 void
-Index<RocksDB>::open(std::string const & f, bool clear_first, bool read_only)
+Index<RocksDB>::open(std::string const & f, bool const clear_first, bool const read_only)
 {
   opened = true;
   hamming0.filename = f;
@@ -208,7 +209,7 @@ Index<RocksDB>::Index(Index<RocksDB> && mv_index)
 
 
 template <>
-Index<RocksDB>::Index(std::string const & f, bool clear_first, bool read_only)
+Index<RocksDB>::Index(std::string const & f, bool const clear_first, bool const read_only)
 {
   open(f, clear_first, read_only);
 }
@@ -225,23 +226,17 @@ template <>
 Index<RocksDB> &
 Index<RocksDB>::operator=(Index<RocksDB> && mv_index)
 {
-  //std::cerr << "Before move assignment\n";
-  //std::cerr << "Donator " << mv_index.buffer_map.size() << " " << mv_index.opened << " " << mv_index.hamming0.db << '\n';
-  //std::cerr << "Recipient " << this->buffer_map.size() << " " << this->opened << " " << this->hamming0.db << '\n';
   this->opened = std::move(mv_index.opened);
   this->hamming0 = std::move(mv_index.hamming0);
   mv_index.hamming0.db = nullptr;
   mv_index.opened = false;
-  //std::cerr << "After move assignment\n";
-  //std::cerr << "Donator " << mv_index.buffer_map.size() << " " << mv_index.opened << " " << mv_index.hamming0.db << '\n';
-  //std::cerr << "Recipient " << this->buffer_map.size() << " " << this->opened << " " << this->hamming0.db << '\n';
   return *this;
 }
 
 
 template <>
 bool
-Index<RocksDB>::exists(uint64_t key) const
+Index<RocksDB>::exists(uint64_t const key) const
 {
   std::string value;
   hamming0.db->Get(ReadOptions(), Slice(static_cast<const char *>(static_cast<const void *>(&key)), sizeof(uint64_t)), &value);
@@ -252,7 +247,7 @@ Index<RocksDB>::exists(uint64_t key) const
 
 template <>
 std::vector<KmerLabel>
-Index<RocksDB>::get(uint64_t key) const
+Index<RocksDB>::get(uint64_t const key) const
 {
   std::string value;
   hamming0.db->Get(ReadOptions(), Slice(static_cast<const char *>(static_cast<const void *>(&key)), sizeof(uint64_t)), &value);
@@ -306,7 +301,7 @@ Index<RocksDB>::check()
 
   if (ref_seq.size() < gyper::K)
   {
-    BOOST_LOG_TRIVIAL(warning) << "[rocksdb] The graph is too small for any K-mers to be extracted.";
+    BOOST_LOG_TRIVIAL(warning) << "[graphtyper::rocksdb] The graph is too small for any K-mers to be extracted.";
     return true;
   }
 
@@ -314,7 +309,7 @@ Index<RocksDB>::check()
 
   if (N_count >= ref_seq.size())
   {
-    BOOST_LOG_TRIVIAL(warning) << "[rocksdb] The reference contains only Ns.";
+    BOOST_LOG_TRIVIAL(warning) << "[graphtyper::rocksdb] The reference contains only Ns.";
     return true;
   }
 
@@ -327,7 +322,7 @@ Index<RocksDB>::check()
   keys.reserve(MAX_KEYS);
   std::size_t num_keys_full = 0;
 
-  BOOST_LOG_TRIVIAL(info) << "[rocksdb] Check progress is at 0" << '%';
+  BOOST_LOG_TRIVIAL(info) << "[graphtyper::rocksdb] Checking index";
 
   while (std::distance(final_it, ref_seq.end()) >= static_cast<long>(STEP_SIZE))
   {
@@ -348,15 +343,12 @@ Index<RocksDB>::check()
         {
           if (labels[i].size() == 0)
           {
-            std::cerr << "[rocksdb] Could not find kmer " << to_dna(keys[i][0]) << " at position "
-                      << (i + std::distance(ref_seq.begin(), start_it) - MAX_KEYS) << std::endl;
+            BOOST_LOG_TRIVIAL(error) << "[graphtyper::rocksdb] Could not find kmer at position "
+                                     << (i + std::distance(ref_seq.begin(), start_it) - MAX_KEYS);
             no_errors = false;
           }
         }
 
-        BOOST_LOG_TRIVIAL(info) << "[rocksdb] Check progress is at "
-                                << (num_keys_full * STEP_SIZE * 100 * MAX_KEYS / (ref_seq.size() - N_count))
-                                << '%';
         keys.clear();
       }
     }
@@ -371,20 +363,20 @@ Index<RocksDB>::check()
   {
     if (labels[i].size() == 0)
     {
-      std::cerr << "[rocksdb] Could not find kmer " << to_dna(keys[i][0]) << " at position "
-                << (i + std::distance(ref_seq.begin(), start_it) - MAX_KEYS) << std::endl;
+      BOOST_LOG_TRIVIAL(error) << "[graphtyper::rocksdb] Could not find kmer at position "
+                               << (i + std::distance(ref_seq.begin(), start_it) - MAX_KEYS);
       no_errors = false;
     }
   }
 
-  BOOST_LOG_TRIVIAL(info) << "[rocksdb] Check progress is at 100" << '%';
+  BOOST_LOG_TRIVIAL(info) << "[graphtyper::rocksdb] DONE Checking index";
   return no_errors;
 }
 
 
 template <>
 void
-Index<RocksDB>::put(uint64_t key, KmerLabel && label)
+Index<RocksDB>::put(uint64_t const key, KmerLabel && label)
 {
   buffer_map[key].push_back(std::move(label));
 
@@ -395,7 +387,7 @@ Index<RocksDB>::put(uint64_t key, KmerLabel && label)
 
 template <>
 void
-Index<RocksDB>::put(uint64_t key, std::vector<KmerLabel> && labels)
+Index<RocksDB>::put(uint64_t const key, std::vector<KmerLabel> && labels)
 {
   std::move(labels.begin(), labels.end(), std::back_inserter(buffer_map[key]));
 
@@ -441,14 +433,17 @@ Index<RocksDB>::clear()
     hamming0.s = rocksdb::DestroyDB(hamming0.filename.c_str(), hamming0.options);
 
     if (!hamming0.s.ok())
-      std::cerr << "ERROR: Could not destroy database '" << hamming0.filename << "'. Message: " << hamming0.s.ToString() << std::endl;
+    {
+      BOOST_LOG_TRIVIAL(error) << "[graphtyper::rocksdb] Could not destroy database '" << hamming0.filename
+                               << "'. Message: " << hamming0.s.ToString();
+    }
   }
 }
 
 
 template <>
 void
-Index<RocksDB>::construct(bool read_only)
+Index<RocksDB>::construct(bool const read_only)
 {
   hamming0.options.create_if_missing = true;
   // hamming0.options.statistics = rocksdb::CreateDBStatistics();
@@ -465,7 +460,8 @@ Index<RocksDB>::construct(bool read_only)
 
   if (!hamming0.s.ok())
   {
-    std::cerr << "ERROR: While trying to open '" << hamming0.filename << "'. Message: " << hamming0.s.ToString() << std::endl;
+    BOOST_LOG_TRIVIAL(error) << "[graphtyper::rocksdb] While trying to open '" << hamming0.filename
+                             << "'. Message: " << hamming0.s.ToString();
     std::exit(1);
   }
 }

@@ -17,12 +17,15 @@ public:
   uint32_t pos;
   std::vector<char> ref;
   std::vector<std::vector<char> > alts;
+  bool is_sv = false;
 
   VarRecord();
-  // VarRecord(uint32_t pos, std::vector<char> ref, std::vector<std::vector<char> > alts);
-  VarRecord(uint32_t && pos, std::vector<char> && ref, std::vector<std::vector<char> > && alts);
-  void clear();
+  VarRecord(uint32_t const pos);
+  VarRecord(uint32_t const pos, std::vector<char> && ref, std::vector<std::vector<char> > && alts);
 
+  std::string to_string() const;
+
+  void clear();
   void merge_one_path(VarRecord && prev_record);
   void merge(VarRecord && prev_record);
 

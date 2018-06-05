@@ -1,9 +1,13 @@
-#include <assert.h>
-#include <bitset>
-#include <iostream>
-#include <map>
+#include <bitset> // std::bitset
+#include <cassert> // assert
+#include <iostream> // std::cout
+#include <map> // std::map<T,U>
+#include <string> // std::string
+#include <vector> // std::vector<T>
 
-#include <boost/log/trivial.hpp>
+#include <seqan/sequence.h> // seqan::Dna5String
+
+#include <boost/log/trivial.hpp> // BOOST_LOG_TRIVIAL macro
 
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/graph.hpp>
@@ -107,8 +111,6 @@ insert_into_explain_map(std::map<uint32_t, std::vector<std::bitset<gyper::MAX_NU
   if (find_it == explain_map.end())
   {
     // Not found
-    // assert (j = 0);
-    // std::cout << "Was not found! i, j = " << i << "," << j << std::endl;
     // std::cout << "[caller] INFO: Inserting new variant " << var_explanation.first << std::endl;
     std::vector<std::bitset<gyper::MAX_NUMBER_OF_HAPLOTYPES> > new_vec(var_num);
     new_vec[i] = var_explanation.second;
@@ -117,8 +119,6 @@ insert_into_explain_map(std::map<uint32_t, std::vector<std::bitset<gyper::MAX_NU
   else
   {
     // Was found
-    // assert (j > 0);
-    // std::cout << "Was found! i, j = " << i << "," << j << std::endl;
     find_it->second[i] |= var_explanation.second;
   }
 }
@@ -655,7 +655,7 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
 
       if (s == haplotype_paths_it->begin()->second.size())
       {
-        std::cerr << "warning: could not find a segment which matched" << std::endl;
+        BOOST_LOG_TRIVIAL(warning) << "[graphtyper::segment_calling] Could not find a segment which matched";
         --s;
         break;
       }

@@ -80,16 +80,10 @@ ReferenceDepth::add_genotype_paths(GenotypePaths const & geno)
 
 
 void
-ReferenceDepth::add_reference_depths_from(ReferenceDepth const & ref_depth)
+ReferenceDepth::add_depth(std::size_t const begin, std::size_t const end)
 {
-  if (ref_depth.depth.size() == 0)
-    return;
-
-  assert(ref_depth.reference_offset == this->reference_offset);
-  assert(ref_depth.depth.size() == this->depth.size());
-
-  for (std::size_t i = 0; i < depth.size(); ++i)
-    this->depth[i] += ref_depth.depth[i];
+  increase_local_depth_by_one(begin, end);
+  commit_local_depth();
 }
 
 
@@ -124,10 +118,10 @@ ReferenceDepth::increase_local_depth_by_one(std::size_t const start_pos, std::si
   assert(end_pos >= reference_offset);
   assert(depth.size() > 0);
   std::size_t const start_index = start_pos_to_index(start_pos);
-  std::size_t const end_index = end_pos_to_index(end_pos);
+  auto const end = depth.begin() + end_pos_to_index(end_pos);
   assert(start_index < depth.size());
 
-  for (auto it = depth.begin() + start_index; it != depth.begin() + end_index && it != depth.end(); ++it)
+  for (auto it = depth.begin() + start_index; it != end && it != depth.end(); ++it)
     local_depth.push_back(std::distance(depth.begin(), it)); // Increase the depth by one
 }
 
@@ -141,10 +135,11 @@ ReferenceDepth::commit_local_depth()
   for (auto it = local_depth.begin(); it != last; ++it)
   {
     assert(*it < depth.size());
+    auto & d = depth[*it];
 
     // Make sure we will not overflow
-    if (depth[*it] < 0xFFFFul)
-      ++depth[*it];
+    if (d < 0xFFFFul)
+      ++d;
   }
 
   local_depth.clear();
@@ -152,9 +147,9 @@ ReferenceDepth::commit_local_depth()
 
 
 void
-ReferenceDepth::resize_depth()
+ReferenceDepth::resize_depth(std::size_t const ref_size)
 {
-  depth.resize(graph.reference.size(), 0u);
+  depth.resize(ref_size, 0u);
   reference_offset = graph.ref_nodes.size() > 0 ? graph.ref_nodes[0].get_label().order : 0;
 }
 

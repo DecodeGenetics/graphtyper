@@ -37,6 +37,10 @@ public:
   /** Graph complexity */
   uint8_t graph_complexity = 0u;
 
+  /** Reference coverage vs alternative coverage */
+  uint16_t ref_coverage = 0u;
+  uint16_t alt_coverage = 0u;
+
   /**
    * CONSTRUCTORS
    */
