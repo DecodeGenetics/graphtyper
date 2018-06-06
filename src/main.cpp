@@ -1269,6 +1269,7 @@ main(int argc, char ** argv)
       output_file = args::get(*output_arg);
 
     gyper::load_graph(args::get(*graph_arg));
+    gyper::Options::instance()->chr_prefix = gyper::graph.use_prefix_chr;
     gyper::graph.generate_reference_genome();
     gyper::global_varmap.load_many_variant_maps(args::get(*file_arg));
     gyper::global_varmap.filter_varmap_for_all();
