@@ -5,7 +5,7 @@ include(ExternalProject)
 
 # The version number.
 set (graphtyper_VERSION_MAJOR 1)
-set (graphtyper_VERSION_MINOR 3)
+set (graphtyper_VERSION_MINOR 4)
 
 # Get the current working branch
 execute_process(
