@@ -176,6 +176,7 @@ add_arg_region_val(args::ArgumentParser & parser)
   return std::unique_ptr<TRegionVal>(new TRegionVal(parser, "REGION", "Region to use.", {"r", "region"}, "."));
 }
 
+
 /* sites only arg */
 std::unique_ptr<args::Flag>
 add_arg_sites_only(args::ArgumentParser & parser)
@@ -276,6 +277,7 @@ add_arg_sams(args::ArgumentParser & parser)
   return std::unique_ptr<TSam>(new TSam(parser, "SAMs", "A file with a list of SAM/BAM/CRAM files seperated by newlines.", {"S", "sams"}));
 }
 
+
 /** SAM argument */
 using TSegment = args::ValueFlag<std::string>;
 
@@ -341,6 +343,7 @@ add_arg_vcfs(args::ArgumentParser & parser)
   return std::unique_ptr<TVcfs>(new TVcfs(parser, "VCFs", "A list of bgzipped VCF files seperated by newlines.", {"V", "vcfs"}));
 }
 
+
 /** max_index_labels argument */
 using TMaxIndexLabels = args::ValueFlag<unsigned>;
 
@@ -350,9 +353,10 @@ add_arg_max_index_labels(args::ArgumentParser & parser)
   return std::unique_ptr<TMaxIndexLabels>(
     new TMaxIndexLabels(
       parser, "N", "Maximum number labels a single k-mer can be associated with.", {"max_index_labels"}
-    )
-  );
+      )
+    );
 }
+
 
 void
 parse_max_index_labels(TMaxIndexLabels & max_index_labels)
@@ -401,6 +405,7 @@ parse_stats(TStats & stats_arg)
   }
 }
 
+
 /** No new variants argument */
 std::unique_ptr<args::Flag>
 add_arg_no_new_variants(args::ArgumentParser & parser)
@@ -424,12 +429,14 @@ add_arg_get_sample_names_from_filename(args::ArgumentParser & parser)
   return std::unique_ptr<args::Flag>(new args::Flag(parser, "", "Set to get sample names from filenames.", {"get_sample_names_from_filename"}));
 }
 
+
 void
 parse_get_sample_names_from_filename(args::Flag & get_sample_names_from_filename_arg)
 {
   if (get_sample_names_from_filename_arg)
     gyper::Options::instance()->get_sample_names_from_filename = true;
 }
+
 
 /** Only use HQ reads */
 std::unique_ptr<args::Flag>
@@ -456,6 +463,7 @@ add_arg_output_all_variants(args::ArgumentParser & parser, std::string cmd = "")
   else
     return std::unique_ptr<args::Flag>(new args::Flag(parser, "OUTPUT_ALL_VARIANTS", "Set to output all variants, regardless of their allele number or size", {"output_all_variants"}));
 }
+
 
 void
 parse_output_all_variants(args::Flag & arg)
@@ -505,10 +513,10 @@ add_arg_soft_cap_of_variants_in_100_bp_window(args::ArgumentParser & parser)
 {
   return std::unique_ptr<TSoftCapOfVariantsInWindow>(
     new TSoftCapOfVariantsInWindow(parser,
-                                  "N",
-                                  "Soft cap of number of variants that can appear in a 100 bp window.",
-                                  {"soft_cap_of_variants_in_100_bp_window"}
-                                  )
+                                   "N",
+                                   "Soft cap of number of variants that can appear in a 100 bp window.",
+                                   {"soft_cap_of_variants_in_100_bp_window"}
+                                   )
     );
 }
 
@@ -529,10 +537,10 @@ add_arg_hard_cap_of_variants_in_100_bp_window(args::ArgumentParser & parser)
 {
   return std::unique_ptr<THardCapOfVariantsInWindow>(
     new THardCapOfVariantsInWindow(parser,
-                                  "N",
-                                  "Hard cap of number of variants that can appear in a 100 bp window.",
-                                  {"hard_cap_of_variants_in_100_bp_window"}
-                                  )
+                                   "N",
+                                   "Hard cap of number of variants that can appear in a 100 bp window.",
+                                   {"hard_cap_of_variants_in_100_bp_window"}
+                                   )
     );
 }
 
@@ -625,10 +633,10 @@ add_arg_epsilon_0_exponent(args::ArgumentParser & parser)
 {
   return std::unique_ptr<TEpsilonZeroExponent>(
     new TEpsilonZeroExponent(parser,
-                        "N",
-                        "Epsilon zero exponent (Default is 13)",
-                        {"e", "epsilon_0_exponent"}
-                        )
+                             "N",
+                             "Epsilon zero exponent (Default is 13)",
+                             {"e", "epsilon_0_exponent"}
+                             )
     );
 }
 
@@ -677,7 +685,7 @@ add_arg_suffix_id(args::ArgumentParser & parser)
     new args::ValueFlag<std::string>(parser,
                                      "SUFFIX",
                                      "Suffix for variant IDs of genotyped variants.",
-      {"suffix_id"})
+                                     {"suffix_id"})
     );
 }
 
@@ -723,6 +731,7 @@ parse_phased(args::Flag & use_phased_arg)
   if (use_phased_arg)
     gyper::Options::instance()->phased_output = true;
 }
+
 
 ///** Phased argument */
 //std::unique_ptr<args::Flag>
@@ -779,13 +788,14 @@ parse_max_extracted_haplotypes(TMaxExtractH & max_extracted_haplotypes_arg)
     gyper::Options::instance()->max_extracted_haplotypes = args::get(max_extracted_haplotypes_arg);
 }
 
+
 /** Skip breaking down extracted haplotypes argument */
 std::unique_ptr<args::Flag>
 add_arg_skip_breaking_down_extracted_haplotypes(args::ArgumentParser & parser)
 {
   return std::unique_ptr<args::Flag>(
     new args::Flag(parser, "SBDEH", "Set to skip breaking down extracted haplotypes.", {"k", "skip_breaking_down_extracted_haplotypes"})
-                                    );
+    );
 }
 
 
@@ -838,18 +848,20 @@ main(int argc, char ** argv)
   }
 
   std::string const given_command = argv[1];
-  std::vector<std::string> available_commands = {"call",
-                                                 "check",
-                                                 "construct",
-                                                 "discover",
-                                                 "discovery_vcf",
-                                                 "haplotypes",
-                                                 "index",
-                                                 "vcf_merge",
-                                                 "vcf_concatenate",
-                                                 "vcf_break_down",
-                                                 "vcf_update_info"
-    };
+  std::vector<std::string> available_commands =
+  {
+    "call",
+    "check",
+    "construct",
+    "discover",
+    "discovery_vcf",
+    "haplotypes",
+    "index",
+    "vcf_merge",
+    "vcf_concatenate",
+    "vcf_break_down",
+    "vcf_update_info"
+  };
 
   if (std::find(available_commands.begin(), available_commands.end(), given_command) == available_commands.end())
   {
@@ -1166,8 +1178,8 @@ main(int argc, char ** argv)
   else if (std::string(argv[1]) == std::string("discover"))
   {
     args::ArgumentParser discover_parser("Discovery variants based on the alignment to the "
-      "reference genome"
-      );
+                                         "reference genome"
+                                         );
     auto help_arg = add_arg_help(discover_parser);
     auto command_arg = add_arg_command(discover_parser, argv[1]);
     auto graph_arg = add_arg_graph(discover_parser);
@@ -1229,7 +1241,7 @@ main(int argc, char ** argv)
                                       sams,
                                       regions,
                                       args::get(*output_arg)
-      );
+                                      );
   }
   else if (std::string(argv[1]) == std::string("discovery_vcf"))
   {
@@ -1313,7 +1325,7 @@ main(int argc, char ** argv)
     }
     else
     {
-      assert (*file_list_arg);
+      assert(*file_list_arg);
       std::ifstream files;
       files.open(args::get(*file_list_arg));
 
@@ -1323,7 +1335,7 @@ main(int argc, char ** argv)
         return 1;
       }
 
-      for (std::string line; std::getline(files, line);)
+      for (std::string line; std::getline(files, line); )
         vcfs.push_back(line);
     }
 

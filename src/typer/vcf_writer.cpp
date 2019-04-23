@@ -9,9 +9,7 @@
 
 #include <boost/log/trivial.hpp>
 
-#include <stations/join.hpp>
-#include <stations/split.hpp>
-#include <stations/station.hpp>
+#include <paw/station.hpp>
 
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/graph_serialization.hpp>
@@ -497,7 +495,7 @@ VcfWriter::explain_map_to_haplotype_scores(std::size_t const pn_index, ExplainMa
   std::shared_ptr<std::size_t> shared_pn_index = std::make_shared<std::size_t>(pn_index);
   std::size_t const num = explain_map.cbegin()->second.size();
   std::vector<uint32_t> hap_scores((num + 1) * num / 2, 0u);
-  auto hap_scores_split = stations::split(hap_scores, Options::instance()->threads);
+  auto hap_scores_split = paw::split(hap_scores, Options::instance()->threads);
 
   auto update_scores = [this](std::shared_ptr<ExplainMap> explain_map,
                               std::shared_ptr<std::vector<uint32_t> > hap_scores,
@@ -534,7 +532,7 @@ VcfWriter::explain_map_to_haplotype_scores(std::size_t const pn_index, ExplainMa
   };
 
   {
-    stations::Station hap_scores_station(Options::instance()->threads);
+    paw::Station hap_scores_station(Options::instance()->threads);
     uint32_t i = 0;
 
     for (unsigned j = 0; j < hap_scores_split.size(); ++j)
@@ -550,7 +548,7 @@ VcfWriter::explain_map_to_haplotype_scores(std::size_t const pn_index, ExplainMa
     }
   }
 
-  stations::join(hap_scores, hap_scores_split);
+  paw::join(hap_scores, hap_scores_split);
   return hap_scores;
 }
 

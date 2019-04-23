@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 2.8.8)
 
 set(graphtyper_SOURCE_FILES
+  paw.cpp
   graph/absolute_position.cpp
   graph/constructor.cpp
   graph/genomic_region.cpp

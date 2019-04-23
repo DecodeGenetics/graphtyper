@@ -5,7 +5,7 @@ include(ExternalProject)
 
 # The version number.
 set (graphtyper_VERSION_MAJOR 1)
-set (graphtyper_VERSION_MINOR 3)
+set (graphtyper_VERSION_MINOR 4)
 
 # Get the current working branch
 execute_process(
@@ -196,8 +196,8 @@ find_package(Threads)
 # set(htslib_INCLUDE_DIRS ${source_dir} CACHE INTERNAL "Path to include folder for htslib.")
 # set(HTSlib_LIBRARY ${source_dir}/libhts.a CACHE INTERNAL "Path to htslib library files.")
 
-# stations
-include_directories(SYSTEM stations/include)
+# paw
+include_directories(SYSTEM paw/include)
 
 # args
 include_directories(SYSTEM args)

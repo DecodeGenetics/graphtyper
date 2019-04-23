@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cassert> // assert
 #include <list> // std::list
 #include <memory> // std::shared_ptr
@@ -6,10 +7,7 @@
 #include <unordered_map> // std::unordered_map
 #include <vector> // std::vector
 
-#include <stations/join.hpp>
-#include <stations/split.hpp>
-#include <stations/station.hpp>
-#include <stations/worker_queue.hpp>
+#include <paw/station.hpp>
 
 #include <seqan/basic.h>
 #include <seqan/sequence.h>
@@ -236,7 +234,7 @@ call(std::vector<std::string> const & hts_paths,
     std::vector<std::shared_ptr<std::size_t> > pn_indexes;
 
     {
-      stations::Station caller_station(Options::instance()->threads, 3 /*queue size*/);
+      paw::Station caller_station(Options::instance()->threads, 3 /*queue size*/);
       caller_station.options.verbosity = 2; // Print messages
 
       for (std::size_t i = 0; i < hts_paths.size(); ++i)
