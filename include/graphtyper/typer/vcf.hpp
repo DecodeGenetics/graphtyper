@@ -48,8 +48,8 @@ public:
   void open_vcf_file_for_reading();
   void read_samples();
   std::string read_line();
-  bool read_record();
-  void read(); /** \brief Reads the VCF file. */
+  bool read_record(bool SITES_ONLY = false);
+  void read(bool SITES_ONLY = false); /** \brief Reads the VCF file. */
   void open_for_writing();
   void write_header();
 

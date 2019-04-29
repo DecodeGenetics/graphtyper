@@ -5,6 +5,7 @@
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/log/trivial.hpp>
 
+#include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/graph_serialization.hpp>
 
@@ -47,6 +48,7 @@ load_graph(std::string const & graph_path)
 
   // Create a reference genome each time the graph is loaded
   graph.generate_reference_genome();
+  absolute_pos.calculate_offsets();
 }
 
 

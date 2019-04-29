@@ -66,6 +66,16 @@ Path::Path(Path const & p1, Path const & p2) noexcept
  * PATH MODIFICATIONS *
  **********************/
 
+
+void
+Path::erase_var_order(long index)
+{
+  assert(index < static_cast<long>(var_order.size()));
+  assert(index < static_cast<long>(nums.size()));
+  var_order.erase(var_order.begin() + index);
+  nums.erase(nums.begin() + index);
+}
+
 void
 Path::merge_with_current(KmerLabel const & l)
 {

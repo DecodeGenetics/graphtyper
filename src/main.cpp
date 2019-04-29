@@ -176,12 +176,18 @@ add_arg_region_val(args::ArgumentParser & parser)
   return std::unique_ptr<TRegionVal>(new TRegionVal(parser, "REGION", "Region to use.", {"r", "region"}, "."));
 }
 
-
 /* sites only arg */
 std::unique_ptr<args::Flag>
 add_arg_sites_only(args::ArgumentParser & parser)
 {
   return std::unique_ptr<args::Flag>(new args::Flag(parser, "N", "When set it will only parsing site information.", {"s", "sites_only"}));
+}
+
+/* sv_graph */
+std::unique_ptr<args::Flag>
+add_arg_sv_graph(args::ArgumentParser & parser)
+{
+  return std::unique_ptr<args::Flag>(new args::Flag(parser, "N", "When set, the graph will assumed to be for SV genotyping.", {"sv_graph"}));
 }
 
 
@@ -277,7 +283,6 @@ add_arg_sams(args::ArgumentParser & parser)
   return std::unique_ptr<TSam>(new TSam(parser, "SAMs", "A file with a list of SAM/BAM/CRAM files seperated by newlines.", {"S", "sams"}));
 }
 
-
 /** SAM argument */
 using TSegment = args::ValueFlag<std::string>;
 
@@ -285,25 +290,6 @@ std::unique_ptr<TSegment>
 add_arg_segment(args::ArgumentParser & parser)
 {
   return std::unique_ptr<TSegment>(new TSegment(parser, "segment.fa", "FASTA file with segments.", {"e", "segment"}));
-}
-
-
-/** SV graph argument */
-using TSvGraph = args::ValueFlag<std::string>;
-std::unique_ptr<TSvGraph>
-add_arg_sv_graph(args::ArgumentParser & parser)
-{
-  return std::unique_ptr<TSvGraph>(new TSvGraph(parser, "GRAPH", "Graph used for SV variant predictions.", {"sv_graph"}));
-}
-
-
-void
-parse_sv_graph_arg(TSvGraph & sv_graph_arg)
-{
-  if (sv_graph_arg)
-  {
-    gyper::Options::instance()->sv_graph = args::get(sv_graph_arg);
-  }
 }
 
 
@@ -343,7 +329,6 @@ add_arg_vcfs(args::ArgumentParser & parser)
   return std::unique_ptr<TVcfs>(new TVcfs(parser, "VCFs", "A list of bgzipped VCF files seperated by newlines.", {"V", "vcfs"}));
 }
 
-
 /** max_index_labels argument */
 using TMaxIndexLabels = args::ValueFlag<unsigned>;
 
@@ -353,10 +338,9 @@ add_arg_max_index_labels(args::ArgumentParser & parser)
   return std::unique_ptr<TMaxIndexLabels>(
     new TMaxIndexLabels(
       parser, "N", "Maximum number labels a single k-mer can be associated with.", {"max_index_labels"}
-      )
-    );
+    )
+  );
 }
-
 
 void
 parse_max_index_labels(TMaxIndexLabels & max_index_labels)
@@ -405,7 +389,6 @@ parse_stats(TStats & stats_arg)
   }
 }
 
-
 /** No new variants argument */
 std::unique_ptr<args::Flag>
 add_arg_no_new_variants(args::ArgumentParser & parser)
@@ -429,7 +412,6 @@ add_arg_get_sample_names_from_filename(args::ArgumentParser & parser)
   return std::unique_ptr<args::Flag>(new args::Flag(parser, "", "Set to get sample names from filenames.", {"get_sample_names_from_filename"}));
 }
 
-
 void
 parse_get_sample_names_from_filename(args::Flag & get_sample_names_from_filename_arg)
 {
@@ -437,12 +419,11 @@ parse_get_sample_names_from_filename(args::Flag & get_sample_names_from_filename
     gyper::Options::instance()->get_sample_names_from_filename = true;
 }
 
-
-/** Only use HQ reads */
+/** Only use HQ read alignment */
 std::unique_ptr<args::Flag>
 add_arg_hq_reads(args::ArgumentParser & parser)
 {
-  return std::unique_ptr<args::Flag>(new args::Flag(parser, "HQ_READS", "Set to use only HQ reads.", {"hq_reads"}));
+  return std::unique_ptr<args::Flag>(new args::Flag(parser, "HQ_READS", "Set to use only HQ read alignments.", {"hq_reads"}));
 }
 
 
@@ -451,6 +432,25 @@ parse_hq_reads(args::Flag & hq_reads_arg)
 {
   if (hq_reads_arg)
     gyper::Options::instance()->hq_reads = true;
+}
+
+
+/** Only use perfect read alignments */
+std::unique_ptr<args::Flag>
+add_arg_is_perfect_alignments_only(args::ArgumentParser & parser)
+{
+  return std::unique_ptr<args::Flag>(new args::Flag(parser, "PERFECT_READS", "Set to use only perfect read alignments.", {"is_perfect_alignments_only"}));
+}
+
+
+void
+parse_is_perfect_alignments_only(args::Flag & is_perfect_alignments_only_arg)
+{
+  if (is_perfect_alignments_only_arg)
+  {
+    gyper::Options::instance()->is_perfect_alignments_only = true;
+    gyper::Options::instance()->hq_reads = true;
+  }
 }
 
 
@@ -463,7 +463,6 @@ add_arg_output_all_variants(args::ArgumentParser & parser, std::string cmd = "")
   else
     return std::unique_ptr<args::Flag>(new args::Flag(parser, "OUTPUT_ALL_VARIANTS", "Set to output all variants, regardless of their allele number or size", {"output_all_variants"}));
 }
-
 
 void
 parse_output_all_variants(args::Flag & arg)
@@ -513,10 +512,10 @@ add_arg_soft_cap_of_variants_in_100_bp_window(args::ArgumentParser & parser)
 {
   return std::unique_ptr<TSoftCapOfVariantsInWindow>(
     new TSoftCapOfVariantsInWindow(parser,
-                                   "N",
-                                   "Soft cap of number of variants that can appear in a 100 bp window.",
-                                   {"soft_cap_of_variants_in_100_bp_window"}
-                                   )
+                                  "N",
+                                  "Soft cap of number of variants that can appear in a 100 bp window.",
+                                  {"soft_cap_of_variants_in_100_bp_window"}
+                                  )
     );
 }
 
@@ -537,10 +536,10 @@ add_arg_hard_cap_of_variants_in_100_bp_window(args::ArgumentParser & parser)
 {
   return std::unique_ptr<THardCapOfVariantsInWindow>(
     new THardCapOfVariantsInWindow(parser,
-                                   "N",
-                                   "Hard cap of number of variants that can appear in a 100 bp window.",
-                                   {"hard_cap_of_variants_in_100_bp_window"}
-                                   )
+                                  "N",
+                                  "Hard cap of number of variants that can appear in a 100 bp window.",
+                                  {"hard_cap_of_variants_in_100_bp_window"}
+                                  )
     );
 }
 
@@ -633,10 +632,10 @@ add_arg_epsilon_0_exponent(args::ArgumentParser & parser)
 {
   return std::unique_ptr<TEpsilonZeroExponent>(
     new TEpsilonZeroExponent(parser,
-                             "N",
-                             "Epsilon zero exponent (Default is 13)",
-                             {"e", "epsilon_0_exponent"}
-                             )
+                        "N",
+                        "Epsilon zero exponent (Default is 13)",
+                        {"e", "epsilon_0_exponent"}
+                        )
     );
 }
 
@@ -685,7 +684,7 @@ add_arg_suffix_id(args::ArgumentParser & parser)
     new args::ValueFlag<std::string>(parser,
                                      "SUFFIX",
                                      "Suffix for variant IDs of genotyped variants.",
-                                     {"suffix_id"})
+      {"suffix_id"})
     );
 }
 
@@ -731,7 +730,6 @@ parse_phased(args::Flag & use_phased_arg)
   if (use_phased_arg)
     gyper::Options::instance()->phased_output = true;
 }
-
 
 ///** Phased argument */
 //std::unique_ptr<args::Flag>
@@ -788,14 +786,13 @@ parse_max_extracted_haplotypes(TMaxExtractH & max_extracted_haplotypes_arg)
     gyper::Options::instance()->max_extracted_haplotypes = args::get(max_extracted_haplotypes_arg);
 }
 
-
 /** Skip breaking down extracted haplotypes argument */
 std::unique_ptr<args::Flag>
 add_arg_skip_breaking_down_extracted_haplotypes(args::ArgumentParser & parser)
 {
   return std::unique_ptr<args::Flag>(
     new args::Flag(parser, "SBDEH", "Set to skip breaking down extracted haplotypes.", {"k", "skip_breaking_down_extracted_haplotypes"})
-    );
+                                    );
 }
 
 
@@ -848,20 +845,18 @@ main(int argc, char ** argv)
   }
 
   std::string const given_command = argv[1];
-  std::vector<std::string> available_commands =
-  {
-    "call",
-    "check",
-    "construct",
-    "discover",
-    "discovery_vcf",
-    "haplotypes",
-    "index",
-    "vcf_merge",
-    "vcf_concatenate",
-    "vcf_break_down",
-    "vcf_update_info"
-  };
+  std::vector<std::string> available_commands = {"call",
+                                                 "check",
+                                                 "construct",
+                                                 "discover",
+                                                 "discovery_vcf",
+                                                 "haplotypes",
+                                                 "index",
+                                                 "vcf_merge",
+                                                 "vcf_concatenate",
+                                                 "vcf_break_down",
+                                                 "vcf_update_info"
+    };
 
   if (std::find(available_commands.begin(), available_commands.end(), given_command) == available_commands.end())
   {
@@ -893,9 +888,7 @@ main(int argc, char ** argv)
     auto sv_graph_arg = add_arg_sv_graph(construct_parser);
 
     parse_command_line(construct_parser, argc, argv);
-
     parse_log(*log_arg);
-    parse_sv_graph_arg(*sv_graph_arg);
 
     bool SUCCESS = true;
     SUCCESS &= check_required_argument(command_arg, "command");
@@ -915,21 +908,25 @@ main(int argc, char ** argv)
     // Check if FASTA exists
     if (!is_file(args::get(*fasta_arg)))
     {
-      BOOST_LOG_TRIVIAL(error) << "[graphtyper::main] Could not find a FASTA file located at '" << args::get(*fasta_arg) << "'.";
+      std::cerr << "[graphtyper::main] ERROR: Could not find a FASTA file located at '"
+                << args::get(*fasta_arg) << "'.\n";
       return 1;
     }
 
     // Check if VCF exists
     if (*vcf_arg && !is_file(args::get(*vcf_arg)))
     {
-      BOOST_LOG_TRIVIAL(error) << "[graphtyper::main] Could not find a VCF file located at '" << args::get(*vcf_arg) << "'.";
+      std::cerr << "[graphtyper::main] ERROR: Could not find a VCF file located at '"
+                << args::get(*vcf_arg) << "'.\n";
       return 1;
     }
 
+    bool const is_sv_graph = *sv_graph_arg;
+
     if (*vcf_arg)
-      gyper::construct_graph(args::get(*fasta_arg), args::get(*vcf_arg), region);
+      gyper::construct_graph(args::get(*fasta_arg), args::get(*vcf_arg), region, is_sv_graph);
     else
-      gyper::construct_graph(args::get(*fasta_arg), "", region);
+      gyper::construct_graph(args::get(*fasta_arg), "", region, false);
 
     gyper::save_graph(args::get(*graph_arg));
   }
@@ -993,6 +990,7 @@ main(int argc, char ** argv)
     auto epsilon_0_exponent_arg = add_arg_epsilon_0_exponent(call_parser);
     auto no_new_variants_arg = add_arg_no_new_variants(call_parser);
     auto hq_reads_arg = add_arg_hq_reads(call_parser);
+    auto is_perfect_alignments_only_arg = add_arg_is_perfect_alignments_only(call_parser);
     auto output_all_variants_arg = add_arg_output_all_variants(call_parser);
     auto read_chunk_size_arg = add_arg_read_chunk_size(call_parser);
     auto output_arg = add_arg_output_dir(call_parser);
@@ -1026,6 +1024,7 @@ main(int argc, char ** argv)
     // parse_gather_unmapped(*gather_unmapped_arg);
     parse_no_new_variants(*no_new_variants_arg);
     parse_hq_reads(*hq_reads_arg);
+    parse_is_perfect_alignments_only(*is_perfect_alignments_only_arg);
     parse_output_all_variants(*output_all_variants_arg);
     parse_phased(*phased_arg);
 //    parse_ref_vs_all(*ref_vs_all_arg);
@@ -1178,8 +1177,8 @@ main(int argc, char ** argv)
   else if (std::string(argv[1]) == std::string("discover"))
   {
     args::ArgumentParser discover_parser("Discovery variants based on the alignment to the "
-                                         "reference genome"
-                                         );
+      "reference genome"
+      );
     auto help_arg = add_arg_help(discover_parser);
     auto command_arg = add_arg_command(discover_parser, argv[1]);
     auto graph_arg = add_arg_graph(discover_parser);
@@ -1241,7 +1240,7 @@ main(int argc, char ** argv)
                                       sams,
                                       regions,
                                       args::get(*output_arg)
-                                      );
+      );
   }
   else if (std::string(argv[1]) == std::string("discovery_vcf"))
   {
@@ -1297,7 +1296,6 @@ main(int argc, char ** argv)
     auto file_list_arg = add_arg_file_list(vcf_merge_parser);
 
     parse_command_line(vcf_merge_parser, argc, argv);
-
     parse_log(*log_arg);
 
     bool SUCCESS = true;
@@ -1325,7 +1323,7 @@ main(int argc, char ** argv)
     }
     else
     {
-      assert(*file_list_arg);
+      assert (*file_list_arg);
       std::ifstream files;
       files.open(args::get(*file_list_arg));
 
@@ -1335,7 +1333,7 @@ main(int argc, char ** argv)
         return 1;
       }
 
-      for (std::string line; std::getline(files, line); )
+      for (std::string line; std::getline(files, line);)
         vcfs.push_back(line);
     }
 

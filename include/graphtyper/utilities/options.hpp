@@ -33,7 +33,6 @@ public:
   std::string fasta = "";
   std::string vcf = "";
   bool add_all_variants = false;
-  std::string sv_graph = "";
 
   /********************
    * INDEXING OPTIONS *
@@ -64,6 +63,7 @@ public:
   bool always_query_hamming_distance_one = false;
   bool is_one_genotype_per_haplotype = false;
   std::string variant_suffix_id = "";
+  bool is_perfect_alignments_only = false;
 
   // Insert size options
   uint32_t max_insert_size = 1000;
@@ -75,9 +75,6 @@ public:
   uint32_t MAX_SEED_NUMBER_FOR_WALKING = 256;
   uint32_t MAX_NUM_LOCATIONS_PER_PATH = 256;
   uint32_t MAX_UNIQUE_KMER_POSITIONS = 512;
-
-  // VCF output options
-  bool chr_prefix = true;
 
   /********************************
    * HAPLOTYPE EXTRACTION OPTIONS *

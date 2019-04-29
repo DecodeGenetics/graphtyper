@@ -9,10 +9,11 @@
 #include <graphtyper/utilities/options.hpp>
 #include <graphtyper/utilities/sam_reader.hpp>
 
-/*
+
 namespace
 {
 
+/*
 // Deletes all tags, except Read Group, and ADapters (RG, AD)
 void
 delete_tags(seqan::BamAlignmentRecord & record)
@@ -35,10 +36,95 @@ delete_tags(seqan::BamAlignmentRecord & record)
     seqan::eraseTag(tags_dict, *it);
   }
 }
+*/
 
+
+bool
+is_clipped_both_ends(seqan::String<seqan::CigarElement<> > const & cigar)
+{
+  return seqan::length(cigar) >= 1 &&
+    cigar[0].operation == 'S' &&
+    cigar[seqan::length(cigar) - 1].operation == 'S' &&
+    (cigar[0].count + cigar[seqan::length(cigar) - 1].count) > 20;
+}
+
+
+bool
+is_one_end_clipped(seqan::String<seqan::CigarElement<> > const & cigar)
+{
+  return seqan::length(cigar) == 0 ||
+    cigar[0].operation == 'S' ||
+    cigar[seqan::length(cigar) - 1].operation == 'S';
+}
+
+
+bool
+is_good_read(seqan::BamAlignmentRecord & record)
+{
+  if (record.mapQ == 0 && is_one_end_clipped(record.cigar))
+  {
+    //BOOST_LOG_TRIVIAL(debug) << "[sam_reader] MQ and ONE_CLIPPED filter";
+    return false;
+  }
+
+  if (is_clipped_both_ends(record.cigar))
+  {
+    //BOOST_LOG_TRIVIAL(debug) << "[sam_reader] BOTH_CLIPPED filter";
+    return false;
+  }
+
+  // Create a dictionary of BAM tags
+  seqan::BamTagsDict tags_dict(record.tags);
+  seqan::buildIndex(tags_dict);
+
+  // Extract Alignment score and secondary alignment scores
+  unsigned tagIdx = 0;
+  int alignment_score = 100;
+  int secondary_score = 0;
+
+  if (seqan::findTagKey(tagIdx, tags_dict, "AS"))
+    seqan::extractTagValue(alignment_score, tags_dict, tagIdx);
+  else
+    return true; // Can't apply more filters
+
+  if (seqan::findTagKey(tagIdx, tags_dict, "XS"))
+    seqan::extractTagValue(secondary_score, tags_dict, tagIdx);
+  else
+    return true; // Can't apply more filters
+
+  if (alignment_score <= secondary_score)
+  {
+    //BOOST_LOG_TRIVIAL(debug) << "[sam_reader] AS vs XS tag filter";
+    return false;
+  }
+
+  // Count alignment matches (sequence matches or mismatches) and indels
+  {
+    long matches = 0;
+    long indels = 0;
+
+    for (auto const & c : record.cigar)
+    {
+      if (c.operation == 'M')
+        matches += c.count;
+      else if (c.operation == 'D' || c.operation == 'I')
+        indels += c.count;
+    }
+
+    if (alignment_score <= (matches - indels*3/4 - 40l))
+    {
+      //BOOST_LOG_TRIVIAL(debug) << "[sam_reader] AS vs matching bases filter: "
+      //                         << std::string(begin(record.qName), end(record.qName)) << " "
+      //                         << matches << " " << alignment_score << " " << indels;
+      return false;
+    }
+  }
+
+  return true;
+}
 
 } // namespace anon
-*/
+
 
 
 namespace gyper
@@ -70,7 +156,11 @@ SamReader::read_N_reads(std::size_t const N)
   {
     if (seqan::readRegion(record, hts_file))
     {
-      getContigName(record.rID, hts_file);
+      // Filter bad unpaired reads. Unpaired reads that have many errors or heavily clipped are
+      // almost always noise
+      if ((!seqan::hasFlagMultiple(record) || seqan::hasFlagNextUnmapped(record)) && !is_good_read(record))
+        continue;
+
       // delete_tags(record); // Not tested
 
       // Remove Ns from front. Note that if the entire sequence is N this won't erase anything. However, the sequence will be erased in the next step.
@@ -130,6 +220,9 @@ SamReader::read_N_reads(std::size_t const N)
 
     for (auto it = reads_first.begin(); it != reads_first.end(); ++it)
     {
+      if ((!seqan::hasFlagMultiple(it->second) || seqan::hasFlagNextUnmapped(it->second)) && !is_good_read(it->second))
+        continue;
+
       seqan::BamAlignmentRecord empty_record;
       reads.push_back({it->second, empty_record});
     }

@@ -35,21 +35,28 @@ get_ith_kmer(TSequence const & dna, std::size_t i)
 }
 
 
-template <typename TSequence>
-uint32_t
-read_offset(TSequence const & dna)
-{
-  return ((seqan::length(dna) - K) % (K - 1)) / 2;
-}
-
-
 // Explicit intantations
 template std::size_t get_num_kmers(seqan::Dna5String const &);
 template std::size_t get_num_kmers(seqan::IupacString const &);
 template seqan::Dna5String get_ith_kmer(seqan::Dna5String const &, std::size_t);
 template seqan::IupacString get_ith_kmer(seqan::IupacString const &, std::size_t);
-template uint32_t read_offset(seqan::Dna5String const &);
-template uint32_t read_offset(seqan::IupacString const &);
+
+
+template <typename TSeq>
+std::vector<KmerLabel>
+query_index_for_first_kmer(TSeq const & read, MemIndex const & _mem_index)
+{
+  std::vector<uint64_t> keys = to_uint64_vec(read, 0);
+  return _mem_index.get(keys);
+}
+
+template <typename TSeq>
+std::vector<KmerLabel>
+query_index_for_last_kmer(TSeq const & read, MemIndex const & _mem_index)
+{
+  std::vector<uint64_t> keys = to_uint64_vec(read, seqan::length(read) - K);
+  return _mem_index.get(keys);
+}
 
 
 template <typename TSeq>
@@ -67,6 +74,8 @@ query_index(TSeq const & read, MemIndex const & _mem_index)
 
 
 // Explicit instantation
+template std::vector<KmerLabel> query_index_for_first_kmer(seqan::IupacString const & read, MemIndex const & _mem_index);
+template std::vector<KmerLabel> query_index_for_last_kmer(seqan::IupacString const & read, MemIndex const & _mem_index);
 template std::vector<std::vector<KmerLabel> > query_index<seqan::Dna5String>(seqan::Dna5String const &, MemIndex const & mem_index);
 template std::vector<std::vector<KmerLabel> > query_index<seqan::IupacString>(seqan::IupacString const &, MemIndex const & mem_index);
 

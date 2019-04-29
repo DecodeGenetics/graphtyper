@@ -52,6 +52,7 @@ private:
     ar & first_in_pairs;
     ar & sequence_reversed;
     ar & unique_positions;
+
     ar & pn_index;
   }
 };

@@ -13,6 +13,7 @@
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/genomic_region.hpp>
 #include <graphtyper/graph/graph.hpp>
+#include <graphtyper/graph/reference_depth.hpp>
 #include <graphtyper/graph/var_record.hpp>
 #include <graphtyper/typer/vcf.hpp>
 #include <graphtyper/utilities/graph_help_functions.hpp>
@@ -22,21 +23,6 @@
 
 namespace
 {
-
-bool
-is_same_prefix(std::string const & s1, std::string const & s2)
-{
-  std::size_t const SMALLER_STRING_SIZE = std::min(s1.size(), s2.size());
-
-  for (std::size_t i = 0; i < SMALLER_STRING_SIZE; ++i)
-  {
-    if (s1[i] != s2[i])
-      return false;
-  }
-
-  return true;
-}
-
 
 std::string
 current_date()
@@ -159,7 +145,9 @@ get_genotype_phred(gyper::HapSample const & sample,
       assert(nnum != 0);
       uint32_t const call1 = rem1 / nnum;
       uint32_t const call2 = rem2 / nnum;
-      uint32_t const index = call1 > call2 ? to_index(call2, call1) : to_index(call1, call2);
+      uint32_t const index = call1 > call2 ?
+                             static_cast<uint32_t>(to_index(call2, call1)) :
+                             static_cast<uint32_t>(to_index(call1, call2));
 
       // Check if we need to flip the phasing compared to the first variant in the phase set
       if (call1 > call2 && hap_phred[i] == 0)
@@ -259,7 +247,7 @@ Vcf::read_line()
 
 
 bool
-Vcf::read_record()
+Vcf::read_record(bool const SITES_ONLY)
 {
   std::string const line = read_line();
 
@@ -276,7 +264,6 @@ Vcf::read_record()
   std::string const ref = get_string_at_tab_index(line, tabs, 3);
   std::string const alts = get_string_at_tab_index(line, tabs, 4);
   std::vector<std::size_t> const alt_commas = get_all_pos(alts, ',');
-  gyper::Options::instance()->chr_prefix = chrom.substr(0, 3) == "chr";
 
   Variant new_var; // Create a new variant for this position
   new_var.abs_pos = absolute_pos.get_absolute_position(chrom, pos); // Parse positions
@@ -312,52 +299,45 @@ Vcf::read_record()
     {
       std::vector<std::size_t> const info_semicolons = get_all_pos(info, ';');
 
+      std::unordered_set<std::string> const keys_to_parse(
+        {
+          "AC",
+          "CR", "CRAligner",
+          "END",
+          "GX",
+          "HOMSEQ"
+          "INV3", "INV5",
+          "LEFT_SVINSSEQ",
+          "MQ", "MQ0", "MQperAllele",
+          "NCLUSTERS", "NUM_MERGED_SVS",
+          "OREND", "ORSTART",
+          "PS",
+          "RACount", "RADist", "RELATED_SV_ID", "RIGHT_SVINSSEQ",
+          "SBF", "SBF1", "SBF2",
+          "SBR", "SBR1", "SBR2",
+          "SVLEN", "SVTYPE", "SVSIZE", "SVMODEL", "SEQ", "SVINSSEQ", "SV_ID",
+          "Unaligned"
+        }
+      );
+
       for (int s = 0; s < static_cast<int>(info_semicolons.size()) - 1; ++s)
       {
         std::string const info_key_value = get_string_at_tab_index(info, info_semicolons, s);
+        auto eq_it = std::find(info_key_value.begin(), info_key_value.end(), '=');
 
-        if (is_same_prefix(info_key_value, std::string("AC=")))
-          new_var.infos["AC"] = std::string(info_key_value.begin() + 3, info_key_value.end());
-        else if (is_same_prefix(info_key_value, std::string("CR=")))
-          new_var.infos["CR"] = std::string(info_key_value.begin() + 3, info_key_value.end());
-        else if (is_same_prefix(info_key_value, std::string("CRAligner=")))
-          new_var.infos["CRAligner"] = std::string(info_key_value.begin() + 10, info_key_value.end());
-        else if (is_same_prefix(info_key_value, std::string("GX=")))
-          new_var.infos["GX"] = std::string(info_key_value.begin() + 3, info_key_value.end());
-        else if (is_same_prefix(info_key_value, std::string("PS=")))
-          new_var.infos["PS"] = std::string(info_key_value.begin() + 3, info_key_value.end());
-        else if (is_same_prefix(info_key_value, std::string("MQ=")))
-          new_var.infos["MQ"] = std::string(info_key_value.begin() + 3, info_key_value.end());
-        else if (is_same_prefix(info_key_value, std::string("MQ0=")))
-          new_var.infos["MQ0"] = std::string(info_key_value.begin() + 4, info_key_value.end());
-        else if (is_same_prefix(info_key_value, std::string("MQperAllele=")))
-          new_var.infos["MQperAllele"] = std::string(info_key_value.begin() + 12, info_key_value.end());
-        else if (is_same_prefix(info_key_value, std::string("NCLUSTERS=")))
-          new_var.infos["NCLUSTERS"] = std::string(info_key_value.begin() + 10, info_key_value.end());
-        else if (is_same_prefix(info_key_value, std::string("RACount=")))
-          new_var.infos["RACount"] = std::string(info_key_value.begin() + 8, info_key_value.end());
-        else if (is_same_prefix(info_key_value, std::string("RADist=")))
-          new_var.infos["RADist"] = std::string(info_key_value.begin() + 7, info_key_value.end());
-        else if (is_same_prefix(info_key_value, std::string("SBF=")))
-          new_var.infos["SBF"] = std::string(info_key_value.begin() + 4, info_key_value.end());
-        else if (is_same_prefix(info_key_value, std::string("SBF1=")))
-          new_var.infos["SBF1"] = std::string(info_key_value.begin() + 5, info_key_value.end());
-        else if (is_same_prefix(info_key_value, std::string("SBF2=")))
-          new_var.infos["SBF2"] = std::string(info_key_value.begin() + 5, info_key_value.end());
-        else if (is_same_prefix(info_key_value, std::string("SBR1=")))
-          new_var.infos["SBR1"] = std::string(info_key_value.begin() + 5, info_key_value.end());
-        else if (is_same_prefix(info_key_value, std::string("SBR2=")))
-          new_var.infos["SBR2"] = std::string(info_key_value.begin() + 5, info_key_value.end());
-        else if (is_same_prefix(info_key_value, std::string("SBR=")))
-          new_var.infos["SBR"] = std::string(info_key_value.begin() + 4, info_key_value.end());
-        else if (is_same_prefix(info_key_value, std::string("Unaligned=")))
-          new_var.infos["Unaligned"] = std::string(info_key_value.begin() + 10, info_key_value.end());
+        if (eq_it == info_key_value.end())
+          continue;
+
+        std::string const key(info_key_value.begin(), eq_it);
+
+        if (keys_to_parse.count(key) == 1)
+          new_var.infos[key] = std::string(eq_it + 1, info_key_value.end());
       }
     }
   }
 
   // Parse samples, if any
-  if (sample_names.size() > 0)
+  if (!SITES_ONLY && sample_names.size() > 0)
   {
     std::string const format = get_string_at_tab_index(line, tabs, 8);
     std::vector<std::size_t> all_format_colon = get_all_pos(format, ':');
@@ -367,6 +347,7 @@ Vcf::read_record()
     int md_field = -1;
     int ra_field = -1;
     int pp_field = -1;
+    int ft_field = -1;
 
     for (int32_t f = 0; f < static_cast<int>(all_format_colon.size() - 1); ++f)
     {
@@ -384,6 +365,8 @@ Vcf::read_record()
         ra_field = f;
       else if (field == "PP")
         pp_field = f;
+      else if (field == "FT")
+        ft_field = f;
     }
 
     assert(ad_field != -1);
@@ -455,8 +438,23 @@ Vcf::read_record()
       // Parse PP
       if (pp_field != -1)
       {
-        std::string && pp_str = get_string_at_tab_index(sample_string, sample_string_colon, pp_field);
+        std::string const pp_str = get_string_at_tab_index(sample_string, sample_string_colon, pp_field);
         new_call.alt_proper_pair_depth = static_cast<uint8_t>(std::stoul(std::move(pp_str)));
+      }
+
+      // Parse FT
+      if (ft_field != -1)
+      {
+        std::string const ft_str = get_string_at_tab_index(sample_string, sample_string_colon, ft_field);
+
+        if (ft_str == "PASS")
+        {
+          new_call.filter = 0;
+        }
+        else
+        {
+          new_call.filter = static_cast<int8_t>(std::atoi(ft_str.substr(4).c_str()));
+        }
       }
 
       // Parse PL
@@ -482,6 +480,8 @@ Vcf::read_samples()
   if (!vcf_file)
     return;
 
+  bool const is_checking_contigs = gyper::graph.contigs.size() == 0ull;
+
   while (true)
   {
     std::string line;
@@ -496,7 +496,25 @@ Vcf::read_samples()
 
     assert(line.size() > 2);
 
-    if (line[0] == '#' && line[1] != '#')
+    // Read contigs
+    if (is_checking_contigs && line[0] == '#' && line[1] == '#' &&
+      line.substr(2, 11) == std::string("contig=<ID=")
+      )
+    {
+      std::size_t comma_pos = line.find(',', 13);
+
+      if (comma_pos == std::string::npos)
+        continue;
+
+      std::size_t closed_pos = line.find('>', comma_pos);
+      assert(closed_pos != std::string::npos);
+      Contig contig;
+      contig.name = line.substr(13, comma_pos - 13);
+      std::string length = line.substr(comma_pos + 8, closed_pos - comma_pos - 8);
+      contig.length = static_cast<uint32_t>(std::stoul(length));
+      gyper::graph.contigs.push_back(std::move(contig));
+    }
+    else if (line[0] == '#' && line[1] != '#')
     {
       // Gather list of all samples using this line
       assert(sample_names.size() == 0);
@@ -506,20 +524,24 @@ Vcf::read_samples()
       for (int i = 9; i < static_cast<int>(all_line_tabs.size()) - 1; ++i)
         sample_names.push_back(get_string_at_tab_index(line, all_line_tabs, i));
 
-      return;
+      break;
     }
   }
+
+  // Recalculate contig offsets since they may have been changed
+  if (is_checking_contigs)
+    absolute_pos.calculate_offsets();
 }
 
 
 void
-Vcf::read()
+Vcf::read(bool const SITES_ONLY)
 {
   open_vcf_file_for_reading();
   read_samples();
 
   // Read all records
-  while (read_record())
+  while (read_record(SITES_ONLY))
   {}
   // The while loop will stop when all records have been read
 
@@ -534,11 +556,9 @@ Vcf::open_for_writing()
   {
   case WRITE_UNCOMPRESSED_MODE:
     bgzf_stream.open("-", "w");
-    //vcf_file = ifopen(filename.c_str(), "w", InputFile::UNCOMPRESSED);
     break;
 
   case WRITE_BGZF_MODE:
-    //vcf_file = ifopen(filename.c_str(), "wb", InputFile::BGZF);
     bgzf_stream.open(filename, "wb");
     break;
 
@@ -552,7 +572,6 @@ Vcf::open_for_writing()
 void
 Vcf::write_header()
 {
-  //assert(vcf_file);
   // Basic info
   bgzf_stream << "##fileformat=VCFv4.2\n"
               << "##fileDate=" << current_date() << "\n"
@@ -566,68 +585,11 @@ Vcf::write_header()
               << "##graphtyperGitBranch=" << GIT_BRANCH << '\n'
               << "##graphtyperSHA1=" << GIT_COMMIT_LONG_HASH << '\n';
 
-  // Contigs
-  if (Options::instance()->chr_prefix)
-  {
-    bgzf_stream << "##contig=<ID=chr1,length=248956422>\n"
-                << "##contig=<ID=chr2,length=242193529>\n"
-                << "##contig=<ID=chr3,length=198295559>\n"
-                << "##contig=<ID=chr4,length=190214555>\n"
-                << "##contig=<ID=chr5,length=181538259>\n"
-                << "##contig=<ID=chr6,length=170805979>\n"
-                << "##contig=<ID=chr7,length=159345973>\n"
-                << "##contig=<ID=chr8,length=145138636>\n"
-                << "##contig=<ID=chr9,length=138394717>\n"
-                << "##contig=<ID=chr10,length=133797422>\n"
-                << "##contig=<ID=chr11,length=135086622>\n"
-                << "##contig=<ID=chr12,length=133275309>\n"
-                << "##contig=<ID=chr13,length=114364328>\n"
-                << "##contig=<ID=chr14,length=107043718>\n"
-                << "##contig=<ID=chr15,length=101991189>\n"
-                << "##contig=<ID=chr16,length=90338345>\n"
-                << "##contig=<ID=chr17,length=83257441>\n"
-                << "##contig=<ID=chr18,length=80373285>\n"
-                << "##contig=<ID=chr19,length=58617616>\n"
-                << "##contig=<ID=chr20,length=64444167>\n"
-                << "##contig=<ID=chr21,length=46709983>\n"
-                << "##contig=<ID=chr22,length=50818468>\n"
-                << "##contig=<ID=chrX,length=156040895>\n"
-                << "##contig=<ID=chrY,length=57227415>\n"
-                << "##contig=<ID=chrM,length=16569>\n"
-                << "##contig=<ID=chrUn>\n";
-  }
-  else
-  {
-    bgzf_stream << "##contig=<ID=1,length=249250621>\n"
-                << "##contig=<ID=2,length=243199373>\n"
-                << "##contig=<ID=3,length=198022430>\n"
-                << "##contig=<ID=4,length=191154276>\n"
-                << "##contig=<ID=5,length=180915260>\n"
-                << "##contig=<ID=6,length=171115067>\n"
-                << "##contig=<ID=7,length=159138663>\n"
-                << "##contig=<ID=8,length=146364022>\n"
-                << "##contig=<ID=9,length=141213431>\n"
-                << "##contig=<ID=10,length=135534747>\n"
-                << "##contig=<ID=11,length=135006516>\n"
-                << "##contig=<ID=12,length=133851895>\n"
-                << "##contig=<ID=13,length=115169878>\n"
-                << "##contig=<ID=14,length=107349540>\n"
-                << "##contig=<ID=15,length=102531392>\n"
-                << "##contig=<ID=16,length=90354753>\n"
-                << "##contig=<ID=17,length=81195210>\n"
-                << "##contig=<ID=18,length=78077248>\n"
-                << "##contig=<ID=19,length=59128983>\n"
-                << "##contig=<ID=20,length=63025520>\n"
-                << "##contig=<ID=21,length=48129895>\n"
-                << "##contig=<ID=22,length=51304566>\n"
-                << "##contig=<ID=X,length=155270560>\n"
-                << "##contig=<ID=Y,length=59373566>\n"
-                << "##contig=<ID=MT,length=16569>\n"
-                << "##contig=<ID=Un>\n";
-  }
+  // Definitions of contigs
+  for (auto const & contig : graph.contigs)
+    bgzf_stream << "##contig=<ID=" << contig.name << ",length=" << contig.length << ">\n";
 
-  // INFO
-  if (sample_names.size() > 0 /*&& segments.size() == 0*/)
+  // INFO definitions
   {
     bgzf_stream
       << "##INFO=<ID=ABHet,Number=1,Type=Float,Description=\"Allele Balance for heterozygous"
@@ -651,8 +613,17 @@ Vcf::write_header()
          "Graphtyper.\">\n"
       << "##INFO=<ID=CRAligner,Number=R,Type=Integer,Description=\"Number of clipped reads by the "
          "global read aligner.\">\n"
+      << "##INFO=<ID=END,Number=1,Type=Integer,Description=\"End position of an SV.\">\n"
       << "##INFO=<ID=GX,Number=1,Type=Integer,Description=\"Graph complexity, 10*log10(#paths "
         "around the variant).\">\n"
+      << "##INFO=<ID=HOMSEQ,Number=.,Type=String,Description=\"Sequence of base pair identical "
+         "homology at event breakpoints.\">\n"
+      << "##INFO=<ID=INV3,Number=0,Type=Flag,Description=\"Inversion breakends open 3' of reported "
+         "location\">\n"
+      << "##INFO=<ID=INV5,Number=0,Type=Flag,Description=\"Inversion breakends open 5' of reported "
+         "location\">\n"
+      << "##INFO=<ID=LEFT_SVINSSEQ,Number=.,Type=String,Description=\"Known left side of insertion "
+         "for an insertion of unknown length.\">\n"
       << "##INFO=<ID=MaxAAS,Number=A,Type=Integer,Description=\"Maximum alternative allele support "
          "per alt. allele.\">\n"
       << "##INFO=<ID=MaxAASR,Number=A,Type=Float,Description=\"Maximum alternative allele support "
@@ -671,8 +642,20 @@ Vcf::write_header()
          "calls.\">\n"
       << "##INFO=<ID=NHom,Number=1,Type=Integer,Description=\"Number of homozygous genotype "
          "calls.\">\n"
+      << "##INFO=<ID=NRP,Number=0,Type=Flag,Description=\"Set if no Non-Reference has PASS.\">\n"
+      << "##INFO=<ID=NUM_MERGED_SVS,Number=1,Type=Integer,Description=\"Number of SVs merged.\">\n"
+      << "##INFO=<ID=ORSTART,Number=1,Type=Integer,Description=\"Start coordinate of sequence "
+         "origin.\">\n"
+      << "##INFO=<ID=OREND,Number=1,Type=Integer,Description=\"End coordinate of sequence "
+         "origin.\">\n"
       << "##INFO=<ID=QD,Number=1,Type=Float,Description=\"QUAL divided by "
          "NonReferenceSeqDepth.\">\n"
+      << "##INFO=<ID=PASS_AC,Number=A,Type=Integer,Description=\"Number of alternate alleles in "
+          "called genotyped that have FT = PASS.\">\n"
+      << "##INFO=<ID=PASS_AN,Number=1,Type=Integer,Description=\"Number of genotype calls that have"
+         "FT = PASS.\">\n"
+      << "##INFO=<ID=PASS_ratio,Number=1,Type=Float,Description=\"Ratio of genotype calls that have"
+        "FT = PASS.\">\n"
       << "##INFO=<ID=PS,Number=1,Type=Integer,Description=\"Unique ID of the phase set this variant"
          "is a member of. If the calls are unphased, it is used to represent which haplotype set "
          "the variant is a member of.\">\n"
@@ -685,6 +668,10 @@ Vcf::write_header()
          "allele.\">\n"
       << "##INFO=<ID=RefLen,Number=1,Type=Integer,Description=\"Length of the reference "
          "allele.\">\n"
+      << "##INFO=<ID=RELATED_SV_ID,Number=1,Type=Integer,Description=\"GraphTyper ID of a related "
+         "SV.\">\n"
+      << "##INFO=<ID=RIGHT_SVINSSEQ,Number=.,Type=String,Description=\"Known right side of "
+         "insertion for an insertion of unknown length.\">\n"
       << "##INFO=<ID=SB,Number=1,Type=Float,Description=\"Strand bias (F/(F+R)) where F and R are "
          "forward and reverse strands, respectively. -1 if not available.\">\n"
       << "##INFO=<ID=SBF,Number=R,Type=Integer,Description=\"Number of forward stranded reads per "
@@ -699,28 +686,33 @@ Vcf::write_header()
          "reads per allele.\">\n"
       << "##INFO=<ID=SBR2,Number=R,Type=Integer,Description=\"Number of second reverse stranded "
          "reads per allele.\">\n"
+      << "##INFO=<ID=SEQ,Number=1,Type=String,Description=\"Inserted sequence at variant site.\">\n"
       << "##INFO=<ID=SeqDepth,Number=1,Type=Integer,Description=\"Total accumulated sequencing "
          "depth over all the samples.\">\n"
+      << "##INFO=<ID=SV_ID,Number=1,Type=Integer,Description=\"GraphTyper's ID on SV\">\n"
+      << "##INFO=<ID=SVINSSEQ,Number=.,Type=String,Description=\"Sequence of insertion\">\n"
+      << "##INFO=<ID=SVLEN,Number=1,Type=Integer,Description=\"Length of structural variant in bp."
+        " Negative lengths indicate a deletion.\">\n"
+      << "##INFO=<ID=SVMODEL,Number=1,Type=String,Description=\"Model used for SV genotyping.\">\n"
+      << "##INFO=<ID=SVSIZE,Number=1,Type=Integer,Description=\"Size of structural variant in bp."
+        " Always 50 or more.\">\n"
+      << "##INFO=<ID=SVTYPE,Number=1,Type=String,Description=\"Type of structural variant.\">\n"
       << "##INFO=<ID=Unaligned,Number=1,Type=Integer,Description=\"Number of previously unaligned "
          "reads that got re-aligned.\">\n"
       << "##INFO=<ID=VarType,Number=1,Type=String,Description=\"First letter is program identifier,"
          "the second letter is variant type.\">\n";
   }
-  else
-  {
-    bgzf_stream << "##INFO=<ID=RefLen,Number=1,Type=Integer,Description=\"Length of the reference "
-                   "allele.\">\n";
-  }
 
-  // FORMAT
+  // FORMAT definitions
   if (sample_names.size() > 0 && segments.size() == 0)
   {
     bgzf_stream
-      << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
+      << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"GenoType call.\">\n"
+      << "##FORMAT=<ID=FT,Number=1,Type=String,Description=\"Filter. PASS or FAILN where N is a number.\">\n"
       << "##FORMAT=<ID=AD,Number=R,Type=Integer,Description="
-         "\"Allelic depths for the ref and alt alleles in the order listed\">\n"
+         "\"Allelic depths for the ref and alt alleles in the order listed.\">\n"
       << "##FORMAT=<ID=MD,Number=1,Type=Integer,Description=\"Read depth of multiple alleles.\">\n"
-      << "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Approximate read depth\">\n"
+      << "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Approximate read depth.\">\n"
       << "##FORMAT=<ID=RA,Number=2,Type=Integer,Description="
          "\"Total read depth of the reference allele and all alternative alleles, "
          "including reads that support more than one allele.\">\n"
@@ -728,20 +720,33 @@ Vcf::write_header()
          "support non-reference haplotype that are proper pairs.\">\n"
       << "##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype Quality.\">\n"
       << "##FORMAT=<ID=PL,Number=G,Type=Integer,Description=\"PHRED-scaled genotype "
-         "likelihoods\">\n";
+         "likelihoods.\">\n";
   }
   else if (segments.size() > 0)
   {
     bgzf_stream
-      << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
+      << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"GenoType call.\">\n"
       << "##FORMAT=<ID=PL,Number=G,Type=Integer,Description=\"PHRED-scaled genotype "
-         "likelihoods\">\n";
+         "likelihoods.\">\n";
   }
 
+  // FILTER definitions
+  {
+    bgzf_stream << "##FILTER=<ID=ABHet,Description=\"Allele balance of heterozygous carriers is below 20%.\">\n"
+                << "##FILTER=<ID=ABHom,Description=\"Allele balance of homozygous carriers is below 90%.\">\n"
+                << "##FILTER=<ID=QD,Description=\"QD (quality by depth) is below 4.0.\">\n"
+                << "##FILTER=<ID=QUAL,Description=\"QUAL score is less than 20.\">\n"
+                << "##FILTER=<ID=Pratio,Description=\"Ratio of PASSed calls was too low.\">\n"
+                << "##FILTER=<ID=NRP,Description=\"No Non-Reference genotype with PASS.\">\n";
+
+  }
+
+  // Column names
   bgzf_stream << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO";
 
   if (sample_names.size() > 0)
   {
+    // Only a "format" column if there are any samples
     bgzf_stream << "\tFORMAT";
 
     for (auto const & sample_name : sample_names)
@@ -795,17 +800,13 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
     return;
   }
 
-  // Write the chromosome and position
-  if (Options::instance()->chr_prefix)
-    bgzf_stream << contig_pos.first; // Keep the 'chr'
-  else
-    bgzf_stream << contig_pos.first.substr(3); // Remove the 'chr'
-
-  bgzf_stream << '\t' << contig_pos.second;
+  bgzf_stream << contig_pos.first << '\t';
+  bgzf_stream << contig_pos.second << '\t';
 
   // Write the ID field
-  bgzf_stream << '\t' << contig_pos.first << ':' << contig_pos.second << ':'
-              << var.determine_variant_type();
+  bgzf_stream << contig_pos.first; // Keep the 'chr'
+
+  bgzf_stream << ':' << contig_pos.second << ':' << var.determine_variant_type();
 
   if (var.suffix_id.size() > 0)
     bgzf_stream << "[" << var.suffix_id << "]";
@@ -822,29 +823,90 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
     bgzf_stream << ',' << std::string(var.seqs[a].begin(), var.seqs[a].end());
 
   // Parse qual
-  bgzf_stream << "\t" << std::to_string(variant_qual);
+  bgzf_stream << "\t" << std::to_string(variant_qual) << "\t";
 
   // Parse filter
-  bgzf_stream << "\t.\t";
+  if (sample_names.size() == 0)
+  {
+    bgzf_stream << ".\t";
+  }
+  else
+  {
+    bool is_pass = true;
+
+    if (var.infos.count("ABHet") == 1 && var.infos.at("ABHet") != std::string("-1") && std::stod(var.infos.at("ABHet")) < 0.20)
+    {
+      if (!is_pass)
+        bgzf_stream << ";";
+
+      bgzf_stream << "ABHet";
+      is_pass = false;
+    }
+
+    if (var.infos.count("QD") == 1 && std::stod(var.infos.at("QD")) < 4.0)
+    {
+      if (!is_pass)
+        bgzf_stream << ";";
+
+      bgzf_stream << "QD";
+      is_pass = false;
+    }
+
+    if (variant_qual < 20)
+    {
+      if (!is_pass)
+        bgzf_stream << ";";
+
+      bgzf_stream << "QUAL";
+      is_pass = false;
+    }
+
+    if (var.infos.count("PASS_ratio") == 1 && std::stod(var.infos.at("PASS_ratio")) < 0.05)
+    {
+      if (!is_pass)
+        bgzf_stream << ";";
+
+      bgzf_stream << "Pratio";
+      is_pass = false;
+    }
+
+    if (is_pass)
+      bgzf_stream << "PASS";
+
+    bgzf_stream << "\t";
+  }
+
 
   // Parse info
-  if (var.infos.empty() || sample_names.size() == 0)
+  if (var.infos.empty())
   {
     bgzf_stream << ".";
   }
   else
   {
-    bgzf_stream << var.infos.begin()->first << '=' << var.infos.begin()->second;
+    auto write_info = [&](std::map<std::string, std::string>::const_iterator it)
+    {
+      bgzf_stream << it->first;
 
-    for (auto map_it = std::next(var.infos.begin(), 1); map_it != var.infos.end(); ++map_it)
-      bgzf_stream << ";" << map_it->first << '=' << map_it->second;
+      if (it->second.size() > 0)
+         bgzf_stream << '=' << it->second;
+    };
+
+    write_info(var.infos.cbegin());
+
+    for (auto map_it = std::next(var.infos.cbegin(), 1); map_it != var.infos.cend(); ++map_it)
+    {
+      bgzf_stream << ';';
+      write_info(map_it);
+    }
+
   }
 
   assert (sample_names.size() == var.calls.size());
 
   // Parse FORMAT
   if (sample_names.size() > 0)
-    bgzf_stream << "\tGT:AD:MD:DP:RA:PP:GQ:PL";
+    bgzf_stream << "\tGT:FT:AD:MD:DP:RA:PP:GQ:PL";
 
   for (std::size_t i = 0; i < var.calls.size(); ++i)
   {
@@ -883,6 +945,24 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
       }
     }
 
+    // Write FT
+    long const gq = call.get_gq();
+
+    {
+      bgzf_stream << ":";
+      int8_t filter = call.check_filter(gq);
+
+      if (filter == 0)
+      {
+        bgzf_stream << "PASS";
+      }
+      else
+      {
+        assert(filter > 0);
+        bgzf_stream << "FAIL" << static_cast<long>(filter);
+      }
+    }
+
     // Write AD
     assert(call.coverage.size() > 0);
     bgzf_stream << ":" << call.coverage[0];
@@ -894,10 +974,7 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
     bgzf_stream << ":" << static_cast<uint64_t>(call.ambiguous_depth);
 
     // Write DP
-    bgzf_stream << ":" << std::accumulate(call.coverage.begin(),
-                                          call.coverage.end(),
-                                          static_cast<uint32_t>(call.ambiguous_depth)
-                                          );
+    bgzf_stream << ":" << call.get_depth();
 
     // Write RA
     bgzf_stream << ":" << call.ref_total_depth << "," << call.alt_total_depth;
@@ -906,7 +983,7 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
     bgzf_stream << ":" << static_cast<std::size_t>(call.alt_proper_pair_depth);
 
     // Write GQ
-    bgzf_stream << ":" << static_cast<std::size_t>(call.get_gq());
+    bgzf_stream << ":" << gq;
 
     // Write PL
     bgzf_stream << ":" << static_cast<uint16_t>(call.phred[0]);
@@ -952,6 +1029,10 @@ Vcf::write_records(uint32_t const region_begin,
     return a.abs_pos < b.abs_pos ||
            (a.abs_pos == b.abs_pos &&
             a.determine_variant_type() < b.determine_variant_type()
+           ) ||
+           (a.abs_pos == b.abs_pos &&
+             a.determine_variant_type() == b.determine_variant_type() &&
+             a.seqs < b.seqs
            );
   };
 
@@ -1003,14 +1084,25 @@ Vcf::write_records(uint32_t const region_begin,
 void
 Vcf::write_records(std::string const & region, bool const FILTER_ZERO_QUAL)
 {
-  GenomicRegion genomic_region(region);
-  uint32_t const region_begin = 1 + absolute_pos.get_absolute_position(genomic_region.chr,
-                                                                       genomic_region.begin
-                                                                       );
+  uint32_t region_begin = 0;
+  uint32_t region_end = 0xFFFFFFFFull;
 
-  uint32_t const region_end = absolute_pos.get_absolute_position(genomic_region.chr,
-                                                                 genomic_region.end
-                                                                 );
+  // Restrict to a region if it is given
+  if (region != ".")
+  {
+    GenomicRegion genomic_region(region);
+
+    if (absolute_pos.is_contig_available(genomic_region.chr))
+    {
+      region_begin = 1 + absolute_pos.get_absolute_position(genomic_region.chr,
+                                                            genomic_region.begin
+      );
+
+      region_end = absolute_pos.get_absolute_position(genomic_region.chr,
+                                                      genomic_region.end
+      );
+    }
+  }
 
   this->write_records(region_begin, region_end, FILTER_ZERO_QUAL);
 }
@@ -1152,7 +1244,7 @@ Vcf::add_haplotype(Haplotype & haplotype, bool const clear_haplotypes, uint32_t 
 
   for (auto const & hap_sample : haplotype.hap_samples)
   {
-    // Calculate the haplotypic phred scores
+    // Calculate the haplotype phred scores
     std::vector<uint8_t> phase; // 0 = same as unphased, 1 other way around
     std::vector<std::vector<uint8_t> > gt_phred =
       get_genotype_phred(hap_sample, phase, haplotype.gts);
@@ -1208,33 +1300,71 @@ Vcf::add_haplotypes_for_extraction(std::vector<std::vector<Genotype> > const & g
 
   for (std::size_t i = 0; i < gts.size(); ++i)
   {
+    auto const & gt = gts[i];
+    auto const & hap_call = hap_calls[i];
+
+    assert(hap_call.size() >= 1);
+    assert(hap_call[0] == 0);
+
     // Only add variants if there is something else than the reference called
-    if (hap_calls[i].size() > 1)
+    if (hap_call.size() > 1)
+      new_vars.push_back(Variant(gt, hap_call));
+  }
+
+  // Reformat SVs
+  for (auto & var : new_vars)
+  {
+    for (int a = 1; a < static_cast<int>(var.seqs.size()); ++a)
     {
-      assert(hap_calls[i][0] == 0);
-      new_vars.push_back(Variant(gts[i], hap_calls[i]));
-    }
-    else
-    {
-      assert(hap_calls[i].size() == 1);
-      assert(hap_calls[i][0] == 0);
+      auto & seq = var.seqs[a];
+      auto find_it = std::find(seq.cbegin(), seq.cend(), '<');
+
+      if (std::distance(find_it, seq.cend()) > 11)
+      {
+        std::istringstream ss{std::string(find_it + 4, find_it + 11)};
+        long sv_id;
+        ss >> sv_id;
+
+        // If we can't parse correctly the SV ID so we ignore it
+        assert(ss.eof());
+        assert(sv_id < static_cast<long>(graph.SVs.size()));
+
+        auto const & sv = graph.SVs[sv_id];
+        std::string const sv_allele = std::string(1, var.seqs[0][0]) + sv.get_allele();
+        var.seqs[a] = std::vector<char>(sv_allele.cbegin(), sv_allele.cend());
+        var.infos["SVTYPE"] = sv.get_type();
+        var.infos["SVLEN"] = sv.type == DEL ?
+                             std::to_string(-sv.length) :
+                             std::to_string(sv.length);
+
+        var.infos["SVSIZE"] = std::to_string(sv.length);
+      }
     }
   }
 
   bool const BREAK_DOWN_EXTRACTED_HAPLOTYPES = !Options::instance()->skip_breaking_down_extracted_haplotypes;
 
-  for (auto && var : new_vars)
+  // The general rule of thumb is to only break down haplotypes if there are some variants
+  // discovered in the same iteration and otherwise not.
+  if (BREAK_DOWN_EXTRACTED_HAPLOTYPES)
   {
-    // Only try to split multiallelic variants
-    if (BREAK_DOWN_EXTRACTED_HAPLOTYPES)
+    BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf] Breaking down haplotypes.";
+
+    for (auto && var : new_vars)
     {
-      std::vector<Variant> new_broken_down_vars = break_down_variant(std::move(var), SPLIT_VAR_THRESHOLD);
-      std::move(new_broken_down_vars.begin(), new_broken_down_vars.end(), std::back_inserter(this->variants));
+      std::vector<Variant> new_broken_down_vars =
+        break_down_variant(std::move(var), SPLIT_VAR_THRESHOLD);
+
+      std::move(new_broken_down_vars.begin(),
+                new_broken_down_vars.end(),
+                std::back_inserter(this->variants)
+                );
     }
-    else
-    {
-      this->variants.push_back(std::move(var));
-    }
+  }
+  else
+  {
+    BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf] Skipping breaking down haplotypes.";
+    std::move(new_vars.begin(), new_vars.end(), std::back_inserter(this->variants));
   }
 }
 
@@ -1256,140 +1386,11 @@ Vcf::post_process_variants(bool const NORMALIZE, bool const TRIM_SEQUENCES)
   // Generate the INFO field if there are any samples
   if (sample_names.size() > 0)
   {
+    // Reformat SVs
+    reformat_sv_vcf_records(variants);
+
     for (auto & var : variants)
       var.generate_infos();
-
-    // Reformat SVs
-    long const variants_original_size = variants.size();
-    std::unordered_set<long> variant_ids_to_erase;
-
-    for (long v = 0; v < variants_original_size; ++v)
-    {
-      bool is_any_not_sv = false;
-      auto & var = variants[v];
-      std::vector<long> sv_ids(var.seqs.size() - 1, -1l);
-      assert(var.seqs.size() > 0u);
-
-      bool is_any_sv = false;
-
-      for (long a = 1; a < static_cast<long>(var.seqs.size()); ++a)
-      {
-        auto & seq = var.seqs[a];
-        auto find_it = std::find(seq.cbegin(), seq.cend(), '<');
-
-        if (std::distance(find_it, seq.cend()) > 11)
-        {
-          // It is an SV
-          is_any_sv = true;
-          std::istringstream ss{std::string(find_it + 4, find_it + 11)};
-          long sv_id;
-          ss >> sv_id;
-
-          // If we can't parse correctly the SV ID we ignore it
-          assert(ss.eof());
-          assert(sv_id < static_cast<long>(graph.SVs.size()));
-
-          auto const & sv = graph.SVs[sv_id];
-          std::string const sv_allele = sv.get_allele();
-          var.seqs[a] = std::vector<char>(sv_allele.cbegin(), sv_allele.cend());
-          sv_ids[a - 1l] = sv_id;
-        }
-        else
-        {
-          is_any_not_sv = true;
-        }
-      }
-
-      if (not is_any_sv)
-        continue; // Nothing to do, there are no SVs here
-
-      long aa = 0; // Index of alternative allele
-      std::vector<Variant> new_vars; // Keep new variants here to keep var reference valid
-
-      auto merge_alt_info_lambda = [](Variant & new_var, std::string const & id, long const aa)
-      {
-        assert(new_var.infos.count(id) == 1);
-        std::vector<uint32_t> values = split_bias_to_numbers(new_var.infos[id]);
-        //values[1] = std::accumulate(values.begin() + 1, values.end(), 0u);
-        assert(aa + 1l < static_cast<long>(values.size()));
-        values[1] = values[aa + 1];
-        values.resize(2);
-        new_var.infos[id] = join_strand_bias(values);
-      };
-
-      auto make_new_var = [&](Variant const & old_var, long const aa) -> Variant
-      {
-        Variant new_var;
-        new_var.abs_pos = old_var.abs_pos;
-        new_var.seqs.reserve(2);
-        new_var.seqs.push_back(old_var.seqs[0]);
-        new_var.seqs.push_back(old_var.seqs[aa + 1]);
-        new_var.infos = old_var.infos;
-
-        merge_alt_info_lambda(new_var, "CRAligner", aa);
-        merge_alt_info_lambda(new_var, "MQperAllele", aa);
-        merge_alt_info_lambda(new_var, "SBF", aa);
-        merge_alt_info_lambda(new_var, "SBR", aa);
-        merge_alt_info_lambda(new_var, "SBF1", aa);
-        merge_alt_info_lambda(new_var, "SBR1", aa);
-        merge_alt_info_lambda(new_var, "SBF2", aa);
-        merge_alt_info_lambda(new_var, "SBR2", aa);
-        merge_alt_info_lambda(new_var, "RACount", aa);
-        merge_alt_info_lambda(new_var, "RADist", aa);
-
-        new_var.calls.reserve(old_var.calls.size());
-
-        for (auto & call : old_var.calls)
-          new_var.calls.push_back(make_bi_allelic_call(call, aa));
-
-        new_var.infos["NCLUSTERS"] = std::to_string(graph.SVs[sv_ids[aa]].n_clusters);
-        new_var.generate_infos();
-        return new_var;
-      };
-
-      if (is_any_not_sv)
-      {
-        while (sv_ids[aa] == -1l)
-        {
-          ++aa;
-          assert(aa < static_cast<long>(sv_ids.size()));
-        }
-
-        // Put first SV allele in new VCF records
-        new_vars.push_back(make_new_var(var, aa));
-        ++aa;
-      }
-
-      assert(sv_ids.size() + 1u == var.seqs.size());
-
-      for (; aa < static_cast<long>(sv_ids.size()); ++aa)
-      {
-        if (sv_ids[aa] == -1l)
-          continue; // Not SV
-
-        new_vars.push_back(make_new_var(var, aa));
-      }
-
-      std::move(new_vars.begin(), new_vars.end(), std::back_inserter(variants));
-      variant_ids_to_erase.insert(v);
-      // NOTE: var & is now no longer valid! Do not use after this line
-    }
-
-    // Erase variants that should be erased
-    if (variant_ids_to_erase.size() > 0)
-    {
-      std::vector<Variant> new_variants;
-      new_variants.reserve(variants.size() - variant_ids_to_erase.size());
-
-      for (long v = 0l; v < static_cast<long>(variants.size()); ++v)
-      {
-        if (variant_ids_to_erase.count(v) == 0)
-          new_variants.push_back(std::move(variants[v]));
-      }
-
-      assert(new_variants.size() == variants.size() - variant_ids_to_erase.size());
-      variants = std::move(new_variants);
-    }
   }
 }
 

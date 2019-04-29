@@ -37,7 +37,7 @@ public:
   /*********************
    * PATH CONSTRUCTORS *
    *********************/
-  Path() noexcept = default;
+  Path() = default;
   Path(KmerLabel const & l,
        uint16_t read_start_index,
        uint16_t read_end_index,
@@ -48,6 +48,7 @@ public:
   /**********************
    * PATH MODIFICATIONS *
    **********************/
+  void erase_var_order(long index);
   void merge_with_current(KmerLabel const & l);
 
   /********************

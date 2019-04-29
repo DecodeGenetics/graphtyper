@@ -71,6 +71,43 @@ MemIndex::generate_hamming1_hash_map()
 */
 
 
+std::vector<KmerLabel>
+MemIndex::get(std::vector<uint64_t> const & keys) const
+{
+  std::vector<KmerLabel> labels;
+  std::vector<google::dense_hash_map<uint64_t, std::vector<KmerLabel> >::const_iterator> results;
+
+  std::size_t num_results = 0;
+
+  for (std::size_t j = 0; j < keys.size(); ++j)
+  {
+    if (keys[j] != empty_key)
+    {
+      auto find_it = hamming0.find(keys[j]);
+
+      if (find_it != hamming0.end())
+      {
+        num_results += find_it->second.size();
+
+        if (num_results > Options::instance()->max_index_labels)
+        {
+          // Too many results, give up on this kmer
+          results.clear();
+          break;
+        }
+
+        results.push_back(find_it);
+      }
+    }
+  }
+
+  for (auto const res : results)
+    std::copy(res->second.begin(), res->second.end(), std::back_inserter(labels));
+
+  return labels;
+}
+
+
 std::vector<std::vector<KmerLabel> >
 MemIndex::multi_get(std::vector<std::vector<uint64_t> > const & keys) const
 {

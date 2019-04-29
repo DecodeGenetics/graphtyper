@@ -115,12 +115,21 @@ merge_index_queries(seqan::IupacString const & read,
   geno.remove_short_paths();
   geno.remove_paths_within_variant_node();
   geno.remove_paths_with_too_many_mismatches();
+
+  if (graph.is_sv_graph)
+  {
+    //geno.extend_paths_at_sv_breakpoints(read);
+    geno.remove_support_from_read_ends();
+  }
+
   geno.remove_short_paths();
 
+  // Can fail in new SV indel alignment :'(
 #ifndef NDEBUG
   if (!geno.check_no_variant_is_missing())
   {
-    std::cout << std::string(geno.read.begin(), geno.read.end()) << std::endl;
+    std::cerr << "Variant missing in read:\n";
+    std::cerr << std::string(geno.read.begin(), geno.read.end()) << std::endl;
     assert(false);
   }
 #endif // NDEBUG
@@ -140,7 +149,7 @@ find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read,
   TKmerLabels r_hamming0 = query_index(read, mem_index);
   TKmerLabels r_hamming1;
 
-  if (true || Options::instance()->always_query_hamming_distance_one)
+  /*if (true || Options::instance()->always_query_hamming_distance_one)*/
   {
     if (hamming_distance1_index_available)
       r_hamming1 = query_index_hamming_distance1(read);
@@ -149,7 +158,7 @@ find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read,
 
     merge_index_queries(read, geno, r_hamming0, r_hamming1, graph);
   }
-  else
+  /*else
   {
     merge_index_queries(read, geno, r_hamming0, r_hamming1, graph);
 
@@ -165,7 +174,7 @@ find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read,
       assert (r_hamming0.size() == r_hamming1.size());
       merge_index_queries(read, geno, r_hamming0, r_hamming1, graph);
     }
-  }
+  }*/
 }
 
 
@@ -209,24 +218,6 @@ get_alignment_score_difference(seqan::BamTagsDict const & tags_dict)
 
 namespace gyper
 {
-
-GenotypePaths
-align_a_single_sequence_without_hamming_distance1_index(seqan::BamAlignmentRecord const & record,
-                                                        Graph const & graph,
-                                                        MemIndex const & mem_index
-  )
-{
-  GenotypePaths geno(record.seq, record.qual, record.mapQ);
-  find_genotype_paths_of_one_of_the_sequences(record.seq,
-                                              geno,
-                                              false /*no hamming distance 1 index available*/,
-                                              graph,
-                                              mem_index
-    );
-
-  return geno;
-}
-
 
 void
 align_unpaired_read_pairs(TReads & reads, std::vector<GenotypePaths> & genos)
@@ -549,8 +540,8 @@ find_genotype_paths_of_a_sequence_pair(seqan::BamAlignmentRecord const & record1
 {
   // Create two empty paths, one for each read
   std::pair<GenotypePaths, GenotypePaths> genos =
-    std::make_pair(GenotypePaths(record1.seq, record1.qual, record1.mapQ),
-                   GenotypePaths(record2.seq, record2.qual, record2.mapQ)
+    std::make_pair(GenotypePaths(record1.seq, record1.qual, static_cast<uint8_t>(record1.mapQ)),
+                   GenotypePaths(record2.seq, record2.qual, static_cast<uint8_t>(record2.mapQ))
                    );
 
   // Add read group and read name if statistics should be in the output
@@ -604,6 +595,7 @@ find_genotype_paths_of_a_sequence_pair(seqan::BamAlignmentRecord const & record1
     }
 
     // Disabled for now as it works badly in SV runs
+    /*
     bool constexpr FILTER_ON_INSERT_SIZE = false;
 
     if (FILTER_ON_INSERT_SIZE)
@@ -646,6 +638,7 @@ find_genotype_paths_of_a_sequence_pair(seqan::BamAlignmentRecord const & record1
           );
       }
     }
+    */
   }
 
   // Remove paths

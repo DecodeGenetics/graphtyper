@@ -68,12 +68,22 @@ public:
 
   void clear_paths();
 
-  void walk_read_ends(seqan::IupacString const & read, int maximum_mismatches = -1, gyper::Graph const & graph = gyper::graph);
-  void walk_read_starts(seqan::IupacString const & read, int maximum_mismatches = -1, gyper::Graph const & graph = gyper::graph);
+  void walk_read_ends(seqan::IupacString const & read,
+                      int maximum_mismatches = -1,
+                      gyper::Graph const & graph = gyper::graph
+    );
+
+  void walk_read_starts(seqan::IupacString const & read,
+                        int maximum_mismatches = -1,
+                        gyper::Graph const & graph = gyper::graph
+    );
+
+  void extend_paths_at_sv_breakpoints(seqan::IupacString const & seqan_read);
 
   // Path filtering
   void remove_short_paths();
   // void remove_paths_with_no_variants();
+  void remove_support_from_read_ends();
   void remove_paths_within_variant_node();
   void remove_paths_with_too_many_mismatches();
   void remove_non_ref_paths_when_read_matches_ref();
