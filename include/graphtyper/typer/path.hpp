@@ -48,6 +48,7 @@ public:
   /**********************
    * PATH MODIFICATIONS *
    **********************/
+  void erase_var_order(long index);
   void merge_with_current(KmerLabel const & l);
 
   /********************

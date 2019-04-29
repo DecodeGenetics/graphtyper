@@ -125,22 +125,22 @@ TEST_CASE("Test index chr2")
 
   // All kmers should have the correct starting index
   {
-    REQUIRE(index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC", 0))[0].start_index == 0);
-    REQUIRE(index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC", 0))[1].start_index == 0);
-    REQUIRE(index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC", 0))[2].start_index == 10);
-    REQUIRE(index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC", 0))[3].start_index == 20);
+    REQUIRE(index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC", 0))[0].start_index == 0 + 67);
+    REQUIRE(index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC", 0))[1].start_index == 0 + 67);
+    REQUIRE(index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC", 0))[2].start_index == 10 + 67);
+    REQUIRE(index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC", 0))[3].start_index == 20 + 67);
 
-    REQUIRE(index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTGG", 0))[0].start_index == 30);
+    REQUIRE(index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTGG", 0))[0].start_index == 30 + 67);
   }
 
   // All kmers should have the correct end index
   {
-    REQUIRE(index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC", 0))[0].end_index == 31);
-    REQUIRE(index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC", 0))[1].end_index == 31);
-    REQUIRE(index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC", 0))[2].end_index == 41);
-    REQUIRE(index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC", 0))[3].end_index == 51);
+    REQUIRE(index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC", 0))[0].end_index == 31 + 67);
+    REQUIRE(index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC", 0))[1].end_index == 31 + 67);
+    REQUIRE(index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC", 0))[2].end_index == 41 + 67);
+    REQUIRE(index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC", 0))[3].end_index == 51 + 67);
 
-    REQUIRE(index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTGG", 0))[0].end_index == 61);
+    REQUIRE(index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTGG", 0))[0].end_index == 61 + 67);
   }
 
   // Correct variant id and num
@@ -191,38 +191,37 @@ TEST_CASE("Test index chr3")
     // kmer ref
     std::vector<gyper::KmerLabel> labels0 = gyper::index.get(gyper::to_uint64("AAAACAAAATAAAACAAAATAAAAGAAAACAA", 0));
     REQUIRE(labels0.size() == 1);
-    REQUIRE(labels0[0].start_index == 0);
-    REQUIRE(labels0[0].end_index == 31);
+    REQUIRE(labels0[0].start_index == 0 + 133);
+    REQUIRE(labels0[0].end_index == 31 + 133);
 
     // kmer 1
     std::vector<gyper::KmerLabel> labels1 = gyper::index.get(gyper::to_uint64("AAAACAAAATAAAACAAAATAAAAGAAAACGA", 0));
     REQUIRE(labels1.size() == 2);
-    REQUIRE(labels1[0].start_index == 0);
+    REQUIRE(labels1[0].start_index == 0 + 133);
     REQUIRE(labels1[0].end_index == gyper::SPECIAL_START);
     REQUIRE(labels1[0].variant_id == 2);
-    REQUIRE(labels1[1].start_index == 0);
-    REQUIRE(labels1[1].end_index == 31);
+    REQUIRE(labels1[1].start_index == 0 + 133);
+    REQUIRE(labels1[1].end_index == 31 + 133);
     REQUIRE(labels1[1].variant_id == 1);
 
     // kmer 2
     std::vector<gyper::KmerLabel> labels2 = gyper::index.get(gyper::to_uint64("AAAATAAAACAAAATAAAAGAAAACATTATAA", 0));
     REQUIRE(labels2.size() == 2);
-    REQUIRE(labels2[0].start_index == 30);
-    REQUIRE(labels2[0].end_index == 61);
+    REQUIRE(labels2[0].start_index == 30 + 133);
+    REQUIRE(labels2[0].end_index == 61 + 133);
     REQUIRE(labels2[0].variant_id == 0);
     REQUIRE(labels2[1].start_index == gyper::SPECIAL_START);
-    REQUIRE(labels2[1].end_index == 61);
+    REQUIRE(labels2[1].end_index == 61 + 133);
     REQUIRE(labels2[1].variant_id == 2);
 
     // kmer 3
     std::vector<gyper::KmerLabel> labels3 = gyper::index.get(gyper::to_uint64("AAATAAAACAAAATAAAAGAAAACATTATAAA", 0));
     REQUIRE(labels3.size() == 1);
-    REQUIRE(labels3[0].start_index == 31);
-    REQUIRE(labels3[0].end_index == 62);
+    REQUIRE(labels3[0].start_index == 31 + 133);
+    REQUIRE(labels3[0].end_index == 62 + 133);
     REQUIRE(labels3[0].variant_id == -1);
   }
 }
-
 
 /*
 TEST_CASE("Test index chr5")

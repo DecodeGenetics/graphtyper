@@ -1425,7 +1425,7 @@ TEST_CASE("Prior test for the next")
   using namespace gyper;
   Options::instance()->add_all_variants = false;
   std::vector<char> reference_sequence;
-  char testdata[] = "STTCAATF";
+  char testdata[] = "GTTCAATG";
   reference_sequence.insert(reference_sequence.end(), testdata, testdata + 8);
 
   std::vector<gyper::VarRecord> records;
@@ -1452,22 +1452,23 @@ TEST_CASE("Prior test for the next")
 
   SECTION("The number of nodes is correct")
   {
-    REQUIRE(ref_nodes.size() == 2);
+    REQUIRE(ref_nodes.size() == 3);
     REQUIRE(var_nodes.size() == 4);
   }
 
   SECTION("We have the correct labels on the reference nodes")
   {
-    REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("ST"));
-    REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec("ATF"));
+    REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("GT"));
+    REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec(""));
+    REQUIRE(ref_nodes[2].get_label().dna == gyper::to_vec("ATG"));
   }
 
   SECTION("We have the correct labels on the variant nodes")
   {
-    REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("TCA"));
-    REQUIRE(var_nodes[1].get_label().dna == gyper::to_vec("TA"));
-    REQUIRE(var_nodes[2].get_label().dna == gyper::to_vec("TCT"));
-    REQUIRE(var_nodes[3].get_label().dna == gyper::to_vec("TT"));
+    REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("TC"));
+    REQUIRE(var_nodes[1].get_label().dna == gyper::to_vec("T"));
+    REQUIRE(var_nodes[2].get_label().dna == gyper::to_vec("A"));
+    REQUIRE(var_nodes[3].get_label().dna == gyper::to_vec("T"));
   }
 
   Options::instance()->add_all_variants = true;
@@ -1525,7 +1526,7 @@ TEST_CASE("Merge one path should check if we can remove the suffix of a variant 
 }
 
 
-TEST_CASE("Merge one path works with connected SNPs")
+TEST_CASE("Merge one path works with connected indel+SNP")
 {
   using namespace gyper;
   Options::instance()->add_all_variants = false;
@@ -1538,7 +1539,7 @@ TEST_CASE("Merge one path works with connected SNPs")
   {
     gyper::VarRecord record;
     record.pos = 2;
-    record.ref = gyper::to_vec("A");
+    record.ref = gyper::to_vec("AA");
     record.alts = {gyper::to_vec("T")};
     records.push_back(record);
 
@@ -1558,7 +1559,7 @@ TEST_CASE("Merge one path works with connected SNPs")
   SECTION("The number of nodes is corrent")
   {
     REQUIRE(ref_nodes.size() == 2);
-    REQUIRE(var_nodes.size() == 4);
+    REQUIRE(var_nodes.size() == 3);
   }
 
   SECTION("The ref nodes have the correct DNA bases")
@@ -1571,11 +1572,8 @@ TEST_CASE("Merge one path works with connected SNPs")
   {
     REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("AA"));
     REQUIRE(var_nodes[1].get_label().dna == gyper::to_vec("AT"));
-    REQUIRE(var_nodes[2].get_label().dna == gyper::to_vec("TA"));
-    REQUIRE(var_nodes[3].get_label().dna == gyper::to_vec("TT"));
+    REQUIRE(var_nodes[2].get_label().dna == gyper::to_vec("T"));
   }
-
-  Options::instance()->add_all_variants = true;
 }
 
 
@@ -1616,27 +1614,77 @@ TEST_CASE("Merge path works with 3 pairs of connected SNPs")
 
   SECTION("The number of nodes is corrent")
   {
-    REQUIRE(ref_nodes.size() == 2);
-    REQUIRE(var_nodes.size() == 8);
+    REQUIRE(ref_nodes.size() == 4);
+    REQUIRE(var_nodes.size() == 6);
   }
 
   SECTION("The ref nodes have the correct DNA bases")
   {
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("ST"));
-    REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec("F"));
+    REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec(""));
+    REQUIRE(ref_nodes[2].get_label().dna == gyper::to_vec(""));
+    REQUIRE(ref_nodes[3].get_label().dna == gyper::to_vec("F"));
   }
 
   SECTION("The var nodes have the correct DNA bases")
   {
-    REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("AAA"));
-    REQUIRE(var_nodes[1].get_label().dna == gyper::to_vec("AAT"));
-    REQUIRE(var_nodes[2].get_label().dna == gyper::to_vec("ATA"));
-    REQUIRE(var_nodes[3].get_label().dna == gyper::to_vec("ATT"));
-    REQUIRE(var_nodes[4].get_label().dna == gyper::to_vec("TAA"));
-    REQUIRE(var_nodes[5].get_label().dna == gyper::to_vec("TAT"));
-    REQUIRE(var_nodes[6].get_label().dna == gyper::to_vec("TTA"));
-    REQUIRE(var_nodes[7].get_label().dna == gyper::to_vec("TTT"));
+    REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("A"));
+    REQUIRE(var_nodes[1].get_label().dna == gyper::to_vec("T"));
+    REQUIRE(var_nodes[2].get_label().dna == gyper::to_vec("A"));
+    REQUIRE(var_nodes[3].get_label().dna == gyper::to_vec("T"));
+    REQUIRE(var_nodes[4].get_label().dna == gyper::to_vec("A"));
+    REQUIRE(var_nodes[5].get_label().dna == gyper::to_vec("T"));
+  }
+}
+
+
+TEST_CASE("Two overlapping indels")
+{
+  using namespace gyper;
+  Options::instance()->add_all_variants = false;
+  std::vector<char> reference_sequence;
+  char testdata[] = "TGCAAATCTCATATATATATATATATATATATATATATATATATATTTTTTTTTTTTTTTTTTTTTTTTTA";
+  reference_sequence.insert(reference_sequence.end(), testdata, testdata + 71);
+  Options::instance()->add_all_variants = false;
+
+  std::vector<gyper::VarRecord> records;
+
+  {
+    gyper::VarRecord record;
+    record.pos = 30;
+    record.ref = gyper::to_vec("ATATATATATATATATTTTTTTTTTTT");
+    record.alts = {gyper::to_vec("A")};
+    records.push_back(record);
+
+    record.pos = 38;
+    record.ref = gyper::to_vec("ATATATATTTTTTTTTTT");
+    record.alts = {gyper::to_vec("A")};
+    records.push_back(record);
   }
 
-  Options::instance()->add_all_variants = true;
+  graph = gyper::Graph(false /*use_absolute_positions*/);
+  graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion());
+
+  // Here, we assume that nothing is added
+  std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
+  std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
+
+  SECTION("The number of nodes is corrent")
+  {
+    REQUIRE(ref_nodes.size() == 2);
+    REQUIRE(var_nodes.size() == 3);
+  }
+
+  SECTION("The ref nodes have the correct DNA bases")
+  {
+    REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("TGCAAATCTCATATATATATATATATATAT"));
+    REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec("TTTTTTTTTTTTTA"));
+  }
+
+  SECTION("The var nodes have the correct DNA bases")
+  {
+    REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("ATATATATATATATATTTTTTTTTTTT"));
+    REQUIRE(var_nodes[1].get_label().dna == gyper::to_vec("A"));
+    REQUIRE(var_nodes[2].get_label().dna == gyper::to_vec("ATATATATAT"));
+  }
 }

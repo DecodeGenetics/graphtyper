@@ -129,7 +129,11 @@ GenotypePaths::add_prev_kmer_labels(std::vector<KmerLabel> const & ll,
                                     )
 {
   assert(read_end_index > read_start_index);
-  std::vector<Path> const pp = find_all_nonduplicated_paths(ll, read_start_index, read_end_index, mismatches);
+  assert(mismatches >= 0);
+  std::vector<Path> const pp = find_all_nonduplicated_paths(ll,
+                                                            read_start_index,
+                                                            read_end_index,
+                                                            (uint16_t)mismatches);
   std::size_t const original_size = paths.size();
 
   // Keep track of which new paths did matches with any previous paths
@@ -194,7 +198,7 @@ GenotypePaths::add_next_kmer_labels(std::vector<KmerLabel> const & ll,
   std::vector<Path> const pp = find_all_nonduplicated_paths(ll,
                                                             read_start_index,
                                                             read_end_index,
-                                                            mismatches
+                                                            (uint16_t)mismatches
                                                             );
 
   std::size_t const original_size = paths.size();
@@ -265,7 +269,8 @@ GenotypePaths::remove_paths_with_too_many_mismatches()
   if (paths.size() == 0)
     return;
 
-  uint16_t min_mismatches = Options::instance()->is_segment_calling ? 2 : 10; // Maximum mismatches allowed
+  // Maximum mismatches allowed
+  uint16_t min_mismatches = Options::instance()->is_segment_calling ? (short)2 : (short)10;
 
   // Find the minimum number of mismatches in the aligned paths
   for (auto const & path : paths)
@@ -278,6 +283,191 @@ GenotypePaths::remove_paths_with_too_many_mismatches()
 
   // Finally, update the longest path size
   update_longest_path_size();
+}
+
+
+void
+GenotypePaths::remove_support_from_read_ends()
+{
+  long constexpr MIN_OFFSET = 4;
+
+  for (Path & path : paths)
+  {
+    if (path.var_order.size() == 0)
+      continue;
+
+    if (!graph.is_special_pos(path.start) && !graph.is_special_pos(path.end))
+      continue;
+
+    auto min_max_elements = std::minmax_element(path.var_order.begin(), path.var_order.end());
+    assert(min_max_elements.first != path.var_order.end());
+    assert(min_max_elements.second != path.var_order.end());
+
+    // Check end position
+    if (graph.is_special_pos(path.end) && path.end_correct_pos() <= (*min_max_elements.second) + MIN_OFFSET)
+    {
+      long const index = std::distance(path.var_order.begin(), min_max_elements.second);
+      assert(index < static_cast<long>(path.nums.size()));
+      path.nums[index].set();
+    }
+
+    // Check start position
+    if (graph.is_special_pos(path.start))
+    {
+      bool is_ambigous = false;
+
+      if (graph.is_special_pos(path.start + static_cast<uint32_t>(MIN_OFFSET)))
+      {
+        long const start_ref_reach_pos = path.start_ref_reach_pos();
+        long const start_offset_ref_reach_pos =
+          graph.get_ref_reach_pos(path.start + static_cast<uint32_t>(MIN_OFFSET));
+        is_ambigous = start_ref_reach_pos != start_offset_ref_reach_pos;
+      }
+      else
+      {
+        is_ambigous = true;
+      }
+
+      if (is_ambigous)
+      {
+        long const index = std::distance(path.var_order.begin(), min_max_elements.first);
+        assert(index < static_cast<long>(path.nums.size()));
+        path.nums[index].set();
+      }
+    }
+  }
+}
+
+
+void
+GenotypePaths::extend_paths_at_sv_breakpoints(seqan::IupacString const & seqan_read)
+{
+  if (paths.size() > 5)
+    return;
+
+  for (Path & path : paths)
+  {
+    if (path.size() < 60 || path.mismatches > 2)
+    {
+      // Require not too small matches or long matches with many mismatches
+    }
+    else if (path.read_start_index > 0 && path.read_end_index < (read.size() - 1))
+    {
+      // Ignore reads that are clipped on both sides
+    }
+    else if (path.read_start_index > 0)
+    {
+      std::vector<Location> s_locs = graph.get_locations_of_a_position(path.start, path);
+      std::vector<Location> e_locs = graph.get_locations_of_a_position(path.end, path);
+      bool is_match_found = false;
+
+      for (auto const & s : s_locs)
+      {
+        if (s.node_type != 'V')
+          continue;
+
+        for (auto const & e : e_locs)
+        {
+          if (e.node_type == 'V' &&
+            s.node_order == e.node_order &&
+            path.read_start_index > s.offset
+             )
+          {
+            // Require a kmer match before the variant node with first kmer in the read
+            std::vector<KmerLabel> labels = query_index_for_first_kmer(seqan_read);
+
+            for (KmerLabel const & label : labels)
+            {
+              if (label.start_index < s.node_order && label.start_index + 100 >= s.node_order)
+              {
+                // We found a kmer before the variant node, now we trust that the read belongs here!
+                is_match_found = true;
+                break; // We only need to find a single match
+              }
+            }
+
+            // Assume that the breakpoint is incorrect and align to it (but not further)
+            if (is_match_found)
+            {
+              assert (s.offset < e.offset);
+              path.read_start_index -= s.offset;
+              assert(path.read_start_index > 0);
+              path.start = s.node_order;
+              path.mismatches += 2;
+              break;
+            } // is_match_found
+          }
+        }
+
+        if (is_match_found)
+          break;
+      }
+    }
+    else if (path.read_end_index < (read.size() - 1))
+    {
+      std::vector<Location> e_locs = graph.get_locations_of_a_position(path.end, path);
+
+      for (auto const & e : e_locs)
+      {
+        if (e.node_type != 'R')
+          continue;
+
+        RefNode const & ref_node = graph.ref_nodes[e.node_index];
+
+        if (ref_node.out_degree() <= 1)
+          continue; // Final reference node
+
+        // Check if the read can possibly reach the breakpoint
+        long const remaining_read = read.size() - 1 - path.read_end_index;
+        long const remaining_ref = ref_node.get_label().dna.size() - e.offset;
+
+        if (remaining_read < remaining_ref)
+          continue;
+
+        auto const next_var_index = ref_node.get_var_index(1);
+        VarNode const & next_var_node = graph.var_nodes[next_var_index];
+
+        if (next_var_node.get_label().dna.size() < 150) // Not an SV
+          continue;
+
+        // Require a kmer match on the variant node with the very last kmer in the read
+        std::vector<KmerLabel> labels = query_index_for_last_kmer(seqan_read);
+        bool is_match_found = false;
+
+        for (KmerLabel const & label : labels)
+        {
+          if (label.variant_id == next_var_index)
+          {
+            // We found a kmer in the next variant node, trust that the read belongs here!
+            is_match_found = true;
+            break; // We only need to find a single match
+          }
+        }
+
+        if (is_match_found)
+        {
+          assert(read.size() > 0);
+          path.read_end_index += remaining_ref;
+          assert(path.read_end_index <= read.size() - 1);
+          path.end = next_var_node.get_label().order;
+          path.var_order.push_back(next_var_node.get_label().order);
+          path.mismatches += 2;
+
+          // Set bitset
+          {
+            std::bitset<MAX_NUMBER_OF_HAPLOTYPES> num;
+
+            for (long i = 1; i < static_cast<long>(ref_node.out_degree()); ++i)
+              num.set(i);
+
+            path.nums.push_back(num);
+          }
+
+          break;
+        } // is_match_found
+      }
+    }
+  }
 }
 
 
@@ -299,7 +489,7 @@ GenotypePaths::remove_paths_within_variant_node()
 
       for (auto const & e : e_locs)
       {
-        if (e.node_type == 'V' && s.node_order == e.node_order)
+        if (e.node_type == 'V' && s.node_order == e.node_order && s.offset > 0)
         {
           return true;
         }
@@ -310,7 +500,11 @@ GenotypePaths::remove_paths_within_variant_node()
   };
 
   // Erase paths which are within a single variant node
-  paths.erase(std::remove_if(paths.begin(), paths.end(), is_path_within_one_variant_node), paths.end());
+  paths.erase(std::remove_if(paths.begin(),
+                             paths.end(),
+                             is_path_within_one_variant_node
+                             ), paths.end()
+    );
 
   // Finally, update the longest path size
   update_longest_path_size();
@@ -368,7 +562,7 @@ GenotypePaths::walk_read_ends(seqan::IupacString const & seq, int maximum_mismat
 
   for (auto & path : paths)
   {
-    // Check if this path can be lengthed
+    // Check if this path can be made longer
     assert(path.read_end_index <= seqan::length(seq) - 1);
 
     if (path.read_end_index == seqan::length(seq) - 1)
@@ -390,7 +584,7 @@ GenotypePaths::walk_read_ends(seqan::IupacString const & seq, int maximum_mismat
 
     // Value less than zero causes default value
     uint32_t mismatches = (maximum_mismatches < 0) ?
-      std::min(2 + kmer.size() / 11, best_mismatches) :
+      static_cast<uint32_t>(std::min(2 + kmer.size() / 11, best_mismatches)) :
       static_cast<uint32_t>(maximum_mismatches);
 
     new_labels = graph.iterative_dfs(std::move(s_locs), std::move(e_locs), kmer, mismatches);
@@ -417,7 +611,13 @@ GenotypePaths::walk_read_ends(seqan::IupacString const & seq, int maximum_mismat
   if (best_labels.size() > 0)
   {
     for (unsigned i = 0; i < best_labels.size(); ++i)
-      add_next_kmer_labels(best_labels[i], best_end_indexes[i], seqan::length(seq) - 1, best_mismatches);
+    {
+      add_next_kmer_labels(best_labels[i],
+                           best_end_indexes[i],
+                           seqan::length(seq) - 1,
+                           (int)best_mismatches
+        );
+    }
   }
 }
 
@@ -644,7 +844,7 @@ GenotypePaths::find_new_variants() const
     else
       ref_pos_start = 0;
 
-    uint32_t ref_pos_end = pos + read.size() + EXTRA_BASES_AFTER;
+    uint32_t ref_pos_end = static_cast<uint32_t>(pos + read.size() + EXTRA_BASES_AFTER);
     std::vector<char> reference = graph.get_generated_reference_genome(ref_pos_start, ref_pos_end);
 
     // Disocvery new variants (SNPs and indels)

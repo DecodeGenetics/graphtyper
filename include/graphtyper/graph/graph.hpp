@@ -25,6 +25,19 @@ class VarRecord;
 
 using TSVKey = std::tuple<uint32_t, std::vector<char>, std::vector<std::vector<char> > >; // pos, ref, alts
 
+struct Contig
+{
+  std::string name = std::string("");
+  uint32_t length = 0;
+
+  template <typename Archive>
+  void serialize(Archive & ar, unsigned int)
+  {
+    ar & name;
+    ar & length;
+  }
+};
+
 class Graph
 {
   friend class boost::serialization::access; // boost is my friend
@@ -32,12 +45,14 @@ class Graph
 public:
   bool use_prefix_chr = true;
   bool use_absolute_positions = true;
+  bool is_sv_graph = false;
   std::vector<GenomicRegion> genomic_regions;
   std::vector<char> reference;
   uint32_t reference_offset = 0;
   std::vector<RefNode> ref_nodes;
   std::vector<VarNode> var_nodes;
   std::vector<SV> SVs;
+  std::vector<Contig> contigs;
 
   /****************
    * CONSTRUCTORS *

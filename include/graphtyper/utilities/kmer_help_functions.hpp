@@ -22,6 +22,14 @@ template <typename TSequence>
 uint32_t read_offset(TSequence const & dna);
 
 template <typename TSeq>
+std::vector<KmerLabel>
+query_index_for_first_kmer(TSeq const & read, MemIndex const & _mem_index = gyper::mem_index);
+
+template <typename TSeq>
+std::vector<KmerLabel>
+query_index_for_last_kmer(TSeq const & read, MemIndex const & _mem_index = gyper::mem_index);
+
+template <typename TSeq>
 std::vector<std::vector<KmerLabel> >
 query_index(TSeq const & read, gyper::MemIndex const & mem_index = gyper::mem_index);
 

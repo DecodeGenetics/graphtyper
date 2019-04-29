@@ -89,8 +89,6 @@ public:
   void clear();
 
   void add_coverage(uint32_t local_genotype_id, uint16_t c);
-  void set_coverage(uint32_t i, uint16_t c);
-
   void add_explanation(uint32_t local_genotype_id, std::bitset<MAX_NUMBER_OF_HAPLOTYPES> const & e);
   void update_max_log_score();
 
@@ -128,16 +126,18 @@ public:
   void coverage_to_gts(std::size_t pn_index, bool is_proper_pair);
   std::bitset<MAX_NUMBER_OF_HAPLOTYPES> explain_to_path_explain();
 
-private:
+
   uint16_t static constexpr NO_COVERAGE = 0xFFFFu;
   uint16_t static constexpr MULTI_ALT_COVERAGE = 0xFFFEu;
   uint16_t static constexpr MULTI_REF_COVERAGE = 0xFFFDu;
 
   /** Coverage per gt. Contains the called allele, unless one it is one of:
    *   - NO_COVERAGE: No allele is supported
-   *   - MULTI_ALT_COVERAGE: Multiple alleles are supported, none of which are the reference alleles.
+   *   - MULTI_ALT_COVERAGE: Multiple alleles are supported, none of which is the reference allele.
    *   - MULTI_REF_COVERAGE: Multiple alleles are supported, one of which is the reference allele.
    */
+
+private:
   std::vector<uint16_t> coverage; // per gt
   std::vector<std::bitset<MAX_NUMBER_OF_HAPLOTYPES> > explains; // per gt
 

@@ -19,7 +19,6 @@ public:
   uint32_t abs_pos;
   std::vector<std::vector<char> > seqs;
   std::vector<SampleCall> calls;
-  //std::unique_ptr<std::vector<DiscoveryInfo> > discovery_info;
   std::map<std::string, std::string> infos;
   std::vector<uint8_t> phase;
   std::string suffix_id;
@@ -38,8 +37,8 @@ public:
   bool add_base_in_back(bool const add_N = false);
   bool add_base_in_front(bool const add_N = false);
   void normalize(); /** \brief Defined here: http://genome.sph.umich.edu/wiki/Variant_Normalization */
+  void remove_common_prefix(bool const keep_one_match = false);
   void trim_sequences(bool const keep_one_match = false);
-  void remove_uncalled_alleles();
 
   /*********************
    * CLASS INFORMATION *
@@ -47,12 +46,9 @@ public:
   std::string print() const;  // for debugging
   std::string determine_variant_type() const;
   bool is_normalized() const;
-  bool is_snp() const;
   bool is_snp_or_snps() const;
-  bool is_transition_snp() const;
-  bool is_transversion_snp() const;
-  bool is_indel() const;
   bool is_with_matching_first_bases() const;
+  bool is_sv() const;
   uint64_t get_seq_depth() const;
   uint64_t get_seq_depth_of_allele(uint16_t const allele_id) const;
   std::vector<uint64_t> get_seq_depth_of_all_alleles() const;
@@ -68,6 +64,7 @@ public:
   bool operator!=(Variant const & b) const;
   bool operator<(Variant const & b) const;
   Variant & operator=(Variant const & var);
+  Variant & operator=(Variant && var) noexcept;
 };
 
 // Hash function for Variant
@@ -80,6 +77,6 @@ std::vector<Variant> break_down_variant(Variant && variant, std::size_t const TH
 std::vector<Variant> extract_sequences_from_aligned_variant(Variant const && variant, std::size_t const THRESHOLD);
 std::vector<Variant> simplify_complex_haplotype(Variant && variant, std::size_t const THRESHOLD);
 std::vector<Variant> break_multi_snps(Variant const && var);
-
+void find_variant_sequences(gyper::Variant & new_var, gyper::Variant const & old_var);
 
 } // namespace gyper

@@ -79,7 +79,7 @@ namespace gyper
 {
 
 GenomicRegion::GenomicRegion(uint32_t _region_to_refnode)
-  : rID(0), chr("chr1"), begin(0), end(CHR01_LENGTH - 1), region_to_refnode(_region_to_refnode)
+  : rID(0), chr("N/A"), begin(0), end(AS_LONG_AS_POSSIBLE), region_to_refnode(_region_to_refnode)
 { }
 
 
@@ -93,7 +93,7 @@ GenomicRegion::GenomicRegion(uint16_t && r, std::string && c, uint32_t && b, uin
 
 
 GenomicRegion::GenomicRegion(std::string region, uint32_t _region_to_refnode)
-  : rID(0), chr("chr1"), begin(0), end(AS_LONG_AS_POSSIBLE), region_to_refnode(_region_to_refnode)
+  : rID(0), chr("N/A"), begin(0), end(AS_LONG_AS_POSSIBLE), region_to_refnode(_region_to_refnode)
 {
   if (region == std::string("."))
     return;

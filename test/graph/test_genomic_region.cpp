@@ -12,12 +12,16 @@ TEST_CASE("Getting absolute and contig positions from genomic region")
 {
   gyper::GenomicRegion genomic_region;
 
+  uint32_t const CHR01_LENGTH = 66ul;
+  uint32_t const CHR02_LENGTH = 66ul;
+  uint32_t const CHR03_LENGTH = 66ul;
+
   SECTION("Get absolute position")
   {
     REQUIRE(genomic_region.get_absolute_position("chr1", 1) == 1);
     REQUIRE(genomic_region.get_absolute_position("chr1", 100) == 100);
-    REQUIRE(genomic_region.get_absolute_position("chr2", 100) == 100 + gyper::CHR01_LENGTH);
-    REQUIRE(genomic_region.get_absolute_position("chr4", 1) == 1 + gyper::CHR01_LENGTH + gyper::CHR02_LENGTH + gyper::CHR03_LENGTH);
+    REQUIRE(genomic_region.get_absolute_position("chr2", 100) == 100 + CHR01_LENGTH);
+    REQUIRE(genomic_region.get_absolute_position("chr4", 1) == 1 + CHR01_LENGTH + CHR02_LENGTH + CHR03_LENGTH);
   }
 
   SECTION("Get contig position")
@@ -25,17 +29,13 @@ TEST_CASE("Getting absolute and contig positions from genomic region")
     REQUIRE(genomic_region.get_contig_position(1).first == "chr1");
     REQUIRE(genomic_region.get_contig_position(1).second == 1ul);
 
-    REQUIRE(genomic_region.get_contig_position(100).first == "chr1");
-    REQUIRE(genomic_region.get_contig_position(100).second == 100ul);
+    REQUIRE(genomic_region.get_contig_position(3).first == "chr1");
+    REQUIRE(genomic_region.get_contig_position(3).second == 3ul);
 
-    REQUIRE(genomic_region.get_contig_position(1 + gyper::CHR01_LENGTH).first == "chr2");
-    REQUIRE(genomic_region.get_contig_position(1 + gyper::CHR01_LENGTH).second == 1ul);
+    REQUIRE(genomic_region.get_contig_position(1 + CHR01_LENGTH).first == "chr2");
+    REQUIRE(genomic_region.get_contig_position(1 + CHR01_LENGTH).second == 1ul);
 
-    REQUIRE(genomic_region.get_contig_position(gyper::CHR01_LENGTH).first == "chr1");
-    REQUIRE(genomic_region.get_contig_position(gyper::CHR01_LENGTH).second == gyper::CHR01_LENGTH);
-
-    uint32_t const abs_pos_chrY = genomic_region.get_absolute_position("chrY", gyper::CHR0Y_LENGTH);
-    REQUIRE(genomic_region.get_contig_position(abs_pos_chrY).first == "chrY");
-    REQUIRE(genomic_region.get_contig_position(abs_pos_chrY).second == gyper::CHR0Y_LENGTH);
+    REQUIRE(genomic_region.get_contig_position(CHR01_LENGTH).first == "chr1");
+    REQUIRE(genomic_region.get_contig_position(CHR01_LENGTH).second == CHR01_LENGTH);
   }
 }

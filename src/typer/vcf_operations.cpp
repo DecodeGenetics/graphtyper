@@ -399,6 +399,7 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
   {
     vcf.open(WRITE_MODE, output);
     vcf.open_for_writing();
+
     if (SITES_ONLY)
     {
       vcf.sample_names.clear();
@@ -416,6 +417,7 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
       gyper::Vcf next_vcf;
       next_vcf.open(READ_MODE, vcfs[i]);
       next_vcf.open_vcf_file_for_reading();
+      next_vcf.read_samples();
 
       if (SITES_ONLY)
       {
@@ -423,10 +425,6 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
 
         for (auto & var : next_vcf.variants)
           var.calls.clear();
-      }
-      else
-      {
-        next_vcf.read_samples();
       }
 
       // Copy sample names if this is the first VCF
@@ -440,18 +438,22 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
       {
         BOOST_LOG_TRIVIAL(error) << "[graphtyper::vcf_operations] The VCF file "
                                  << vcfs[i]
-                                 << " has different amount of samples!";
+                                 << " has different amount of samples! (" << next_vcf.sample_names.size()
+                                 << " but not " << vcf.sample_names.size() << ")\n";
         std::exit(1);
       }
 
-      while (next_vcf.read_record())
+      while (next_vcf.read_record(SITES_ONLY))
       {
         // Add variants
         assert(vcf.variants.size() == 0);
         std::move(next_vcf.variants.begin(), next_vcf.variants.end(),
                   std::back_inserter(vcf.variants));
         assert(vcf.variants.size() == 1);
-        vcf.variants[0].generate_infos();
+
+        if (vcf.sample_names.size() > 0)
+          vcf.variants[0].generate_infos();
+
         vcf.write_records();
 
         // Sure all is cleared now
@@ -466,12 +468,16 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
   }
   else // Also sort
   {
-    vcf.open(READ_MODE, vcfs[0]);
-    vcf.read();
+    vcf.open(WRITE_MODE, output);
+    vcf.open_for_writing();
+
+    if (SITES_ONLY)
+      vcf.sample_names.clear();
+
     BOOST_LOG_TRIVIAL(info) << "[graphtyper::vcf_operations] Total number of samples read is "
                             << vcf.sample_names.size();
 
-    for (std::size_t i = 1; i < vcfs.size(); ++i)
+    for (std::size_t i = 0; i < vcfs.size(); ++i)
     {
       // Skip if the filename contains '*'
       if (std::count(vcfs[i].begin(), vcfs[i].end(), '*') > 0)
@@ -479,7 +485,7 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
 
       gyper::Vcf next_vcf;
       next_vcf.open(READ_MODE, vcfs[i]);
-      next_vcf.read();
+      next_vcf.read(SITES_ONLY);
 
       if (SITES_ONLY)
       {
@@ -488,13 +494,19 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
         for (auto & var : next_vcf.variants)
           var.calls.clear();
       }
+      else if (i == 0)
+      {
+        // First VCF gets
+        vcf.sample_names = next_vcf.sample_names;
+      }
 
       // Merge with the other VCF
       if (next_vcf.sample_names.size() != vcf.sample_names.size())
       {
         BOOST_LOG_TRIVIAL(error) << "[graphtyper::vcf_operations] The VCF file "
                                  << vcfs[i]
-                                 << " has different amount of samples!";
+                                 << " has different amount of samples! (" << next_vcf.sample_names.size()
+                                 << " but not " << vcf.sample_names.size() << ")";
         std::exit(1);
       }
 
@@ -505,15 +517,14 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
     }
 
     // Regenerate the INFO scores
-    for (auto & var : vcf.variants)
-      var.generate_infos();
+    if (vcf.sample_names.size() > 0)
+    {
+      for (auto & var : vcf.variants)
+        var.generate_infos();
+    }
 
-    // Change the filename to whatever the user wishes
-    vcf.filename = output;
-
-    // Change the filemode to writing
-    vcf.set_filemode(WRITE_MODE);
     vcf.write(region);
+    vcf.close_vcf_file();
   }
 }
 
@@ -672,8 +683,11 @@ vcf_update_info(std::string const & vcf, std::string const & output)
     assert(vcf_out.variants.size() == 1);
 
     // Generate INFOs for the broken down variant
-    for (auto & var : vcf_out.variants)
-      var.generate_infos();
+    if (vcf_out.sample_names.size() > 0)
+    {
+      for (auto & var : vcf_out.variants)
+        var.generate_infos();
+    }
 
     // Write the record
     vcf_out.write_records();

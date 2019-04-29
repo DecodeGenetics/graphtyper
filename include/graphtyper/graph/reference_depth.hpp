@@ -4,6 +4,8 @@
 #include <mutex>
 #include <vector>
 
+#include <graphtyper/graph/graph.hpp>
+
 
 namespace gyper
 {
@@ -62,6 +64,7 @@ public:
   void set_pn_count(std::size_t pn_count);
   void add_reference_depths_from(ReferenceDepth const & ref_depth, std::size_t pn_index);
   uint16_t get_read_depth(VariantCandidate const & var, std::size_t pn_index) const;
+  uint16_t get_read_depth(uint32_t abs_pos, std::size_t const pn_index) const;
   uint64_t get_total_read_depth_of_samples(VariantCandidate const & var, std::vector<uint32_t> const & pn_indexes) const;
 };
 

@@ -18,8 +18,9 @@ to_pair(long const index)
     ++y;
 
   --y;
-  // uint32_t x = index - (y*y + y)/2u;
-  return std::make_pair<uint16_t, uint16_t>(index - (y * y + y) / 2u, static_cast<uint16_t>(y));
+  return std::make_pair<uint16_t, uint16_t>(static_cast<uint16_t>(index - (y * y + y) / 2u),
+                                            static_cast<uint16_t>(y)
+    );
 }
 
 

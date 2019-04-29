@@ -389,7 +389,6 @@ extract_to_vcf(std::string const & graph_path,
 {
   std::vector<std::vector<Genotype> > gts;
   load_graph(graph_path);
-  Options::instance()->chr_prefix = gyper::graph.use_prefix_chr;
   std::vector<std::vector<uint32_t> > hap_calls = read_haplotype_calls_from_file(haps_path, gts);
 
   for (auto it = hap_calls.begin(); it != hap_calls.end(); ++it)
@@ -426,8 +425,10 @@ extract_to_vcf(std::string const & graph_path,
       if (unique_calls <= Options::instance()->max_extracted_haplotypes)
         break;
 
-      BOOST_LOG_TRIVIAL(info) << "[graphtyper::haplotype_extractor] Found a haplotype with " << unique_calls
-                              << " different calls. I will require more occurences for each one of them.";
+      BOOST_LOG_TRIVIAL(info) << "[graphtyper::haplotype_extractor] Found a haplotype with "
+                              << unique_calls
+                              << " different calls. I will require more occurences for each one"
+                              << " of them.";
       ++min_calls;
     }
 

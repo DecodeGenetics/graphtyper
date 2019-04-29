@@ -219,14 +219,6 @@ Haplotype::has_too_many_genotypes() const
 
 
 void
-Haplotype::set_coverage(uint32_t const i, uint16_t const c)
-{
-  assert (i < coverage.size());
-  coverage[i] = c;
-}
-
-
-void
 Haplotype::add_coverage(uint32_t const i, uint16_t const c)
 {
   // i is local genotype id
@@ -280,7 +272,6 @@ Haplotype::add_coverage(uint32_t const i, uint16_t const c)
 
     break;
   }
-
   }
 }
 
@@ -347,7 +338,8 @@ Haplotype::realignment_to_stats(bool const is_unaligned_read,
   {
     for (std::size_t i = 0; i < var_stats.size(); ++i)
     {
-      if (coverage[i] < MULTI_REF_COVERAGE) // true when the coverage is unique to a particular allele
+      // true when the coverage is unique to a particular allele
+      if (coverage[i] < MULTI_REF_COVERAGE)
       {
         assert(coverage[i] < var_stats[i].originally_clipped.size());
 
@@ -769,13 +761,32 @@ Haplotype::get_haplotype_calls() const
       return false;
     };
 
+    auto get_gq_score = [](std::vector<uint16_t> const & log_scores) -> long
+    {
+      long largest = 0;
+      long second_largest = 0;
+
+      for (auto const score : log_scores)
+      {
+        if (score > largest)
+        {
+          second_largest = largest;
+          largest = score;
+        }
+      }
+
+      return largest - second_largest;
+    };
+
+    // score*3 is approximately genotype quality compared to reference
+    int constexpr REQUIRED_SCORE_OVER_HOMREF = 10;
+    int constexpr REQUIRED_GQ_SCORE = 5;
+
     // Favor homozygous calls
     int call1 = 0;
     int call2 = 0;
 
-    // score*3 is approximately genotype quality compared to reference
-    int constexpr REQUIRED_SCORE = 10;
-    int local_max_log_score = hap_sample.log_score[to_index(0, 0)] + REQUIRED_SCORE;
+    int local_max_log_score = hap_sample.log_score[to_index(0, 0)] + REQUIRED_SCORE_OVER_HOMREF;
 
     // Homozugous first, because we want to have the least amount af haplotypes extracted
     for (int y = 1; y < cnum; ++y)
@@ -783,7 +794,7 @@ Haplotype::get_haplotype_calls() const
       // Skip 0/0
       int const score = hap_sample.log_score[to_index(y, y)];
 
-      if (score > local_max_log_score &&
+      if (score >= local_max_log_score &&
           score > (hap_sample.log_score[to_index(0, y)] + MINIMUM_VARIANT_SUPPORT)
         )
       {
@@ -794,21 +805,28 @@ Haplotype::get_haplotype_calls() const
       }
     }
 
-    for (int y = 1; y < cnum; ++y)
-    {
-      for (int x = 0; x < y; ++x)
-      {
-        int const score = hap_sample.log_score[to_index(x, y)];
+    long const gq_score = get_gq_score(hap_sample.log_score);
 
-        if (score > local_max_log_score)
+    // Only consider heterzygous calls if it has a good GQ
+    if (gq_score >= REQUIRED_GQ_SCORE)
+    {
+      for (int y = 1; y < cnum; ++y)
+      {
+        for (int x = 0; x < y; ++x)
         {
-          local_max_log_score = score;
-          call1 = x;
-          call2 = y;
+          int const score = hap_sample.log_score[to_index(x, y)];
+
+          if (score > local_max_log_score)
+          {
+            local_max_log_score = score;
+            call1 = x;
+            call2 = y;
+          }
         }
       }
     }
 
+    // Add non-reference calls above coverage cut-off
     if (call1 != 0 && coverage_above_cutoff(call1))
       all_calls.push_back(call1);
 

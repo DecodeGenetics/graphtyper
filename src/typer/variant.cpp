@@ -1,3 +1,4 @@
+#include <algorithm> // std::swap
 #include <limits>
 #include <string> // std::string
 #include <sstream> // std::stringstream
@@ -8,9 +9,6 @@
 
 #include <seqan/basic.h>
 #include <seqan/sequence.h>
-//#include <seqan/align.h>
-//#include <seqan/graph_msa.h>
-//#include <seqan/score.h>
 #include <seqan/stream.h>
 
 #include <graphtyper/graph/absolute_position.hpp> // gyper::AbsolutePosition
@@ -25,36 +23,12 @@
 namespace
 {
 
-bool inline
-is_overlapping(std::vector<gyper::Variant> const & vars)
-{
-  using namespace gyper;
-  assert(std::is_sorted(vars.cbegin(), vars.cend()));
-
-  if (vars.size() == 1)
-    return false;
-
-  assert(vars.size() > 0);
-  assert(vars[0].seqs.size() > 0);
-  long reach = vars[0].abs_pos + vars[0].seqs[0].size();
-
-  for (long i = 1; i < static_cast<long>(vars.size()); ++i)
-  {
-    auto const & var = vars[i];
-
-    if (var.abs_pos < reach)
-      return true;
-
-    reach = std::max(reach, static_cast<long>(var.abs_pos + var.seqs[0].size()));
-  }
-
-  return false;
-}
-
-
-
 void
-update_strand_bias(std::size_t const num_seqs, std::size_t new_num_seqs, std::vector<uint16_t> const & old_phred_to_new_phred, gyper::Variant const & var, gyper::Variant & new_var)
+update_strand_bias(std::size_t const num_seqs,
+                   std::size_t new_num_seqs,
+                   std::vector<uint16_t> const & old_phred_to_new_phred,
+                   gyper::Variant const & var, gyper::Variant & new_var
+  )
 {
   using gyper::Variant;
   using gyper::get_strand_bias;
@@ -137,9 +111,14 @@ update_strand_bias(std::size_t const num_seqs, std::size_t new_num_seqs, std::ve
       for (m = 1; m < new_num_seqs; ++m)
       {
         if (new_seq_depths[m] > 0)
-          ss << ',' << static_cast<uint16_t>(sqrt(static_cast<double>(new_mq_rooted[m]) / static_cast<double>(new_seq_depths[m])));
+        {
+          ss << ','
+             << static_cast<uint16_t>(sqrt(static_cast<double>(new_mq_rooted[m]) / static_cast<double>(new_seq_depths[m])));
+        }
         else
+        {
           ss << ',' << 255u;
+        }
       }
 
       new_var.infos["MQperAllele"] = ss.str();
@@ -158,119 +137,6 @@ update_strand_bias(std::size_t const num_seqs, std::size_t new_num_seqs, std::ve
     new_var.infos["RACount"] = join_strand_bias(new_ra_count);
     new_var.infos["RADist"] = join_strand_bias(new_ra_dist);
   }
-}
-
-
-void
-find_variant_sequences(gyper::Variant & new_var, gyper::Variant const & old_var)
-{
-  using gyper::get_strand_bias;
-  using gyper::join_strand_bias;
-  using gyper::to_index;
-  using gyper::SampleCall;
-
-  assert(new_var.calls.size() == 0);
-  auto & seqs = new_var.seqs;
-
-  assert(seqs.size() >= 2);
-  assert(seqs[0].size() > 0);
-  assert(seqs[1].size() > 0);
-
-  std::vector<uint16_t> old_phred_to_new_phred(1, 0);
-  std::vector<std::vector<char> > new_seqs(1, seqs[0]);
-
-  for (std::size_t a = 1; a < seqs.size(); ++a)
-  {
-    auto find_it = std::find(new_seqs.begin(), new_seqs.end(), seqs[a]);
-
-    if (find_it == new_seqs.end() and seqs[a].size() != 0)
-    {
-      old_phred_to_new_phred.push_back(new_seqs.size());
-      new_seqs.push_back(seqs[a]);
-    }
-    else
-    {
-      old_phred_to_new_phred.push_back(std::distance(new_seqs.begin(), find_it));
-    }
-  }
-
-  assert(old_phred_to_new_phred.size() == seqs.size());
-
-  if (new_seqs.size() <= 1)
-  {
-    // No variant found
-    seqs.clear();
-    return;
-  }
-
-  for (std::size_t i = 0; i < old_var.calls.size(); ++i)
-  {
-    auto const & old_call = old_var.calls[i];
-    SampleCall new_call;
-
-    // phred
-    {
-      assert(old_call.phred.size() == (old_var.seqs.size() * (old_var.seqs.size() + 1) / 2));
-      new_call.phred = std::vector<uint8_t>(new_seqs.size() * (new_seqs.size() + 1) / 2, 255u);
-
-      for (uint16_t y = 0; y < old_var.seqs.size(); ++y)
-      {
-        for (uint16_t x = 0; x <= y; ++x)
-        {
-          uint16_t const index = to_index(x, y);
-          uint16_t new_x = old_phred_to_new_phred[x];
-          uint16_t new_y = old_phred_to_new_phred[y];
-
-          if (old_var.phase.size() > 0 && old_call.phred[index] == 0)
-          {
-            assert (i < old_var.phase.size());
-
-            if (new_x > new_y)
-              new_var.phase[i] = !old_var.phase[i];
-          }
-
-          if (new_x > new_y)
-            std::swap(new_x, new_y);
-
-          uint16_t const new_index = to_index(new_x, new_y);
-          assert(new_index < new_call.phred.size());
-          assert(index < old_call.phred.size());
-          new_call.phred[new_index] = std::min(new_call.phred[new_index], old_call.phred[index]);
-        }
-      }
-    }
-
-    // coverage
-    {
-      assert(old_call.coverage.size() == old_var.seqs.size());
-      new_call.coverage = std::vector<uint16_t>(new_seqs.size(), 0u);
-
-      for (uint32_t y = 0; y < old_var.seqs.size(); ++y)
-      {
-        uint32_t const new_y = old_phred_to_new_phred[y];
-
-        // Check overflow of coverage
-        if (static_cast<uint32_t>(new_call.coverage[new_y]) + static_cast<uint32_t>(old_call.coverage[y]) < 0xFFFFul)
-          new_call.coverage[new_y] += old_call.coverage[y];
-        else
-          new_call.coverage[new_y] = 0xFFFFul;
-      }
-    }
-
-    // other
-    {
-      new_call.ambiguous_depth = old_call.ambiguous_depth;
-      new_call.ref_total_depth = old_call.ref_total_depth;
-      new_call.alt_total_depth = old_call.alt_total_depth;
-      new_call.alt_proper_pair_depth = old_call.alt_proper_pair_depth;
-    }
-
-    // Update strand bias
-    update_strand_bias(old_var.seqs.size(), new_seqs.size(), old_phred_to_new_phred, old_var, new_var);
-    new_var.calls.push_back(std::move(new_call));
-  }
-
-  new_var.seqs = std::move(new_seqs);
 }
 
 
@@ -314,6 +180,7 @@ Variant::Variant(Genotype const & gt)
 Variant::Variant(std::vector<Genotype> const & gts, std::vector<uint32_t> const & hap_calls)
 {
   assert(gts.size() > 0);
+
   for (std::size_t i = 0; i < hap_calls.size(); ++i)
     seqs.push_back(graph.get_sequence_of_a_haplotype_call(gts, hap_calls[i]));
 
@@ -339,8 +206,10 @@ Variant::generate_infos()
 
   // Calculate AC, AN, SeqDepth, MaxVS, ABHom, ABHet, ABHomMulti, ABHetMulti
   std::vector<uint32_t> ac(seqs.size() - 1, 0u);
+  std::vector<uint32_t> pass_ac(seqs.size() - 1, 0u);
   assert(ac.size() > 0);
-  uint32_t an = 0;
+  long an = 0;
+  long pass_an = 0;
   uint64_t seqdepth = 0;
   uint64_t seqdepth_nonref = 0;
   std::pair<uint32_t, uint32_t> het_allele_depth = {0ul, 0ul};   // First is the first call, second is the second call
@@ -364,6 +233,9 @@ Variant::generate_infos()
 
   // Maximum number of alt proper pairs (MaxAltPP)
   uint8_t n_max_alt_proper_pairs = 0u;
+
+  // For calculation how many calls passed
+  long n_passed_calls = 0;
 
   for (auto const & sample_call : calls)
   {
@@ -406,6 +278,10 @@ Variant::generate_infos()
     assert(seqs.size() == sample_call.coverage.size());
     assert(call.first < seqs.size());
     assert(call.second < seqs.size());
+    long filter = sample_call.check_filter(sample_call.get_gq());
+
+    if (filter == 0)
+      ++n_passed_calls;
 
     // Restrict to unique calls, that is calls with only one PHRED=0 (@Hannes: removed for now..
     // I don't get why this would make sense)
@@ -424,7 +300,10 @@ Variant::generate_infos()
         else
         {
           hom_allele_depth.first += sample_call.coverage[call.first];
-          hom_allele_depth.second += std::accumulate(sample_call.coverage.cbegin(), sample_call.coverage.cend(), 0ull) - sample_call.coverage[call.first];
+          hom_allele_depth.second += std::accumulate(sample_call.coverage.cbegin(),
+                                                     sample_call.coverage.cend(),
+                                                     0ull
+            ) - sample_call.coverage[call.first];
           ++n_hom;
         }
       }
@@ -457,18 +336,29 @@ Variant::generate_infos()
       }
     }
 
-    // SeqDepth and SeqDepth excluding reference allele
+    // SeqDepth and SeqDepth excluding reference allele and reference calls
     if (sample_call.coverage.size() > 0)
     {
-      //assert (sample_call.coverage.size() > 0);
-      const uint64_t non_ref_seqdepth = std::accumulate(sample_call.coverage.cbegin() + 1, sample_call.coverage.cend(), 0ull);
-      seqdepth_nonref += std::min(static_cast<uint64_t>(10), non_ref_seqdepth); // Dont add too much because phred cannot go very high
+      uint64_t const non_ref_seqdepth = std::accumulate(sample_call.coverage.cbegin() + 1,
+                                                        sample_call.coverage.cend(), 0ull
+        );
+
+      // Ignore reference calls
+      if (sample_call.phred[0] != 0)
+      {
+        // Dont add too much because phred cannot go very high
+        seqdepth_nonref += std::min(static_cast<uint64_t>(10ull), non_ref_seqdepth);
+      }
+
       seqdepth += non_ref_seqdepth + sample_call.coverage[0] + sample_call.ambiguous_depth;
     }
 
     // AN
     {
       an += 2;
+
+      if (filter == 0) // PASS
+        pass_an += 2;
     }
 
     // AC (AF can be derived from AC and AN)
@@ -481,6 +371,15 @@ Variant::generate_infos()
 
       if (call.second != 0u)
         ++ac[call.second - 1];
+
+      if (filter == 0) // PASS
+      {
+        if (call.first != 0u)
+          ++pass_ac[call.first - 1];
+
+        if (call.second != 0u)
+          ++pass_ac[call.second - 1];
+      }
 
       if (call.first == 0u && call.second == 0u)
         ++n_ref_ref;
@@ -537,8 +436,37 @@ Variant::generate_infos()
   }
 
   // Write AN
+  infos["AN"] = std::to_string(an);
+
+  // Write PASS_AC
   {
-    infos["AN"] = std::to_string(an);
+    assert(pass_ac.size() > 0);
+    assert(pass_ac.size() == seqs.size() - 1);
+    std::ostringstream ac_ss;
+    ac_ss << pass_ac[0];
+
+    for (uint32_t e = 1; e < pass_ac.size(); ++e)
+      ac_ss << ',' << pass_ac[e];
+
+    infos["PASS_AC"] = ac_ss.str();
+  }
+
+  // Write PASS_AN
+  infos["PASS_AN"] = std::to_string(pass_an);
+
+  // Write NRP
+  {
+    bool is_any_hq_alt = std::any_of(pass_ac.begin(), pass_ac.end(), [](long ac){return ac > 0;});
+
+    if (!is_any_hq_alt)
+      infos["NRP"] = "";
+  }
+
+  // Write PASS_ratio
+  if (calls.size() > 0)
+  {
+    double pr = static_cast<double>(n_passed_calls) / static_cast<double>(calls.size());
+    infos["PASS_ratio"] = std::to_string(pr);
   }
 
   // Write Num REF/REF, REF/ALT, ALT/ALT, homozygous and heterozygous calls
@@ -706,26 +634,41 @@ Variant::generate_infos()
 }
 
 
-void
-Variant::trim_sequences(bool const keep_one_match)
+bool
+Variant::is_sv() const
 {
-  add_base_in_front();
-  remove_common_suffix(seqs);
-  remove_common_prefix(abs_pos, seqs, keep_one_match);
+  // If the variant has an SV breakpoint, skip trimming
+  for (long s = 1; s < static_cast<long>(seqs.size()); ++s)
+  {
+    auto const & seq = seqs[s];
+
+    if (seq.size() < 5)
+      continue;
+
+    if (seq[0] == '<' || (seq.size() > 100 && std::find(seq.begin(), seq.end(), '<') != seq.end()))
+      return true; // Found an SV
+  }
+
+  return false;
 }
 
 
 void
-Variant::remove_uncalled_alleles()
+Variant::remove_common_prefix(bool const keep_one_match)
 {
-  // Check if any AC found in the INFO field
-  if (infos.count("AC") == 0)
-    generate_infos();
+  gyper::remove_common_prefix(abs_pos, seqs, keep_one_match);
+}
 
-  std::vector<uint16_t> uncalled_alleles = get_list_of_uncalled_alleles(infos["AC"]);
 
-  if (uncalled_alleles.size() == seqs.size() - 1)
-    seqs.clear(); // If all alleles are uncalled, just remove the variant
+void
+Variant::trim_sequences(bool const keep_one_match)
+{
+  add_base_in_front();
+
+  if (!is_sv())
+    remove_common_suffix(seqs);
+
+  gyper::remove_common_prefix(abs_pos, seqs, keep_one_match);
 }
 
 
@@ -757,7 +700,7 @@ bool
 Variant::add_base_in_back(bool const add_N)
 {
   assert(seqs.size() >= 1);
-  uint32_t abs_pos_copy = abs_pos + seqs[0].size();
+  uint32_t abs_pos_copy = abs_pos + static_cast<uint32_t>(seqs[0].size());
   uint32_t abs_pos_end = abs_pos_copy + 1;
   std::vector<char> last_base = graph.get_generated_reference_genome(abs_pos_copy, abs_pos_end);
 
@@ -778,6 +721,9 @@ Variant::add_base_in_back(bool const add_N)
 void
 Variant::normalize()
 {
+  if (seqs.size() < 2)
+    return;
+
   remove_common_suffix(seqs);
 
   // A lambda function which checks if all last bases matches
@@ -808,7 +754,7 @@ Variant::normalize()
     remove_common_suffix(seqs);
   }
 
-  remove_common_prefix(abs_pos, seqs, false); // Don't keep one match
+  gyper::remove_common_prefix(abs_pos, seqs, false); // Don't keep one match
 }
 
 
@@ -831,53 +777,10 @@ Variant::is_snp_or_snps() const
 {
   // Check if all the alleles are of the same size
   assert (seqs.size() >= 2);
-  return std::find_if(seqs.begin() + 1, seqs.end(), [&](std::vector<char> const & seq){return seq.size() != seqs[0].size();}) == seqs.end();
-}
-
-
-bool
-Variant::is_snp() const
-{
-  auto is_of_size_1 = [](std::vector<char> const & seq){
-                        return seq.size() == 1;
-                      };
-
-  return seqs.size() >= 2 && seqs.size() <= 4 && std::all_of(seqs.begin(), seqs.end(), is_of_size_1);
-}
-
-
-bool
-Variant::is_transition_snp() const
-{
-  return is_snp() && seqs.size() == 2 && ((seqs[0][0] == 'A' && seqs[1][0] == 'G') ||
-                                          (seqs[0][0] == 'G' && seqs[1][0] == 'A') ||
-                                          (seqs[0][0] == 'C' && seqs[1][0] == 'T') ||
-                                          (seqs[0][0] == 'T' && seqs[1][0] == 'C')
-                                          );
-}
-
-
-bool
-Variant::is_transversion_snp() const
-{
-  return is_snp() && seqs.size() == 2 && !is_transition_snp();
-}
-
-
-bool
-Variant::is_indel() const
-{
-  auto is_of_size_1 = [](std::vector<char> const & seq){
-                        return seq.size() == 1;
-                      };
-
-  auto is_larger_than_1 = [](std::vector<char> const & seq){
-                            return seq.size() > 1;
-                          };
-
-  return seqs.size() >= 2 && ((seqs[0].size() == 1 && std::all_of(seqs.begin() + 1, seqs.end(), is_larger_than_1)) || // Insertion
-                              (seqs[0].size() > 1 && std::all_of(seqs.begin() + 1, seqs.end(), is_of_size_1)) // Deletion
-                              );
+  return std::find_if(seqs.begin() + 1,
+                      seqs.end(),
+                      [&](std::vector<char> const & seq){return seq.size() != seqs[0].size();}
+    ) == seqs.end();
 }
 
 
@@ -937,10 +840,11 @@ Variant::get_seq_depth_of_all_alleles() const
 {
   std::vector<uint64_t> seq_depths;
   seq_depths.reserve(this->seqs.size());
+  long const num_seqs = this->seqs.size();
 
-  for (std::size_t i = 0; i < this->seqs.size(); ++i)
+  for (long i = 0; i < num_seqs; ++i)
   {
-    seq_depths.push_back(this->get_seq_depth_of_allele(i));
+    seq_depths.push_back(this->get_seq_depth_of_allele(static_cast<uint16_t>(i)));
   }
 
   return seq_depths;
@@ -960,7 +864,8 @@ Variant::get_rooted_mapq() const
   }
 
   BOOST_LOG_TRIVIAL(warning) << "[graphtyper::variant] Could not extract MQ.";
-  return 60ul * 60ul * seq_depth; // This is nasty, but I think this is the nicest way to go without making things so much more complicated.
+  return 60ul * 60ul * seq_depth; // This is nasty, but I think this is the nicest way to go without
+                                  // making things so much more complicated.
 }
 
 std::vector<uint64_t>
@@ -978,10 +883,11 @@ Variant::get_rooted_mapq_per_allele() const
   std::vector<uint32_t> mapq_per_allele = get_strand_bias(this->infos, "MQperAllele");
   assert(mapq_per_allele.size() == seqs.size());
   rooted_mapq_per_allele.reserve(seqs.size());
+  long const num_seqs = seqs.size();
 
-  for (std::size_t i = 0; i < seqs.size(); ++i)
+  for (long i = 0; i < static_cast<long>(num_seqs); ++i)
   {
-    uint64_t const seq_depth = this->get_seq_depth_of_allele(i);
+    uint64_t const seq_depth = this->get_seq_depth_of_allele(static_cast<uint16_t>(i));
     rooted_mapq_per_allele.push_back(static_cast<uint64_t>(mapq_per_allele[i] * mapq_per_allele[i]) * seq_depth);
   }
 
@@ -1031,7 +937,7 @@ Variant::determine_variant_type() const
   std::size_t num_non_ones = 0;
 
   // Check if the variant is an SV
-  SVTYPE sv_type = NOT_SV;
+  gyper::SVTYPE sv_type = NOT_SV;
 
   for (auto it = seqs.begin(); it != seqs.end(); ++it)
   {
@@ -1044,21 +950,20 @@ Variant::determine_variant_type() const
         std::string const type(it->begin() + 1, it->begin() + 4);
 
         if (type == "DEL" && (sv_type == NOT_SV || sv_type == DEL))
-        {
           sv_type = DEL;
-        }
         else if (type == "DUP" && (sv_type == NOT_SV || sv_type == DUP))
-        {
           sv_type = DUP;
-        }
-        else if (type == "INS" && (sv_type == NOT_SV || sv_type == DUP))
-        {
+        else if (type == "INS" && (sv_type == NOT_SV || sv_type == INS))
           sv_type = INS;
-        }
         else
-        {
           sv_type = OTHER;
-        }
+      }
+      else if (std::find_if(it->begin(), it->end(), [](char c){return c == '[' || c == ']';}) != it->end())
+      {
+        if (sv_type == NOT_SV || sv_type == BND)
+          sv_type = BND;
+        else
+          sv_type = OTHER;
       }
       else
       {
@@ -1075,7 +980,9 @@ Variant::determine_variant_type() const
     case DEL: return "DG";
     case DUP: return "UG";
     case INS: return "FG";
-    default:  return "XG";
+    case INV: return "NG";
+    case BND: return "OG";
+    default: return "TG";
     }
   }
   else if (num_non_ones == 0)
@@ -1138,10 +1045,10 @@ break_down_variant(Variant && var, std::size_t const /*THRESHOLD*/)
       return var.seqs[0].size() != seq.size();
   }) == var.seqs.end();
 
-  if (std::any_of(var.seqs.begin() + 1, var.seqs.end(), [](std::vector<char> const & seq){
-        return seq.size() > 2 && seq[1] == '<';}))
+  if (var.seqs.size() == 2 && std::any_of(var.seqs[1].begin(), var.seqs[1].end(), [](char const c){
+        return c == '<' || c == '[' || c == ']';}))
   {
-    broken_down_vars.push_back(std::move(var)); // Don't break down variants with tags (SVs)
+    broken_down_vars.push_back(std::move(var)); // Don't break down SVs
   }
   else if (all_same_size)
   {
@@ -1152,44 +1059,10 @@ break_down_variant(Variant && var, std::size_t const /*THRESHOLD*/)
               std::back_inserter(broken_down_vars)
       );
   }
-  else /*if (var.seqs.size() > 50)*/
+  else
   {
     broken_down_vars.push_back(std::move(var));
   }
-  /*
-  else
-  {
-    bool const noone_very_large = std::find_if(var.seqs.begin(),
-                                               var.seqs.end(),
-                                               [](std::vector<char> const & seq){
-        return seq.size() > 152;
-      }) == var.seqs.end();
-
-    if (noone_very_large)
-    {
-      assert(var.seqs.size() >= 2);
-      assert(var.seqs[0].size() >= 2);
-      std::vector<Variant> simpler_variants = simplify_complex_haplotype(Variant(var), THRESHOLD);
-
-      // Check if any of the broken down variants overlap, in which case use the previous format
-      if (!is_overlapping(simpler_variants))
-      {
-        std::move(simpler_variants.begin(),
-                  simpler_variants.end(),
-                  std::back_inserter(broken_down_vars)
-        );
-      }
-      else
-      {
-        broken_down_vars.push_back(std::move(var));
-      }
-    }
-    else
-    {
-      broken_down_vars.push_back(std::move(var));
-    }
-  }
-  */
 
   return broken_down_vars;
 }
@@ -1256,7 +1129,8 @@ extract_sequences_from_aligned_variant(Variant const && var, std::size_t const T
         }
         else if (new_var.seqs.size() == 2)
         {
-          // This should check for a simple case of indel + snps, e.g. ref=AA, var=ACG. Then I want to output ref1=A, var1=AC, ref2=A, var2=G
+          // This should check for a simple case of indel + snps, e.g. ref=AA, var=ACG. Then I want
+          // to output ref1=A, var1=AC, ref2=A, var2=G
           Variant snp_var;
           snp_var.calls = new_var.calls;
           snp_var.infos = new_var.infos;
@@ -1502,6 +1376,121 @@ simplify_complex_haplotype(Variant && var, std::size_t const THRESHOLD)
 */
 
 
+void
+find_variant_sequences(gyper::Variant & new_var, gyper::Variant const & old_var)
+{
+  using gyper::get_strand_bias;
+  using gyper::join_strand_bias;
+  using gyper::to_index;
+  using gyper::SampleCall;
+
+  assert(new_var.calls.size() == 0);
+  auto & seqs = new_var.seqs;
+
+  assert(seqs.size() >= 2);
+  assert(seqs[0].size() > 0);
+  assert(seqs[1].size() > 0);
+
+  std::vector<uint16_t> old_phred_to_new_phred(1, 0);
+  std::vector<std::vector<char> > new_seqs(1, seqs[0]);
+
+  for (std::size_t a = 1; a < seqs.size(); ++a)
+  {
+    auto find_it = std::find(new_seqs.begin(), new_seqs.end(), seqs[a]);
+
+    if (find_it == new_seqs.end() and seqs[a].size() != 0)
+    {
+      old_phred_to_new_phred.push_back(static_cast<uint16_t>(new_seqs.size()));
+      new_seqs.push_back(seqs[a]);
+    }
+    else
+    {
+      old_phred_to_new_phred.push_back(
+        static_cast<uint16_t>(std::distance(new_seqs.begin(), find_it))
+        );
+    }
+  }
+
+  assert(old_phred_to_new_phred.size() == seqs.size());
+
+  if (new_seqs.size() <= 1)
+  {
+    // No variant found
+    seqs.clear();
+    return;
+  }
+
+  for (std::size_t i = 0; i < old_var.calls.size(); ++i)
+  {
+    auto const & old_call = old_var.calls[i];
+    SampleCall new_call;
+
+    // phred
+    {
+      assert(old_call.phred.size() == (old_var.seqs.size() * (old_var.seqs.size() + 1) / 2));
+      new_call.phred = std::vector<uint8_t>(new_seqs.size() * (new_seqs.size() + 1) / 2, 255u);
+
+      for (uint16_t y = 0; y < old_var.seqs.size(); ++y)
+      {
+        for (uint16_t x = 0; x <= y; ++x)
+        {
+          uint16_t const index = static_cast<uint16_t>(to_index(x, y));
+          uint16_t new_x = old_phred_to_new_phred[x];
+          uint16_t new_y = old_phred_to_new_phred[y];
+
+          if (old_var.phase.size() > 0 && old_call.phred[index] == 0)
+          {
+            assert (i < old_var.phase.size());
+
+            if (new_x > new_y)
+              new_var.phase[i] = !old_var.phase[i];
+          }
+
+          if (new_x > new_y)
+            std::swap<uint16_t>(new_x, new_y);
+
+          uint16_t const new_index = static_cast<uint16_t>(to_index(new_x, new_y));
+          assert(new_index < new_call.phred.size());
+          assert(index < old_call.phred.size());
+          new_call.phred[new_index] = std::min(new_call.phred[new_index], old_call.phred[index]);
+        }
+      }
+    }
+
+    // coverage
+    {
+      assert(old_call.coverage.size() == old_var.seqs.size());
+      new_call.coverage = std::vector<uint16_t>(new_seqs.size(), 0u);
+
+      for (uint32_t y = 0; y < old_var.seqs.size(); ++y)
+      {
+        uint32_t const new_y = old_phred_to_new_phred[y];
+
+        // Check overflow of coverage
+        if (static_cast<uint32_t>(new_call.coverage[new_y]) + static_cast<uint32_t>(old_call.coverage[y]) < 0xFFFFul)
+          new_call.coverage[new_y] += old_call.coverage[y];
+        else
+          new_call.coverage[new_y] = 0xFFFFul;
+      }
+    }
+
+    // other
+    {
+      new_call.ambiguous_depth = old_call.ambiguous_depth;
+      new_call.ref_total_depth = old_call.ref_total_depth;
+      new_call.alt_total_depth = old_call.alt_total_depth;
+      new_call.alt_proper_pair_depth = old_call.alt_proper_pair_depth;
+    }
+
+    // Update strand bias
+    update_strand_bias(old_var.seqs.size(), new_seqs.size(), old_phred_to_new_phred, old_var, new_var);
+    new_var.calls.push_back(std::move(new_call));
+  }
+
+  new_var.seqs = std::move(new_seqs);
+}
+
+
 std::vector<Variant>
 break_multi_snps(Variant const && var)
 {
@@ -1563,7 +1552,7 @@ break_multi_snps(Variant const && var)
       {
         for (uint32_t x = 0; x <= y; ++x)
         {
-          uint32_t const index = to_index(x, y);
+          uint32_t const index = static_cast<uint32_t>(to_index(x, y));
           uint32_t new_y = old_phred_to_new_phred[y];
           uint32_t new_x = old_phred_to_new_phred[x];
 
@@ -1576,9 +1565,9 @@ break_multi_snps(Variant const && var)
           }
 
           if (new_x > new_y)
-            std::swap(new_x, new_y);
+            std::swap<uint32_t>(new_x, new_y);
 
-          uint32_t const new_index = to_index(new_x, new_y);
+          long const new_index = to_index(new_x, new_y);
           new_sample_call.phred[new_index] = std::min(new_sample_call.phred[new_index], call.phred[index]);
         }
 
@@ -1632,6 +1621,15 @@ Variant::operator=(Variant const & var)
   abs_pos = var.abs_pos;
   seqs = var.seqs;
   calls = var.calls;
+  return *this;
+}
+
+Variant &
+Variant::operator=(Variant && var) noexcept
+{
+  abs_pos = var.abs_pos;
+  seqs = std::move(var.seqs);
+  calls = std::move(var.calls);
   return *this;
 }
 

@@ -14,9 +14,6 @@
 namespace gyper
 {
 
-GenotypePaths
-align_a_single_sequence_without_hamming_distance1_index(seqan::BamAlignmentRecord const & record, Graph const & graph = gyper::graph, MemIndex const & mem_index = gyper::mem_index);
-
 void
 align_unpaired_read_pairs(TReads & reads, std::vector<GenotypePaths> & genos);
 

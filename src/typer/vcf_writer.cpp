@@ -26,6 +26,16 @@
 namespace
 {
 
+
+bool
+are_genotype_paths_perfect(gyper::GenotypePaths const & geno)
+{
+  if (geno.paths.size() == 0 || !geno.all_paths_fully_aligned() || geno.paths[0].mismatches > 0)
+    return false;
+
+  return true;
+}
+
 bool
 are_genotype_paths_good(gyper::GenotypePaths const & geno)
 {
@@ -46,16 +56,16 @@ are_genotype_paths_good(gyper::GenotypePaths const & geno)
   if (!fully_aligned && mismatch_ratio > 0.025)
     return false;
 
+  if (gyper::graph.is_sv_graph)
+  {
+    if (!fully_aligned || geno.paths[0].size() < 90 || mismatch_ratio > 0.03)
+      return false;
+  }
+
   if (gyper::Options::instance()->hq_reads)
   {
-    if (!fully_aligned ||
-        geno.paths[0].size() < 63 ||
-        geno.paths[0].mismatches > 4 ||
-        mismatch_ratio > 0.025
-        )
-    {
+    if (!fully_aligned || geno.paths[0].size() < 90 || mismatch_ratio > 0.025)
       return false;
-    }
   }
 
   return true;
@@ -99,7 +109,20 @@ VcfWriter::update_haplotype_scores_from_paths(std::vector<GenotypePaths> & genos
                                               std::size_t const pn_index
   )
 {
+  if (Options::instance()->is_perfect_alignments_only)
   {
+    // Perfect alignments
+    std::lock_guard<std::mutex> lock(haplotype_mutex);
+
+    for (auto & geno : genos)
+    {
+      if (are_genotype_paths_perfect(geno))
+        update_haplotype_scores_from_path(geno, pn_index);
+    }
+  }
+  else
+  {
+    // Good alignments (default)
     std::lock_guard<std::mutex> lock(haplotype_mutex);
 
     for (auto & geno : genos)
@@ -120,6 +143,27 @@ VcfWriter::update_haplotype_scores_from_paths(
   std::size_t const pn_index
   )
 {
+  if (Options::instance()->is_perfect_alignments_only)
+  {
+    std::lock_guard<std::mutex> lock(haplotype_mutex);
+
+    for (auto & geno : genos)
+    {
+      bool const READ1_IS_GOOD = are_genotype_paths_good(geno.first);
+      bool const READ2_IS_GOOD = are_genotype_paths_good(geno.second);
+
+      // Require both reads to be at least good
+      if (READ1_IS_GOOD && READ2_IS_GOOD)
+      {
+        if (are_genotype_paths_perfect(geno.first))
+          update_haplotype_scores_from_path(geno.first, pn_index);
+
+        if (are_genotype_paths_perfect(geno.second))
+          update_haplotype_scores_from_path(geno.second, pn_index);
+      }
+    }
+  }
+  else
   {
     std::lock_guard<std::mutex> lock(haplotype_mutex);
 
@@ -434,9 +478,14 @@ VcfWriter::update_haplotype_scores_from_path(GenotypePaths & geno,
 
         haplotypes[type_ids.first].add_coverage(type_ids.second, b);
       }
-      else /* Otherwise set the coverage is ambigous => 0xFFFEu */
+      else /* Otherwise set the coverage is ambiguous */
       {
-        haplotypes[type_ids.first].set_coverage(type_ids.second, 0xFFFEu);
+        haplotypes[type_ids.first].add_coverage(type_ids.second, 1);
+
+        if (p_it->nums[i].test(0))
+          haplotypes[type_ids.first].add_coverage(type_ids.second, 0);
+        else
+          haplotypes[type_ids.first].add_coverage(type_ids.second, 2);
       }
     }
   }

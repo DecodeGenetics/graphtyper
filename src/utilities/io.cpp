@@ -61,8 +61,6 @@ get_sample_names_from_bam_header(std::string const & hts_filename, std::unordere
           pos_samp_ends = line_it.size();
 
         std::string new_id = line_it.substr(pos_id + 4, pos_id_ends - pos_id - 4);
-        assert(pos_samp + 11 < line_it.size());
-
         std::string new_sample = line_it.substr(pos_samp + 4, pos_samp_ends - pos_samp - 4);
 
         // Make sure this read group has not been seen

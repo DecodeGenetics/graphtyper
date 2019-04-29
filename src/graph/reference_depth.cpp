@@ -112,17 +112,27 @@ ReferenceDepth::end_pos_to_index(uint32_t const end_pos) const
 
 
 void
-ReferenceDepth::increase_local_depth_by_one(std::size_t const start_pos, std::size_t const end_pos)
+ReferenceDepth::increase_local_depth_by_one(std::size_t const start_pos, std::size_t end_pos)
 {
   assert(end_pos >= start_pos);
+
+  // Needed for SV breakpoint indel calling
+  if (end_pos < reference_offset)
+    return;
+
   assert(end_pos >= reference_offset);
   assert(depth.size() > 0);
   std::size_t const start_index = start_pos_to_index(start_pos);
   auto const end = depth.begin() + end_pos_to_index(end_pos);
-  assert(start_index < depth.size());
 
-  for (auto it = depth.begin() + start_index; it != end && it != depth.end(); ++it)
-    local_depth.push_back(std::distance(depth.begin(), it)); // Increase the depth by one
+  // TODO: Super rarely this fails, find out why.
+  // Must likely it is related to SV breakpoint indel calling
+  // assert(start_index < depth.size());
+  if (start_index < depth.size())
+  {
+    for (auto it = depth.begin() + start_index; it != end && it != depth.end(); ++it)
+      local_depth.push_back(std::distance(depth.begin(), it)); // Increase the depth by one
+  }
 }
 
 
@@ -198,11 +208,11 @@ GlobalReferenceDepth::get_read_depth(VariantCandidate const & var, std::size_t c
 {
   assert(pn_index < reference_depth_mutexes.size());
   std::lock_guard<std::mutex> lock(reference_depth_mutexes[pn_index]); // Create lock just to be sure, we should in general not need it
-  auto & depth = depths[pn_index];
+  auto const & depth = depths[pn_index];
   assert(depth.size() > 0);
   assert(var.seqs.size() > 0);
   uint32_t start_pos = var.abs_pos;
-  uint32_t end_pos = start_pos + var.seqs[0].size() - 1;
+  uint32_t end_pos = static_cast<uint32_t>(start_pos + var.seqs[0].size() - 1);
 
   // We want to avoid getting the coverage at the first pos if possible, since the first positions very often match in more than one path
   if (var.seqs[0].size() > 1)
@@ -211,9 +221,28 @@ GlobalReferenceDepth::get_read_depth(VariantCandidate const & var, std::size_t c
   std::size_t const start_index = start_pos_to_index(start_pos);
   std::size_t const end_index = end_pos_to_index(end_pos, depth.size());
 
-  auto max_depth_it = std::max_element(depth.begin() + start_index, depth.begin() + end_index);
+  auto max_depth_it = std::max_element(depth.cbegin() + start_index, depth.cbegin() + end_index);
   assert(max_depth_it != depth.begin() + end_index);
   return *max_depth_it;
+}
+
+
+uint16_t
+GlobalReferenceDepth::get_read_depth(uint32_t abs_pos, std::size_t const pn_index) const
+{
+  assert(pn_index < depths.size());
+  auto const & depth = depths[pn_index];
+
+  if (depth.size() == 0)
+  {
+    // Happens if there are absolutely no reads in the region
+    return 0;
+  }
+  else
+  {
+    std::size_t const index = std::min(start_pos_to_index(abs_pos), depth.size() - 1ul);
+    return depth[index];
+  }
 }
 
 

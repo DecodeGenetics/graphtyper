@@ -100,9 +100,9 @@ void
 VariantMap::create_varmap_for_all()
 {
   assert(varmaps.size() == global_reference_depth.depths.size());
-  unsigned const NUM_SAMPLES = varmaps.size();
+  long const NUM_SAMPLES = static_cast<long>(varmaps.size());
 
-  for (unsigned i = 0; i < NUM_SAMPLES; ++i)
+  for (long i = 0; i < NUM_SAMPLES; ++i)
   {
     auto & varmap = varmaps[i];
 
@@ -119,7 +119,7 @@ VariantMap::create_varmap_for_all()
         if (new_var_support.is_ratio_above_cutoff())
         {
           // In this case, we can add the variant
-          new_var_support.pn_index = i;
+          new_var_support.pn_index = static_cast<uint32_t>(i);
           pool_varmap[map_it->first].push_back(new_var_support);
         }
       }
@@ -512,6 +512,8 @@ VariantMap::write_vcf(std::string const & output_name)
 
   if (samples.size() == 0 || Options::instance()->stats.size() == 0)
   {
+    BOOST_LOG_TRIVIAL(info) << "[graphtyper::variant_map] Writing " << pool_varmap.size() << " variants.";
+
     for (auto map_it = pool_varmap.begin(); map_it != pool_varmap.end(); ++map_it)
       new_variant_vcf.variants.push_back(Variant(map_it->first));
   }

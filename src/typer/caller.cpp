@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <cassert> // assert
 #include <list> // std::list
 #include <memory> // std::shared_ptr
@@ -36,8 +35,6 @@
 #include <graphtyper/typer/vcf_writer.hpp> // gyper::VcfWriter
 #include <graphtyper/typer/variant_map.hpp>
 #include <graphtyper/utilities/io.hpp>
-#include <graphtyper/utilities/type_conversions.hpp>
-#include <graphtyper/utilities/hash_seqan.hpp>
 #include <graphtyper/utilities/options.hpp> // gyper::Options
 
 
@@ -68,10 +65,14 @@ caller(std::shared_ptr<TReads> reads,
 
       if (!Options::instance()->no_new_variants)
       {
-        ReferenceDepth reference_depth;
-
         std::vector<VariantCandidate> variants = discover_variants(genos);
         global_varmap.add_variants(std::move(variants), *pn_index);
+      }
+
+      if (!Options::instance()->no_new_variants || graph.is_sv_graph)
+      {
+        // Add reference depth
+        ReferenceDepth reference_depth;
 
         for (auto const & geno : genos)
           reference_depth.add_genotype_paths(geno);
@@ -89,12 +90,14 @@ caller(std::shared_ptr<TReads> reads,
 
     if (!Options::instance()->no_new_variants)
     {
-      // We only use reference depth for paired reads
-      // (since we do not discovery new variants using the unpaired reads)
-      ReferenceDepth reference_depth;
-
       std::vector<VariantCandidate> variants = discover_variants(geno_pairs);
       global_varmap.add_variants(std::move(variants), *pn_index);
+    }
+
+    if (!Options::instance()->no_new_variants || graph.is_sv_graph)
+    {
+      // Add reference depth
+      ReferenceDepth reference_depth;
 
       for (auto const & geno : geno_pairs)
       {
@@ -130,7 +133,6 @@ read_samples(std::unordered_map<std::string, std::string> & rg2sample,
     if (new_samples.size() == 0)
     {
       std::string sample_name = hts_path.substr(hts_path.rfind('/') + 1, hts_path.rfind('.'));
-      BOOST_LOG_TRIVIAL(info) << "[graphtyper::caller] Got sample name from filename";
 
       if (std::count(sample_name.begin(), sample_name.end(), '.') > 0)
         sample_name = sample_name.substr(0, sample_name.find('.'));
@@ -190,7 +192,6 @@ call(std::vector<std::string> const & hts_paths,
   mem_index.load(); // Loads the in-memory index
   //mem_index.generate_hamming1_hash_map(); // Generate a hashmap with edit distance 1
   index.close(); // Close the RocksDB index, we will use the in-memory index for querying reads
-  Options::instance()->chr_prefix = gyper::graph.use_prefix_chr;
 
   // Increasing variant distance can increase computational time and file sizes of *.hap files.
   std::shared_ptr<VcfWriter> writer;
@@ -217,19 +218,18 @@ call(std::vector<std::string> const & hts_paths,
     writer->print_variant_group_details();
   }
 
-  std::vector<ReferenceDepth> reference_depth_per_sample;
-
   {
     std::size_t const READ_BATCH_SIZE = Options::instance()->read_chunk_size;
     std::list<std::shared_ptr<TReads> > reads;
 
     if (!Options::instance()->no_new_variants)
     {
-      // Only use varmap and reference depth when discovering new variants
-
+      // Only use varmap when discovering new variants
       global_varmap.set_samples(samples);
-      global_reference_depth.set_pn_count(samples.size());
     }
+
+    if (!Options::instance()->no_new_variants || graph.is_sv_graph)
+      global_reference_depth.set_pn_count(samples.size());
 
     std::vector<std::shared_ptr<std::size_t> > pn_indexes;
 
@@ -237,7 +237,7 @@ call(std::vector<std::string> const & hts_paths,
       paw::Station caller_station(Options::instance()->threads, 3 /*queue size*/);
       caller_station.options.verbosity = 2; // Print messages
 
-      for (std::size_t i = 0; i < hts_paths.size(); ++i)
+      for (long i = 0; i < static_cast<long>(hts_paths.size()); ++i)
       {
         SamReader sam_reader(hts_paths[i], regions);
 
@@ -280,7 +280,9 @@ call(std::vector<std::string> const & hts_paths,
   }
 
   // Write genotype calls
+  if (!graph.is_sv_graph)
   {
+    // No need to write haplotype calls in SV genotyping
     std::ostringstream hap_calls_path;
     hap_calls_path << output_dir << "/" << pn << ".hap";
     HaplotypeCalls hap_calls(writer->get_haplotype_calls());
@@ -292,13 +294,19 @@ call(std::vector<std::string> const & hts_paths,
                             << "/"
                             << pn
                             << "_calls.vcf.gz'";
-
-    for (unsigned ps = 0; ps < writer->haplotypes.size(); ++ps)
-      vcf->add_haplotype(writer->haplotypes[ps], true /*clear haplotypes*/, ps);
-
-    vcf->post_process_variants(false /*normalize variants?*/, true /*trim variant sequences?*/);
-    vcf->write();
   }
+
+
+  for (long ps = 0; ps < static_cast<long>(writer->haplotypes.size()); ++ps)
+  {
+    vcf->add_haplotype(writer->haplotypes[ps],
+                       true /*clear haplotypes*/,
+                       static_cast<uint32_t>(ps)
+                       );
+  }
+
+  vcf->post_process_variants(false /*normalize variants?*/, true /*trim variant sequences?*/);
+  vcf->write();
 
   // Write a VCF with all the new variants
   if (!gyper::Options::instance()->no_new_variants)
@@ -440,7 +448,7 @@ find_variants_in_cigar(seqan::BamAlignmentRecord const & record,
     {
       int const MAX_QUAL = *std::max_element(seqan::begin(record.qual) + r,
                                              seqan::begin(record.qual) + r_end
-        ) - 33;
+                                             ) - 33;
 
       new_var_candidate.is_low_qual = MAX_QUAL < 25;
     }
@@ -454,7 +462,8 @@ find_variants_in_cigar(seqan::BamAlignmentRecord const & record,
     new_var_candidate.is_clipped = is_clipped;
     new_var_candidate.is_first_in_pair = seqan::hasFlagFirst(record);
     new_var_candidate.is_seq_reversed = seqan::hasFlagRC(record);
-    new_var_candidate.original_pos = static_cast<uint32_t>(record.beginPos + 1 - begin_clipping_size);
+    new_var_candidate.original_pos =
+      static_cast<uint32_t>(record.beginPos + 1 - begin_clipping_size);
   }
 
   return new_var_candidates;
@@ -466,7 +475,7 @@ discover_directly_from_bam(std::string const & graph_path,
                            std::vector<std::string> const & sams,
                            std::vector<std::string> const & regions,
                            std::string const & output_dir
-  )
+                           )
 {
   load_graph(graph_path);
   assert(regions.size() > 0);
@@ -514,7 +523,8 @@ discover_directly_from_bam(std::string const & graph_path,
 
       // Skip reads that are clipped on both ends
       if (length(record.cigar) == 0 ||
-        (record.cigar[0].operation == 'S' && record.cigar[length(record.cigar)-1].operation == 'S'))
+          (record.cigar[0].operation == 'S' &&
+           record.cigar[length(record.cigar) - 1].operation == 'S'))
       {
         continue;
       }
