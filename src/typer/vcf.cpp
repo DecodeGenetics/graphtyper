@@ -310,7 +310,7 @@ Vcf::read_record(bool const SITES_ONLY)
           "LEFT_SVINSSEQ",
           "MQ", "MQ0", "MQperAllele",
           "NCLUSTERS", "NUM_MERGED_SVS",
-          "OREND", "ORSTART",
+          "OLD_VARIANT_ID", "OREND", "ORSTART",
           "PS",
           "RACount", "RADist", "RELATED_SV_ID", "RIGHT_SVINSSEQ",
           "SBF", "SBF1", "SBF2",
@@ -644,6 +644,7 @@ Vcf::write_header()
          "calls.\">\n"
       << "##INFO=<ID=NRP,Number=0,Type=Flag,Description=\"Set if no Non-Reference has PASS.\">\n"
       << "##INFO=<ID=NUM_MERGED_SVS,Number=1,Type=Integer,Description=\"Number of SVs merged.\">\n"
+      << "##INFO=<ID=OLD_VARIANT_ID,Number=1,Type=String,Description=\"Variant ID from a VCF (SVs only).\">\n"
       << "##INFO=<ID=ORSTART,Number=1,Type=Integer,Description=\"Start coordinate of sequence "
          "origin.\">\n"
       << "##INFO=<ID=OREND,Number=1,Type=Integer,Description=\"End coordinate of sequence "
@@ -1338,6 +1339,9 @@ Vcf::add_haplotypes_for_extraction(std::vector<std::vector<Genotype> > const & g
                              std::to_string(sv.length);
 
         var.infos["SVSIZE"] = std::to_string(sv.length);
+
+        if (sv.old_variant_id.size() > 0)
+          var.infos["OLD_VARIANT_ID"] = sv.old_variant_id;
       }
     }
   }

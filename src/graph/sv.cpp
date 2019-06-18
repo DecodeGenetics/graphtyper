@@ -83,6 +83,7 @@ SV::serialize(Archive &ar, const unsigned int /*version*/)
   ar & or_start;
   ar & related_sv;
   ar & model;
+  ar & old_variant_id;
   ar & inv_type;
   ar & seq;
   ar & hom_seq;
@@ -344,6 +345,9 @@ reformat_sv_vcf_records(std::vector<Variant> & variants)
 
       if (sv.num_merged_svs >= 0)
         var.infos["NUM_MERGED_SVS"] = std::to_string(sv.num_merged_svs);
+
+      if (sv.old_variant_id.size() > 0 && sv.old_variant_id != ".")
+        var.infos["OLD_VARIANT_ID"] = sv.old_variant_id;
 
       if (sv.hom_seq.size() > 0)
         var.infos["HOMSEQ"] = std::string(sv.hom_seq.begin(), sv.hom_seq.end());

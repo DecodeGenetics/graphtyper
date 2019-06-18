@@ -43,6 +43,7 @@ public:
   int32_t or_end = -1; // End coordinate of the sequence origin
   int32_t related_sv = -1;
   std::string model = "AGGREGATED";
+  std::string old_variant_id = "";
   INVTYPE inv_type = NOT_INV;
   std::vector<char> seq{};
   std::vector<char> hom_seq{};

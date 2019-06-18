@@ -884,7 +884,7 @@ add_sv_insertion(SV & sv,
         );
 
       append_sv_tag_to_node(alt1);
-      sv.related_sv = static_cast<int>(graph.SVs.size()) + 1; // Next SV
+      sv.related_sv = static_cast<int>(graph.SVs.size()) + 1; // Next SV is related
       sv.model = "BREAKPOINT1";
       graph.SVs.push_back(sv);
       append_sv_tag_to_node(alt2);
@@ -894,7 +894,7 @@ add_sv_insertion(SV & sv,
                 std::back_inserter(alt2)
         );
 
-      sv.related_sv = static_cast<int>(graph.SVs.size()) - 1;  // Previous SV
+      sv.related_sv = static_cast<int>(graph.SVs.size()) - 1;  // Previous SV is related
       sv.model = "BREAKPOINT2";
       graph.SVs.push_back(std::move(sv));
     }
@@ -913,7 +913,7 @@ add_sv_insertion(SV & sv,
         );
 
       append_sv_tag_to_node(alt1);
-      sv.related_sv = static_cast<int>(graph.SVs.size()) + 1; // Next SV
+      sv.related_sv = static_cast<int>(graph.SVs.size()) + 1; // Next SV is related
       sv.model = "BREAKPOINT1";
       graph.SVs.push_back(sv);
       append_sv_tag_to_node(alt2);
@@ -926,7 +926,7 @@ add_sv_insertion(SV & sv,
       );
 
       std::copy(sv.seq.begin(), sv.seq.end(), std::back_inserter(alt2));
-      sv.related_sv = static_cast<int>(graph.SVs.size()) - 1;  // Previous SV
+      sv.related_sv = static_cast<int>(graph.SVs.size()) - 1;  // Previous SV is related
       sv.model = "BREAKPOINT2";
       graph.SVs.push_back(std::move(sv));
     }
@@ -1615,7 +1615,7 @@ add_var_record(std::vector<VarRecord> & var_records,
   var.is_sv = false;
   auto const & v_alt = vcf_record.alt;
 
-  /// Check if the alt. allele is an SV
+  /// Set var.is_sv by checking if the alt. allele is an SV
   if (seqan::length(v_alt) >= 5)
   {
     for (long i = 0; i < static_cast<long>(seqan::length(v_alt)); ++i)
@@ -1652,6 +1652,9 @@ add_var_record(std::vector<VarRecord> & var_records,
     SV sv;
     sv.begin = var.pos + 1;
     sv.chrom = genomic_region.chr;
+
+    if (seqan::length(vcf_record.id) > 0)
+      sv.old_variant_id = seqan::toCString(vcf_record.id);
 
     // Parse the INFO field
     seqan::StringSet<seqan::CharString> infos;
@@ -1963,7 +1966,7 @@ construct_graph(std::string const & reference_filename,
             static_cast<int64_t>(genomic_region.end)
         )
       {
-        auto records = split_multi_allelic(std::move(vcf_record));
+        std::vector<seqan::VcfRecord> records = split_multi_allelic(std::move(vcf_record));
 
         for (auto & rec : records)
         {
