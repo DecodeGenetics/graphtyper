@@ -1711,8 +1711,12 @@ add_var_record(std::vector<VarRecord> & var_records,
       }
 
       // If length is less than 50 then it is not an SV
-      if (sv.length < 50)
+      if (sv.length < 50 && ((int)sv.ins_seq_left.size() + (int)sv.ins_seq_right.size()) < 20)
+      {
+        BOOST_LOG_TRIVIAL(warning) << "[graphtyper::constructor] WARNING: Ignored SV at " << var.pos
+                                   << " because it was less than 50 bp.";
         return;
+      }
     }
 
     // Make sure sv.size is set
