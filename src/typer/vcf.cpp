@@ -862,7 +862,10 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
       is_pass = false;
     }
 
-    if (var.infos.count("PASS_ratio") == 1 && std::stod(var.infos.at("PASS_ratio")) < 0.05)
+    // Only filter on PASS_ratio if we have sufficient amount of samples
+    if (var.infos.count("AN") == 1 && std::stoi(var.infos.at("AN")) >= 500 &&
+        var.infos.count("PASS_ratio") == 1 && std::stod(var.infos.at("PASS_ratio")) < 0.05
+        )
     {
       if (!is_pass)
         bgzf_stream << ";";
