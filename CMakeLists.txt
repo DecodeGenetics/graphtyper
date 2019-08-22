@@ -227,6 +227,7 @@ set(graphtyper_all_libraries
   ${CMAKE_THREAD_LIBS_INIT}
   ${ZLIB_LIBRARIES}
   ${BZIP2_LIBRARIES}
+  Boost::system Boost::iostreams Boost::log Boost::thread Boost::serialization Boost::filesystem
 )
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
