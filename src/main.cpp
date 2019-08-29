@@ -1089,6 +1089,35 @@ main(int argc, char ** argv)
         sams.push_back(line);
     }
 
+    // Check if all SAMs exist + their index if a region was specified
+    for (std::string const & sam : sams)
+    {
+      if (sam != "-")
+      {
+        if (!is_file(sam))
+        {
+          BOOST_LOG_TRIVIAL(error) << "[graphtyper::main] Could not find a SAM/BAM/CRAM located at '"
+                                   << sam << "'.";
+          return 1;
+        }
+
+        // Check index if some region was given
+        if (regions.size() != 1 || regions[0] != ".")
+        {
+          std::string bai = sam + ".bai";
+          std::string csi = sam + ".csi";
+          std::string crai = sam + ".crai";
+
+          if (!is_file(bai) && !is_file(csi) && !is_file(crai))
+          {
+            BOOST_LOG_TRIVIAL(error) << "[graphtyper::main] Could not find an index for the SAM/BAM/CRAM located at '"
+                                     << sam << "'.";
+            return 1;
+          }
+        }
+      }
+    }
+
     // Check if graph exists
     if (!is_file(args::get(*graph_arg)))
     {
