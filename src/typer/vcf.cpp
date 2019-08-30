@@ -874,6 +874,8 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
       is_pass = false;
     }
 
+    // TODO: Add PASS_AC > 0
+
     if (is_pass)
       bgzf_stream << "PASS";
 

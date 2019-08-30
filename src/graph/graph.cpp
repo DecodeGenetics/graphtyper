@@ -230,7 +230,8 @@ Graph::add_genomic_region(std::vector<char> && reference_sequence,
         }
         else
         {
-          var_records[i + 1].merge_one_path(std::move(var_records[i]));
+          // In a few extreme scenarios we cannot merge only one path here.
+          var_records[i + 1].merge(std::move(var_records[i]));
         }
 
         if (var_records[i + 1].alts.size() >= (MAX_NUMBER_OF_HAPLOTYPES - 1))

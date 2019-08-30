@@ -33,5 +33,3 @@ public:
 };
 
 } // namespace gyper
-
-void print_var_record(gyper::VarRecord const & var_record);
