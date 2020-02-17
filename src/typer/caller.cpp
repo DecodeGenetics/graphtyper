@@ -26,319 +26,206 @@
 #include <graphtyper/index/mem_index.hpp> // gyper::mem_index (global)
 #include <graphtyper/typer/alignment.hpp>
 #include <graphtyper/typer/caller.hpp>
-#include <graphtyper/typer/discovery.hpp>
 #include <graphtyper/typer/graph_swapper.hpp>
 #include <graphtyper/typer/genotype_paths.hpp> // gyper::GenotypePaths
-#include <graphtyper/typer/segment_calling.hpp>
 #include <graphtyper/typer/variant_support.hpp>
 #include <graphtyper/typer/vcf.hpp>
-#include <graphtyper/typer/vcf_writer.hpp> // gyper::VcfWriter
 #include <graphtyper/typer/variant_map.hpp>
+#include <graphtyper/utilities/hts_parallel_reader.hpp> // gyper::HtsParallelReader
+#include <graphtyper/utilities/hts_reader.hpp> // gyper::HtsReader
 #include <graphtyper/utilities/io.hpp>
 #include <graphtyper/utilities/options.hpp> // gyper::Options
 
 
-// gyper::TReads is defined in sam_reader.hpp
-
-namespace gyper
+namespace
 {
 
 void
-caller(std::shared_ptr<TReads> reads,
-       std::shared_ptr<VcfWriter> writer,
-       std::shared_ptr<std::size_t const> pn_index
-       )
+_read_rg_and_samples(std::vector<std::string> & samples,
+                     std::vector<std::unordered_map<std::string, int> > & vec_rg2sample_i,
+                     std::vector<std::string> const & hts_paths)
 {
-  assert(reads->size() > 0);
+  using namespace gyper;
+  vec_rg2sample_i.resize(hts_paths.size());
 
-  // Check if the reads are paired
-  if (seqan::length((*reads)[0].second.seq) == 0)
+  for (long i = 0; i < static_cast<long>(hts_paths.size()); ++i)
   {
-    // Do not process unpaired reads when calling segments
-    if (!Options::instance()->is_segment_calling &&
-        !Options::instance()->hq_reads
-        )
-    {
-      // The reads are unpaired
-      std::vector<GenotypePaths> genos;
-      align_unpaired_read_pairs(*reads, genos);
-
-      if (!Options::instance()->no_new_variants)
-      {
-        std::vector<VariantCandidate> variants = discover_variants(genos);
-        global_varmap.add_variants(std::move(variants), *pn_index);
-      }
-
-      if (!Options::instance()->no_new_variants || graph.is_sv_graph)
-      {
-        // Add reference depth
-        ReferenceDepth reference_depth;
-
-        for (auto const & geno : genos)
-          reference_depth.add_genotype_paths(geno);
-
-        global_reference_depth.add_reference_depths_from(reference_depth, *pn_index);
-      }
-
-      writer->update_haplotype_scores_from_paths(genos, *pn_index);
-    }
-  }
-  else
-  {
-    std::vector<std::pair<GenotypePaths, GenotypePaths> > geno_pairs =
-      align_paired_reads(*reads);
-
-    if (!Options::instance()->no_new_variants)
-    {
-      std::vector<VariantCandidate> variants = discover_variants(geno_pairs);
-      global_varmap.add_variants(std::move(variants), *pn_index);
-    }
-
-    if (!Options::instance()->no_new_variants || graph.is_sv_graph)
-    {
-      // Add reference depth
-      ReferenceDepth reference_depth;
-
-      for (auto const & geno : geno_pairs)
-      {
-        reference_depth.add_genotype_paths(geno.first);
-        reference_depth.add_genotype_paths(geno.second);
-      }
-
-      global_reference_depth.add_reference_depths_from(reference_depth, *pn_index);
-    }
-
-    writer->update_haplotype_scores_from_paths(geno_pairs, *pn_index);
-  }
-
-  // The reads are no longer needed, let the memory free
-  reads->clear();
-  reads->shrink_to_fit();
-}
-
-
-void
-read_samples(std::unordered_map<std::string, std::string> & rg2sample,
-             std::vector<std::string> & samples,
-             std::vector<std::string> const & hts_paths
-             )
-{
-  for (auto const & hts_path : hts_paths)
-  {
-    std::vector<std::string> new_samples;
+    auto const & hts_path = hts_paths[i];
+    auto & rg2sample_i = vec_rg2sample_i[i];
+    std::size_t const old_size = samples.size();
 
     if (!Options::instance()->get_sample_names_from_filename)
-      new_samples = gyper::get_sample_names_from_bam_header(hts_path, rg2sample);
+    {
+      gyper::get_sample_name_from_bam_header(hts_path, samples, rg2sample_i);
+    }
 
-    if (new_samples.size() == 0)
+    if (samples.size() == old_size)
     {
       std::string sample_name = hts_path.substr(hts_path.rfind('/') + 1, hts_path.rfind('.'));
 
       if (std::count(sample_name.begin(), sample_name.end(), '.') > 0)
         sample_name = sample_name.substr(0, sample_name.find('.'));
 
-      new_samples.push_back(sample_name);
+      samples.push_back(std::move(sample_name));
     }
-    else if (new_samples.size() > 1)
-    {
-      BOOST_LOG_TRIVIAL(error) << "[graphtyper::caller] Sorry, currently Graphtyper does not "
-                               << "support merged SAM/BAM files. Only one sample per file, please.";
-      std::exit(1);
-    }
-
-    std::move(new_samples.begin(), new_samples.end(), std::back_inserter(samples));
   }
 }
 
 
 void
+_determine_num_jobs_and_num_parts(long & jobs,
+                                  long & num_parts,
+                                  long const NUM_SAMPLES)
+{
+  using namespace gyper;
+
+  jobs = Options::instance()->threads;
+  num_parts = jobs;
+  long const MAX_FILES_OPEN = Options::instance()->max_files_open;
+
+  if (jobs >= NUM_SAMPLES || jobs >= MAX_FILES_OPEN)
+  {
+    // Special case where there are more threads than samples OR more threads than max files open. POOL_SIZE is 1
+    num_parts = std::min(NUM_SAMPLES, MAX_FILES_OPEN);
+    jobs = num_parts;
+  }
+  else if (NUM_SAMPLES > MAX_FILES_OPEN)
+  {
+    // More samples than maximum allowed files open at the same time. Pick num_parts such that
+    //  ceil(NUM_SAMPLES / num_parts) * jobs <= MAX_FILES_OPEN
+    long const MAX_FILES_OPEN_PER_THREAD = (MAX_FILES_OPEN + jobs - 1) / jobs;
+    num_parts = (NUM_SAMPLES + MAX_FILES_OPEN_PER_THREAD - 1) / MAX_FILES_OPEN_PER_THREAD;
+    // jobs unchanged
+  }
+  // else num_parts and jobs unchanged
+}
+
+
+} // anon namespace
+
+
+namespace gyper
+{
+
+std::vector<std::string>
 call(std::vector<std::string> const & hts_paths,
      std::string const & graph_path,
      std::string const & index_path,
-     std::vector<std::string> const & regions,
-     std::vector<std::string> const & segment_fasta_files,
-     std::string const & output_dir
-     )
+     std::string const & output_dir,
+     long const minimum_variant_support,
+     double const minimum_variant_support_ratio,
+     bool const is_writing_calls_vcf,
+     bool const is_discovery,
+     bool const is_writing_hap)
 {
+  std::vector<std::string> paths;
+
   if (hts_paths.size() == 0)
   {
     BOOST_LOG_TRIVIAL(error) << "[graphtyper::caller] No input BAM files.";
     std::exit(1);
   }
 
-  assert(regions.size() > 0);
+  if (graph_path.size() > 0)
+    load_graph(graph_path); // Loads the graph into the global variable 'graph'
 
-  // Extract sample names from SAM.
-  std::unordered_map<std::string, std::string> rg2sample;
-  std::vector<std::string> samples;
+  if (index_path.size() > 0)
+    load_index(index_path); // Loads the index into the global variable 'index'
 
-  // Gather all the sample names
-  read_samples(rg2sample, samples, hts_paths);
-  assert(samples.size() > 0);
-  std::string const & pn = samples[0];
-  std::shared_ptr<Vcf> vcf;
-
-  {
-    std::ostringstream ss;
-    ss << output_dir << "/" << pn << "_calls.vcf.gz";
-    vcf = std::make_shared<Vcf>(WRITE_BGZF_MODE, ss.str());
-
-    // Set sample names
-    vcf->sample_names = samples;
-  }
-
-  load_graph(graph_path); // Loads the graph into the global variable 'graph'
-  load_index(index_path); // Loads the index into the global variable 'index'
-  mem_index.load(); // Loads the in-memory index
-  //mem_index.generate_hamming1_hash_map(); // Generate a hashmap with edit distance 1
+  mem_index.load(index); // Loads the in-memory index
   index.close(); // Close the RocksDB index, we will use the in-memory index for querying reads
 
-  // Increasing variant distance can increase computational time and file sizes of *.hap files.
-  std::shared_ptr<VcfWriter> writer;
+  // Split hts_paths
+  std::vector<std::unique_ptr<std::vector<std::string> > > spl_hts_paths;
+  assert(Options::const_instance()->max_files_open > 0);
 
-  if (Options::instance()->phased_output)
-  {
-    writer = std::make_shared<VcfWriter>(samples, 60 /*variant distance*/);
-  }
-  else if (Options::instance()->is_segment_calling)
-  {
-    writer = std::make_shared<VcfWriter>(samples, 1 /*variant distance*/);
-  }
-  else
-  {
-    writer = std::make_shared<VcfWriter>(samples,
-                                         Options::instance()->max_merge_variant_dist
-                                         /*variant distance*/);
-  }
+  long jobs = 1; // Running jobs
+  long num_parts = 1; // Number of parts to split the work into
+  long const NUM_SAMPLES = hts_paths.size();
 
-  if (Options::instance()->stats.size() > 0)
-  {
-    writer->print_statistics_headers();
-    writer->print_variant_details();
-    writer->print_variant_group_details();
-  }
+  _determine_num_jobs_and_num_parts(jobs, num_parts, NUM_SAMPLES);
 
   {
-    std::size_t const READ_BATCH_SIZE = Options::instance()->read_chunk_size;
-    std::list<std::shared_ptr<TReads> > reads;
+    auto it = hts_paths.begin();
 
-    if (!Options::instance()->no_new_variants)
+    for (long i = 0; i < num_parts; ++i)
     {
-      // Only use varmap when discovering new variants
-      global_varmap.set_samples(samples);
+      auto end_it = it + NUM_SAMPLES / num_parts + (i < (NUM_SAMPLES % num_parts));
+      assert(std::distance(hts_paths.begin(), end_it) <= NUM_SAMPLES);
+      spl_hts_paths.emplace_back(new std::vector<std::string>(it, end_it));
+      it = end_it;
     }
+  }
 
-    if (!Options::instance()->no_new_variants || graph.is_sv_graph)
-      global_reference_depth.set_pn_count(samples.size());
+  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::caller] Number of pools = " << spl_hts_paths.size();
+  long const NUM_POOLS = spl_hts_paths.size();
+  paths.resize(NUM_POOLS);
 
-    std::vector<std::shared_ptr<std::size_t> > pn_indexes;
+  // Run in parallel
+  {
+    paw::Station call_station(jobs); // last parameter is queue_size
 
+    // Push all but the last pool to the thread pool
+    if (!is_discovery)
     {
-      paw::Station caller_station(Options::instance()->threads, 3 /*queue size*/);
-      caller_station.options.verbosity = 2; // Print messages
-
-      for (long i = 0; i < static_cast<long>(hts_paths.size()); ++i)
+      for (long i = 0; i < NUM_POOLS - 1; ++i)
       {
-        SamReader sam_reader(hts_paths[i], regions);
-
-        // Flush logs
-        if (Options::instance()->sink)
-          Options::instance()->sink->flush();
-
-        while (true)
-        {
-          pn_indexes.push_back(std::make_shared<std::size_t>(i));
-          reads.push_back(std::make_shared<TReads>(sam_reader.read_N_reads(READ_BATCH_SIZE)));
-
-          if (reads.back()->size() > 0)
-          {
-            caller_station.add(caller, reads.back(), writer, pn_indexes.back());
-          }
-          else
-          {
-            // Remove the batch with no reads
-            reads.pop_back();
-            pn_indexes.pop_back();
-            break;
-          }
-        }
+        call_station.add_work(parallel_reader_genotype_only,
+                              &paths[i],
+                              spl_hts_paths[i].get(),
+                              output_dir,
+                              is_writing_calls_vcf,
+                              is_writing_hap);
       }
 
-      caller_station.join();
+      // Do the last pool on the current thread
+      call_station.add_to_thread(jobs - 1,
+                                 parallel_reader_genotype_only,
+                                 &paths[NUM_POOLS - 1],
+                                 spl_hts_paths[NUM_POOLS - 1].get(),
+                                 output_dir,
+                                 is_writing_calls_vcf,
+                                 is_writing_hap);
     }
+    else
+    {
+      for (long i = 0; i < NUM_POOLS - 1; ++i)
+      {
+        call_station.add_work(parallel_reader_with_discovery,
+                              &paths[i],
+                              spl_hts_paths[i].get(),
+                              output_dir,
+                              minimum_variant_support,
+                              minimum_variant_support_ratio,
+                              is_writing_calls_vcf,
+                              is_writing_hap);
+      }
+
+      // Do the last pool on the current thread
+      call_station.add_to_thread(jobs - 1,
+                                 parallel_reader_with_discovery,
+                                 &paths[NUM_POOLS - 1],
+                                 spl_hts_paths[NUM_POOLS - 1].get(),
+                                 output_dir,
+                                 minimum_variant_support,
+                                 minimum_variant_support_ratio,
+                                 is_writing_calls_vcf,
+                                 is_writing_hap);
+    }
+
+    std::string thread_info = call_station.join();
+    BOOST_LOG_TRIVIAL(info) << "Finished calling. Thread work: " << thread_info;
   }
 
-  // Check segments
-  if (segment_fasta_files.size() > 0)
-  {
-    BOOST_LOG_TRIVIAL(info) << "[graphtyper::caller]"
-                            << "Estimating the likelihoods of few different segments.";
-
-    std::ostringstream segment_calls_path;
-    segment_calls_path << output_dir << "/" << pn << "_segments.vcf.gz";
-    segment_calling(segment_fasta_files, *writer, segment_calls_path.str(), samples);
-  }
-
-  // Write genotype calls
-  if (!graph.is_sv_graph)
-  {
-    // No need to write haplotype calls in SV genotyping
-    std::ostringstream hap_calls_path;
-    hap_calls_path << output_dir << "/" << pn << ".hap";
-    HaplotypeCalls hap_calls(writer->get_haplotype_calls());
-    BOOST_LOG_TRIVIAL(info) << "[graphtyper::caller] Writing haplotype calls to '"
-                            << hap_calls_path.str() << "'";
-    save_calls(hap_calls, hap_calls_path.str());
-    BOOST_LOG_TRIVIAL(info) << "[graphtyper::caller] Writing calls to '"
-                            << output_dir
-                            << "/"
-                            << pn
-                            << "_calls.vcf.gz'";
-  }
-
-
-  for (long ps = 0; ps < static_cast<long>(writer->haplotypes.size()); ++ps)
-  {
-    vcf->add_haplotype(writer->haplotypes[ps],
-                       true /*clear haplotypes*/,
-                       static_cast<uint32_t>(ps)
-                       );
-  }
-
-  vcf->post_process_variants(false /*normalize variants?*/, true /*trim variant sequences?*/);
-  vcf->write();
-
-  // Write a VCF with all the new variants
-  if (!gyper::Options::instance()->no_new_variants)
-  {
-    std::ostringstream discovery_vcf_path;
-    discovery_vcf_path << output_dir << "/" << pn << "_variants.vcf.gz";
-
-    BOOST_LOG_TRIVIAL(info) << "[graphtyper::caller] Writing discovery results to '"
-                            << discovery_vcf_path.str();
-
-    global_varmap.create_varmap_for_all();
-
-    std::ostringstream variant_map_path;
-    variant_map_path << output_dir << "/" << pn << "_variant_map";
-
-    BOOST_LOG_TRIVIAL(info) << "[graphtyper::caller] Writing variant map to '"
-                            << variant_map_path.str();
-
-    save_variant_map(variant_map_path.str(), global_varmap);
-    global_varmap.filter_varmap_for_all();
-    global_varmap.write_vcf(discovery_vcf_path.str());
-  }
-
-  BOOST_LOG_TRIVIAL(info) << "[graphtyper::caller] Finished.";
+  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::caller] Finished calling all samples.";
+  return paths;
 }
 
 
 std::vector<VariantCandidate>
 find_variants_in_cigar(seqan::BamAlignmentRecord const & record,
                        GenomicRegion const & region,
-                       std::string const & ref
-                       )
+                       std::string const & ref)
 {
   std::vector<VariantCandidate> new_var_candidates;
   assert(record.beginPos != -1);
@@ -408,7 +295,9 @@ find_variants_in_cigar(seqan::BamAlignmentRecord const & record,
   }
 
   if (reference_seq == read_seq)
+  {
     return new_var_candidates;
+  }
 
   long ref_to_seq_offset = 0;
 
@@ -422,11 +311,7 @@ find_variants_in_cigar(seqan::BamAlignmentRecord const & record,
     return new_var_candidates;
 
   std::vector<Variant> new_vars =
-    extract_sequences_from_aligned_variant(std::move(new_var), SPLIT_VAR_THRESHOLD);
-
-  // Too many candidates is a smell of a problem
-  if (new_vars.size() >= 5)
-    return new_var_candidates;
+    extract_sequences_from_aligned_variant(std::move(new_var), SPLIT_VAR_THRESHOLD - 1);
 
   new_var_candidates.resize(new_vars.size());
 
@@ -439,31 +324,42 @@ find_variants_in_cigar(seqan::BamAlignmentRecord const & record,
     new_var.normalize();
 
     //// Check if high or low quality
-    long const r = new_var.abs_pos - ref_to_seq_offset;
-    long const r_end = r + new_var.seqs[1].size();
-    ref_to_seq_offset += new_var.seqs[0].size() - new_var.seqs[1].size();
+    long r = new_var.abs_pos - ref_to_seq_offset;
 
-    //// In case no qual is available
-    if (r_end < static_cast<long>(seqan::length(record.qual)))
-    {
-      int const MAX_QUAL = *std::max_element(seqan::begin(record.qual) + r,
-                                             seqan::begin(record.qual) + r_end
-                                             ) - 33;
+    // Fix r if the read was clipped
+    if (length(record.cigar) > 0 && record.cigar[0].operation == 'S')
+      r += record.cigar[0].count;
 
-      new_var_candidate.is_low_qual = MAX_QUAL < 25;
-    }
+    long r_end = r + new_var.seqs[1].size();
+    ref_to_seq_offset += static_cast<long>(new_var.seqs[0].size()) - static_cast<long>(new_var.seqs[1].size());
 
     new_var_candidate.abs_pos = new_var.abs_pos;
+    new_var_candidate.original_pos = static_cast<uint32_t>(record.beginPos + 1 - begin_clipping_size);
     new_var_candidate.seqs = std::move(new_var.seqs);
-    new_var_candidate.is_low_qual = false;
-    new_var_candidate.is_in_proper_pair = seqan::hasFlagAllProper(record);
-    new_var_candidate.is_mapq0 = record.mapQ == 0;
-    new_var_candidate.is_unaligned = record.beginPos == -1;
-    new_var_candidate.is_clipped = is_clipped;
-    new_var_candidate.is_first_in_pair = seqan::hasFlagFirst(record);
-    new_var_candidate.is_seq_reversed = seqan::hasFlagRC(record);
-    new_var_candidate.original_pos =
-      static_cast<uint32_t>(record.beginPos + 1 - begin_clipping_size);
+    new_var_candidate.flags = record.flag;
+
+    //// In case no qual is available
+    if (static_cast<long>(seqan::length(record.qual)) > r)
+    {
+      int MAX_QUAL;
+
+      if (r_end < static_cast<long>(seqan::length(record.qual)))
+      {
+        MAX_QUAL = *std::max_element(seqan::begin(record.qual) + r,
+                                     seqan::begin(record.qual) + r_end) - 33;
+      }
+      else
+      {
+        MAX_QUAL = *std::max_element(seqan::begin(record.qual) + r,
+                                     seqan::end(record.qual)) - 33;
+      }
+
+      new_var_candidate.flags |= static_cast<uint16_t>(static_cast<bool>(MAX_QUAL < 25)) << IS_LOW_BASE_QUAL_SHIFT;
+    }
+
+    //new_var_candidate.flags |= is_in_proper_pair = seqan::hasFlagAllProper(record);
+    new_var_candidate.flags |= static_cast<uint16_t>(record.mapQ < 25) << IS_MAPQ_BAD_SHIFT;
+    new_var_candidate.flags |= static_cast<uint16_t>(is_clipped) << IS_CLIPPED_SHIFT;
   }
 
   return new_var_candidates;
@@ -471,42 +367,54 @@ find_variants_in_cigar(seqan::BamAlignmentRecord const & record,
 
 
 void
-discover_directly_from_bam(std::string const & graph_path,
-                           std::vector<std::string> const & sams,
-                           std::vector<std::string> const & regions,
-                           std::string const & output_dir
-                           )
+parallel_discover_from_cigar(std::string * output_ptr,
+                             std::vector<std::string> const * hts_paths_ptr,
+                             GenomicRegion const & region,
+                             std::string const & output_dir,
+                             std::string const & ref_str,
+                             long minimum_variant_support,
+                             double minimum_variant_support_ratio)
 {
-  load_graph(graph_path);
-  assert(regions.size() > 0);
-  assert(regions.size() == 1); // Only support for one region right now
+  assert(output_ptr);
+  assert(hts_paths_ptr);
+  auto const & hts_paths = *hts_paths_ptr;
 
-  GenomicRegion region(regions[0]);
-  // auto const begin_pos = region.begin + 1; // Change to 1-based
-  // auto const end_pos = region.end + 1;
+  if (ref_str.size() == 0)
+  {
+    BOOST_LOG_TRIVIAL(error) << "Trying to discover variants with no reference string";
+    std::exit(1);
+  }
+
+  // Determine the size of the region we are discovery variants on
   std::size_t const REGION_SIZE = region.end - region.begin;
-  graph.generate_reference_genome();
-  std::string ref_str(graph.reference.begin(), graph.reference.end());
 
   // Extract sample names from SAM
-  std::unordered_map<std::string, std::string> rg2sample; // Note: Not used yet
   std::vector<std::string> samples;
+  std::vector<std::unordered_map<std::string, int> > vec_rg2sample_i; // Read group to sample index
 
   // Gather all the sample names
-  read_samples(rg2sample, samples, sams);
+  _read_rg_and_samples(samples, vec_rg2sample_i, hts_paths);
   assert(samples.size() > 0);
-  std::string const & pn = samples[0];
 
-  global_varmap.set_samples(samples);
-  global_reference_depth.set_pn_count(samples.size());
+  // Set up reference depth tracks
+  ReferenceDepth reference_depth;
+  reference_depth.set_depth_sizes(samples.size(), REGION_SIZE);
 
-  for (long s = 0; s < static_cast<long>(sams.size()); ++s)
+  // Set up variant map
+  VariantMap varmap;
+  varmap.set_samples(samples);
+  varmap.minimum_variant_support = minimum_variant_support;
+  varmap.minimum_variant_support_ratio = minimum_variant_support_ratio;
+
+  for (long file_i = 0; file_i < static_cast<long>(hts_paths.size()); ++file_i)
   {
-    auto const & sam = sams[s];
+    assert(vec_rg2sample_i.size() == hts_paths.size());
+
+    auto const & sam = hts_paths[file_i];
+    auto & rg2sample_i = vec_rg2sample_i[file_i];
+
     seqan::HtsFile hts(sam.c_str(), "r");
     seqan::BamAlignmentRecord record;
-    gyper::ReferenceDepth ref_depth;
-    ref_depth.depth.resize(REGION_SIZE);
 
     while (seqan::readRecord(record, hts))
     {
@@ -515,8 +423,7 @@ discover_directly_from_bam(std::string const & graph_path,
           seqan::hasFlagSecondary(record) ||
           seqan::hasFlagQCNoPass(record) ||
           seqan::hasFlagDuplicate(record) ||
-          seqan::hasFlagUnmapped(record)
-          )
+          seqan::hasFlagUnmapped(record))
       {
         continue;
       }
@@ -536,48 +443,156 @@ discover_directly_from_bam(std::string const & graph_path,
       int64_t end_pos = begin_pos + seqan::getAlignmentLengthInRef(record);
 
       // Check if read is within region
-      if (begin_pos < region.get_absolute_begin_position() ||
-          end_pos > region.get_absolute_end_position()
-          )
-      {
+      if (begin_pos < region.get_absolute_begin_position() || end_pos > region.get_absolute_end_position())
         continue;
-      }
 
       assert(begin_pos >= 0);
       assert(end_pos >= 0);
 
+      // Determine the sample index
+      assert(hts.hts_record);
+
+      long sample_i;
+
+      if (rg2sample_i.size() > 0)
+      {
+        uint8_t * rg_tag = bam_aux_get(hts.hts_record, "RG");
+
+        if (!rg_tag)
+        {
+          BOOST_LOG_TRIVIAL(error) << "[graphtyper::typer::caller] Unable to find RG tag in read.";
+          std::exit(1);
+        }
+
+        std::string read_group(reinterpret_cast<char *>(rg_tag + 1)); // Skip 'Z'
+
+        auto find_rg_it = rg2sample_i.find(read_group);
+
+        if (find_rg_it == rg2sample_i.end())
+        {
+          BOOST_LOG_TRIVIAL(error) << "[graphtyper::typer::caller] Unable to find read group. " << read_group;
+          std::exit(1);
+        }
+
+        sample_i = find_rg_it->second;
+      }
+      else
+      {
+        sample_i = file_i;
+      }
+
       // Update reference depth (very arbitrarily)
       if (end_pos - begin_pos < 50)
-        ref_depth.add_depth(begin_pos, end_pos);
+        reference_depth.add_depth(begin_pos, end_pos, sample_i);
       else
-        ref_depth.add_depth(begin_pos + 4, end_pos - 4);
+        reference_depth.add_depth(begin_pos + 4, end_pos - 4, sample_i);
 
       // Add variant candidates
-      std::vector<VariantCandidate> var_candidates =
-        find_variants_in_cigar(record, region, ref_str);
+      std::vector<VariantCandidate> var_candidates = find_variants_in_cigar(record, region, ref_str);
 
-      global_varmap.add_variants(std::move(var_candidates), s);
+      if (var_candidates.size() > 0)
+      {
+        varmap.add_variants(std::move(var_candidates), sample_i);
+      }
     }
-
-    global_reference_depth.add_reference_depths_from(ref_depth, s);
   }
 
   // Write variant map
+  std::ostringstream variant_map_path;
+  variant_map_path << output_dir << "/" << samples[0] << "_variant_map";
+
+  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::caller] Writing variant map to '"
+                           << variant_map_path.str();
+
+  varmap.create_varmap_for_all(reference_depth);
+
+#ifndef NDEBUG
+  if (Options::instance()->stats.size() > 0)
+    varmap.write_stats("1");
+#endif // NDEBUG
+
+  save_variant_map(variant_map_path.str(), varmap);
+  *output_ptr = variant_map_path.str();
+}
+
+
+std::vector<std::string>
+discover_directly_from_bam(std::string const & graph_path,
+                           std::vector<std::string> const & hts_paths,
+                           std::string const & region_str,
+                           std::string const & output_dir,
+                           long minimum_variant_support,
+                           double minimum_variant_support_ratio)
+{
+  std::vector<std::string> output_file_paths;
+
+  if (graph_path.size() > 0)
+    load_graph(graph_path);
+
+  //graph.generate_reference_genome();
+  std::string ref_str(graph.reference.begin(), graph.reference.end());
+
+  // parse region
+  GenomicRegion const region(region_str);
+
+  std::vector<std::unique_ptr<std::vector<std::string> > > spl_hts_paths;
+  long jobs = 1;
+
   {
-    std::ostringstream variant_map_path;
-    variant_map_path << output_dir << "/" << pn << "_variant_map";
+    long num_parts = 1;
+    long const NUM_FILES = hts_paths.size();
+    _determine_num_jobs_and_num_parts(jobs, num_parts, NUM_FILES);
 
-    BOOST_LOG_TRIVIAL(info) << "[graphtyper::caller] Writing variant map to '"
-                            << variant_map_path.str();
+    {
+      auto it = hts_paths.cbegin();
 
-    global_varmap.create_varmap_for_all();
-    save_variant_map(variant_map_path.str(), global_varmap);
-
-    // Uncomment for debbuging purposes
-    //global_varmap.filter_varmap_for_all();
-    //variant_map_path << ".vcf.gz";
-    //global_varmap.write_vcf(variant_map_path.str());
+      for (long i = 0; i < num_parts; ++i)
+      {
+        auto end_it = it + NUM_FILES / num_parts + (i < (NUM_FILES % num_parts));
+        assert(std::distance(hts_paths.cbegin(), end_it) <= NUM_FILES);
+        spl_hts_paths.emplace_back(new std::vector<std::string>(it, end_it));
+        it = end_it;
+      }
+    }
   }
+
+  long const NUM_POOLS = spl_hts_paths.size();
+  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::caller] Number of pools = " << NUM_POOLS;
+  output_file_paths.resize(NUM_POOLS);
+
+  // Run in parallel
+  {
+    paw::Station call_station(jobs); // last parameter is queue_size
+    //call_station.options.verbosity = 2; // Print messages
+
+    for (long i = 0; i < NUM_POOLS - 1; ++i)
+    {
+      call_station.add_work(parallel_discover_from_cigar,
+                            &(output_file_paths[i]),
+                            spl_hts_paths[i].get(),
+                            region,
+                            output_dir,
+                            ref_str,
+                            minimum_variant_support,
+                            minimum_variant_support_ratio);
+    }
+
+    // Do the last pool on the current thread
+    call_station.add_to_thread(jobs - 1,
+                               parallel_discover_from_cigar,
+                               &(output_file_paths[NUM_POOLS - 1]),
+                               spl_hts_paths[NUM_POOLS - 1].get(),
+                               region,
+                               output_dir,
+                               ref_str,
+                               minimum_variant_support,
+                               minimum_variant_support_ratio);
+
+    std::string thread_work_info = call_station.join();
+    BOOST_LOG_TRIVIAL(info) << "Finished initial variant discovery step. Thread work info: " << thread_work_info;
+  }
+
+  return output_file_paths;
 }
 
 

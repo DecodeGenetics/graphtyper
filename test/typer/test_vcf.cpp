@@ -14,10 +14,9 @@
 
 TEST_CASE("Create a VCF and add samples")
 {
-  using gyper::Vcf;
-  using gyper::WRITE_UNCOMPRESSED_MODE;
+  using namespace gyper;
 
-  Vcf vcf(WRITE_UNCOMPRESSED_MODE);
+  Vcf vcf(WRITE_BGZF_MODE, "-");
 
   SECTION("Initially there are no samples")
   {
@@ -44,11 +43,7 @@ TEST_CASE("Create a VCF and add samples")
 
 TEST_CASE("Create a VCF and add variants")
 {
-  using gyper::Genotype;
-  using gyper::Haplotype;
-  using gyper::Vcf;
-  using gyper::WRITE_UNCOMPRESSED_MODE;
-  using gyper::graph;
+  using namespace gyper;
 
   // Set up
   {
@@ -67,7 +62,7 @@ TEST_CASE("Create a VCF and add variants")
 
   std::vector<gyper::Haplotype> haps = graph.get_all_haplotypes(32 /*variant distance*/);
   assert(haps.size() == 1);
-  Vcf vcf(WRITE_UNCOMPRESSED_MODE);
+  Vcf vcf(WRITE_BGZF_MODE, "-");
 
   SECTION("Initially there are no variants")
   {

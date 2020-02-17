@@ -27,12 +27,11 @@ public:
   void insert_reads(TReads & reads, seqan::BamAlignmentRecord && record);
 
   std::size_t r = 0; /* Current region index */
-  std::size_t p = 0; /* Current pos in the region */
 
 private:
   seqan::HtsFileIn hts_file;
-  bool second_file = false;
   std::vector<std::string> regions;
+
   TReadsFirst reads_first;
   TReads unpaired_reads;
 

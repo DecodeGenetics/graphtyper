@@ -12,24 +12,71 @@
 namespace gyper
 {
 
-HaplotypeCall::HaplotypeCall(std::vector<uint16_t> && _calls,
-                             std::vector<Genotype> const & _gts
-  )
-  : calls(std::move(_calls))
-  , gts(_gts)
-{}
 
-
-template<class Archive>
-void
-HaplotypeCall::serialize(Archive &ar, unsigned const int /*version*/)
+//
+/// HaplotypeCalls
+//
+HaplotypeCall::HaplotypeCall(Haplotype const & hap)
 {
-  ar & calls;
-  ar & gts;
+  calls = hap.get_haplotype_calls();
+  gts = hap.gts;
+  assert(hap.var_stats.size() == hap.gts.size());
+
+  long const NUM_GTS = hap.gts.size();
+
+  // Determine bias
+  read_strand.reserve(hap.gts.size());
+
+  for (long g = 0; g < NUM_GTS; ++g)
+  {
+    auto const & var_stat = hap.var_stats[g];
+    read_strand.push_back(var_stat.read_strand);
+  }
 }
 
 
-HaplotypeCalls::HaplotypeCalls(THapCalls const & _hap_calls)
+void
+HaplotypeCall::merge_with(HaplotypeCall const & other)
+{
+  assert(other.calls.size() >= 1);
+  assert(other.calls[0] == 0);
+  std::copy(other.calls.begin() + 1, other.calls.end(), std::back_inserter(calls));
+  assert(read_strand.size() == other.read_strand.size());
+
+  for (long i = 0; i < static_cast<long>(read_strand.size()); ++i)
+  {
+    auto & rs = read_strand[i];
+    auto const & other_rs = other.read_strand[i];
+    assert(rs.size() == other_rs.size());
+
+    for (long j = 0; j < static_cast<long>(rs.size()); ++j)
+      rs[j].merge_with(other_rs[j]);
+  }
+}
+
+
+void
+HaplotypeCall::make_calls_unique()
+{
+  std::sort(calls.begin(), calls.end());
+  calls.erase(std::unique(calls.begin(), calls.end()), calls.end());
+}
+
+
+template <class Archive>
+void
+HaplotypeCall::serialize(Archive & ar, unsigned const int /*version*/)
+{
+  ar & calls;
+  ar & gts;
+  ar & read_strand;
+}
+
+
+//
+/// HaplotypeCalls
+//
+HaplotypeCalls::HaplotypeCalls(std::vector<HaplotypeCall> const & _hap_calls)
   : hap_calls(_hap_calls)
 {}
 
@@ -46,8 +93,10 @@ HaplotypeCalls::serialize(Archive & ar, unsigned const int /*version*/)
  * EXPLICIT INSTANTIATIONS *
  ***************************/
 
-template void HaplotypeCalls::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &, const unsigned int);
-template void HaplotypeCalls::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &, const unsigned int);
+template void HaplotypeCalls::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &,
+                                                                         const unsigned int);
+template void HaplotypeCalls::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &,
+                                                                         const unsigned int);
 
 /*********************************
  * FUNCTIONS TO MAKE LIFE EASIER *
@@ -71,12 +120,18 @@ save_calls(HaplotypeCalls & calls, std::string const & filename)
 }
 
 
-THapCalls
+std::vector<HaplotypeCall>
 load_calls(std::string filename)
 {
   HaplotypeCalls calls{};
   std::ifstream ifs(filename.c_str(), std::ios::binary);
-  assert(ifs.is_open());
+
+  if (!ifs.is_open())
+  {
+    BOOST_LOG_TRIVIAL(error) << "Could not open file " << filename;
+    std::exit(1);
+  }
+
   boost::archive::binary_iarchive ia(ifs);
   ia >> calls;
   return calls.get_hap_calls();

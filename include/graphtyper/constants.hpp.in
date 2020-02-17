@@ -4,6 +4,7 @@
 // CMake variables
 #define graphtyper_VERSION_MAJOR @graphtyper_VERSION_MAJOR@
 #define graphtyper_VERSION_MINOR @graphtyper_VERSION_MINOR@
+#define graphtyper_VERSION_PATCH @graphtyper_VERSION_PATCH@
 #define gyper_SOURCE_DIRECTORY "@PROJECT_SOURCE_DIR@"
 #define gyper_BINARY_DIRECTORY "@PROJECT_BINARY_DIR@"
 #define GIT_BRANCH "@GIT_BRANCH@"
@@ -15,20 +16,90 @@
 namespace gyper
 {
 
-uint8_t const  K = 32;   /** \brief The size of the k-mers. */
-uint32_t const INVALID_ID = 0xFFFFFFFFul;
-uint16_t const INVALID_NUM = 0xFFFFul;
-uint32_t const MAX_NUMBER_OF_HAPLOTYPES = 2048u;   // 2^12 (=> Each score vector requires ~16 MB maximum)
+uint8_t constexpr  K = 32;   /** \brief The size of the k-mers. */
+uint32_t constexpr INVALID_ID = 0xFFFFFFFFul;
+uint16_t constexpr INVALID_NUM = 0xFFFFul;
+uint32_t constexpr MAX_NUMBER_OF_HAPLOTYPES = 2048u;   // 2^12 (=> Each score vector requires ~16 MB maximum)
 
 /** \brief Number of matches to trigger that a single variant is split into smaller variants */
-uint32_t const SPLIT_VAR_THRESHOLD = 5;
-uint32_t const MAX_READ_LENGTH = 151u;
+uint32_t constexpr SPLIT_VAR_THRESHOLD = 5;
+uint32_t constexpr MAX_READ_LENGTH = 151u;
 
 /** Any position at or above this position is a "special" position. The true position is in the special_pos vector.
       correct_pos = special_pos[pos - SPECIAL_START]
  */
-uint32_t const SPECIAL_START = 0xD0000000ul; // == 3489660928
+uint32_t constexpr SPECIAL_START = 0xD0000000ul; // == 3489660928
 
+uint32_t constexpr AS_LONG_AS_POSSIBLE = 0xFFFFFFFFULL;
 using TNodeIndex = uint64_t;
+
+/** Alignment constraints
+ */
+uint32_t constexpr MAX_UNIQUE_KMER_POSITIONS = 512;
+long constexpr OPTIMAL_INSERT_SIZE = 300;
+uint32_t constexpr MAX_SEED_NUMBER_ALLOWING_MISMATCHES = 64;
+uint32_t constexpr MAX_SEED_NUMBER_FOR_WALKING = 256;
+uint32_t constexpr MAX_NUM_LOCATIONS_PER_PATH = 256;
+uint16_t constexpr EPSILON_0_EXPONENT = 12;
+int32_t constexpr INSERT_SIZE_WHEN_NOT_PROPER_PAIR = 0x7FFFFFFFl;
+
+
+/**
+ * Flags
+ */
+uint16_t constexpr IS_PAIRED_SHIFT         = 0;
+uint16_t constexpr IS_PROPER_PAIR_SHIFT    = 1;
+uint16_t constexpr IS_UNMAPPED_SHIFT       = 2;
+uint16_t constexpr IS_MATE_UNMAPPED_SHIFT  = 3;
+uint16_t constexpr IS_REVERSED_SHIFT       = 4;
+uint16_t constexpr IS_MATE_REVERSED_SHIFT  = 5;
+uint16_t constexpr IS_FIRST_IN_PAIR_SHIFT  = 6;
+uint16_t constexpr IS_SECOND_IN_PAIR_SHIFT = 7;
+uint16_t constexpr IS_SECONDARY_SHIFT      = 8;
+uint16_t constexpr IS_QC_FAIL_SHIFT        = 9;
+uint16_t constexpr IS_DUPLICATION_SHIFT    = 10;
+uint16_t constexpr IS_SUPPLEMENTARY_SHIFT  = 11;
+// New flags for variant
+uint16_t constexpr IS_MAPQ_BAD_SHIFT       = 12;
+uint16_t constexpr IS_CLIPPED_SHIFT        = 13;
+uint16_t constexpr IS_LOW_BASE_QUAL_SHIFT  = 14;
+
+uint16_t constexpr IS_PAIRED            = 1;
+uint16_t constexpr IS_PROPER_PAIR       = 2;
+uint16_t constexpr IS_UNMAPPED          = 4;
+uint16_t constexpr IS_MATE_UNMAPPED     = 8;
+uint16_t constexpr IS_SEQ_REVERSED      = 16;
+uint16_t constexpr IS_MATE_SEQ_REVERSED = 32;
+uint16_t constexpr IS_FIRST_IN_PAIR     = 64;
+uint16_t constexpr IS_SECOND_IN_PAIR    = 128;
+uint16_t constexpr IS_SECONDARY         = 256;
+uint16_t constexpr IS_QC_FAIL           = 512;
+uint16_t constexpr IS_DUPLICATION       = 1024;
+uint16_t constexpr IS_SUPPLEMENTARY     = 2048;
+// New flags for variant
+uint16_t constexpr IS_MAPQ_BAD          = 4096;
+uint16_t constexpr IS_CLIPPED           = 8192;
+uint16_t constexpr IS_LOW_BASE_QUAL     = 16384;
+
+inline void
+toggle_bit(uint16_t & flag, uint16_t with)
+{
+  flag ^= with;
+}
+
+
+inline void
+set_bit(uint16_t & flag, uint16_t with)
+{
+  flag |= with;
+}
+
+
+inline void
+clear_bit(uint16_t & flag, uint16_t with)
+{
+  flag &= ~with;
+}
+
 
 } // namespace gyper

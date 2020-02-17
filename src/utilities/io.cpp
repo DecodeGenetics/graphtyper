@@ -21,16 +21,17 @@
 namespace gyper
 {
 
-std::vector<std::string>
-get_sample_names_from_bam_header(std::string const & hts_filename, std::unordered_map<std::string, std::string> & rg2sample)
+void
+get_sample_name_from_bam_header(std::string const & hts_filename,
+                                std::vector<std::string> & samples,
+                                std::unordered_map<std::string, int> & rg2sample_i)
 {
-  std::vector<std::string> samples;
   seqan::HtsFileIn hts_file;
 
   if (!open(hts_file, hts_filename.c_str()))
   {
-    BOOST_LOG_TRIVIAL(error) << "Could not open " << hts_filename << " for reading";
-    return samples;
+    BOOST_LOG_TRIVIAL(error) << "[graphtyper::utilities::io] Could not open " << hts_filename << " for reading";
+    std::exit(1);
   }
 
   std::string const header_text(hts_file.hdr->text, hts_file.hdr->l_text);
@@ -44,43 +45,101 @@ get_sample_names_from_bam_header(std::string const & hts_filename, std::unordere
     if (boost::starts_with(line_it, "@RG"))
     {
       std::size_t const pos_id = line_it.find("\tID:");
-      std::size_t const pos_samp = line_it.rfind("\tSM:"); // use rfind for superoptimization!!!!1one
+      std::size_t const pos_samp = line_it.rfind("\tSM:");
 
-      if (pos_samp != std::string::npos and pos_id != std::string::npos)
+      if (pos_samp == std::string::npos || pos_id == std::string::npos)
       {
-        std::size_t pos_id_ends = line_it.find("\t", pos_id + 1);
+        std::cerr << "[graphtyper::utilities::io] ERROR: Could not parse RG and sample from header line:"
+                  << line_it << std::endl;
+        std::exit(1);
+      }
 
-        // Check if this is the last field
-        if (pos_id_ends == std::string::npos)
-          pos_id_ends = line_it.size();
+      std::size_t pos_id_ends = line_it.find("\t", pos_id + 1);
 
-        std::size_t pos_samp_ends = line_it.find("\t", pos_samp + 1);
+      // Check if this is the last field
+      if (pos_id_ends == std::string::npos)
+        pos_id_ends = line_it.size();
 
-        // Check if this is the last field
-        if (pos_samp_ends == std::string::npos)
-          pos_samp_ends = line_it.size();
+      std::size_t pos_samp_ends = line_it.find("\t", pos_samp + 1);
 
-        std::string new_id = line_it.substr(pos_id + 4, pos_id_ends - pos_id - 4);
-        std::string new_sample = line_it.substr(pos_samp + 4, pos_samp_ends - pos_samp - 4);
+      // Check if this is the last field
+      if (pos_samp_ends == std::string::npos)
+        pos_samp_ends = line_it.size();
 
-        // Make sure this read group has not been seen
-        assert(rg2sample.count(new_id) == 0);
-        rg2sample[new_id] = new_sample;
-        BOOST_LOG_TRIVIAL(info) << "[graphtyper::io] Added RG: '" << new_id << "' => '" << new_sample << "'";
+      std::string new_id = line_it.substr(pos_id + 4, pos_id_ends - pos_id - 4);
+      std::string new_sample = line_it.substr(pos_samp + 4, pos_samp_ends - pos_samp - 4);
 
-        auto find_it = std::find(samples.begin(), samples.end(), new_sample);
+#ifndef NDEBUG
+      BOOST_LOG_TRIVIAL(debug) << "[graphtyper::utilities::io] Added RG: '"
+                               << new_id << "' => '" << new_sample << "'";
+#endif // NDEBUG
 
-        if (find_it == samples.end())
-          samples.push_back(new_sample);
+      auto find_it = std::find(samples.begin(), samples.end(), new_sample);
+
+      // check if this is a new sample
+      if (find_it == samples.end())
+      {
+        rg2sample_i[new_id] = samples.size();
+        samples.push_back(new_sample);
+      }
+      else
+      {
+        rg2sample_i[new_id] = std::distance(samples.begin(), find_it);
       }
     }
   }
-
-  std::sort(samples.begin(), samples.end());
-  return samples;
 }
 
 
+std::unordered_map<std::string, long>
+get_contig_to_lengths(std::string const & fai_filename)
+{
+  std::ifstream fai(fai_filename.c_str());
+
+  if (!fai.is_open())
+  {
+    BOOST_LOG_TRIVIAL(error) << "Could not open fasta.fai at: " << fai_filename;
+    std::exit(1);
+  }
+
+  std::unordered_map<std::string, long> contig_to_lengths;
+  std::string line;
+
+  while (std::getline(fai, line))
+  {
+    if (line.size() == 0)
+      continue;
+
+    auto find_it = std::find(line.begin(), line.end(), '\t');
+
+    if (find_it == line.end())
+    {
+      BOOST_LOG_TRIVIAL(warning) << "[graphtyper::io] Could not parse contig line: " << line;
+      continue;
+    }
+
+    std::string contig(line.begin(), find_it);
+    auto find2_it = std::find(find_it + 1, line.end(), '\t');
+
+    if (find2_it == line.end())
+    {
+      BOOST_LOG_TRIVIAL(warning) << "[graphtyper::io] Could not parse contig line: " << line;
+      continue;
+    }
+
+    std::string length(find_it + 1, find2_it);
+
+    if (contig_to_lengths.count(contig) == 1)
+      BOOST_LOG_TRIVIAL(warning) << "[graphtyper::io] Duplicated contig in FAI: " << contig;
+
+    contig_to_lengths[contig] = std::stoull(length);
+  }
+
+  return contig_to_lengths;
+}
+
+
+/*
 std::vector<std::pair<seqan::CharString, seqan::Dna5String> >
 read_fasta_sequences(std::string const & fasta_filename)
 {
@@ -170,9 +229,10 @@ read_haplotypes_from_fasta(std::string const & fasta_filename)
     }
   }
 
-  assert (haplotypes.size() > 0);
+  assert(haplotypes.size() > 0);
   return haplotypes;
 }
+*/
 
 
 void
@@ -224,12 +284,13 @@ write_to_file(std::string && data, std::string const & file_name)
   }
 }
 
+
 void
 write_gzipped_to_file(std::stringstream & ss, std::string const & file_name, bool const append)
 {
   std::ofstream compressed(file_name.c_str(),
                            append ? (std::ofstream::binary | std::ofstream::app) : std::ofstream::binary
-    );
+                           );
 
   if (!compressed.is_open())
   {

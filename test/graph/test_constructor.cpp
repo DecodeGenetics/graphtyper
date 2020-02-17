@@ -54,7 +54,10 @@ create_graph(std::string const & fasta,
   std::stringstream reference_path;
   reference_path << gyper_SOURCE_DIRECTORY << fasta;
 
-  gyper::construct_graph(reference_path.str().c_str(), vcf_path.str().c_str(), region, use_absolute_positions);
+  BOOST_LOG_TRIVIAL(debug) << "Creating a graph for " << reference_path.str() << " " << vcf_path.str()
+                           << " at region " << region;
+
+  gyper::construct_graph(reference_path.str(), vcf_path.str(), region, use_absolute_positions);
   std::stringstream graph_path;
   graph_path << gyper_SOURCE_DIRECTORY << "/test/data/graphs";
 
@@ -96,6 +99,7 @@ create_graph(std::string const & fasta,
 }
 
 
+/*
 TEST_CASE("Construct test graph (chr1)")
 {
   create_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr1", true);
@@ -234,7 +238,8 @@ TEST_CASE("Construct test graph (chr2)")
     REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec(""));
     REQUIRE(var_nodes[2].get_label().dna == gyper::to_vec("C"));
     REQUIRE(var_nodes[3].get_label().dna == gyper::to_vec("A"));
-    REQUIRE(ref_nodes[2].get_label().dna == gyper::to_vec("CAGGTTTCCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCCCCAGGTTTGGACCC"));
+    REQUIRE(ref_nodes[2].get_label().dna ==
+            gyper::to_vec("CAGGTTTCCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCCCCAGGTTTGGACCC"));
   }
 }
 
@@ -337,6 +342,7 @@ TEST_CASE("Construct test graph (chr8) in a region that fully overlaps only a se
     REQUIRE(graph.actual_poses.size() == 0);
   }
 }
+*/
 
 
 /*

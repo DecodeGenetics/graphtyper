@@ -5,6 +5,7 @@
 #include <string> // std::string
 #include <vector> // std::vector
 
+#include <graphtyper/graph/read_strand.hpp>
 
 namespace gyper
 {
@@ -12,34 +13,14 @@ namespace gyper
 class VarStats
 {
 public:
-  /** Mapping quality (MQ) */
-  uint64_t mapq_root_total = 0u;
-  uint32_t mapq_count = 0u;
-  uint32_t mapq_zero_count = 0u;
-  std::vector<uint64_t> mapq_allele_root_total;
-  std::vector<uint32_t> mapq_allele_counts;
-
   /** Clipped reads */
   uint32_t clipped_reads = 0u;
-  std::vector<uint32_t> originally_clipped;
-
-  /** Realignment statistics */
-  uint32_t unaligned_reads = 0u;
-  std::vector<uint32_t> realignment_distance;
-  std::vector<uint32_t> realignment_count;
 
   /** Strand bias per allele */
-  std::vector<uint32_t> r1_strand_forward;
-  std::vector<uint32_t> r1_strand_reverse;
-  std::vector<uint32_t> r2_strand_forward;
-  std::vector<uint32_t> r2_strand_reverse;
+  std::vector<ReadStrand> read_strand{};
 
-  /** Graph complexity */
-  uint8_t graph_complexity = 0u;
-
-  /** Reference coverage vs alternative coverage */
-  uint16_t ref_coverage = 0u;
-  uint16_t alt_coverage = 0u;
+  /** MapQ statistics */
+  uint64_t mapq_squared = 0u;
 
   /**
    * CONSTRUCTORS
@@ -49,30 +30,27 @@ public:
   /**
    * MODIFIERS
    */
-  void add_mapq(uint8_t allele_id, uint8_t const new_mapq);
-  void add_realignment_distance(uint8_t const allele_id, uint32_t const original_pos, uint32_t const new_pos);
+  void add_mapq(uint8_t const new_mapq);
 
   /**
    * CLASS INFORMATION
    */
-  uint8_t get_rms_mapq() const;
-  std::string get_rms_mapq_per_allele() const;
-  std::string get_originally_clipped_reads() const;
-  std::string get_realignment_count() const;
-  std::string get_realignment_distance() const;
   std::string get_forward_strand_bias() const;
   std::string get_reverse_strand_bias() const;
-  std::string get_unaligned_count() const;
 
   // Read pair specfici biases
   std::string get_r1_forward_strand_bias() const;
   std::string get_r2_forward_strand_bias() const;
   std::string get_r1_reverse_strand_bias() const;
   std::string get_r2_reverse_strand_bias() const;
+
+
 };
 
-template<class T> std::string join_strand_bias(std::vector<T> const & bias);
+template <class T>
+std::string join_strand_bias(std::vector<T> const & bias);
 std::string join_strand_bias(std::vector<uint32_t> const & r1bias, std::vector<uint32_t> const & r2bias);
+
 std::vector<std::string> split_bias_to_strings(std::string const & bias);
 std::vector<uint32_t> split_bias_to_numbers(std::string const & bias);
 std::vector<uint32_t> get_strand_bias(std::map<std::string, std::string> const & infos, std::string const & bias);

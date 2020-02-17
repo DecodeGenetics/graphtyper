@@ -9,40 +9,29 @@
 namespace gyper
 {
 
-AbsolutePosition::AbsolutePosition()
+AbsolutePosition::AbsolutePosition(gyper::Graph const & graph)
 {
-  this->calculate_offsets();
-  /*
-  offsets.resize(26);
-  offsets[0] = 0;
-  chromosome_to_offset[chromosome_names[0]] = 0;
-
-  for (long i = 1; i < 26l; ++i)
-  {
-    offsets[i] = offsets[i - 1] + chromosome_lengths[i - 1];
-    chromosome_to_offset[chromosome_names[i]] = offsets[i];
-  }
-  */
+  this->calculate_offsets(graph);
 }
 
 
 void
-AbsolutePosition::calculate_offsets()
+AbsolutePosition::calculate_offsets(gyper::Graph const & graph)
 {
-  if (gyper::graph.contigs.size() == 0 || gyper::graph.contigs.size() == offsets.size())
+  if (graph.contigs.size() == 0 || graph.contigs.size() == offsets.size())
     return;
 
   offsets.clear();
   chromosome_to_offset.clear();
 
-  offsets.resize(gyper::graph.contigs.size());
+  offsets.resize(graph.contigs.size());
   offsets[0] = 0;
-  chromosome_to_offset[gyper::graph.contigs[0].name] = 0;
+  chromosome_to_offset[graph.contigs[0].name] = 0;
 
   for (long i = 1; i < static_cast<long>(offsets.size()); ++i)
   {
-    offsets[i] = offsets[i - 1] + gyper::graph.contigs[i - 1].length;
-    chromosome_to_offset[gyper::graph.contigs[i].name] = offsets[i];
+    offsets[i] = offsets[i - 1] + graph.contigs[i - 1].length;
+    chromosome_to_offset[graph.contigs[i].name] = offsets[i];
   }
 }
 
@@ -65,7 +54,7 @@ AbsolutePosition::get_absolute_position(std::string const & chromosome, uint32_t
   }
   catch (std::out_of_range const &)
   {
-    std::cerr << "[gyper::graph::absolute_position] ERROR: No chromosome \""
+    std::cerr << "[gyper::absolute_position] ERROR: No chromosome \""
               << chromosome << "\" available. Available chromosomes are:\n";
 
     for (auto it = chromosome_to_offset.begin(); it != chromosome_to_offset.end(); ++it)
@@ -81,13 +70,13 @@ AbsolutePosition::get_absolute_position(std::string const & chromosome, uint32_t
 
 
 std::pair<std::string, uint32_t>
-AbsolutePosition::get_contig_position(uint32_t const absolute_position) const
+AbsolutePosition::get_contig_position(uint32_t const absolute_position, Graph const & graph) const
 {
   auto offset_it = std::lower_bound(offsets.begin(), offsets.end(), absolute_position);
   long const i = std::distance(offsets.begin(), offset_it);
   assert(i > 0);
   assert(i <= static_cast<long>(gyper::graph.contigs.size()));
-  return std::make_pair<std::string, uint32_t>(std::string(gyper::graph.contigs[i - 1].name),
+  return std::make_pair<std::string, uint32_t>(std::string(graph.contigs[i - 1].name),
                                                absolute_position - offsets[i - 1]);
 }
 

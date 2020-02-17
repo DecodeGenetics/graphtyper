@@ -11,12 +11,15 @@
 #include <seqan/sequence.h>
 #include <seqan/stream.h>
 
+#include <paw/align.hpp>
+
 #include <graphtyper/graph/absolute_position.hpp> // gyper::AbsolutePosition
 #include <graphtyper/graph/graph.hpp> // gyper::Graph
 #include <graphtyper/graph/sv.hpp> // gyper::SVTYPE
 #include <graphtyper/typer/variant.hpp> // gyper::Variant
 #include <graphtyper/typer/variant_candidate.hpp> // gyper::VariantCandidate
 #include <graphtyper/utilities/graph_help_functions.hpp> // gyper::to_pair, gyper::to_index
+#include <graphtyper/utilities/options.hpp> // gyper::Options
 #include <graphtyper/utilities/sequence_operations.hpp> // gyper::remove_common_prefix, gyper::remove_common_suffix
 
 
@@ -27,16 +30,12 @@ void
 update_strand_bias(std::size_t const num_seqs,
                    std::size_t new_num_seqs,
                    std::vector<uint16_t> const & old_phred_to_new_phred,
-                   gyper::Variant const & var, gyper::Variant & new_var
-  )
+                   gyper::Variant const & var,
+                   gyper::Variant & new_var)
 {
-  using gyper::Variant;
   using gyper::get_strand_bias;
   using gyper::join_strand_bias;
 
-  std::vector<uint32_t> originally_cropped = get_strand_bias(var.infos, "CRAligner");
-
-  std::vector<uint32_t> mq_per_allele = get_strand_bias(var.infos, "MQperAllele");
   std::vector<uint64_t> seq_depths = var.get_seq_depth_of_all_alleles();
 
   std::vector<uint32_t> sbf = get_strand_bias(var.infos, "SBF");
@@ -47,16 +46,19 @@ update_strand_bias(std::size_t const num_seqs,
   std::vector<uint32_t> sbr1 = get_strand_bias(var.infos, "SBR1");
   std::vector<uint32_t> sbr2 = get_strand_bias(var.infos, "SBR2");
 
-  std::vector<uint32_t> ra_count = get_strand_bias(var.infos, "RACount");
-  std::vector<uint32_t> ra_dist = get_strand_bias(var.infos, "RADist");
+  assert(sbf.size() > 0);
+  assert(sbf.size() == num_seqs);
+  assert(sbr.size() == num_seqs);
+  assert(sbf1.size() == num_seqs);
+  assert(sbf2.size() == num_seqs);
+  assert(sbr1.size() == num_seqs);
+  assert(sbr2.size() == num_seqs);
+
+//  std::vector<uint32_t> ra_count = get_strand_bias(var.infos, "RACount");
+//  std::vector<uint32_t> ra_dist = get_strand_bias(var.infos, "RADist");
 
   if (sbf.size() > 0 && sbr.size() > 0)
   {
-    std::vector<uint32_t> new_originally_cropped(new_num_seqs, 0u);
-
-    std::vector<uint64_t> new_mq_rooted(new_num_seqs, 0u);
-    std::vector<uint64_t> new_seq_depths(new_num_seqs, 0u);
-
     std::vector<uint32_t> new_sbf(new_num_seqs, 0u);
     std::vector<uint32_t> new_sbr(new_num_seqs, 0u);
 
@@ -65,15 +67,14 @@ update_strand_bias(std::size_t const num_seqs,
     std::vector<uint32_t> new_sbr1(new_num_seqs, 0u);
     std::vector<uint32_t> new_sbr2(new_num_seqs, 0u);
 
-    std::vector<uint32_t> new_ra_count(new_num_seqs, 0u);
-    std::vector<uint32_t> new_ra_dist(new_num_seqs, 0u);
+//    std::vector<uint32_t> new_ra_count(new_num_seqs, 0u);
+//    std::vector<uint32_t> new_ra_dist(new_num_seqs, 0u);
 
     for (uint32_t y = 0; y < num_seqs; ++y)
     {
       uint32_t new_y = old_phred_to_new_phred[y];
 
       assert(new_y < new_num_seqs);
-      assert(y < mq_per_allele.size());
       assert(y < seq_depths.size());
       assert(y < sbf.size());
       assert(y < sbr.size());
@@ -81,11 +82,6 @@ update_strand_bias(std::size_t const num_seqs,
       assert(y < sbf2.size());
       assert(y < sbr1.size());
       assert(y < sbr2.size());
-
-      new_originally_cropped[new_y] += originally_cropped[y];
-
-      new_mq_rooted[new_y] += mq_per_allele[y] * mq_per_allele[y] * seq_depths[y];
-      new_seq_depths[new_y] += seq_depths[y];
 
       new_sbf[new_y] += sbf[y];
       new_sbr[new_y] += sbr[y];
@@ -95,36 +91,9 @@ update_strand_bias(std::size_t const num_seqs,
       new_sbr1[new_y] += sbr1[y];
       new_sbr2[new_y] += sbr2[y];
 
-      new_ra_count[new_y] += ra_count[y];
-      new_ra_dist[new_y] += ra_dist[y];
+//      new_ra_count[new_y] += ra_count[y];
+//      new_ra_dist[new_y] += ra_dist[y];
     }
-
-    {
-      std::ostringstream ss;
-      std::size_t m = 0;
-
-      if (new_seq_depths[m] > 0)
-        ss << static_cast<uint16_t>(sqrt(static_cast<double>(new_mq_rooted[m]) / static_cast<double>(new_seq_depths[m])));
-      else
-        ss << 255u;
-
-      for (m = 1; m < new_num_seqs; ++m)
-      {
-        if (new_seq_depths[m] > 0)
-        {
-          ss << ','
-             << static_cast<uint16_t>(sqrt(static_cast<double>(new_mq_rooted[m]) / static_cast<double>(new_seq_depths[m])));
-        }
-        else
-        {
-          ss << ',' << 255u;
-        }
-      }
-
-      new_var.infos["MQperAllele"] = ss.str();
-    }
-
-    new_var.infos["CRAligner"] = join_strand_bias(new_originally_cropped);
 
     new_var.infos["SBF"] = join_strand_bias(new_sbf);
     new_var.infos["SBR"] = join_strand_bias(new_sbr);
@@ -134,14 +103,13 @@ update_strand_bias(std::size_t const num_seqs,
     new_var.infos["SBR1"] = join_strand_bias(new_sbr1);
     new_var.infos["SBR2"] = join_strand_bias(new_sbr2);
 
-    new_var.infos["RACount"] = join_strand_bias(new_ra_count);
-    new_var.infos["RADist"] = join_strand_bias(new_ra_dist);
+//    new_var.infos["RACount"] = join_strand_bias(new_ra_count);
+//    new_var.infos["RADist"] = join_strand_bias(new_ra_dist);
   }
 }
 
 
 } // anon namesapce
-
 
 
 namespace gyper
@@ -156,8 +124,8 @@ Variant::Variant(Variant const & var) noexcept
   , seqs(var.seqs)
   , calls(var.calls)
   , infos(var.infos)
-  , phase(var.phase)
   , suffix_id(var.suffix_id)
+  , is_info_generated(var.is_info_generated)
 {}
 
 Variant::Variant(Variant && var) noexcept
@@ -165,9 +133,35 @@ Variant::Variant(Variant && var) noexcept
   , seqs(std::forward<std::vector<std::vector<char> > >(var.seqs))
   , calls(std::forward<std::vector<SampleCall> >(var.calls))
   , infos(std::forward<std::map<std::string, std::string> >(var.infos))
-  , phase(std::forward<std::vector<uint8_t> >(var.phase))
   , suffix_id(std::forward<std::string>(var.suffix_id))
+  , is_info_generated(var.is_info_generated)
 {}
+
+
+Variant &
+Variant::operator=(Variant const & o) noexcept
+{
+  abs_pos = o.abs_pos;
+  seqs = o.seqs;
+  calls = o.calls;
+  infos = o.infos;
+  suffix_id = o.suffix_id;
+  is_info_generated = o.is_info_generated;
+  return *this;
+}
+
+
+Variant &
+Variant::operator=(Variant && o) noexcept
+{
+  abs_pos = o.abs_pos;
+  seqs = std::move(o.seqs);
+  calls = std::move(o.calls);
+  infos = std::move(o.infos);
+  suffix_id = std::move(o.suffix_id);
+  is_info_generated = o.is_info_generated;
+  return *this;
+}
 
 
 Variant::Variant(Genotype const & gt)
@@ -177,11 +171,11 @@ Variant::Variant(Genotype const & gt)
 }
 
 
-Variant::Variant(std::vector<Genotype> const & gts, std::vector<uint32_t> const & hap_calls)
+Variant::Variant(std::vector<Genotype> const & gts, std::vector<uint16_t> const & hap_calls)
 {
   assert(gts.size() > 0);
 
-  for (std::size_t i = 0; i < hap_calls.size(); ++i)
+  for (long i = 0; i < static_cast<long>(hap_calls.size()); ++i)
     seqs.push_back(graph.get_sequence_of_a_haplotype_call(gts, hap_calls[i]));
 
   abs_pos = gts[0].id - 1; // -1 cause we always fetch one position back as well
@@ -199,8 +193,78 @@ Variant::Variant(VariantCandidate const & var_candidate) noexcept
  ******************/
 
 void
+Variant::update_camou_phred(long const ploidy)
+{
+  // Does not make sense if ploidy is 2 or less
+  assert(ploidy > 2);
+
+  for (auto & call : calls)
+  {
+    auto const & cov = call.coverage;
+    assert(cov.size() >= 2);
+    long const total_coverage = std::accumulate(cov.begin(), cov.end(), 0l);
+    long const cnum = cov.size();
+    std::vector<uint8_t> phred;
+
+    if (total_coverage == 0)
+    {
+      // Not enough data
+      phred.resize(cnum * (cnum + 1) / 2, 0);
+    }
+    else
+    {
+      phred.resize(cnum * (cnum + 1) / 2, 99);
+      assert(phred.size() >= 3);
+      phred[0] = 0;
+      std::vector<long> normalized_cov;
+      normalized_cov.reserve(cnum);
+
+      for (long k{0}; k < cnum; ++k)
+        normalized_cov.push_back(cov[k] * ploidy / 2l);
+
+      for (long y{1}; y < cnum; ++y)
+      {
+        assert(y < static_cast<long>(normalized_cov.size()));
+
+        long constexpr ERROR = 4;
+        long const norm_cov = normalized_cov[y];
+        long phred00 = norm_cov * ERROR;
+        long phred01_or_11 = cov[0];
+
+        {
+          long const min_phred = std::min(phred00, phred01_or_11);
+          phred00 = std::min(99l, (phred00 - min_phred) * 3l);
+          phred01_or_11 = std::min(99l, (phred01_or_11 - min_phred) * 3l);
+        }
+
+        if (phred00 > phred[0])
+          phred[0] = phred00;
+
+        for (long x{0}; x < cnum; ++x)
+        {
+          long const index = x <= y ? to_index(x, y) : to_index(y, x);
+          assert(index < static_cast<long>(phred.size()));
+
+          if (phred01_or_11 < phred[index])
+            phred[index] = phred01_or_11;
+        }
+      }
+    }
+
+    // We should not be changing the size of the phred vector
+    assert(call.phred.size() == phred.size());
+    call.phred = std::move(phred);
+  }
+}
+
+
+void
 Variant::generate_infos()
 {
+  // First check if INFO had already been generated
+  if (is_info_generated)
+    return;
+
   assert(seqs.size() >= 2);
   infos["RefLen"] = std::to_string(seqs[0].size());
 
@@ -211,7 +275,6 @@ Variant::generate_infos()
   long an = 0;
   long pass_an = 0;
   uint64_t seqdepth = 0;
-  uint64_t seqdepth_nonref = 0;
   std::pair<uint32_t, uint32_t> het_allele_depth = {0ul, 0ul};   // First is the first call, second is the second call
   std::pair<uint32_t, uint32_t> hom_allele_depth = {0ul, 0ul};   // First is the called allele, second is not the called one
 
@@ -253,14 +316,14 @@ Variant::generate_infos()
     uint32_t const total_depth = std::accumulate(sample_call.coverage.cbegin(),
                                                  sample_call.coverage.cend(),
                                                  0u
-      );
+                                                 );
 
     // Skip zero (the reference)
     for (uint16_t c = 1; c < sample_call.coverage.size(); ++c)
     {
       maximum_variant_support[c - 1] = std::max(maximum_variant_support[c - 1],
                                                 sample_call.coverage[c]
-        );
+                                                );
 
       if (total_depth > 0)
       {
@@ -269,7 +332,7 @@ Variant::generate_infos()
         maximum_alternative_support_ratio[c - 1] =
           std::max(maximum_alternative_support_ratio[c - 1],
                    current_ratio
-            );
+                   );
       }
     }
 
@@ -303,7 +366,7 @@ Variant::generate_infos()
           hom_allele_depth.second += std::accumulate(sample_call.coverage.cbegin(),
                                                      sample_call.coverage.cend(),
                                                      0ull
-            ) - sample_call.coverage[call.first];
+                                                     ) - sample_call.coverage[call.first];
           ++n_hom;
         }
       }
@@ -331,27 +394,14 @@ Variant::generate_infos()
           hom_multi_allele_depth[c].second += std::accumulate(sample_call.coverage.cbegin(),
                                                               sample_call.coverage.cend(),
                                                               0u
-            ) - sample_call.coverage[c];
+                                                              ) - sample_call.coverage[c];
         }
       }
     }
 
     // SeqDepth and SeqDepth excluding reference allele and reference calls
     if (sample_call.coverage.size() > 0)
-    {
-      uint64_t const non_ref_seqdepth = std::accumulate(sample_call.coverage.cbegin() + 1,
-                                                        sample_call.coverage.cend(), 0ull
-        );
-
-      // Ignore reference calls
-      if (sample_call.phred[0] != 0)
-      {
-        // Dont add too much because phred cannot go very high
-        seqdepth_nonref += std::min(static_cast<uint64_t>(10ull), non_ref_seqdepth);
-      }
-
-      seqdepth += non_ref_seqdepth + sample_call.coverage[0] + sample_call.ambiguous_depth;
-    }
+      seqdepth += sample_call.get_depth();
 
     // AN
     {
@@ -418,6 +468,7 @@ Variant::generate_infos()
   }
 
   // Write MaxAltPP
+  if (is_sv())
   {
     infos["MaxAltPP"] = std::to_string(static_cast<uint16_t>(n_max_alt_proper_pairs));
   }
@@ -456,7 +507,9 @@ Variant::generate_infos()
 
   // Write NRP
   {
-    bool is_any_hq_alt = std::any_of(pass_ac.begin(), pass_ac.end(), [](long ac){return ac > 0;});
+    bool is_any_hq_alt = std::any_of(pass_ac.begin(), pass_ac.end(), [](long ac){
+        return ac > 0;
+      });
 
     if (!is_any_hq_alt)
       infos["NRP"] = "";
@@ -493,7 +546,7 @@ Variant::generate_infos()
     {
       ss_abhet << (static_cast<double>(het_allele_depth.second) /
                    static_cast<double>(total_het_depth)
-      );
+                   );
     }
     else
     {
@@ -510,9 +563,14 @@ Variant::generate_infos()
     uint32_t const total_hom_depth = hom_allele_depth.first + hom_allele_depth.second;
 
     if (total_hom_depth > 0)
-      ss_abhom << (static_cast<double>(hom_allele_depth.first) / static_cast<double>(total_hom_depth));
+    {
+      ss_abhom << (static_cast<double>(hom_allele_depth.first) /
+                   static_cast<double>(total_hom_depth));
+    }
     else
+    {
       ss_abhom << "-1";
+    }
 
     infos["ABHom"] = ss_abhom.str();
   }
@@ -532,33 +590,6 @@ Variant::generate_infos()
 
     infos["SB"] = ss_sb.str();
   }
-
-  // Write RAMeanDist
-  /*
-  if (infos.find("RACount") != infos.end() && infos.find("RADist") != infos.end())
-  {
-    std::vector<uint32_t> count = split_bias_to_numbers(infos["RACount"]);
-    std::vector<uint32_t> dist = split_bias_to_numbers(infos["RADist"]);
-
-    assert (count.size() == dist.size());
-    assert (count.size() > 0);
-    assert (count.size() == seqs.size());
-    std::stringstream ss;
-
-    for (unsigned i = 0; i < count.size(); ++i)
-    {
-      if (i > 0)
-        ss << ",";
-
-      if (count[i] > 0)
-        ss << static_cast<int>(0.5 + static_cast<double>(dist[i])/static_cast<double>(count[i]));
-      else
-        ss << "-1";
-    }
-
-    infos["RAMeanDist"] = ss.str();
-  }
-  */
 
   if (seqs.size() > 2)
   {
@@ -580,8 +611,8 @@ Variant::generate_infos()
         if (total_het_depth > 0)
         {
           ss_abhet << (static_cast<double>(het_depth_pair.second) /
-            static_cast<double>(total_het_depth)
-            );
+                       static_cast<double>(total_het_depth)
+                       );
         }
         else
         {
@@ -608,9 +639,14 @@ Variant::generate_infos()
         uint32_t const total_hom_depth = hom_depth_pair.first + hom_depth_pair.second;
 
         if (total_hom_depth > 0)
-          ss_abhom << (static_cast<double>(hom_depth_pair.first) / static_cast<double>(total_hom_depth));
+        {
+          ss_abhom << (static_cast<double>(hom_depth_pair.first) /
+                       static_cast<double>(total_hom_depth));
+        }
         else
+        {
           ss_abhom << "-1";
+        }
       }
 
       infos["ABHomMulti"] = ss_abhom.str();
@@ -624,13 +660,30 @@ Variant::generate_infos()
 
   // Calculate QD
   {
-    const uint64_t variant_qual = get_qual();
-
-    if (seqdepth_nonref > 0)
-      infos["QD"] = std::to_string(static_cast<double>(variant_qual) / static_cast<double>(seqdepth_nonref));
-    else
-      infos["QD"] = std::string("0.0");
+    infos["QD"] = std::to_string(get_qual_by_depth());
   }
+
+  // Calculate MQ
+  {
+    auto find_mapq_squared_it = infos.find("MQsquared");
+
+    if (find_mapq_squared_it != infos.end())
+    {
+      double mapq_squared = std::stoull(find_mapq_squared_it->second);
+
+      if (seqdepth > 0)
+      {
+        double mapq = std::sqrt(mapq_squared / static_cast<double>(seqdepth));
+        infos["MQ"] = std::to_string(static_cast<uint64_t>(mapq + 0.499999));
+      }
+      else
+      {
+        infos["MQ"] = "255";
+      }
+    }
+  }
+
+  is_info_generated = true;
 }
 
 
@@ -687,13 +740,51 @@ Variant::add_base_in_front(bool const add_N)
 
   // Insert the new first base in front of all the sequences
   for (auto & seq : seqs)
-    seq.insert(seq.begin(), first_base[0]);
+  {
+    // Do not add base on missing allele
+    if (seq.size() == 0 || seq.size() > 1 || seq[0] != '*')
+    {
+      seq.insert(seq.begin(), first_base[0]);
+    }
+  }
 
   // Update the abs pos
   --abs_pos;
 
   return true;
 }
+
+
+/*
+bool
+Variant::add_multiple_bases_in_front(long const num, bool const add_N)
+{
+  long abs_pos_copy = abs_pos;
+  long new_abs_pos = std::max(0, abs_pos - num);
+  std::vector<char> bases = graph.get_generated_reference_genome(new_abs_pos, abs_pos_copy);
+
+  if (first_base.size() != 1 || abs_pos_copy != abs_pos || new_abs_pos != abs_pos - 1)
+    return false; // The base in front could not be extracted
+
+  if (!add_N && first_base[0] == 'N')
+    return false;
+
+  // Insert the new first base in front of all the sequences
+  for (auto & seq : seqs)
+  {
+    // Do not add base on missing allele
+    if (seq.size() == 0 || seq.size() > 1 || seq[0] != '*')
+    {
+      seq.insert(seq.begin(), first_base[0]);
+    }
+  }
+
+  // Update the abs pos
+  --abs_pos;
+
+  return true;
+}
+*/
 
 
 bool
@@ -704,7 +795,8 @@ Variant::add_base_in_back(bool const add_N)
   uint32_t abs_pos_end = abs_pos_copy + 1;
   std::vector<char> last_base = graph.get_generated_reference_genome(abs_pos_copy, abs_pos_end);
 
-  if (last_base.size() != 1 || abs_pos_copy != (abs_pos + seqs[0].size()) || abs_pos_end != (abs_pos + seqs[0].size() + 1))
+  if (last_base.size() != 1 || abs_pos_copy != (abs_pos + seqs[0].size()) ||
+      abs_pos_end != (abs_pos + seqs[0].size() + 1))
     return false; // The base in back could not be extracted";
 
   if (!add_N && last_base[0] == 'N')
@@ -712,9 +804,46 @@ Variant::add_base_in_back(bool const add_N)
 
   // Insert the new first base in back of all the sequences
   for (auto & seq : seqs)
-    seq.push_back(last_base[0]);
+  {
+    // Do not add base on missing allele
+    //if (seq.size() == 0 || seq.size() > 1 || seq[0] != '*')
+    {
+      seq.push_back(last_base[0]);
+    }
+  }
 
   return true;
+}
+
+
+void
+Variant::expanded_normalized()
+{
+  // First normalize
+  normalize();
+
+  // Then expand on the right side if it is an indel
+  if (!is_snp_or_snps())
+  {
+    long i = 0;
+    bool is_done = false;
+
+    while (!is_done && add_base_in_back(false))
+    {
+      ++i;
+      assert(i < static_cast<long>(seqs[0].size()));
+      char const ref_base = seqs[0][i];
+
+      for (long s = 1; s < static_cast<long>(seqs.size()); ++s)
+      {
+        if (seqs[s][i] != ref_base)
+        {
+          is_done = true;
+          break;
+        }
+      }
+    }
+  }
 }
 
 
@@ -727,21 +856,25 @@ Variant::normalize()
   remove_common_suffix(seqs);
 
   // A lambda function which checks if all last bases matches
-  auto all_last_bases_match = [&](){
-                                for (std::size_t i = 1; i < seqs.size(); ++i)
-                                {
-                                  if (seqs[i].back() != seqs[0].back())
-                                  {
-                                    return false;
-                                  }
-                                  else
-                                  {
-                                    assert(seqs[i] != seqs[0]); // Make sure the sequences are not identical
-                                  }
-                                }
+  auto all_last_bases_match =
+    [&]()
+    {
+      char const ref = seqs[0].back();
 
-                                return true;
-                              };
+      for (std::size_t i = 1; i < seqs.size(); ++i)
+      {
+        if (seqs[i].back() != ref)
+        {
+          return false;
+        }
+        else
+        {
+          assert(seqs[i] != seqs[0]); // Make sure the sequences are not identical
+        }
+      }
+
+      return true;
+    };
 
   while (all_last_bases_match())
   {
@@ -776,11 +909,13 @@ bool
 Variant::is_snp_or_snps() const
 {
   // Check if all the alleles are of the same size
-  assert (seqs.size() >= 2);
+  assert(seqs.size() >= 2);
   return std::find_if(seqs.begin() + 1,
                       seqs.end(),
-                      [&](std::vector<char> const & seq){return seq.size() != seqs[0].size();}
-    ) == seqs.end();
+                      [&](std::vector<char> const & seq){
+      return seq.size() != seqs[0].size();
+    }
+                      ) == seqs.end();
 }
 
 
@@ -851,55 +986,11 @@ Variant::get_seq_depth_of_all_alleles() const
 }
 
 
-uint64_t
-Variant::get_rooted_mapq() const
-{
-  uint64_t const seq_depth = this->get_seq_depth();
-  auto find_it = infos.find("MQ");
-
-  if (find_it != infos.end())
-  {
-    uint64_t const mapq = std::strtoull(find_it->second.c_str(), NULL, 10);
-    return mapq * mapq * seq_depth;
-  }
-
-  BOOST_LOG_TRIVIAL(warning) << "[graphtyper::variant] Could not extract MQ.";
-  return 60ul * 60ul * seq_depth; // This is nasty, but I think this is the nicest way to go without
-                                  // making things so much more complicated.
-}
-
-std::vector<uint64_t>
-Variant::get_rooted_mapq_per_allele() const
-{
-  auto find_it = infos.find("MQperAllele");
-
-  if (find_it == infos.end())
-  {
-    uint64_t const seq_depth = this->get_seq_depth();
-    return std::vector<uint64_t>(this->seqs.size(), 60ul * 60ul * seq_depth);
-  }
-
-  std::vector<uint64_t> rooted_mapq_per_allele;
-  std::vector<uint32_t> mapq_per_allele = get_strand_bias(this->infos, "MQperAllele");
-  assert(mapq_per_allele.size() == seqs.size());
-  rooted_mapq_per_allele.reserve(seqs.size());
-  long const num_seqs = seqs.size();
-
-  for (long i = 0; i < static_cast<long>(num_seqs); ++i)
-  {
-    uint64_t const seq_depth = this->get_seq_depth_of_allele(static_cast<uint16_t>(i));
-    rooted_mapq_per_allele.push_back(static_cast<uint64_t>(mapq_per_allele[i] * mapq_per_allele[i]) * seq_depth);
-  }
-
-  return rooted_mapq_per_allele;
-}
-
-
 std::string
 Variant::print() const
 {
   std::stringstream os;
-  auto contig_pos = absolute_pos.get_contig_position(this->abs_pos);
+  auto contig_pos = absolute_pos.get_contig_position(this->abs_pos, gyper::graph);
   os << contig_pos.first << "\t" << contig_pos.second;
 
   if (this->seqs.size() > 0)
@@ -941,7 +1032,7 @@ Variant::determine_variant_type() const
 
   for (auto it = seqs.begin(); it != seqs.end(); ++it)
   {
-    assert (it->size() != 0);
+    assert(it->size() != 0);
 
     if (it->size() > 1)
     {
@@ -958,7 +1049,9 @@ Variant::determine_variant_type() const
         else
           sv_type = OTHER;
       }
-      else if (std::find_if(it->begin(), it->end(), [](char c){return c == '[' || c == ']';}) != it->end())
+      else if (std::find_if(it->begin(), it->end(), [](char c){
+          return c == '[' || c == ']';
+        }) != it->end())
       {
         if (sv_type == NOT_SV || sv_type == BND)
           sv_type = BND;
@@ -978,10 +1071,15 @@ Variant::determine_variant_type() const
     switch (sv_type)
     {
     case DEL: return "DG";
+
     case DUP: return "UG";
+
     case INS: return "FG";
+
     case INV: return "NG";
+
     case BND: return "OG";
+
     default: return "TG";
     }
   }
@@ -991,6 +1089,11 @@ Variant::determine_variant_type() const
   }
   else if (seqs.size() - num_non_ones == 1) // Check if the variant is an indel
   {
+    return "IG";
+  }
+  else if (seqs.size() - num_non_ones == 2 && seqs[seqs.size() - 1].size() == 1 && seqs[seqs.size() - 1][0] == '*')
+  {
+    // Indel with missing allele
     return "IG";
   }
   else // Otherwise the variant is complex
@@ -1007,57 +1110,90 @@ Variant::get_qual() const
 
   for (auto const & sample_call : calls)
   {
-    if (std::count(sample_call.phred.begin(), sample_call.phred.end(), 0) == 1)
-    {
-      std::pair<uint16_t, uint16_t> call = sample_call.get_gt_call();
-
-      // Update QUAL if the call is non-reference
-      if (call.first != 0 || call.second != 0)
-      {
-        assert (sample_call.phred.size() > 0);
-        variant_qual += sample_call.phred[0];
-      }
-    }
+    assert(sample_call.phred.size() > 0);
+    variant_qual += sample_call.phred[0];
   }
 
   return variant_qual;
 }
 
 
-// Variants functions
-std::vector<Variant>
-break_down_variant(Variant && var, std::size_t const /*THRESHOLD*/)
+double
+Variant::get_qual_by_depth() const
 {
-  // We need to make sure there is a matching first base
-  if (not var.is_with_matching_first_bases())
+  uint64_t total_qual = 0;
+  uint64_t total_depth = 0;
+
+  for (auto const & sample_call : calls)
   {
-    if (!var.add_base_in_front())
+    // Skip homozygous ref calls
+    if (sample_call.phred[0] > 0)
     {
-      // Could not add a first base. Add N
-      for (auto & seq : var.seqs)
-        seq.insert(seq.begin(), 'N');
+      auto const & cov = sample_call.coverage;
+      total_qual += sample_call.phred[0];
+      total_depth += std::min(10l, std::accumulate(cov.begin() + 1, cov.end(), 0l));
     }
   }
 
+  if (total_depth == 0)
+    return 0.0;
+  else
+    return static_cast<double>(total_qual) / static_cast<double>(total_depth);
+}
+
+
+// Variants functions
+std::vector<Variant>
+break_down_variant(Variant && var, long const reach, bool const is_no_variant_overlapping)
+{
   std::vector<Variant> broken_down_vars;
 
-  bool const all_same_size = std::find_if(var.seqs.begin() + 1, var.seqs.end(), [&](std::vector<char> const & seq){
-      return var.seqs[0].size() != seq.size();
-  }) == var.seqs.end();
-
-  if (var.seqs.size() == 2 && std::any_of(var.seqs[1].begin(), var.seqs[1].end(), [](char const c){
-        return c == '<' || c == '[' || c == ']';}))
+  if (Options::const_instance()->no_decompose ||
+      (var.seqs.size() == 2 &&
+       std::any_of(var.seqs[1].begin(), var.seqs[1].end(), [](char const c){
+      return c == '<' || c == '[' || c == ']';
+    })))
   {
     broken_down_vars.push_back(std::move(var)); // Don't break down SVs
+    return broken_down_vars;
   }
-  else if (all_same_size)
+
+  bool const all_same_size =
+    std::find_if(var.seqs.begin() + 1, var.seqs.end(), [&](std::vector<char> const & seq){
+      return var.seqs[0].size() != seq.size();
+    }) == var.seqs.end();
+
+  if (all_same_size)
   {
+    // We need to make sure there is a matching first base
+    if (not var.is_with_matching_first_bases())
+    {
+      if (!var.add_base_in_front())
+      {
+        // Could not add a first base. Add N
+        for (auto & seq : var.seqs)
+          seq.insert(seq.begin(), 'N');
+      }
+    }
+
     std::vector<Variant> new_broken_down_snps = break_multi_snps(std::move(var));
 
     std::move(new_broken_down_snps.begin(),
               new_broken_down_snps.end(),
               std::back_inserter(broken_down_vars)
-      );
+              );
+  }
+  else if (!is_no_variant_overlapping)
+  {
+    // Use the skyr
+    BOOST_LOG_TRIVIAL(debug) << "Using the skyr";
+    std::vector<Variant> new_broken_down_vars = break_down_skyr(std::move(var), reach);
+    BOOST_LOG_TRIVIAL(debug) << "skyr finished.";
+
+    std::move(new_broken_down_vars.begin(),
+              new_broken_down_vars.end(),
+              std::back_inserter(broken_down_vars)
+              );
   }
   else
   {
@@ -1075,7 +1211,7 @@ extract_sequences_from_aligned_variant(Variant const && var, std::size_t const T
   uint32_t const original_pos = var.abs_pos;
   assert(var.seqs.size() >= 2);
   assert(var.seqs[0].size() > 0);
-  assert (var.seqs[0].size() == var.seqs[1].size());
+  assert(var.seqs[0].size() == var.seqs[1].size());
   char first_base = var.seqs[0][0];
   uint32_t pos = var.abs_pos;
 
@@ -1085,9 +1221,11 @@ extract_sequences_from_aligned_variant(Variant const && var, std::size_t const T
 
   Variant new_var;
   new_var.abs_pos = pos;
-  new_var.seqs = std::vector<std::vector<char> >(var.seqs.size(), std::vector<char>(1, first_base));
+  new_var.seqs =
+    std::vector<std::vector<char> >(var.seqs.size(), std::vector<char>(1, first_base));
+
   new_var.infos = var.infos; // Copy INFOs
-  new_var.phase = var.phase; // Copy phase
+//  new_var.phase = var.phase; // Copy phase
   new_var.suffix_id = var.suffix_id; // Copy suffix ID
 
   // Lambda function which handles any matches found
@@ -1103,166 +1241,15 @@ extract_sequences_from_aligned_variant(Variant const && var, std::size_t const T
       }), new_var.seqs.end());
 
       if (new_var.seqs.size() <= 1 ||
-         std::find(new_var.seqs[0].begin(), new_var.seqs[0].end(), 'N') != new_var.seqs[0].end()
-         )
+          std::find(new_var.seqs[0].begin(), new_var.seqs[0].end(), 'N') != new_var.seqs[0].end()
+          )
       {
         // Do not do anything if there is only the reference or the reference has Ns
         return;
       }
 
       new_var.trim_sequences(true);  // Keep one match
-
-      // Only break down further if THRESHOLD is 1
-      if (THRESHOLD == 1)
-      {
-        bool const all_same_size = std::find_if(new_var.seqs.begin() + 1,
-                                                new_var.seqs.end(),
-                                                [&](std::vector<char> const & seq)
-                                                {
-                                                  return new_var.seqs[0].size() != seq.size();
-                                                }) == new_var.seqs.end();
-
-        if (all_same_size)
-        {
-          std::vector<Variant> new_broken_down_snps = break_multi_snps(std::move(new_var));
-          std::move(new_broken_down_snps.begin(), new_broken_down_snps.end(), std::back_inserter(new_vars));
-        }
-        else if (new_var.seqs.size() == 2)
-        {
-          // This should check for a simple case of indel + snps, e.g. ref=AA, var=ACG. Then I want
-          // to output ref1=A, var1=AC, ref2=A, var2=G
-          Variant snp_var;
-          snp_var.calls = new_var.calls;
-          snp_var.infos = new_var.infos;
-          snp_var.phase = new_var.phase;
-          snp_var.suffix_id = new_var.suffix_id;
-
-          if (new_var.seqs[0].size() > new_var.seqs[1].size())
-          {
-            // deletion
-            std::size_t const deletion_size = new_var.seqs[0].size() - new_var.seqs[1].size() + 1;
-            assert(deletion_size < 2000000ul);
-            snp_var.abs_pos = new_var.abs_pos + static_cast<uint32_t>(deletion_size);
-            snp_var.seqs.push_back(std::vector<char>(new_var.seqs[0].begin() + deletion_size, new_var.seqs[0].end()));
-            snp_var.seqs.push_back(std::vector<char>(new_var.seqs[1].begin() + 1, new_var.seqs[1].end()));
-            assert(snp_var.seqs[0].size() == snp_var.seqs[1].size());
-            new_var.seqs[0].resize(deletion_size);
-            new_var.seqs[1].resize(1);
-          }
-          else
-          {
-            // insertion
-            assert(new_var.seqs[1].size() > new_var.seqs[0].size());
-            std::size_t const insertion_size = new_var.seqs[1].size() - new_var.seqs[0].size() + 1;
-            snp_var.abs_pos = new_var.abs_pos + 1;
-            snp_var.seqs.push_back(std::vector<char>(new_var.seqs[0].begin() + 1, new_var.seqs[0].end()));
-            snp_var.seqs.push_back(std::vector<char>(new_var.seqs[1].begin() + insertion_size, new_var.seqs[1].end()));
-            assert(snp_var.seqs[0].size() == snp_var.seqs[1].size());
-            new_var.seqs[0].resize(1);
-            new_var.seqs[1].resize(insertion_size);
-          }
-
-          // Add the indel
-          new_vars.push_back(std::move(new_var));
-
-          // Add SNPs, if any
-          if (snp_var.seqs[0].size() > 0)
-          {
-            std::vector<Variant> new_broken_down_snps = break_multi_snps(std::move(snp_var));
-            std::move(new_broken_down_snps.begin(), new_broken_down_snps.end(), std::back_inserter(new_vars));
-          }
-        }
-        else if (new_var.seqs.size() > 2)
-        {
-          // Only apply this if there is exactly one sequence which is of the same size as the reference
-          long const num_same_size_sequences = std::count_if(
-            new_var.seqs.begin() + 1,
-            new_var.seqs.end(),
-            [&](std::vector<char> const & seq){
-            return seq.size() == new_var.seqs[0].size();
-          }
-            );
-
-          if (num_same_size_sequences != 1)
-          {
-            new_vars.push_back(std::move(new_var));
-            return;
-          }
-
-          // Find all alleles which are SNPs and call them seperately
-          std::vector<Variant> snp_vars;
-
-          for (std::size_t s = 1; s < new_var.seqs.size(); ++s)
-          {
-            // Only consider variants of the same size
-            if (new_var.seqs[0].size() != new_var.seqs[s].size())
-              continue;
-
-            uint16_t ref_alt_mismatches = 0;
-
-            for (std::size_t i = 0; i < new_var.seqs[0].size(); ++i)
-            {
-              assert(i < new_var.seqs[s].size());
-              ref_alt_mismatches += new_var.seqs[0][i] != new_var.seqs[s][i];
-            }
-
-            assert(ref_alt_mismatches > 0);
-
-            if (ref_alt_mismatches == 1)
-            {
-              Variant snp_var;
-              snp_var.abs_pos = new_var.abs_pos;
-              snp_var.infos = new_var.infos;
-              snp_var.phase = new_var.phase;
-              snp_var.suffix_id = new_var.suffix_id;
-
-              // Copy reference everywhere except this SNP
-              snp_var.seqs = std::vector<std::vector<char> >(new_var.seqs.size(), new_var.seqs[0]);
-              snp_var.seqs[s] = new_var.seqs[s];
-              find_variant_sequences(snp_var, new_var);
-              assert(snp_var.calls.size() == new_var.calls.size());
-
-              // Replace this SNP variants with a reference in the old variant
-              Variant old_variant(new_var);
-              new_var.seqs[s] = old_variant.seqs[0];
-              new_var.calls.clear();   // find_variant_sequences assumes there are no calls in the variant yet
-              find_variant_sequences(new_var, old_variant);
-              assert(new_var.calls.size() == old_variant.calls.size());
-              assert(new_var.seqs.size() == old_variant.seqs.size() - 1);
-              --s;   // We just removed a sequence, we need to lower s to keep it correct
-              snp_vars.push_back(std::move(snp_var));
-            }
-          }
-
-          // Trim SNP variants and sort them
-          for (auto & a_snp_var : snp_vars)
-          {
-            a_snp_var.trim_sequences(false);   // don't keep a base in front
-            assert(a_snp_var.seqs.size() == 2);
-            assert(a_snp_var.seqs[0].size() == 1);
-            assert(a_snp_var.seqs[1].size() == 1);
-          }
-
-          std::sort(snp_vars.begin(), snp_vars.end(), [](Variant const & v1, Variant const & v2){
-            return v1.abs_pos < v2.abs_pos;
-          });
-
-          // Add the previous variant first
-          new_vars.push_back(std::move(new_var));
-
-          // Add all variants
-          if (snp_vars.size() > 0)
-            std::move(snp_vars.begin(), snp_vars.end(), std::back_inserter(new_vars));
-        }
-        else
-        {
-          new_vars.push_back(std::move(new_var));
-        }
-      }
-      else
-      {
-        new_vars.push_back(std::move(new_var));
-      }
+      new_vars.push_back(std::move(new_var));
     };
 
   std::vector<char> const & reference = var.seqs[0];
@@ -1307,9 +1294,11 @@ extract_sequences_from_aligned_variant(Variant const && var, std::size_t const T
       match_length = -1;
       new_var = Variant();   // Create a new one
       new_var.abs_pos = original_pos + i - ref_gaps;
-      new_var.seqs = std::vector<std::vector<char> >(var.seqs.size(), std::vector<char>(1, first_base));
+      new_var.seqs =
+        std::vector<std::vector<char> >(var.seqs.size(), std::vector<char>(1, first_base));
+
       new_var.infos = var.infos;
-      new_var.phase = var.phase;
+//      new_var.phase = var.phase;
       new_var.suffix_id = var.suffix_id;
     }
   }
@@ -1327,53 +1316,6 @@ extract_sequences_from_aligned_variant(Variant const && var, std::size_t const T
 
   return new_vars;
 }
-
-/*
-std::vector<Variant>
-simplify_complex_haplotype(Variant && var, std::size_t const THRESHOLD)
-{
-  auto const & old_seqs = var.seqs;
-  assert(old_seqs.size() > 1);
-  assert(old_seqs[0].size() > 1);
-  char first_base = old_seqs[0][0];
-  seqan::Align<seqan::Dna5String> align;
-  seqan::resize(seqan::rows(align), old_seqs.size());
-
-  for (std::size_t i = 0; i < old_seqs.size(); ++i)
-  {
-    // Skip first base
-    assert(old_seqs[i].size() > 1);
-    seqan::Dna5String dna_string = std::string(old_seqs[i].begin() + 1, old_seqs[i].end());
-
-    if (seqan::length(dna_string) == 0)
-      return {std::move(var)}; // If some string is empty we cannot simplify
-
-    seqan::assignSource(row(align, i), dna_string);
-  }
-
-  seqan::Score<int> score_scheme(2, -2, -1, -7); // match, mismatch, gap extend, gap open
-  seqan::globalMsaAlignment(align, score_scheme);
-  auto aligned_rows = seqan::rows(align);
-
-  Variant aligned_variant;
-  aligned_variant.abs_pos = var.abs_pos;
-  aligned_variant.seqs = std::vector<std::vector<char> >(old_seqs.size(), std::vector<char>(1, first_base));
-  aligned_variant.infos = var.infos;
-  aligned_variant.calls = std::move(var.calls);
-  aligned_variant.phase = std::move(var.phase);
-  aligned_variant.suffix_id = std::move(var.suffix_id);
-
-  for (unsigned i = 0; i < seqan::length(aligned_rows); ++i)
-  {
-    std::stringstream ss;
-    ss << aligned_rows[i];
-    std::string ss_str(ss.str());
-    std::move(ss_str.begin(), ss_str.end(), std::back_inserter(aligned_variant.seqs[i]));
-  }
-
-  return extract_sequences_from_aligned_variant(std::move(aligned_variant), THRESHOLD);
-}
-*/
 
 
 void
@@ -1438,13 +1380,13 @@ find_variant_sequences(gyper::Variant & new_var, gyper::Variant const & old_var)
           uint16_t new_x = old_phred_to_new_phred[x];
           uint16_t new_y = old_phred_to_new_phred[y];
 
-          if (old_var.phase.size() > 0 && old_call.phred[index] == 0)
-          {
-            assert (i < old_var.phase.size());
-
-            if (new_x > new_y)
-              new_var.phase[i] = !old_var.phase[i];
-          }
+          //if (old_var.phase.size() > 0 && old_call.phred[index] == 0)
+          //{
+          //  assert(i < old_var.phase.size());
+          //
+          //  if (new_x > new_y)
+          //    new_var.phase[i] = !old_var.phase[i];
+          //}
 
           if (new_x > new_y)
             std::swap<uint16_t>(new_x, new_y);
@@ -1467,10 +1409,15 @@ find_variant_sequences(gyper::Variant & new_var, gyper::Variant const & old_var)
         uint32_t const new_y = old_phred_to_new_phred[y];
 
         // Check overflow of coverage
-        if (static_cast<uint32_t>(new_call.coverage[new_y]) + static_cast<uint32_t>(old_call.coverage[y]) < 0xFFFFul)
+        if (static_cast<uint32_t>(new_call.coverage[new_y]) +
+            static_cast<uint32_t>(old_call.coverage[y]) < 0xFFFFul)
+        {
           new_call.coverage[new_y] += old_call.coverage[y];
+        }
         else
+        {
           new_call.coverage[new_y] = 0xFFFFul;
+        }
       }
     }
 
@@ -1483,7 +1430,12 @@ find_variant_sequences(gyper::Variant & new_var, gyper::Variant const & old_var)
     }
 
     // Update strand bias
-    update_strand_bias(old_var.seqs.size(), new_seqs.size(), old_phred_to_new_phred, old_var, new_var);
+    update_strand_bias(old_var.seqs.size(),
+                       new_seqs.size(),
+                       old_phred_to_new_phred,
+                       old_var,
+                       new_var);
+
     new_var.calls.push_back(std::move(new_call));
   }
 
@@ -1498,12 +1450,12 @@ break_multi_snps(Variant const && var)
   std::vector<std::vector<char> > const & seqs = var.seqs;
   std::vector<Variant> new_vars;
 
-  for (unsigned j = 0; j < seqs[0].size(); ++j)
+  for (long j = 0; j < static_cast<long>(seqs[0].size()); ++j)
   {
     std::vector<char> new_seqs(1, seqs[0][j]);
     std::vector<uint16_t> old_phred_to_new_phred(1, 0);
 
-    for (unsigned k = 1; k < seqs.size(); ++k)
+    for (long k = 1; k < static_cast<long>(seqs.size()); ++k)
     {
       auto find_it = std::find(new_seqs.begin(), new_seqs.end(), seqs[k][j]);
 
@@ -1534,10 +1486,10 @@ break_multi_snps(Variant const && var)
 
     new_var.abs_pos = pos + j; // Add the pos of the SNP
     new_var.infos = var.infos; // Copy the INFOs
-    new_var.phase = var.phase; // Copy the old phase
+    //new_var.phase = var.phase; // Copy the old phase
     new_var.suffix_id = var.suffix_id; // Copy the suffix ID
 
-    for (std::size_t i = 0; i < var.calls.size(); ++i)
+    for (long i = 0; i < static_cast<long>(var.calls.size()); ++i)
     {
       auto const & call = var.calls[i];
       SampleCall new_sample_call;
@@ -1556,13 +1508,104 @@ break_multi_snps(Variant const && var)
           uint32_t new_y = old_phred_to_new_phred[y];
           uint32_t new_x = old_phred_to_new_phred[x];
 
-          if (var.phase.size() > 0 && call.phred[index] == 0)
-          {
-            assert (i < var.phase.size());
+          if (new_x > new_y)
+            std::swap<uint32_t>(new_x, new_y);
 
-            if (new_x > new_y)
-              new_var.phase[i] = !var.phase[i];
-          }
+          long const new_index = to_index(new_x, new_y);
+          new_sample_call.phred[new_index] = std::min(new_sample_call.phred[new_index], call.phred[index]);
+        }
+
+        uint32_t new_y = old_phred_to_new_phred[y];
+
+        // Check overflow of coverage
+        if (static_cast<uint32_t>(new_sample_call.coverage[new_y]) +
+            static_cast<uint32_t>(call.coverage[y]) < 0xFFFFul)
+        {
+          new_sample_call.coverage[new_y] += call.coverage[y];
+        }
+        else
+        {
+          new_sample_call.coverage[new_y] = 0xFFFFul;
+        }
+      }
+
+      new_var.calls.push_back(std::move(new_sample_call));
+    }
+
+    if (var.infos.count("SBF1") == 1)
+      update_strand_bias(seqs.size(), new_var.seqs.size(), old_phred_to_new_phred, var, new_var);
+
+    new_vars.push_back(std::move(new_var));
+  }
+
+  return new_vars;
+}
+
+
+std::vector<Variant>
+break_down_skyr(Variant && var, long const reach)
+{
+  std::vector<Variant> new_vars;
+
+  long constexpr OPTIMAL_EXTRA = 50l;
+  bool const use_asterisks = !Options::instance()->no_asterisks;
+
+  long const extra_bases_before = use_asterisks ?
+                                  std::min(OPTIMAL_EXTRA, static_cast<long>(var.abs_pos) - reach - 1l) :
+                                  OPTIMAL_EXTRA;
+
+  long constexpr extra_bases_after = OPTIMAL_EXTRA;
+
+  for (long i = 0; i < extra_bases_before && var.add_base_in_front(false); ++i)
+  {}
+
+  for (long i = 0; i < extra_bases_after && var.add_base_in_back(false); ++i)
+  {}
+
+  auto const & seqs = var.seqs;
+  paw::Skyr skyr(var.seqs);
+
+  bool constexpr is_normalize = true; // The events must the normalized
+  skyr.find_all_edits(is_normalize);
+  skyr.find_variants_from_edits();
+  skyr.populate_variants_with_calls(use_asterisks);
+
+  for (auto & new_edit : skyr.vars)
+  {
+    Variant new_var;
+
+    // Add the sequences of the SNP
+    for (auto const & edit_seq : new_edit.seqs)
+      new_var.seqs.push_back(std::vector<char>(edit_seq.begin(), edit_seq.end()));
+
+    new_var.abs_pos = var.abs_pos + new_edit.pos; // Add the pos of the SNP
+
+    if (!new_var.is_snp_or_snps())
+      new_var.add_base_in_front(true); // Add N is true
+
+    new_var.infos = var.infos; // Copy the INFOs
+    new_var.suffix_id = var.suffix_id; // Copy the suffix ID
+
+    auto const & old_phred_to_new_phred = new_edit.calls;
+
+    for (long i = 0; i < static_cast<long>(var.calls.size()); ++i)
+    {
+      auto const & call = var.calls[i];
+      SampleCall new_sample_call;
+      new_sample_call.phred = std::vector<uint8_t>(new_var.seqs.size() * (new_var.seqs.size() + 1) / 2, 255u);
+      new_sample_call.coverage = std::vector<uint16_t>(new_var.seqs.size(), 0u);
+      new_sample_call.ambiguous_depth = call.ambiguous_depth;
+      new_sample_call.ref_total_depth = call.ref_total_depth;
+      new_sample_call.alt_total_depth = call.alt_total_depth;
+      new_sample_call.alt_proper_pair_depth = call.alt_proper_pair_depth;
+
+      for (uint32_t y = 0; y < seqs.size(); ++y)
+      {
+        for (uint32_t x = 0; x <= y; ++x)
+        {
+          uint32_t const index = static_cast<uint32_t>(to_index(x, y));
+          uint32_t new_y = old_phred_to_new_phred[y];
+          uint32_t new_x = old_phred_to_new_phred[x];
 
           if (new_x > new_y)
             std::swap<uint32_t>(new_x, new_y);
@@ -1574,10 +1617,15 @@ break_multi_snps(Variant const && var)
         uint32_t new_y = old_phred_to_new_phred[y];
 
         // Check overflow of coverage
-        if (static_cast<uint32_t>(new_sample_call.coverage[new_y]) + static_cast<uint32_t>(call.coverage[y]) < 0xFFFFul)
+        if (static_cast<uint32_t>(new_sample_call.coverage[new_y]) +
+            static_cast<uint32_t>(call.coverage[y]) < 0xFFFFul)
+        {
           new_sample_call.coverage[new_y] += call.coverage[y];
+        }
         else
+        {
           new_sample_call.coverage[new_y] = 0xFFFFul;
+        }
       }
 
       new_var.calls.push_back(std::move(new_sample_call));
@@ -1585,6 +1633,45 @@ break_multi_snps(Variant const && var)
 
     update_strand_bias(seqs.size(), new_var.seqs.size(), old_phred_to_new_phred, var, new_var);
     new_vars.push_back(std::move(new_var));
+
+    /*
+    std::cout << new_edit.pos << '\t';
+
+    // Loop over alleles
+    for (long s = 0; s < static_cast<long>(new_var.seqs.size()); ++s)
+    {
+      if (s > 0)
+        std::cout << ",";
+
+      std::cout << std::string(new_var.seqs[s].begin(), new_var.seqs[s].end());
+    }
+
+    std::cout << '\t';
+
+    // Loop over edit alleles
+    for (long s = 0; s < static_cast<long>(new_edit.seqs.size()); ++s)
+    {
+      if (s > 0)
+        std::cout << ",";
+
+      if (new_edit.seqs[s].size() == 0)
+        std::cout << '-';
+      else
+        std::cout << new_edit.seqs[s];
+    }
+    std::cout << '\t';
+
+    // Loop over alignments
+    for (long i = 0; i < static_cast<long>(skyr.seqs.size()); ++i)
+    {
+      if (i > 0)
+        std::cout << '\t';
+
+      std::cout << std::to_string(new_edit.get_call(i));
+    }
+
+    std::cout << '\n';
+    */
   }
 
   return new_vars;
@@ -1597,7 +1684,9 @@ break_multi_snps(Variant const && var)
 bool
 Variant::operator==(Variant const & v) const
 {
-  return abs_pos == v.abs_pos && seqs == v.seqs;
+  return (abs_pos == v.abs_pos) &&
+         (seqs.size() == v.seqs.size()) &&
+         (seqs == v.seqs);
 }
 
 
@@ -1615,23 +1704,26 @@ Variant::operator<(Variant const & b) const
 }
 
 
-Variant &
-Variant::operator=(Variant const & var)
-{
-  abs_pos = var.abs_pos;
-  seqs = var.seqs;
-  calls = var.calls;
-  return *this;
-}
-
-Variant &
-Variant::operator=(Variant && var) noexcept
-{
-  abs_pos = var.abs_pos;
-  seqs = std::move(var.seqs);
-  calls = std::move(var.calls);
-  return *this;
-}
+//Variant &
+//Variant::operator=(Variant const & var)
+//{
+//  abs_pos = var.abs_pos;
+//  seqs = var.seqs;
+//  calls = var.calls;
+//  infos = var.infos;
+//  return *this;
+//}
+//
+//
+//Variant &
+//Variant::operator=(Variant && var) noexcept
+//{
+//  abs_pos = var.abs_pos;
+//  seqs = std::move(var.seqs);
+//  calls = std::move(var.calls);
+//  infos = std::move(var.infos);
+//  return *this;
+//}
 
 
 std::size_t
@@ -1640,7 +1732,7 @@ VariantHash::operator()(Variant const & v) const
   assert(v.seqs.size() == 2);
   std::size_t h1 = std::hash<uint32_t>()(v.abs_pos);
   std::size_t h2 = boost::hash_range(v.seqs[0].begin(), v.seqs[0].end());
-  std::size_t h3 = boost::hash_range(v.seqs[1].begin(), v.seqs[1].end());
+  std::size_t h3 = 42 + boost::hash_range(v.seqs[1].begin(), v.seqs[1].end());
   return h1 ^ (h2 << 1) ^ (h3 + 0x9e3779b9);
 }
 

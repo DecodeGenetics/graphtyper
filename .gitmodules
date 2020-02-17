@@ -19,14 +19,6 @@
 	path = snappy
 	url = https://github.com/google/snappy.git
 	ignore = dirty
-[submodule "statgen"]
-	path = statgen
-	url = https://github.com/hannespetur/libStatGen.git
-	ignore = dirty
-[submodule "args"]
-	path = args
-	url = https://github.com/Taywee/args.git
-	ignore = dirty
 [submodule "sparsehash"]
 	path = sparsehash
 	url = https://github.com/sparsehash/sparsehash.git

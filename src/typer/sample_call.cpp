@@ -13,24 +13,27 @@
 namespace
 {
 
-uint16_t get_uint16(long const val)
+uint16_t
+get_uint16(long const val)
 {
   return static_cast<uint16_t>(
     std::max(static_cast<long>(std::numeric_limits<uint16_t>::min()),
              std::min(static_cast<long>(std::numeric_limits<uint16_t>::max()),
                       val
+                      )
              )
-    )
-  );
+    );
 }
 
 
-template<typename Tvec>
-typename Tvec::value_type median(Tvec & vec)
+template <typename Tvec>
+typename Tvec::value_type
+median(Tvec & vec)
 {
-  std::nth_element(vec.begin(), vec.begin() + vec.size()/2, vec.end());
-  return vec[vec.size()/2];
+  std::nth_element(vec.begin(), vec.begin() + vec.size() / 2, vec.end());
+  return vec[vec.size() / 2];
 }
+
 
 } // anon namespace
 
@@ -39,17 +42,17 @@ namespace gyper
 {
 
 SampleCall::SampleCall() noexcept
-   : ambiguous_depth(0)
+  : ambiguous_depth(0)
 {}
 
-SampleCall::SampleCall(std::vector<uint8_t> const & _phred,
-                       std::vector<uint16_t> const & _coverage,
+SampleCall::SampleCall(std::vector<uint8_t> && _phred,
+                       std::vector<uint16_t> && _coverage,
                        uint8_t const _ambiguous_depth,
                        uint8_t const _ambiguous_depth_alt,
                        uint8_t const _alt_proper_pair_depth
-  ) noexcept
-  : phred(_phred)
-  , coverage(_coverage)
+                       ) noexcept
+  : phred(std::forward<std::vector<uint8_t> >(_phred))
+  , coverage(std::forward<std::vector<uint16_t> >(_coverage))
   , ambiguous_depth(_ambiguous_depth)
   , alt_proper_pair_depth(_alt_proper_pair_depth)
 {
@@ -108,7 +111,7 @@ SampleCall::get_gt_call() const
       {
         return std::make_pair<uint16_t, uint16_t>(static_cast<uint16_t>(x),
                                                   static_cast<uint16_t>(y)
-          );
+                                                  );
       }
     }
   }
@@ -133,9 +136,9 @@ SampleCall::get_gq() const
       else
         return 0;
     }
-    else
+    else if (p < next_lowest_phred)
     {
-      next_lowest_phred = std::min(next_lowest_phred, p);
+      next_lowest_phred = p;
     }
   }
 
@@ -233,7 +236,7 @@ make_bi_allelic_call(SampleCall const & oc, long aa)
 
 
 SampleCall
-make_call_based_on_coverage(long pn_index, SV const & sv)
+make_call_based_on_coverage(long pn_index, SV const & sv, ReferenceDepth const & reference_depth)
 {
   SampleCall call;
   long abs_begin = absolute_pos.get_absolute_position(sv.chrom, sv.begin);
@@ -262,7 +265,7 @@ make_call_based_on_coverage(long pn_index, SV const & sv)
     {
       auto abs_pos = (i * (size - 2 * M)) / (N_in + 1) + abs_begin + M;
       assert(abs_pos >= 0);
-      depths_in.push_back(global_reference_depth.get_read_depth(abs_pos, pn_index));
+      depths_in.push_back(reference_depth.get_read_depth(abs_pos, pn_index));
     }
   }
 
@@ -270,7 +273,7 @@ make_call_based_on_coverage(long pn_index, SV const & sv)
   for (long i = 1; i <= N / 2 + 1; ++i)
   {
     auto abs_pos = std::max(abs_begin - i * M, 0l);
-    depths_out.push_back(global_reference_depth.get_read_depth(abs_pos, pn_index));
+    depths_out.push_back(reference_depth.get_read_depth(abs_pos, pn_index));
   }
 
   // After of the SV (if the SV is not enormously huge)
@@ -279,7 +282,7 @@ make_call_based_on_coverage(long pn_index, SV const & sv)
     for (long i = 1; i <= N / 2; ++i)
     {
       auto abs_pos = std::max(abs_end + i * M, 0l);
-      depths_out.push_back(global_reference_depth.get_read_depth(abs_pos, pn_index));
+      depths_out.push_back(reference_depth.get_read_depth(abs_pos, pn_index));
     }
   }
 
@@ -297,22 +300,6 @@ make_call_based_on_coverage(long pn_index, SV const & sv)
     // Set "coverage"
     call.coverage.push_back(get_uint16(median_in));
     call.coverage.push_back(get_uint16(median_out - median_in));
-
-    /// DEBUG
-    /*
-    std::cerr << "#stat\t" << sv.begin << "\t" << sv.length << "\t" << depths_in.at(0);
-
-    for (long d = 1; d < static_cast<long>(depths_in.size()); ++d)
-      std::cerr << "," << depths_in.at(d);
-
-    std::cerr << "\t" << depths_out.at(0);
-
-    for (long d = 1; d < static_cast<long>(depths_out.size()); ++d)
-      std::cerr << "," << depths_out.at(d);
-
-    std::cerr << "\n";
-    */
-    /// DEBUG ends
   }
   else if (sv.type == DUP || sv.type == INV)
   {
@@ -365,5 +352,6 @@ make_call_based_on_coverage(long pn_index, SV const & sv)
   call.phred[2] = static_cast<uint8_t>(std::min(static_cast<uint64_t>(0xFFu), gt_11));
   return call;
 }
+
 
 } // namespce gyper

@@ -19,11 +19,11 @@ TEST_CASE("Read the index test VCF file")
 
   {
     std::stringstream vcf_ss;
-    vcf_ss << gyper_SOURCE_DIRECTORY << "/test/data/reference/index_test.vcf";
+    vcf_ss << gyper_SOURCE_DIRECTORY << "/test/data/reference/index_test.vcf.gz";
     vcf_filename = vcf_ss.str();
   }
 
-  Vcf vcf(gyper::READ_UNCOMPRESSED_MODE, vcf_filename);
+  Vcf vcf(gyper::READ_BGZF_MODE, vcf_filename);
   vcf.read();
 
   SECTION("This VCF does now has all variants")

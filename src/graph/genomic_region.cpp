@@ -5,6 +5,7 @@
 #include <seqan/basic.h>
 #include <seqan/bam_io.h>
 
+#include <graphtyper/constants.hpp>
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/genomic_region.hpp>
 #include <graphtyper/graph/var_record.hpp>
@@ -47,7 +48,7 @@ has_matching_longest_prefix(std::vector<char> const & ref, std::vector<std::vect
       return true;
   }
 
-  assert (alts.size() > 0);
+  assert(alts.size() > 0);
 
   for (uint32_t i = 0; i < alts.size() - 1; ++i)
   {
@@ -78,24 +79,15 @@ has_matching_longest_prefix(std::vector<char> const & ref, std::vector<std::vect
 namespace gyper
 {
 
-GenomicRegion::GenomicRegion(uint32_t _region_to_refnode)
-  : rID(0), chr("N/A"), begin(0), end(AS_LONG_AS_POSSIBLE), region_to_refnode(_region_to_refnode)
-{ }
-
-
-GenomicRegion::GenomicRegion(uint16_t && r, std::string && c, uint32_t && b, uint32_t && e, uint32_t _region_to_refnode)
-  : rID(std::forward<uint16_t>(r))
-  , chr(std::forward<std::string>(c))
-  , begin(std::forward<uint32_t>(b))
-  , end(std::forward<uint32_t>(e))
-  , region_to_refnode(_region_to_refnode)
+GenomicRegion::GenomicRegion()
+  : chr("N/A"), begin(0), end(AS_LONG_AS_POSSIBLE)
 {}
 
 
-GenomicRegion::GenomicRegion(std::string region, uint32_t _region_to_refnode)
-  : rID(0), chr("N/A"), begin(0), end(AS_LONG_AS_POSSIBLE), region_to_refnode(_region_to_refnode)
+GenomicRegion::GenomicRegion(std::string const & region)
+  : chr("N/A"), begin(0), end(AS_LONG_AS_POSSIBLE)
 {
-  if (region == std::string("."))
+  if (region.size() == 0 || (region.size() == 1 && region[0] == '.'))
     return;
 
   assert(std::count(region.begin(), region.end(), ':') <= 1);
@@ -103,33 +95,56 @@ GenomicRegion::GenomicRegion(std::string region, uint32_t _region_to_refnode)
 
   if (std::count(region.begin(), region.end(), ':') == 0)
   {
-    GenomicRegion::chr = region;
+    chr = region;
   }
   else
   {
-    std::size_t colon = region.find(':');
-
-    GenomicRegion::chr = region.substr(0, colon);
+    std::size_t const colon = region.find(':');
+    chr = region.substr(0, colon);
 
     if (std::count(region.begin(), region.end(), '-') == 0)
     {
-      GenomicRegion::begin = stoi(region.substr(colon + 1, region.size() - colon));
+      begin = stoi(region.substr(colon + 1, region.size() - colon));
     }
     else
     {
-      std::size_t dash = region.find('-');
+      std::size_t const dash = region.find('-');
 
-      GenomicRegion::begin = stoi(region.substr(colon + 1, dash - colon));
-      GenomicRegion::end = stoi(region.substr(dash + 1, region.size() - dash));
+      begin = stoi(region.substr(colon + 1, dash - colon));
+      end = stoi(region.substr(dash + 1, region.size() - dash));
     }
   }
 
 
-  if (GenomicRegion::begin != 0)
+  if (begin != 0)
   {
     // Switch to 0-based indexing
-    --GenomicRegion::begin;
+    --begin;
   }
+}
+
+
+void
+GenomicRegion::clear()
+{
+  chr.clear();
+  begin = 0;
+  end = 0;
+}
+
+
+void
+GenomicRegion::pad(long bases)
+{
+  begin = std::max(static_cast<long>(begin) - bases, 0l);
+  end += bases;
+}
+
+
+void
+GenomicRegion::pad_end(long bases)
+{
+  end += bases;
 }
 
 
@@ -138,20 +153,13 @@ GenomicRegion::to_string() const
 {
   std::ostringstream ss;
 
-  if (GenomicRegion::end == AS_LONG_AS_POSSIBLE)
+  if (end == AS_LONG_AS_POSSIBLE)
   {
-    if (GenomicRegion::begin == 0)
-    {
-      ss << chr;
-    }
-    else
-    {
-      ss << chr << ":" << (GenomicRegion::begin + 1);
-    }
+    ss << chr << ":" << (begin + 1);
   }
   else
   {
-    ss << chr << ":" << (GenomicRegion::begin + 1) << "-" << GenomicRegion::end;
+    ss << chr << ":" << (begin + 1) << "-" << end;
   }
 
   return ss.str();
@@ -187,14 +195,15 @@ GenomicRegion::get_absolute_position(uint32_t contig_position) const
 
 
 std::pair<std::string, uint32_t>
-GenomicRegion::get_contig_position(uint32_t absolute_position) const
+GenomicRegion::get_contig_position(uint32_t absolute_position, Graph const & graph) const
 {
-  return absolute_pos.get_contig_position(absolute_position);
+  return absolute_pos.get_contig_position(absolute_position, graph);
 }
 
 
 void
-GenomicRegion::check_if_var_records_match_reference_genome(std::vector<VarRecord> const & var_records, std::vector<char> const & reference)
+GenomicRegion::check_if_var_records_match_reference_genome(std::vector<VarRecord> const & var_records,
+                                                           std::vector<char> const & reference)
 {
   for (auto const & record : var_records)
   {
@@ -219,14 +228,14 @@ GenomicRegion::check_if_var_records_match_reference_genome(std::vector<VarRecord
                                  << " (REF = " << std::string(record.ref.begin(), record.ref.end()) << ')'
                                  << " did not match the reference genome ("
                                  << std::string(reference_ref.begin(), reference_ref.end()) << ")";
-      //std::exit(1);
     }
   }
 }
 
 
 void
-GenomicRegion::add_reference_to_record_if_they_have_a_matching_prefix(VarRecord & var_record, std::vector<char> const & reference)
+GenomicRegion::add_reference_to_record_if_they_have_a_matching_prefix(VarRecord & var_record,
+                                                                      std::vector<char> const & reference)
 {
   if (var_record.is_sv)
     return;
@@ -235,8 +244,8 @@ GenomicRegion::add_reference_to_record_if_they_have_a_matching_prefix(VarRecord 
   assert(std::distance(reference.begin(), start_it) <= static_cast<int64_t>(reference.size()));
 
   while (start_it != reference.end() && *start_it != 'N' &&
-    has_matching_longest_prefix(var_record.ref, var_record.alts)
-    )
+         has_matching_longest_prefix(var_record.ref, var_record.alts)
+         )
   {
     // Add base to back
     var_record.ref.push_back(*start_it);
@@ -253,16 +262,16 @@ template <typename Archive>
 void
 GenomicRegion::serialize(Archive & ar, unsigned const /*version*/)
 {
-  ar & rID;
   ar & chr;
   ar & begin;
   ar & end;
-  ar & region_to_refnode;
 }
 
 
-template void GenomicRegion::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &, const unsigned int);
-template void GenomicRegion::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &, const unsigned int);
+template void GenomicRegion::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &,
+                                                                        const unsigned int);
+template void GenomicRegion::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &,
+                                                                        const unsigned int);
 
 } // namespace gyper
 

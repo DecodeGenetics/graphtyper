@@ -20,46 +20,24 @@ namespace gyper
 {
 
 VarStats::VarStats(uint16_t allele_count) noexcept
-  : mapq_allele_root_total(allele_count)
-  , mapq_allele_counts(allele_count)
-  , originally_clipped(allele_count)
-  , realignment_distance(allele_count)
-  , realignment_count(allele_count)
-  , r1_strand_forward(allele_count)
-  , r1_strand_reverse(allele_count)
-  , r2_strand_forward(allele_count)
-  , r2_strand_reverse(allele_count)
+//  : realignment_distance(allele_count)
+//  , realignment_count(allele_count)
+  : read_strand(allele_count)
+//  , r1_strand_forward(allele_count)
+//  , r1_strand_reverse(allele_count)
+//  , r2_strand_forward(allele_count)
+//  , r2_strand_reverse(allele_count)
 {}
 
 
+/*
 void
-VarStats::add_mapq(uint8_t allele_id, uint8_t const new_mapq)
+VarStats::add_realignment_distance(uint8_t const allele_id,
+                                   uint32_t const original_pos,
+                                   uint32_t const new_pos)
 {
-  // Ignore MapQ == 255, that means MapQ is unavailable
-  if (new_mapq < 255u)
-  {
-    ++mapq_count;
-
-    if (new_mapq == 0u)
-      ++mapq_zero_count;
-    else
-      mapq_root_total += static_cast<uint64_t>(new_mapq) * static_cast<uint64_t>(new_mapq); // Mapping quality squared
-
-    // Per allele stats
-    assert(allele_id < mapq_allele_counts.size());
-    assert(allele_id < mapq_allele_root_total.size());
-
-    ++mapq_allele_counts[allele_id];
-    mapq_allele_root_total[allele_id] += static_cast<uint64_t>(new_mapq) * static_cast<uint64_t>(new_mapq);
-  }
-}
-
-
-void
-VarStats::add_realignment_distance(uint8_t const allele_id, uint32_t const original_pos, uint32_t const new_pos)
-{
-  assert (allele_id < realignment_distance.size());
-  assert (allele_id < realignment_count.size());
+  assert(allele_id < realignment_distance.size());
+  assert(allele_id < realignment_count.size());
   ++realignment_count[allele_id];
   uint32_t const distance = std::abs(static_cast<int64_t>(original_pos) - static_cast<int64_t>(new_pos));
 
@@ -69,82 +47,54 @@ VarStats::add_realignment_distance(uint8_t const allele_id, uint32_t const origi
   else
     realignment_distance[allele_id] = 0xFFFFFFFFull;
 }
+*/
 
 /**
  * CLASS INFORMATION
  */
 
-uint8_t
-VarStats::get_rms_mapq() const
-{
-  if (mapq_count > 0)
-    return static_cast<uint64_t>(sqrt(static_cast<double>(mapq_root_total) / static_cast<double>(mapq_count)));
-  else
-    return 255u;
-}
-
-
-std::string
-VarStats::get_rms_mapq_per_allele() const
-{
-  std::vector<uint64_t> rms_mapq_per_allele(mapq_allele_counts.size(), 255u);
-
-  for (std::size_t i = 0; i < rms_mapq_per_allele.size(); ++i)
-  {
-    if (mapq_allele_counts[i] > 0)
-    {
-      rms_mapq_per_allele[i] =
-        static_cast<uint64_t>(
-          sqrt(static_cast<double>(mapq_allele_root_total[i]) / static_cast<double>(mapq_allele_counts[i]))
-        );
-    }
-  }
-
-  return join_strand_bias(rms_mapq_per_allele);
-}
-
-
-std::string
-VarStats::get_originally_clipped_reads() const
-{
-  return join_strand_bias(this->originally_clipped);
-}
-
-
-std::string
-VarStats::get_realignment_count() const
-{
-  return join_strand_bias(realignment_count); // TODO: Rename join_strand_bias()
-}
-
-
-std::string
-VarStats::get_realignment_distance() const
-{
-  return join_strand_bias(realignment_distance); // TODO: Rename join_strand_bias()
-}
+//std::string
+//VarStats::get_realignment_count() const
+//{
+//  return join_strand_bias(realignment_count); // TODO: Rename join_strand_bias()
+//}
+//
+//
+//std::string
+//VarStats::get_realignment_distance() const
+//{
+//  return join_strand_bias(realignment_distance); // TODO: Rename join_strand_bias()
+//}
 
 
 std::string
 VarStats::get_forward_strand_bias() const
 {
-  //return join_strand_bias(strand_forward);
-  return join_strand_bias(r1_strand_forward, r2_strand_forward);
+  if (read_strand.size() == 0)
+    return ".";
+
+  std::stringstream ss;
+  ss << (read_strand[0].r1_forward + read_strand[0].r2_forward);
+
+  for (long i = 1; i < static_cast<long>(read_strand.size()); ++i)
+    ss << ',' << (read_strand[i].r1_forward + read_strand[i].r2_forward);
+
+  return ss.str();
 }
 
 
 std::string
 VarStats::get_reverse_strand_bias() const
 {
-  return join_strand_bias(r1_strand_reverse, r2_strand_reverse);
-}
+  if (read_strand.size() == 0)
+    return ".";
 
+  std::stringstream ss;
+  ss << (read_strand[0].r1_reverse + read_strand[0].r2_reverse);
 
-std::string
-VarStats::get_unaligned_count() const
-{
-  std::ostringstream ss;
-  ss << this->unaligned_reads;
+  for (long i = 1; i < static_cast<long>(read_strand.size()); ++i)
+    ss << ',' << (read_strand[i].r1_reverse + read_strand[i].r2_reverse);
+
   return ss.str();
 }
 
@@ -152,33 +102,78 @@ VarStats::get_unaligned_count() const
 std::string
 VarStats::get_r1_forward_strand_bias() const
 {
-  return join_strand_bias(r1_strand_forward);
+  if (read_strand.size() == 0)
+    return ".";
+
+  std::stringstream ss;
+  ss << read_strand[0].r1_forward;
+
+  for (long i = 1; i < static_cast<long>(read_strand.size()); ++i)
+    ss << ',' << read_strand[i].r1_forward;
+
+  return ss.str();
 }
 
 
 std::string
 VarStats::get_r2_forward_strand_bias() const
 {
-  return join_strand_bias(r2_strand_forward);
+  if (read_strand.size() == 0)
+    return ".";
+
+  std::stringstream ss;
+  ss << read_strand[0].r2_forward;
+
+  for (long i = 1; i < static_cast<long>(read_strand.size()); ++i)
+    ss << ',' << read_strand[i].r2_forward;
+
+  return ss.str();
 }
 
 
 std::string
 VarStats::get_r1_reverse_strand_bias() const
 {
-  return join_strand_bias(r1_strand_reverse);
+  if (read_strand.size() == 0)
+    return ".";
+
+  std::stringstream ss;
+  ss << read_strand[0].r1_reverse;
+
+  for (long i = 1; i < static_cast<long>(read_strand.size()); ++i)
+    ss << ',' << read_strand[i].r1_reverse;
+
+  return ss.str();
 }
 
 
 std::string
 VarStats::get_r2_reverse_strand_bias() const
 {
-  return join_strand_bias(r2_strand_reverse);
+  if (read_strand.size() == 0)
+    return ".";
+
+  std::stringstream ss;
+  ss << read_strand[0].r2_reverse;
+
+  for (long i = 1; i < static_cast<long>(read_strand.size()); ++i)
+    ss << ',' << read_strand[i].r2_reverse;
+
+  return ss.str();
+}
+
+
+void
+VarStats::add_mapq(uint8_t const new_mapq)
+{
+  // Ignore MapQ == 255, that means MapQ is unavailable
+  if (new_mapq < 255u)
+    mapq_squared += static_cast<uint64_t>(new_mapq) * static_cast<uint64_t>(new_mapq);
 }
 
 
 /** Non-member functions */
-template<class T>
+template <class T>
 std::string
 join_strand_bias(std::vector<T> const & bias)
 {
@@ -193,6 +188,7 @@ join_strand_bias(std::vector<T> const & bias)
 
   return ss.str();
 }
+
 
 // Explicit instantiation
 template std::string join_strand_bias(std::vector<uint32_t> const & bias);
@@ -221,7 +217,9 @@ std::vector<std::string>
 split_bias_to_strings(std::string const & bias)
 {
   std::vector<std::string> splitted;
-  boost::split(splitted, bias, [](char c){return c == ',';});
+  boost::split(splitted, bias, [](char c){
+      return c == ',';
+    });
   return splitted;
 }
 
@@ -257,7 +255,8 @@ get_strand_bias(std::map<std::string, std::string> const & infos, std::string co
 
 
 uint32_t
-get_accumulated_strand_bias(std::map<std::string, std::string> const & infos, std::string const & bias)
+get_accumulated_strand_bias(std::map<std::string, std::string> const & infos,
+                            std::string const & bias)
 {
   std::vector<uint32_t> strand_bias = get_strand_bias(infos, bias);
   return std::accumulate(strand_bias.begin(), strand_bias.end(), static_cast<uint32_t>(0u));

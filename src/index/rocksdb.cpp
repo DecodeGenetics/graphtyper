@@ -21,7 +21,7 @@
 namespace gyper
 {
 
-uint8_t const LABEL_SIZE = 12;
+unsigned constexpr LABEL_SIZE = 12;
 
 // Any number of labels
 std::vector<gyper::KmerLabel>
@@ -43,7 +43,8 @@ value_to_labels(std::string const & value)
     //else
     //  results[i].end_index = graph.get_ref_reach_pos(results[i].start_index) + offset;
     //
-    memcpy(&results[i].variant_id, value.data() + sizeof(uint32_t) + sizeof(uint32_t) + i * LABEL_SIZE, sizeof(uint32_t));
+    memcpy(&results[i].variant_id, value.data() + sizeof(uint32_t) + sizeof(uint32_t) + i * LABEL_SIZE,
+           sizeof(uint32_t));
 
     if (results[i].variant_id != gyper::INVALID_ID)
     {
@@ -109,8 +110,7 @@ namespace rocksdb
 {
 
 // A 'model' merge operator with uint64 addition semantics
-class LabelAppendOperator :
-  public AssociativeMergeOperator
+class LabelAppendOperator : public AssociativeMergeOperator
 {
 public:
   virtual bool
@@ -199,6 +199,7 @@ Index<RocksDB>::Index(Index<RocksDB> const & cp_index)
   hamming0 = cp_index.hamming0;
 }
 
+
 template <>
 Index<RocksDB>::Index(Index<RocksDB> && mv_index)
 {
@@ -239,10 +240,11 @@ bool
 Index<RocksDB>::exists(uint64_t const key) const
 {
   std::string value;
-  hamming0.db->Get(ReadOptions(), Slice(static_cast<const char *>(static_cast<const void *>(&key)), sizeof(uint64_t)), &value);
+  hamming0.db->Get(ReadOptions(),
+                   Slice(static_cast<const char *>(static_cast<const void *>(&key)), sizeof(uint64_t)),
+                   &value);
   return value.size() > 0;
 }
-
 
 
 template <>
@@ -250,7 +252,9 @@ std::vector<KmerLabel>
 Index<RocksDB>::get(uint64_t const key) const
 {
   std::string value;
-  hamming0.db->Get(ReadOptions(), Slice(static_cast<const char *>(static_cast<const void *>(&key)), sizeof(uint64_t)), &value);
+  hamming0.db->Get(ReadOptions(),
+                   Slice(static_cast<const char *>(static_cast<const void *>(&key)), sizeof(uint64_t)),
+                   &value);
   return value_to_labels(value);
 }
 
@@ -322,7 +326,7 @@ Index<RocksDB>::check()
   keys.reserve(MAX_KEYS);
   std::size_t num_keys_full = 0;
 
-  BOOST_LOG_TRIVIAL(info) << "[graphtyper::rocksdb] Checking index";
+  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::rocksdb] Checking index";
 
   while (std::distance(final_it, ref_seq.end()) >= static_cast<long>(STEP_SIZE))
   {
@@ -369,7 +373,7 @@ Index<RocksDB>::check()
     }
   }
 
-  BOOST_LOG_TRIVIAL(info) << "[graphtyper::rocksdb] DONE Checking index";
+  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::rocksdb] DONE Checking index";
   return no_errors;
 }
 
@@ -403,9 +407,10 @@ Index<RocksDB>::commit()
   for (auto it = buffer_map.begin(); it != buffer_map.end(); ++it)
   {
     hamming0.s = hamming0.db->Merge(WriteOptions(),
-                              Slice(static_cast<const char *>(static_cast<const void *>(&it->first)), sizeof(uint64_t)),
-                              Slice(labels_to_value(it->second))
-                              );
+                                    Slice(static_cast<const char *>(static_cast<const void *>(&it->first)),
+                                          sizeof(uint64_t)),
+                                    Slice(labels_to_value(it->second))
+                                    );
     assert(hamming0.s.ok());
   }
 
