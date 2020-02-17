@@ -19,7 +19,8 @@ entry_has_too_many_nonrefs(gyper::IndexEntry const & entry)
 {
   uint32_t const MAX_TOTAL_VAR_NUM = 401u; // 131 is a prime
   uint32_t const MAX_TOTAL_VAR_COUNT = 4u;
-  return entry.total_var_count > 1 && (entry.total_var_num > MAX_TOTAL_VAR_NUM || entry.total_var_count > MAX_TOTAL_VAR_COUNT);
+  return entry.total_var_count > 1 &&
+         (entry.total_var_num > MAX_TOTAL_VAR_NUM || entry.total_var_count > MAX_TOTAL_VAR_COUNT);
 }
 
 
@@ -176,7 +177,8 @@ remove_large_variants_from_list(TEntryList & list, unsigned const var_count)
       ++entry_it->total_var_count;
     }
 
-    sublist_it->erase(std::remove_if(sublist_it->begin(), sublist_it->end(), entry_has_too_many_nonrefs), sublist_it->end());
+    sublist_it->erase(std::remove_if(sublist_it->begin(), sublist_it->end(), entry_has_too_many_nonrefs),
+                      sublist_it->end());
   }
 }
 
@@ -187,7 +189,7 @@ index_variant(Index<RocksDB> & new_index,
               TEntryList & mers,
               unsigned var_count,
               TNodeIndex v
-  )
+              )
 {
   TEntryList clean_list(mers); // copies all mers, we find new kmers using the copy.
 
@@ -206,48 +208,51 @@ index_variant(Index<RocksDB> & new_index,
     ++v;
 
     TEntryList new_list(clean_list); // copies all mers, we find new kmers using the new copy
-    insert_variant_label(new_index, new_list, var_nodes[v].get_label(), v, false /*is reference*/, var_num, ref_label_reach);
+    insert_variant_label(new_index,
+                         new_list,
+                         var_nodes[v].get_label(),
+                         v,
+                         false /*is reference*/,
+                         var_num,
+                         ref_label_reach);
     append_list(mers, std::move(new_list));
   }
 
   // No need to copy clean_list on the last variant
   ++v;
-  insert_variant_label(new_index, clean_list, var_nodes[v].get_label(), v, false /*is reference*/, var_num, ref_label_reach);
+  insert_variant_label(new_index,
+                       clean_list,
+                       var_nodes[v].get_label(),
+                       v,
+                       false /*is reference*/,
+                       var_num,
+                       ref_label_reach);
   append_list(mers, std::move(clean_list));
 }
 
 
 void
-index_graph(std::string const & graph_path, std::string const & index_path)
+index_graph(std::string const & index_path)
 {
   Index<RocksDB> new_index(index_path, true /*clear_first*/, false /*read_only*/);
-
-  if (graph.size() == 0)
-    load_graph(graph_path);
-
-  if (graph.size() == 0)
-  {
-    BOOST_LOG_TRIVIAL(error) << "[graphtyper::indexer] Trying to index empty graph.";
-    return;
-  }
 
   assert(graph.ref_nodes.back().out_degree() == 0);
   uint32_t const start_order = graph.ref_nodes.front().get_label().order;
   uint32_t const end_order = static_cast<uint32_t>(graph.ref_nodes.back().get_label().order +
-      graph.ref_nodes.back().get_label().dna.size());
+                                                   graph.ref_nodes.back().get_label().dna.size());
   uint32_t goal_order = start_order;
   uint32_t goal = 0;
 
   TNodeIndex r = 0; // Reference node index
   // TNodeIndex v = 0; // Variant node index
   TEntryList mers;
-  BOOST_LOG_TRIVIAL(info) << "[graphtyper::indexer] The number of reference nodes are " << graph.ref_nodes.size();
+  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::indexer] The number of reference nodes are " << graph.ref_nodes.size();
 
   while (r < graph.ref_nodes.size() - 1)
   {
     if (graph.ref_nodes[r].get_label().order >= goal_order)
     {
-      BOOST_LOG_TRIVIAL(info) << "[graphtyper::indexer] Indexing progress: " << goal << '%';
+      BOOST_LOG_TRIVIAL(debug) << "[graphtyper::indexer] Indexing progress: " << goal << '%';
       goal_order += (end_order - start_order) / 5;
       goal += 20;
     }
@@ -268,13 +273,28 @@ index_graph(std::string const & graph_path, std::string const & index_path)
   }
 
   index_reference_label(new_index, mers, graph.ref_nodes.back().get_label());
-  BOOST_LOG_TRIVIAL(info) << "[graphtyper::indexer] Indexing progress: 100" << '%';
+  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::indexer] Indexing progress: 100" << '%';
   mers.clear();
 
   // Commit the rest of the buffer before closing
-  BOOST_LOG_TRIVIAL(info) << "[graphtyper::indexer] Writing index to disk...";
+  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::indexer] Writing index to disk...";
   new_index.commit();
-  BOOST_LOG_TRIVIAL(info) << "[graphtyper::indexer] Done.";
+  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::indexer] Done.";
+}
+
+
+void
+index_graph(std::string const & graph_path, std::string const & index_path)
+{
+  load_graph(graph_path);
+
+  if (graph.size() == 0)
+  {
+    BOOST_LOG_TRIVIAL(warning) << "[graphtyper::indexer] WARNING: Trying to index empty graph.";
+    return;
+  }
+
+  index_graph(index_path);
 }
 
 

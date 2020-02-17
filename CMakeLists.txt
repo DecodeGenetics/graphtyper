@@ -6,6 +6,7 @@ include(ExternalProject)
 # The version number.
 set (graphtyper_VERSION_MAJOR 2)
 set (graphtyper_VERSION_MINOR 0)
+set (graphtyper_VERSION_PATCH 0)
 
 # Get the current working branch
 execute_process(
@@ -46,21 +47,21 @@ if ($ENV{GT_BUILD_TYPE})
   set(GT_BUILD_TYPE $ENV{GT_BUILD_TYPE})
 endif()
 
-message(STATUS "Build type: ${GT_BUILD_TYPE}")
-set(GT_COMMON_FLAGS "-Wall -Wextra -Wfatal-errors -pedantic -Wno-variadic-macros -std=c++11 -DSEQAN_HAS_ZLIB=1 -DSEQAN_USE_HTSLIB=1 -DSEQAN_ENABLE_TESTING=0")
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wfatal-errors -pedantic -Wno-variadic-macros -std=c++11 -DSEQAN_HAS_ZLIB=1 -DSEQAN_USE_HTSLIB=1 -DSEQAN_ENABLE_TESTING=0 -DSEQAN_ENABLE_DEBUG=0")
 
-if(GT_BUILD_TYPE STREQUAL "DEBUG" OR CMAKE_BUILD_TYPE STREQUAL "Debug")
+if(CMAKE_BUILD_TYPE STREQUAL "DEBUG" OR CMAKE_BUILD_TYPE STREQUAL "Debug")
   message(STATUS "Building in debug mode.")
-  set (CMAKE_CXX_FLAGS "${GT_COMMON_FLAGS} -g -O0 -DDEBUG -DSEQAN_ENABLE_DEBUG=1")
+  set (CMAKE_CXX_FLAGS "-g -O0 -DDEBUG ${CMAKE_CXX_FLAGS}")
 elseif(GT_BUILD_TYPE STREQUAL "RELDEB" OR GT_BUILD_TYPE STREQUAL "Reldeb")
   message(STATUS "Building in release (with assertions and debug info) mode.")
-  set (CMAKE_CXX_FLAGS "${GT_COMMON_FLAGS} -g -O3 -DDEBUG -DSEQAN_ENABLE_DEBUG=1")
+  set (CMAKE_CXX_FLAGS "-g -O3 -DDEBUG ${CMAKE_CXX_FLAGS}")
 elseif(GT_BUILD_TYPE STREQUAL "PROFILING" OR GT_BUILD_TYPE STREQUAL "Profiling")
   message(STATUS "Building in profiling mode, which is release mode with profiling mode enabled.")
-  set (CMAKE_CXX_FLAGS "${GT_COMMON_FLAGS} -pg -O3 -DNDEBUG -DSEQAN_ENABLE_DEBUG=0")
+  set (CMAKE_CXX_FLAGS "-pg -O3 -DNDEBUG ${CMAKE_CXX_FLAGS}")
 else()
   message(STATUS "Building in release mode.")
-  set (CMAKE_CXX_FLAGS "${GT_COMMON_FLAGS} -O3 -DNDEBUG -DSEQAN_ENABLE_DEBUG=0 -march=core2 -mtune=generic")
+  set (CMAKE_CXX_FLAGS "-O3 -DNDEBUG ${CMAKE_CXX_FLAGS}")
 endif()
 
 message(STATUS "CXX flags are: ${CMAKE_CXX_FLAGS}")
@@ -90,7 +91,7 @@ include_directories(SYSTEM ${BZIP_INCLUDE_DIRS})
 # boost
 set(Boost_USE_STATIC_LIBS ON)
 message (STATUS "Checking for Boost")
-find_package(Boost 1.57.0 REQUIRED COMPONENTS system iostreams log thread serialization filesystem REQUIRED)
+find_package(Boost 1.57.0 REQUIRED COMPONENTS system iostreams log_setup log thread serialization filesystem REQUIRED)
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 
 # snappy
@@ -153,28 +154,6 @@ message(STATUS "htslib target location is ${htslib_location}")
 set_property(TARGET htslib PROPERTY IMPORTED_LOCATION ${htslib_location})
 add_dependencies(htslib project_htslib)
 
-
-# StatGen
-ExternalProject_Add(
-  project_statgen
-  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/statgen
-  BUILD_IN_SOURCE 1
-  PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/statgen
-  CONFIGURE_COMMAND ""
-  BUILD_COMMAND $(MAKE) -C ${CMAKE_CURRENT_SOURCE_DIR}/statgen USER_WARNINGS=
-  INSTALL_COMMAND ""
-)
-
-ExternalProject_Get_Property(project_statgen install_dir)
-add_library(statgen STATIC IMPORTED)
-include_directories(SYSTEM ${install_dir})
-include_directories(SYSTEM ${install_dir}/include)
-
-set(statgen_location ${install_dir}/libStatGen.a)
-message(STATUS "StatGen target location is ${statgen_location}")
-set_property(TARGET statgen PROPERTY IMPORTED_LOCATION ${statgen_location})
-add_dependencies(statgen project_statgen)
-
 # sparsehash
 ExternalProject_Add(
   project_sparsehash
@@ -196,10 +175,22 @@ find_package(Threads)
 # set(HTSlib_LIBRARY ${source_dir}/libhts.a CACHE INTERNAL "Path to htslib library files.")
 
 # paw
-include_directories(SYSTEM paw/include)
+ExternalProject_Add(
+  project_paw
+  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/paw
+  BUILD_IN_SOURCE 1
+  PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/paw
+  CONFIGURE_COMMAND ""
+  BUILD_COMMAND mkdir -p ${CMAKE_CURRENT_SOURCE_DIR}/paw/build COMMAND cmake -S ${CMAKE_CURRENT_SOURCE_DIR}/paw -B ${CMAKE_CURRENT_SOURCE_DIR}/paw/build COMMAND $(MAKE) -C ${CMAKE_CURRENT_SOURCE_DIR}/paw/build static
+  INSTALL_COMMAND ""
+)
 
-# args
-include_directories(SYSTEM args)
+add_library(paw STATIC IMPORTED)
+include_directories(SYSTEM paw/include)
+set(paw_location ${CMAKE_CURRENT_SOURCE_DIR}/paw/build/lib/libpaw.a)
+message(STATUS "paw target location is ${paw_location}")
+set_property(TARGET paw PROPERTY IMPORTED_LOCATION ${paw_location})
+add_dependencies(paw project_paw)
 
 # CMake SeqAn
 # add_subdirectory(seqan)
@@ -221,7 +212,7 @@ set(graphtyper_all_libraries
   rocksdb
   snappy
   htslib
-  statgen
+  paw
   ${Boost_LIBRARIES}
   ${CMAKE_THREAD_LIBS_INIT}
   ${ZLIB_LIBRARIES}
@@ -256,21 +247,8 @@ endif()
 
 
 message(STATUS "Libraries: ${graphtyper_all_libraries}")
-
-message(STATUS "Compiling graphtyper's source files")
 add_subdirectory(src)
 
 ## Testing
 enable_testing(true)
 add_subdirectory(test)
-
-# add a target to generate API documentation with Doxygen
-# find_package(Doxygen)
-# if(DOXYGEN_FOUND)
-# configure_file(${CMAKE_CURRENT_SOURCE_DIR}/docs/Doxyfile.in ${CMAKE_CURRENT_BINARY_DIR}/docs/Doxyfile @ONLY)
-# add_custom_target(docs
-#   ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/docs/Doxyfile
-#   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/docs
-#   COMMENT "Generating API documentation with Doxygen" VERBATIM
-# )
-# endif(DOXYGEN_FOUND)

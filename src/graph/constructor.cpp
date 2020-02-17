@@ -13,6 +13,7 @@
 #include <graphtyper/graph/constructor.hpp>
 #include <graphtyper/graph/var_record.hpp>
 #include <graphtyper/utilities/options.hpp>
+#include <graphtyper/utilities/gzstream.hpp>
 
 #include <seqan/basic.h>
 #include <seqan/sequence.h>
@@ -24,13 +25,13 @@ namespace
 {
 
 
-template<typename Tint>
+template <typename Tint>
 bool
 parse_info_int(std::string const check_if_key,
                std::string const & key,
                std::string const & val,
                Tint & parsed_val
-)
+               )
 {
   if (check_if_key == key)
   {
@@ -59,7 +60,7 @@ parse_info_str(std::string const check_if_key,
                std::string const & key,
                std::string const & val,
                std::vector<char> & parsed_val
-)
+               )
 {
   if (check_if_key == key)
   {
@@ -129,7 +130,6 @@ parse_info_inv_type(std::string const & key, gyper::INVTYPE & parsed_val)
 
   return false;
 }
-
 
 
 unsigned
@@ -233,143 +233,19 @@ open_reference_genome(seqan::FaiIndex & fasta_index, std::string const & fasta_f
 char
 complement(char const c)
 {
-  switch(c)
+  switch (c)
   {
   case 'A': return 'T';
+
   case 'C': return 'G';
+
   case 'G': return 'C';
+
   case 'T': return 'A';
+
   default: return c;
   }
 }
-
-template<typename TIt>
-int
-longest_poly_repeat(TIt begin, TIt end, char const c, int & max_i)
-{
-  int max_repeats = 0;
-  int repeats = 0;
-  int const SIZE = static_cast<int>(std::distance(begin, end));
-
-  for (int i = 0; begin != end; ++i, ++begin)
-  {
-    if (*begin == c)
-    {
-      ++repeats;
-      continue;
-    }
-    else if (repeats > max_repeats)
-    {
-      max_repeats = repeats;
-      max_i = i - 1;
-    }
-
-    repeats = 0;
-  }
-
-  if (repeats > max_repeats)
-  {
-    max_i = SIZE - 1;
-    max_repeats = repeats;
-  }
-
-  return max_repeats;
-}
-
-
-template<typename Tseq>
-void
-combine_similar_sequences(std::vector<Tseq> & seqs)
-{
-  // Find the hamming distance between all pairs of ALU sequences
-  using Tint = int8_t;
-  std::size_t constexpr MAX_HAMMING_DIST_1 = 1;
-  std::size_t constexpr MAX_HAMMING_DIST_2 = 2;
-  std::vector<std::vector<Tint> > hamming_distances_1(seqs.size(), std::vector<Tint>(seqs.size()));
-  std::vector<std::vector<Tint> > hamming_distances_2(seqs.size(), std::vector<Tint>(seqs.size()));
-
-  for (std::size_t i = 1; i < seqs.size(); ++i)
-  {
-    for (std::size_t j = 0; j < i; ++j)
-    {
-      std::size_t hamming_dist = 0;
-
-      for (std::size_t k = 0; k < seqs[0].size(); ++k)
-      {
-        hamming_dist += seqs[i][k] != seqs[j][k];
-
-        if (hamming_dist > MAX_HAMMING_DIST_2)
-          break;
-      }
-
-      // 1
-      hamming_distances_1[i][j] = static_cast<Tint>(hamming_dist > MAX_HAMMING_DIST_1);
-      hamming_distances_1[j][i] = hamming_distances_1[i][j];
-
-      // 2
-      hamming_distances_2[i][j] = static_cast<Tint>(hamming_dist > MAX_HAMMING_DIST_2);
-      hamming_distances_2[j][i] = hamming_distances_2[i][j];
-    }
-  }
-
-  std::set<std::size_t> selected_seq_indexes;
-
-  {
-    Tint minimum_sum_1 = static_cast<Tint>(hamming_distances_1.size());
-    Tint minimum_sum_2 = static_cast<Tint>(hamming_distances_1.size());
-    std::size_t minimum_sum_index = 0;
-    std::set<std::size_t> covered_seq_indexes;
-
-    while (covered_seq_indexes.size() < seqs.size())
-    {
-      for (std::size_t i = 0; i < hamming_distances_1.size(); ++i)
-      {
-        if (covered_seq_indexes.count(i) == 1)
-          continue;
-
-        Tint sum_1 = 0;
-        Tint sum_2 = 0;
-
-        for (std::size_t j = 0; j < hamming_distances_1[i].size(); ++j)
-        {
-          if (covered_seq_indexes.count(j) == 1)
-            continue;
-
-          sum_1 += hamming_distances_1[i][j];
-          sum_2 += hamming_distances_2[i][j];
-        }
-
-        if (sum_2 < minimum_sum_2 || (sum_2 == minimum_sum_2 && sum_1 < minimum_sum_1))
-        {
-          minimum_sum_1 = sum_1;
-          minimum_sum_2 = sum_2;
-          minimum_sum_index = i;
-        }
-      }
-
-      selected_seq_indexes.insert(minimum_sum_index);
-
-      for (std::size_t j = 0; j < hamming_distances_2[minimum_sum_index].size(); ++j)
-      {
-        if (hamming_distances_2[minimum_sum_index][j] == 0)
-        {
-          covered_seq_indexes.insert(j);
-        }
-      }
-    }
-  }
-
-  std::vector<Tseq> new_seqs;
-
-  for (auto seq_index : selected_seq_indexes)
-  {
-    assert (seq_index < seqs.size());
-    new_seqs.push_back(seqs[seq_index]);
-  }
-
-  std::swap(new_seqs, seqs);
-}
-
 
 
 std::vector<std::vector<char> > inline
@@ -403,36 +279,6 @@ read_reference_seq(std::vector<char> & reference_sequence,
                     );
 
   std::move(seqan::begin(ref_seq), seqan::end(ref_seq), std::back_inserter(reference_sequence));
-}
-
-std::vector<std::vector<char> > inline
-read_reference(std::vector<char> const & prefix,
-               seqan::FaiIndex const & fasta_index,
-               unsigned const chrom_idx,
-               std::string const & chr,
-               uint32_t const begin,
-               uint32_t const length,
-               std::unique_ptr<gyper::Graph> const & sv_graph
-               )
-{
-  if (sv_graph)
-  {
-    // Read from SV graph
-    std::vector<std::vector<char> > seqs =
-      read_reference_graph(prefix, *sv_graph, chr, begin, length);
-
-    if (seqs.size() < 100)
-      combine_similar_sequences(seqs);
-
-    return seqs;
-  }
-  else
-  {
-    // No SV graph provided, use the reference sequence
-    std::vector<std::vector<char> > reference_sequences(1, prefix);
-    read_reference_seq(reference_sequences[0], fasta_index, chrom_idx, begin, length);
-    return reference_sequences;
-  }
 }
 
 
@@ -476,185 +322,12 @@ read_reference_genome_ends(seqan::FaiIndex const & fasta_index,
   return ref;
 }
 
+
 } // anon namespace
 
 
 namespace gyper
 {
-
-void
-get_alu_sequences(std::vector<std::vector<char> > & seqs_begin,
-                  std::vector<std::vector<char> > & seqs_end,
-                  SV & sv,
-                  VarRecord const & var,
-                  seqan::FaiIndex const & fasta_index,
-                  unsigned const chrom_idx,
-                  uint32_t const EXTRA_SEQUENCE_LENGTH
-                  )
-{
-  assert (sv.or_end != -1);
-  assert (sv.or_start != -1);
-
-  if (sv.or_start >= sv.or_end)
-    return;
-
-  std::vector<char> alu_prefix; // Sometimes the ALUs have a prefix sequence inserted
-
-  // Original ALU sequence had 140 Ns padded to them, so here is a little trick to fix the positions
-  if (sv.or_start < 141)
-  {
-    // assume that the ALU prefix is the reference before the ALU
-    int const n = 141 - sv.or_start;
-    read_reference_seq(alu_prefix, fasta_index, chrom_idx, var.pos - n, static_cast<uint32_t>(n));
-    sv.or_start = 141;
-  }
-
-  if (sv.or_end - sv.or_start < 32)
-    return;
-
-  assert(sv.or_end >= 141);
-  assert(sv.or_start >= 141);
-  sv.or_end -= 141; // Change to 0-based system instread of 141-based system
-  sv.or_start -= 141;
-
-  assert(sv.or_end > sv.or_start);
-  assert(sv.or_end - sv.or_start >= 32);
-
-  // Read reference sequence before and after to find binding site
-  std::vector<char> ref_before;
-  std::vector<char> ref_after;
-  std::size_t constexpr BINDING_SITE_CHECK_LENGTH = 30;
-
-  read_reference_seq(ref_before,
-                     fasta_index,
-                     chrom_idx,
-                     var.pos - BINDING_SITE_CHECK_LENGTH - 1,
-                     BINDING_SITE_CHECK_LENGTH
-    );
-
-  read_reference_seq(ref_after,
-                     fasta_index,
-                     chrom_idx,
-                     var.pos + 1, BINDING_SITE_CHECK_LENGTH
-    );
-
-  int max_i_before = -1;
-  int max_i_after = -1;
-
-  // poly(A) are expected to bind before the position, and poly(T) before
-  int const binding_length_before = longest_poly_repeat(ref_before.rbegin(),
-                                                        ref_before.rend(),
-                                                        'A',
-                                                        max_i_before);
-
-  int const binding_length_after = longest_poly_repeat(ref_after.begin(),
-                                                       ref_after.end(),
-                                                       'T',
-                                                       max_i_after);
-
-  int constexpr MIN_BINDING_LENGTH = 3;
-
-  if (binding_length_before < MIN_BINDING_LENGTH && binding_length_after < MIN_BINDING_LENGTH)
-    return;
-
-  std::vector<std::vector<char> > alus;
-
-  for (auto const & alu : gyper::ALU_SEQUENCES) /*defined in graph/alu_sequences.hpp*/
-  {
-    if ((sv.or_end - 32) < static_cast<int>(alu.size()))
-    {
-      std::vector<char> new_alu(alu_prefix);
-      std::copy(alu.begin() + sv.or_start, alu.end(), std::back_inserter(new_alu));
-      alus.push_back(std::move(new_alu));
-    }
-  }
-
-  // No ALUs where found with these coordinates
-  if (alus.size() == 0)
-    return;
-
-  if (binding_length_before >= MIN_BINDING_LENGTH)
-  {
-    // Add ALUs in forward direction
-    std::vector<std::vector<char> > f_alus;
-
-    if (binding_length_after < MIN_BINDING_LENGTH)
-      f_alus = std::move(alus);
-    else
-      f_alus = alus;
-
-    // Add reference betweeen the ALU breakpoint
-    for (auto & alu : f_alus)
-    {
-      if (alu.size() < EXTRA_SEQUENCE_LENGTH)
-      {
-        read_reference_seq(alu,
-                           fasta_index,
-                           chrom_idx,
-                           var.pos + 1,
-                           static_cast<uint32_t>(EXTRA_SEQUENCE_LENGTH - alu.size())
-                           );
-
-        assert(alu.size() == EXTRA_SEQUENCE_LENGTH);
-      }
-      else if (alu.size() > EXTRA_SEQUENCE_LENGTH)
-      {
-        alu.resize(EXTRA_SEQUENCE_LENGTH);
-      }
-    }
-
-    // Reduce the amount of sequences to add by combining similar sequences
-    combine_similar_sequences(f_alus);
-
-    // Append to results
-    std::move(f_alus.begin(), f_alus.end(), std::back_inserter(seqs_begin));
-
-    // Read target site duplicates
-    std::vector<char> tsd(EXTRA_SEQUENCE_LENGTH - max_i_before, 'A');
-    read_reference_seq(tsd, fasta_index, chrom_idx, var.pos - max_i_before, max_i_before);
-    seqs_end.push_back(std::move(tsd));
-  }
-
-  if (binding_length_after >= MIN_BINDING_LENGTH)
-  {
-    for (auto & alu : alus)
-    {
-      // Complemet the ALU sequence
-      std::transform(alu.begin(), alu.end(), alu.begin(), complement);
-
-      if (alu.size() < EXTRA_SEQUENCE_LENGTH)
-      {
-        std::size_t const n = EXTRA_SEQUENCE_LENGTH - alu.size();
-        std::vector<char> ref;
-        read_reference_seq(ref, fasta_index, chrom_idx, var.pos - n - 1, n);
-        std::transform(ref.begin(), ref.end(), ref.begin(), complement);
-        std::move(ref.begin(), ref.end(), std::back_inserter(alu));
-      }
-      else if (alu.size() > EXTRA_SEQUENCE_LENGTH)
-      {
-        alu.resize(EXTRA_SEQUENCE_LENGTH);
-      }
-    }
-
-    combine_similar_sequences(alus);
-
-    std::move(alus.rbegin(), alus.rend(), std::back_inserter(seqs_end));
-
-    // Read target site duplication
-    std::vector<char> tsd;
-    tsd.reserve(EXTRA_SEQUENCE_LENGTH);
-    read_reference_seq(tsd,
-                       fasta_index,
-                       chrom_idx,
-                       var.pos + 1,
-                       static_cast<uint32_t>(max_i_after)
-      );
-
-    tsd.resize(EXTRA_SEQUENCE_LENGTH, 'T');
-    seqs_begin.push_back(std::move(tsd));
-  }
-}
-
 
 void
 add_sv_breakend(SV & sv,
@@ -672,42 +345,42 @@ add_sv_breakend(SV & sv,
   std::vector<char> alt(seqan::begin(vcf_record.alt), seqan::end(vcf_record.alt));
   sv.original_alt = alt;
 
-  auto invalid_bnd_alt = [&var,&alt]()
-  {
-    std::cerr << "[graphtyper::constructor] ERROR: Invalid breakend alt allele: "
-              << std::string(begin(alt), end(alt))
-              << " at position " << var.pos << std::endl;
-    std::exit(2);
-  };
+  auto invalid_bnd_alt = [&var, &alt]()
+                         {
+                           std::cerr << "[graphtyper::constructor] ERROR: Invalid breakend alt allele: "
+                                     << std::string(begin(alt), end(alt))
+                                     << " at position " << var.pos << std::endl;
+                           std::exit(2);
+                         };
 
   auto parse_chromosome_name = [&](std::vector<char> const & seq, char const c) -> std::string
-  {
-    auto find_it = std::find(seq.begin(), seq.end(), c);
-    auto find_colon_it = std::find(find_it + 1, seq.end(), ':');
+                               {
+                                 auto find_it = std::find(seq.begin(), seq.end(), c);
+                                 auto find_colon_it = std::find(find_it + 1, seq.end(), ':');
 
-    if (find_colon_it == seq.end())
-      invalid_bnd_alt();
+                                 if (find_colon_it == seq.end())
+                                   invalid_bnd_alt();
 
-    return std::string(find_it + 1, find_colon_it);
-  };
+                                 return std::string(find_it + 1, find_colon_it);
+                               };
 
   auto parse_position = [&](std::vector<char> const & seq, char const c) -> long
-  {
-    auto find_colon_it = std::find(seq.begin() + 1, seq.end(), ':');
-    auto find_end_it = std::find(find_colon_it + 1, seq.end(), c);
+                        {
+                          auto find_colon_it = std::find(seq.begin() + 1, seq.end(), ':');
+                          auto find_end_it = std::find(find_colon_it + 1, seq.end(), c);
 
-    if (find_end_it == seq.end())
-      invalid_bnd_alt();
+                          if (find_end_it == seq.end())
+                            invalid_bnd_alt();
 
-    long pos = 0;
-    std::istringstream ss{std::string(find_colon_it + 1, find_end_it)};
-    ss >> pos;
+                          long pos = 0;
+                          std::istringstream ss{std::string(find_colon_it + 1, find_end_it)};
+                          ss >> pos;
 
-    if (!ss.eof())
-      invalid_bnd_alt();
+                          if (!ss.eof())
+                            invalid_bnd_alt();
 
-    return pos;
-  };
+                          return pos;
+                        };
 
   assert(std::count(begin(alt), end(alt), ',') == 0); // Not multi-allelic
   auto find_it = std::find(alt.begin(), alt.end(), '[');
@@ -722,7 +395,7 @@ add_sv_breakend(SV & sv,
     if (find_it != alt.begin())
     {
       // Case 1: S SNNN[chr:pos[ => Extending sequence right of chr:pos
-      BOOST_LOG_TRIVIAL(info) << "[graphtyper::constructor] BND variant case 1 @ " << var.pos + 1;
+      BOOST_LOG_TRIVIAL(debug) << "[graphtyper::constructor] BND variant case 1 @ " << var.pos + 1;
       bnd = std::vector<char>(var.ref);
       std::copy(alt.begin() + 1, find_it, std::back_inserter(bnd)); // Extra insertion
 
@@ -734,7 +407,7 @@ add_sv_breakend(SV & sv,
     else
     {
       // Case 2: S [chr:pos[NNNS => Extending reversed sequence left of chr:pos
-      BOOST_LOG_TRIVIAL(info) << "[graphtyper::constructor] BND variant case 2 @ " << var.pos + 1;
+      BOOST_LOG_TRIVIAL(debug) << "[graphtyper::constructor] BND variant case 2 @ " << var.pos + 1;
       append_sv_tag_to_node(bnd);
 
       auto find2_it = std::find(find_it + 1, alt.end(), '[');
@@ -768,7 +441,7 @@ add_sv_breakend(SV & sv,
     if (find_it == alt.begin())
     {
       // Case 3: S ]chr:pos]NNS => Take sequence from chr:pos and extend it to the left of S
-      BOOST_LOG_TRIVIAL(info) << "[graphtyper::constructor] BND variant case 3 @ " << var.pos + 1;
+      BOOST_LOG_TRIVIAL(debug) << "[graphtyper::constructor] BND variant case 3 @ " << var.pos + 1;
       append_sv_tag_to_node(bnd);
       auto find2_it = std::find(find_it + 1, alt.end(), ']');
 
@@ -784,7 +457,7 @@ add_sv_breakend(SV & sv,
       bnd = std::vector<char>(var.ref);
       // Case 4: S SNN]chr:pos] => Take sequence from chr:pos, reverse complement it and extend it
       // to the right of S
-      BOOST_LOG_TRIVIAL(info) << "[graphtyper::constructor] BND variant case 4 @ " << var.pos + 1;
+      BOOST_LOG_TRIVIAL(debug) << "[graphtyper::constructor] BND variant case 4 @ " << var.pos + 1;
       std::copy(alt.begin() + 1, find_it, std::back_inserter(bnd)); // Extra insertion
       auto const len = EXTRA_SEQUENCE_LENGTH - bnd.size() + 1;
       std::vector<char> seq;
@@ -811,7 +484,7 @@ add_sv_deletion(SV & sv,
                 seqan::FaiIndex const & fasta_index,
                 unsigned const chrom_idx,
                 uint32_t const EXTRA_SEQUENCE_LENGTH
-  )
+                )
 {
   // Read the first matching reference base
   read_reference_seq(var.ref, fasta_index, chrom_idx, var.pos, 1);
@@ -833,7 +506,7 @@ add_sv_deletion(SV & sv,
                        chrom_idx,
                        var.pos + sv.seq.size() + sv.size + 1,
                        static_cast<unsigned>(EXTRA_SEQUENCE_LENGTH + 1 - alt1.size())
-      );
+                       );
   }
 
   // Append SV tag
@@ -853,7 +526,7 @@ add_sv_insertion(SV & sv,
                  seqan::FaiIndex const & fasta_index,
                  unsigned const chrom_idx,
                  uint32_t const EXTRA_SEQUENCE_LENGTH
-  )
+                 )
 {
   assert(seqan::length(vcf_record.ref) >= 1);
 
@@ -881,7 +554,7 @@ add_sv_insertion(SV & sv,
       std::copy(sv.seq.begin(),
                 sv.seq.begin() + EXTRA_SEQUENCE_LENGTH,
                 std::back_inserter(alt1)
-        );
+                );
 
       append_sv_tag_to_node(alt1);
       sv.related_sv = static_cast<int>(graph.SVs.size()) + 1; // Next SV is related
@@ -892,7 +565,7 @@ add_sv_insertion(SV & sv,
       std::copy(sv.seq.end() - EXTRA_SEQUENCE_LENGTH,
                 sv.seq.end(),
                 std::back_inserter(alt2)
-        );
+                );
 
       sv.related_sv = static_cast<int>(graph.SVs.size()) - 1;  // Previous SV is related
       sv.model = "BREAKPOINT2";
@@ -910,7 +583,7 @@ add_sv_insertion(SV & sv,
                          chrom_idx,
                          var.pos + 1,
                          padding_length
-        );
+                         );
 
       append_sv_tag_to_node(alt1);
       sv.related_sv = static_cast<int>(graph.SVs.size()) + 1; // Next SV is related
@@ -923,7 +596,7 @@ add_sv_insertion(SV & sv,
                          chrom_idx,
                          var.pos - padding_length,
                          padding_length + 1
-      );
+                         );
 
       std::copy(sv.seq.begin(), sv.seq.end(), std::back_inserter(alt2));
       sv.related_sv = static_cast<int>(graph.SVs.size()) - 1;  // Previous SV is related
@@ -949,7 +622,7 @@ add_sv_insertion(SV & sv,
                                                        sv.or_start - 1,
                                                        sv.or_end,
                                                        EXTRA_SEQUENCE_LENGTH
-    );
+                                                       );
 
     /// Both breakpoints are entirely in the sequence if it is greater or equal to the
     /// EXTRA_SEQUENCE_LENGTH
@@ -1000,7 +673,7 @@ add_sv_insertion(SV & sv,
   }
   else if (sv.ins_seq_left.size() > 0 || sv.ins_seq_right.size() > 0)
   {
-    BOOST_LOG_TRIVIAL(info) << "[graphtyper::construct] Insertion with incomplete sequence.";
+    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::construct] Insertion with incomplete sequence.";
     std::vector<char> left;
     std::vector<char> right;
 
@@ -1008,24 +681,24 @@ add_sv_insertion(SV & sv,
     {
       auto const len = std::min(static_cast<std::size_t>(EXTRA_SEQUENCE_LENGTH),
                                 sv.ins_seq_left.size()
-        );
+                                );
 
       std::copy(sv.ins_seq_left.begin(),
                 sv.ins_seq_left.begin() + len,
                 std::back_inserter(left)
-        );
+                );
     }
 
     if (sv.ins_seq_right.size() > 0)
     {
       auto const len = std::min(static_cast<std::size_t>(EXTRA_SEQUENCE_LENGTH),
                                 sv.ins_seq_right.size()
-        );
+                                );
 
       std::copy(sv.ins_seq_right.begin(),
                 sv.ins_seq_right.begin() + len,
                 std::back_inserter(right)
-        );
+                );
     }
 
     if (left.size() > 1 && right.size() > 0)
@@ -1171,7 +844,7 @@ add_sv_duplication(std::vector<VarRecord> & var_records,
                            chrom_idx,
                            var2.pos - padding_size + 1,
                            padding_size
-          );
+                           );
 
         std::move(dup.begin(), dup.end(), std::back_inserter(dup_end));
         sv.related_sv = static_cast<int>(graph.SVs.size()) - 1;
@@ -1214,7 +887,7 @@ add_sv_duplication(std::vector<VarRecord> & var_records,
     // Do not read before the chromosome starts!
     std::size_t const start_reading_at = std::max(static_cast<std::size_t>(EXTRA_SEQUENCE_LENGTH),
                                                   static_cast<std::size_t>(sv.or_end)
-      );
+                                                  );
 
     std::vector<char> dup_begin;
     append_sv_tag_to_node(dup_begin);
@@ -1231,6 +904,7 @@ add_sv_duplication(std::vector<VarRecord> & var_records,
   }
 }
 
+
 /// Adds a SV inversion variant that will later be added to the graph
 void
 add_sv_inversion(std::vector<VarRecord> & var_records,
@@ -1239,7 +913,7 @@ add_sv_inversion(std::vector<VarRecord> & var_records,
                  seqan::FaiIndex const & fasta_index,
                  unsigned const chrom_idx,
                  uint32_t const EXTRA_SEQUENCE_LENGTH
-)
+                 )
 {
   // Read the first matching reference base
   read_reference_seq(var.ref, fasta_index, chrom_idx, var.pos, 1);
@@ -1273,7 +947,7 @@ add_sv_inversion(std::vector<VarRecord> & var_records,
                                                          var.pos + 1,
                                                          var.pos + sv.length + 1,
                                                          EXTRA_SEQUENCE_LENGTH
-        );
+                                                         );
 
       std::vector<char> inv(dup.rbegin(), dup.rend());
       std::transform(inv.begin(), inv.end(), inv.begin(), complement);
@@ -1334,7 +1008,7 @@ add_sv_inversion(std::vector<VarRecord> & var_records,
                            chrom_idx,
                            var2.pos - padding_size + 1,
                            padding_size
-        );
+                           );
 
         std::move(inv.begin(), inv.end(), std::back_inserter(inv_end));
         std::copy(sv.ins_seq.begin(), sv.ins_seq.end(), std::back_inserter(inv_end));
@@ -1382,7 +1056,7 @@ add_sv_inversion(std::vector<VarRecord> & var_records,
     // Do not read before the chromosome starts!
     std::size_t const start_reading_at = std::max(static_cast<std::size_t>(EXTRA_SEQUENCE_LENGTH),
                                                   static_cast<std::size_t>(sv.or_end)
-      );
+                                                  );
 
     std::vector<char> dup;
     read_reference_seq(dup,
@@ -1402,52 +1076,6 @@ add_sv_inversion(std::vector<VarRecord> & var_records,
     sv.model = "BREAKPOINT1";
     graph.SVs.push_back(std::move(sv));
   }
-}
-
-
-void
-add_alu_insertion(SV & sv,
-                  VarRecord & var,
-                  seqan::FaiIndex const & fasta_index,
-                  unsigned const chrom_idx,
-                  uint32_t const EXTRA_SEQUENCE_LENGTH
-  )
-{
-  // Read the first matching reference base
-  read_reference_seq(var.ref, fasta_index, chrom_idx, var.pos, 1);
-
-  std::vector<std::vector<char> > ins_begin; // Beginning of the insertion
-  std::vector<std::vector<char> > ins_end; // End of the insertion
-
-  get_alu_sequences(ins_begin, ins_end, sv, var, fasta_index, chrom_idx, EXTRA_SEQUENCE_LENGTH);
-
-  if (ins_begin.size() == 0 || ins_end.size() == 0)
-    return;
-
-  // Make sure these two sequence are the same size by inserting empty sequences
-  if (ins_begin.size() > ins_end.size())
-    ins_end.resize(ins_begin.size(), std::vector<char>(0));
-  else
-    ins_begin.resize(ins_end.size(), std::vector<char>(0));
-
-  assert(ins_begin.size() == ins_end.size());
-
-  for (std::size_t i = 0; i < ins_begin.size(); ++i)
-  {
-    auto && seq_begin = ins_begin[i];
-    auto && seq_end = ins_end[i];
-
-    std::vector<char> alt;
-    alt.push_back(var.ref.front()); // Add reference base to alternative allele
-    std::move(seq_begin.begin(), seq_begin.end(), std::back_inserter(alt));
-    append_sv_tag_to_node(alt);
-    std::move(seq_end.begin(), seq_end.end(), std::back_inserter(alt));
-    alt.push_back(var.ref.front());
-    var.alts.push_back(std::move(alt)); // Add the alternative path
-  }
-
-  // Add the variant
-  graph.SVs.push_back(std::move(sv));
 }
 
 
@@ -1484,7 +1112,7 @@ void
 transform_sv_records(seqan::VcfRecord & vcf_record,
                      seqan::FaiIndex const & fasta_index,
                      GenomicRegion const & genomic_region
-  )
+                     )
 {
   if (vcf_record.beginPos == 0)
     return;
@@ -1494,9 +1122,9 @@ transform_sv_records(seqan::VcfRecord & vcf_record,
   assert(std::count(seqan::begin(vcf_record.alt), seqan::end(vcf_record.alt), ',') == 0);
 
   if (std::find(begin(vcf_record.alt), end(vcf_record.alt), '<') != end(vcf_record.alt) ||
-    std::find(begin(vcf_record.alt), end(vcf_record.alt), ']') != end(vcf_record.alt) ||
-    std::find(begin(vcf_record.alt), end(vcf_record.alt), '[') != end(vcf_record.alt)
-    )
+      std::find(begin(vcf_record.alt), end(vcf_record.alt), ']') != end(vcf_record.alt) ||
+      std::find(begin(vcf_record.alt), end(vcf_record.alt), '[') != end(vcf_record.alt)
+      )
   {
     return; // Already transformed
   }
@@ -1504,7 +1132,7 @@ transform_sv_records(seqan::VcfRecord & vcf_record,
 
   // Change record to a SV if the difference between the allele sizes is large enough
   int const size_diff = static_cast<int>(seqan::length(vcf_record.alt)) -
-    static_cast<int>(seqan::length(vcf_record.ref));
+                        static_cast<int>(seqan::length(vcf_record.ref));
 
   if (size_diff <= -50) // DEL
   {
@@ -1607,7 +1235,7 @@ add_var_record(std::vector<VarRecord> & var_records,
                seqan::FaiIndex const & fasta_index,
                GenomicRegion genomic_region,
                bool is_sv_graph
-  )
+               )
 {
   assert(vcf_record.beginPos >= 0);
   VarRecord var(static_cast<uint32_t>(vcf_record.beginPos));
@@ -1671,19 +1299,32 @@ add_var_record(std::vector<VarRecord> & var_records,
                               ? std::string(seqan::begin(info) + EQ_SIGN_POS + 1, seqan::end(info))
                               : std::string("");
 
-      if (parse_info_sv_type("SVTYPE", key, val, sv.type)) {}
-      else if (parse_info_int("END", key, val, sv.end)) {}
-      else if (parse_info_int("SVSIZE", key, val, sv.size)) {}
-      else if (parse_info_int("SVLEN", key, val, sv.length)) {}
-      else if (parse_info_int("NCLUSTERS", key, val, sv.n_clusters)) {}
-      else if (parse_info_int("ORSTART", key, val, sv.or_start)) {}
-      else if (parse_info_int("OREND", key, val, sv.or_end)) {}
-      else if (parse_info_int("NUM_MERGED_SVS", key, val, sv.num_merged_svs)) {}
-      else if (parse_info_str("SEQ", key, val, sv.seq)) {}
-      else if (parse_info_str("SVINSSEQ", key, val, sv.ins_seq)) {}
-      else if (parse_info_str("LEFT_SVINSSEQ", key, val, sv.ins_seq_left)) {}
-      else if (parse_info_str("RIGHT_SVINSSEQ", key, val, sv.ins_seq_right)) {}
-      else if (parse_info_inv_type(key, sv.inv_type)) {}
+      if (parse_info_sv_type("SVTYPE", key, val, sv.type))
+      {}
+      else if (parse_info_int("END", key, val, sv.end))
+      {}
+      else if (parse_info_int("SVSIZE", key, val, sv.size))
+      {}
+      else if (parse_info_int("SVLEN", key, val, sv.length))
+      {}
+      else if (parse_info_int("NCLUSTERS", key, val, sv.n_clusters))
+      {}
+      else if (parse_info_int("ORSTART", key, val, sv.or_start))
+      {}
+      else if (parse_info_int("OREND", key, val, sv.or_end))
+      {}
+      else if (parse_info_int("NUM_MERGED_SVS", key, val, sv.num_merged_svs))
+      {}
+      else if (parse_info_str("SEQ", key, val, sv.seq))
+      {}
+      else if (parse_info_str("SVINSSEQ", key, val, sv.ins_seq))
+      {}
+      else if (parse_info_str("LEFT_SVINSSEQ", key, val, sv.ins_seq_left))
+      {}
+      else if (parse_info_str("RIGHT_SVINSSEQ", key, val, sv.ins_seq_right))
+      {}
+      else if (parse_info_inv_type(key, sv.inv_type))
+      {}
     }
 
     if (sv.type == NOT_SV)
@@ -1730,36 +1371,36 @@ add_var_record(std::vector<VarRecord> & var_records,
     if (sv.type == INS && sv.seq.size() > 0)
     {
       auto is_similar = [](std::vector<char> const & seq1, std::vector<char> const & seq2) -> bool
-      {
-        seqan::Dna5String seqan_seq1;
-        seqan::Dna5String seqan_seq2;
+                        {
+                          seqan::Dna5String seqan_seq1;
+                          seqan::Dna5String seqan_seq2;
 
-        std::size_t constexpr MAX_SIZE = 1000;
+                          std::size_t constexpr MAX_SIZE = 1000;
 
-        // At most align MAX_SIZE bp
-        if (seq1.size() > MAX_SIZE && seq2.size() > MAX_SIZE)
-        {
-          seqan_seq1 = std::string(begin(seq1), begin(seq1) + MAX_SIZE).c_str();
-          seqan_seq2 = std::string(begin(seq2), begin(seq2) + MAX_SIZE).c_str();
-        }
-        else
-        {
-          seqan_seq1 = std::string(begin(seq1), end(seq1)).c_str();
-          seqan_seq2 = std::string(begin(seq2), end(seq2)).c_str();
-        }
+                          // At most align MAX_SIZE bp
+                          if (seq1.size() > MAX_SIZE && seq2.size() > MAX_SIZE)
+                          {
+                            seqan_seq1 = std::string(begin(seq1), begin(seq1) + MAX_SIZE).c_str();
+                            seqan_seq2 = std::string(begin(seq2), begin(seq2) + MAX_SIZE).c_str();
+                          }
+                          else
+                          {
+                            seqan_seq1 = std::string(begin(seq1), end(seq1)).c_str();
+                            seqan_seq2 = std::string(begin(seq2), end(seq2)).c_str();
+                          }
 
-        auto const larger_size = std::max(length(seqan_seq1), length(seqan_seq2));
-        seqan::Align<seqan::Dna5String> align;
-        seqan::resize(seqan::rows(align), 2);
-        seqan::assignSource(seqan::row(align, 0), seqan_seq1);
-        seqan::assignSource(seqan::row(align, 1), seqan_seq2);
+                          auto const larger_size = std::max(length(seqan_seq1), length(seqan_seq2));
+                          seqan::Align<seqan::Dna5String> align;
+                          seqan::resize(seqan::rows(align), 2);
+                          seqan::assignSource(seqan::row(align, 0), seqan_seq1);
+                          seqan::assignSource(seqan::row(align, 1), seqan_seq2);
 
-        seqan::Score<int, seqan::Simple> scoringScheme(1, -1, -1);
-        seqan::AlignConfig<> alignConfig;
+                          seqan::Score<int, seqan::Simple> scoringScheme(1, -1, -1);
+                          seqan::AlignConfig<> alignConfig;
 
-        int score = seqan::globalAlignment(align, scoringScheme, alignConfig);
-        return static_cast<double>(score) / static_cast<double>(larger_size) >= 0.8;
-      };
+                          int score = seqan::globalAlignment(align, scoringScheme, alignConfig);
+                          return static_cast<double>(score) / static_cast<double>(larger_size) >= 0.8;
+                        };
 
       if (static_cast<long>(var.pos - 1l - sv.seq.size()) >= 0l)
       {
@@ -1770,16 +1411,16 @@ add_var_record(std::vector<VarRecord> & var_records,
                            chrom_idx,
                            (unsigned)std::max(0l, static_cast<long>(var.pos - 1l - sv.seq.size())),
                            (unsigned)sv.seq.size()
-          );
+                           );
 
         assert(ref_before.size() == sv.seq.size());
 
         if (is_similar(ref_before, sv.seq))
         {
           // Change to a duplication
-          BOOST_LOG_TRIVIAL(info) << "[graphtyper::constructor] Changed insertion at position "
-                                  << var.pos
-                                  << " to a duplication and moved it.";
+          BOOST_LOG_TRIVIAL(debug) << "[graphtyper::constructor] Changed insertion at position "
+                                   << var.pos
+                                   << " to a duplication and moved it.";
           var.pos -= sv.seq.size();
           sv.type = DUP;
         }
@@ -1793,9 +1434,9 @@ add_var_record(std::vector<VarRecord> & var_records,
         if (is_similar(ref_after, sv.seq))
         {
           // Change to a duplication
-          BOOST_LOG_TRIVIAL(info) << "[graphtyper::constructor] Changed insertion at position "
-                                  << var.pos
-                                  << " to a duplication.";
+          BOOST_LOG_TRIVIAL(debug) << "[graphtyper::constructor] Changed insertion at position "
+                                   << var.pos
+                                   << " to a duplication.";
           sv.type = DUP;
         }
       }
@@ -1805,7 +1446,7 @@ add_var_record(std::vector<VarRecord> & var_records,
     static_assert(EXTRA_SEQUENCE_LENGTH % 2 == 0, "Extra sequence length must be an even number");
 
     // Handle structural variants
-    switch(sv.type)
+    switch (sv.type)
     {
     case BND:
     {
@@ -1847,21 +1488,6 @@ add_var_record(std::vector<VarRecord> & var_records,
     }
 
 
-    case INS_ALU:
-    {
-      if (sv.or_start == -1 || sv.or_end == -1)
-        break;
-
-      BOOST_LOG_TRIVIAL(debug) << "An ALU insertion of size "
-                               << sv.size
-                               << " @ "
-                               << (vcf_record.beginPos + 1);
-
-      add_alu_insertion(sv, var, fasta_index, chrom_idx, EXTRA_SEQUENCE_LENGTH);
-      break;
-    }
-
-
     case INV:
     {
       BOOST_LOG_TRIVIAL(debug) << "An inversion of size "
@@ -1873,38 +1499,43 @@ add_var_record(std::vector<VarRecord> & var_records,
       break;
     }
 
-    default:{return;} // Skip adding this variant
+    default: {
+      return;
+    }                 // Skip adding this variant
     }
   }
   else
   {
     // Handle typical small variants (SNPs, indels <50 bps)
     var.ref = std::vector<char>(seqan::begin(vcf_record.ref), seqan::end(vcf_record.ref));
-    seqan::StringSet<seqan::CharString> seqan_alts;
-    seqan::strSplit(seqan_alts, vcf_record.alt, seqan::EqualsChar<','>());
-    var.alts.reserve(seqan::length(seqan_alts));
-
-    for (unsigned i = 0; i < seqan::length(seqan_alts); ++i)
-      var.alts.push_back(std::vector<char>(seqan::begin(seqan_alts[i]), seqan::end(seqan_alts[i])));
+    var.alts.push_back(std::vector<char>(seqan::begin(vcf_record.alt), seqan::end(vcf_record.alt)));
+    //seqan::StringSet<seqan::CharString> seqan_alts;
+    //seqan::strSplit(seqan_alts, vcf_record.alt, seqan::EqualsChar<','>());
+    //std::cerr << "t " << seqan::length(seqan_alts) << "\n";
+    //var.alts.reserve(seqan::length(seqan_alts));
+    //
+    //for (unsigned i = 0; i < seqan::length(seqan_alts); ++i)
+    //  var.alts.push_back(std::vector<char>(seqan::begin(seqan_alts[i]), seqan::end(seqan_alts[i])));
 
     // Remove alleles with non-ACGT
-    var.alts.erase(std::remove_if(var.alts.begin(),
-                              var.alts.end(),
-                              [](std::vector<char> const & alt)
-                              {
-                                if (alt.size() == 0)
-                                  return true;
+    var.alts.erase(
+      std::remove_if(
+        var.alts.begin(),
+        var.alts.end(),
+        [](std::vector<char> const & alt)
+      {
+        if (alt.size() == 0)
+          return true;
 
-                                for (char const c : alt)
-                                {
-                                  if (c != 'A' && c != 'C' && c != 'G' && c != 'T')
-                                    return true;
-                                }
+        for (char const c : alt)
+        {
+          if (c != 'A' && c != 'C' && c != 'G' && c != 'T')
+            return true;
+        }
 
-                                return false;
-                              }
-                     ), var.alts.end());
-
+        return false;
+      }
+        ), var.alts.end());
 
   }
 
@@ -1919,8 +1550,8 @@ construct_graph(std::string const & reference_filename,
                 std::string const & vcf_filename,
                 std::string const & region,
                 bool const is_sv_graph,
-                bool const use_absolute_positions
-                )
+                bool const use_absolute_positions,
+                bool const check_index)
 {
   graph = Graph(use_absolute_positions);
   graph.is_sv_graph = is_sv_graph;
@@ -1928,18 +1559,18 @@ construct_graph(std::string const & reference_filename,
   if (region.substr(0, 3) != "chr" && region.substr(0, 1) != ".")
     graph.use_prefix_chr = false;
 
-  BOOST_LOG_TRIVIAL(info) << "[graphtyper::constructor] Constructing graph for region "
-                          << region;
+  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::constructor] Constructing graph for region "
+                           << region;
 
   GenomicRegion genomic_region(region);
 
-  BOOST_LOG_TRIVIAL(info) << "[graphtyper::constructor] Reading FASTA file located at "
-                          << reference_filename;
+  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::constructor] Reading FASTA file located at "
+                           << reference_filename;
 
   // Load the reference genome
   seqan::FaiIndex fasta_index;
   open_reference_genome(fasta_index, reference_filename);
-  absolute_pos.calculate_offsets();
+  absolute_pos.calculate_offsets(graph);
 
   // Read the reference sequence
   std::vector<char> reference_sequence;
@@ -1950,38 +1581,80 @@ construct_graph(std::string const & reference_filename,
 
   if (vcf_filename.size() > 0)
   {
-    BOOST_LOG_TRIVIAL(info) << "[graphtyper::constructor] INFO: Reading VCF file located at "
-                            << vcf_filename;
+    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::constructor] INFO: Reading VCF file located at "
+                             << vcf_filename;
 
-    // Load region using the tabix index
-    seqan::Tabix tabix_file;
-    open_tabix(tabix_file, vcf_filename, genomic_region);
-
-    // Load VCF record in loaded region
-    seqan::VcfRecord vcf_record;
-
-    // Read records
-    bool is_read_record = seqan::readRegion(vcf_record, tabix_file);
-
-    while (is_read_record)
+    if (check_index)
     {
-      if (vcf_record.beginPos >= static_cast<int64_t>(genomic_region.begin) &&
-          (vcf_record.beginPos + seqan::length(vcf_record.ref)) <=
-            static_cast<int64_t>(genomic_region.end)
-        )
+      // Load region using the tabix index
+      seqan::Tabix tabix_file;
+      open_tabix(tabix_file, vcf_filename, genomic_region);
+
+      // Load VCF record in loaded region
+      seqan::VcfRecord vcf_record;
+
+      // Read records
+      bool is_read_record = seqan::readRegion(vcf_record, tabix_file);
+
+      while (is_read_record)
       {
-        std::vector<seqan::VcfRecord> records = split_multi_allelic(std::move(vcf_record));
-
-        for (auto & rec : records)
+        if (vcf_record.beginPos >= static_cast<int64_t>(genomic_region.begin) &&
+            (vcf_record.beginPos + seqan::length(vcf_record.ref)) <=
+            static_cast<int64_t>(genomic_region.end)
+            )
         {
-          if (is_sv_graph)
-            transform_sv_records(rec, fasta_index, genomic_region);
+          std::vector<seqan::VcfRecord> records = split_multi_allelic(std::move(vcf_record));
 
-          add_var_record(var_records, rec, fasta_index, genomic_region, is_sv_graph);
+          for (auto & rec : records)
+          {
+            if (is_sv_graph)
+              transform_sv_records(rec, fasta_index, genomic_region);
+
+            add_var_record(var_records, rec, fasta_index, genomic_region, is_sv_graph);
+          }
         }
+
+        is_read_record = seqan::readRegion(vcf_record, tabix_file);
+      }
+    }
+    else
+    {
+      // test
+      igzstream igz(vcf_filename.c_str()); // input vcf.gz file
+
+      if (!igz.rdbuf()->is_open())
+      {
+        BOOST_LOG_TRIVIAL(error) << "Could not open VCF " << vcf_filename;
+        std::exit(1);
       }
 
-      is_read_record = seqan::readRegion(vcf_record, tabix_file);
+      std::string line;
+
+      while (std::getline(igz, line))
+      {
+        // Skip header
+        if (line.size() > 0 && line[0] == '#')
+          continue;
+
+        seqan::VcfRecord vcf_record;
+        _insertDataToVcfRecord(vcf_record, line.c_str(), 0);
+
+        if (vcf_record.beginPos >= static_cast<int64_t>(genomic_region.begin) &&
+            (vcf_record.beginPos + seqan::length(vcf_record.ref)) <=
+            static_cast<int64_t>(genomic_region.end)
+            )
+        {
+          std::vector<seqan::VcfRecord> records = split_multi_allelic(std::move(vcf_record));
+
+          for (auto & rec : records)
+          {
+            if (is_sv_graph)
+              transform_sv_records(rec, fasta_index, genomic_region);
+
+            add_var_record(var_records, rec, fasta_index, genomic_region, is_sv_graph);
+          }
+        }
+      }
     }
 
     // Remove duplicate alternative alleles
@@ -1990,21 +1663,23 @@ construct_graph(std::string const & reference_filename,
       std::sort(var_record.alts.begin(), var_record.alts.end());
       var_record.alts.erase(std::unique(var_record.alts.begin(), var_record.alts.end()),
                             var_record.alts.end()
-      );
+                            );
     }
 
+#ifndef NDEBUG
     genomic_region.check_if_var_records_match_reference_genome(var_records, reference_sequence);
+#endif // NDEBUG
 
     for (auto & var_record : var_records)
     {
       genomic_region.add_reference_to_record_if_they_have_a_matching_prefix(var_record,
                                                                             reference_sequence
-        );
+                                                                            );
     }
 
 #ifndef NDEBUG
     genomic_region.check_if_var_records_match_reference_genome(var_records, reference_sequence);
-#endif
+#endif // NDEBUG
   }
 
   seqan::clear(fasta_index); // Close reference genome FASTA
@@ -2012,22 +1687,26 @@ construct_graph(std::string const & reference_filename,
   // Sort var_records by position in increasing order
   std::sort(var_records.begin(),
             var_records.end(),
-            [](VarRecord const & a, VarRecord const & b){return a.pos < b.pos;}
-    );
+            [](VarRecord const & a, VarRecord const & b){
+      return a.pos < b.pos;
+    }
+            );
 
   graph.add_genomic_region(std::move(reference_sequence),
                            std::move(var_records),
                            std::move(genomic_region)
-    );
+                           );
 
+#ifndef NDEBUG
   if (!graph.check())
   {
     BOOST_LOG_TRIVIAL(error) << "[graphtyper::graph] Problem creating graph. Printing graph:";
     gyper::graph.print();
     std::exit(1);
   }
+#endif // NDEBUG
 
-  BOOST_LOG_TRIVIAL(info) << "[graphtyper::constructor] Graph was successfully constructed.";
+  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::constructor] Graph was successfully constructed.";
 
   // Create all specials positions
   graph.create_special_positions();

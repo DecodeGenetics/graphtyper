@@ -8,22 +8,19 @@ namespace gyper
 Options *
 Options::instance()
 {
-  // if (!_instance)
-  //   _instance = new Options;
-
   return _instance;
 }
 
 
-Options::Options(){}
-
-
-void
-Options::print()
+const Options *
+Options::const_instance()
 {
-  std::cout << "[options] INFO: Verbosity is " << verbosity << std::endl;
+  return _instance;
 }
 
+
+Options::Options()
+{}
 
 Options * Options::_instance = new Options;
 

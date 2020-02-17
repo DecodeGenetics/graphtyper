@@ -1,8 +1,10 @@
 #include <cassert>
+#include <cstdlib> // abs
 #include <cstdint> // uint32_t
 #include <ios>
 #include <iomanip>
 #include <unordered_map>
+#include <utility>
 
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
@@ -24,28 +26,58 @@
 #include <graphtyper/utilities/type_conversions.hpp>
 
 
-namespace gyper
+namespace
 {
 
-
-void
-VariantMap::set_pn_count(std::size_t const pn_count)
+std::pair<double, long>
+get_abs_dev_strand_bias(std::vector<gyper::VariantSupport> const & supports)
 {
-  map_mutexes = std::vector<std::mutex>(pn_count);
-  varmaps.resize(pn_count);
+  long total_depth = 0;
+  long total_reversed = 0;
+
+  for (auto const & sup : supports)
+  {
+    total_depth += sup.lq_support + sup.hq_support;
+    total_reversed += sup.sequence_reversed;
+  }
+
+  assert(total_depth > 0);
+  double abs_dev_sb = std::abs(static_cast<double>(total_reversed) / static_cast<double>(total_depth) - 0.5);
+  return std::pair<double, long>(abs_dev_sb, total_depth);
 }
 
 
-void
-VariantMap::add_variants(std::vector<VariantCandidate> && vars, std::size_t const pn_index)
+std::pair<double, long>
+get_abs_dev_read_bias(std::vector<gyper::VariantSupport> const & supports)
 {
-  assert(pn_index < varmaps.size());
-  assert(pn_index < map_mutexes.size());
+  long total_depth = 0;
+  long total_first_read = 0;
 
-  std::lock_guard<std::mutex> lock(map_mutexes[pn_index]);
-  auto & varmap = varmaps[pn_index];
+  for (auto const & sup : supports)
+  {
+    total_depth += sup.lq_support + sup.hq_support;
+    total_first_read += sup.first_in_pairs;
+  }
 
-  for (auto && var : vars)
+  double abs_dev_rb = std::abs(static_cast<double>(total_first_read) / static_cast<double>(total_depth) - 0.5);
+  return std::pair<double, long>(abs_dev_rb, total_depth);
+}
+
+
+} // anon namespace
+
+
+namespace gyper
+{
+
+void
+VariantMap::add_variants(std::vector<VariantCandidate> && vars, long const sample_index)
+{
+  assert(varmaps.size() > 0);
+  assert(sample_index < static_cast<long>(varmaps.size()));
+  auto & varmap = varmaps[sample_index];
+
+  for (auto & var : vars)
   {
     assert(var.seqs.size() >= 2);
     assert(var.is_normalized());
@@ -53,397 +85,340 @@ VariantMap::add_variants(std::vector<VariantCandidate> && vars, std::size_t cons
     assert(var.seqs[1].size() > 0);
 
     // Extract all required information
-    bool const IS_LOW_QUAL = var.is_low_qual;
-    bool const IS_IN_PROPER_PAIR = var.is_in_proper_pair;
-    bool const IS_MAPQ0 = var.is_mapq0;
-    bool const IS_UNALIGNED = var.is_unaligned;
-    bool const IS_CLIPPED = var.is_clipped;
-    bool const IS_FIRST_IN_PAIR = var.is_first_in_pair;
-    bool const IS_SEQ_REVERSED = var.is_seq_reversed;
     uint32_t const ORIGINAL_POS = var.original_pos;
 
-    auto && new_item = std::make_pair<VariantCandidate, VariantSupport>(std::move(var), VariantSupport());
-    auto it = varmap.insert(std::forward<std::pair<VariantCandidate, VariantSupport> >(new_item)).first;
+    auto it = varmap.find(var);
 
-    // Add the discovered variant candidate
-    if (IS_LOW_QUAL)
-      ++it->second.lq_support; // Increment LQ support
-    else
-      ++it->second.hq_support; // Increment HQ support
+    if (it == varmap.end())
+    {
+      it = varmap.insert(std::make_pair<VariantCandidate, VariantSupport>(
+                           VariantCandidate(var),
+                           VariantSupport())).first;
+
+      // Expand to learn the true size
+      it->second.is_indel = var.seqs[0].size() != var.seqs[1].size();
+      long const old_size = std::max(var.seqs[0].size(), var.seqs[1].size()) - 1;
+      var.expanded_normalized();
+      assert(var.seqs[0].size() > 0);
+      assert(var.seqs[1].size() > 0);
+      it->second.var_size = std::max(var.seqs[0].size(), var.seqs[1].size()) - 1;
+      it->second.growth = std::max(0l, static_cast<long>(it->second.var_size) - old_size);
+    }
 
     ++it->second.depth; // Increment depth
+    it->second.lq_support += ((var.flags & IS_LOW_BASE_QUAL) != 0);
+    it->second.hq_support += ((var.flags & IS_LOW_BASE_QUAL) == 0);
+    it->second.proper_pairs += ((var.flags & IS_PROPER_PAIR) != 0);
 
-    if (IS_IN_PROPER_PAIR)
-      ++it->second.proper_pairs; // Increment number of proper pairs
+    if ((var.flags & IS_MAPQ_BAD) == 0)
+      it->second.is_any_mapq_good = true;
 
-    if (IS_MAPQ0)
-      ++it->second.mapq0; // Increment number of reads with MAPQ==0
-
-    if (IS_UNALIGNED)
-      ++it->second.unaligned; // Increment number of unaligned reads
-
-    if (IS_CLIPPED)
-      ++it->second.clipped;
-
-    if (IS_FIRST_IN_PAIR)
-      ++it->second.first_in_pairs;
-
-    if (IS_SEQ_REVERSED)
-      ++it->second.sequence_reversed;
-
+    it->second.first_in_pairs += ((var.flags & IS_FIRST_IN_PAIR) != 0);
+    it->second.sequence_reversed += ((var.flags & IS_SEQ_REVERSED) != 0);
+    it->second.clipped += ((var.flags & IS_CLIPPED) != 0);
     it->second.unique_positions.insert(ORIGINAL_POS);
   }
 }
 
 
 void
-VariantMap::create_varmap_for_all()
+VariantMap::create_varmap_for_all(ReferenceDepth const & reference_depth)
 {
-  assert(varmaps.size() == global_reference_depth.depths.size());
+  assert(varmaps.size() == reference_depth.depths.size());
   long const NUM_SAMPLES = static_cast<long>(varmaps.size());
 
   for (long i = 0; i < NUM_SAMPLES; ++i)
   {
     auto & varmap = varmaps[i];
+    long new_min_support = minimum_variant_support;
+
+    if (varmap.size() > 50)
+    {
+      while (new_min_support < 15)
+      {
+        long transitions = 0;
+        long transversions = 0;
+        long num_above_threshold = 0;
+
+        for (auto it = varmap.cbegin(); it != varmap.cend(); ++it)
+        {
+          if (it->second.is_support_above_cutoff(new_min_support))
+          {
+            ++num_above_threshold;
+            int ret = it->first.is_transition_or_transversion();
+
+            if (ret == 1)
+              ++transitions;
+            else if (ret == 2)
+              ++transversions;
+          }
+        }
+
+        if ((num_above_threshold > 50 && transversions > transitions) ||
+            (num_above_threshold > 75 &&
+             (static_cast<double>(transitions) / static_cast<double>(transversions)) < 1.2) ||
+            (num_above_threshold > 150 &&
+             (static_cast<double>(transitions) / static_cast<double>(transversions)) < 1.3))
+        {
+          ++new_min_support;
+        }
+        else
+        {
+          break;
+        }
+      } // while(true)
+
+      #ifndef NDEBUG
+      if (new_min_support > minimum_variant_support)
+        BOOST_LOG_TRIVIAL(debug) << "[graphtyper::variant_map] Min support increased to " << new_min_support;
+      #endif // NDEBUG
+    } // if (varmap.size() > 50)
+
+    double const min_ratio = minimum_variant_support_ratio;
 
     for (auto map_it = varmap.begin(); map_it != varmap.end(); ++map_it)
     {
+      VariantCandidate const & var = map_it->first;
       VariantSupport & new_var_support = map_it->second;
 
       // Check if support is above cutoff and some reasonable hard filters
-      if (new_var_support.is_support_above_cutoff())
+      if (new_var_support.is_support_above_cutoff(new_min_support))
       {
-        new_var_support.set_depth(global_reference_depth.get_read_depth(map_it->first, i));
+        new_var_support.set_depth(reference_depth.get_read_depth(map_it->first, i));
 
         // Check if ratio is above cutoff
-        if (new_var_support.is_ratio_above_cutoff())
+        if (new_var_support.is_ratio_above_cutoff(min_ratio))
         {
           // In this case, we can add the variant
+          #ifndef NDEBUG
           new_var_support.pn_index = static_cast<uint32_t>(i);
-          pool_varmap[map_it->first].push_back(new_var_support);
+          #endif // NDEBUG
+
+          pool_varmap[var].push_back(new_var_support);
         }
       }
     }
+  } // for (long i = 0; i < NUM_SAMPLES; ++i)
+
+#ifndef NDEBUG
+  BOOST_LOG_TRIVIAL(debug) << "Pool varmap size " << pool_varmap.size();
+
+  for (auto it = pool_varmap.begin(); it != pool_varmap.end(); ++it)
+  {
+    BOOST_LOG_TRIVIAL(debug) << it->first.print();
   }
+#endif // NDEBUG
 }
 
 
 void
 VariantMap::filter_varmap_for_all()
 {
-  BOOST_LOG_TRIVIAL(info) << "[graphtyper::variant_map] Number of variants above minimum cutoff is "
-                          << pool_varmap.size();
+  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::variant_map] Number of variants above minimum cutoff is "
+                           << pool_varmap.size();
 
   // No need to filter no variants, in fact it will segfault
   if (pool_varmap.size() == 0)
     return;
 
-  uint32_t const WINDOW_NOT_STARTED = 0xFFFFFFFFULL;
-
-  /** Limit to the number of variants in a 100 bp window */
-  if (pool_varmap.size() > 0)
+  // Filter on strand bias
+  //*
+  for (auto it = pool_varmap.begin(); it != pool_varmap.end();)  // no increment
   {
-    BOOST_LOG_TRIVIAL(info) << "[graphtyper::variant_map] Soft cap of variants in 100 bp window is "
-                            << Options::instance()->soft_cap_of_variants_in_100_bp_window;
-    BOOST_LOG_TRIVIAL(info) << "[graphtyper::variant_map] Hard cap of variants in 100 bp window is "
-                            << Options::instance()->hard_cap_of_variants_in_100_bp_window;
+    // Skip read bias on indels
+    bool is_any_hq = false;
 
-    std::size_t const original_variant_support_cutoff = Options::instance()->minimum_variant_support;
-    std::size_t const original_variant_support_ratio_cutoff = Options::instance()->minimum_variant_support_ratio;
-    std::size_t const original_max_variants_in_100_bp_window = Options::instance()->soft_cap_of_variants_in_100_bp_window;
-    std::vector<uint32_t> positions;
-
-    for (auto map_it = pool_varmap.begin(); map_it != pool_varmap.end(); ++map_it)
-      positions.push_back(map_it->first.abs_pos);
-
-    assert(positions.size() == pool_varmap.size());
-    assert(positions.size() > 0);
-    uint32_t a = 0;
-    uint32_t b = 0;
-    uint32_t window_start = WINDOW_NOT_STARTED;
-    std::deque<uint32_t> dq;
-    std::vector<std::pair<uint32_t, uint32_t> > indexes_to_filter;
-
-    // Search for a window with too many variants
-    while (b < positions.size())
+    for (auto const & sup : it->second)
     {
-      dq.push_back(positions[b]);
-
-      // Remove from the back
-      while(dq.front() + 100 < dq.back())
+      if (sup.hq_support >= 5 && sup.proper_pairs >= 5)
       {
-        dq.pop_front();
-        ++a;
+        is_any_hq = true;
+        break;
       }
-
-      // Check if the deque is too big
-      if (window_start == WINDOW_NOT_STARTED && dq.size() > original_max_variants_in_100_bp_window)
-      {
-        window_start = a;
-      }
-      else if (window_start != WINDOW_NOT_STARTED && dq.size() < original_max_variants_in_100_bp_window)
-      {
-        indexes_to_filter.push_back({window_start, b - window_start});
-        window_start = WINDOW_NOT_STARTED;
-      }
-
-      ++b;
     }
 
-    if (window_start != WINDOW_NOT_STARTED)
-      indexes_to_filter.push_back({window_start, positions.size() - window_start});
+    assert(it->second.size() > 0);
+    bool const is_indel = it->second[0].is_indel;
 
-    BOOST_LOG_TRIVIAL(info) << "[graphtyper::variant_map] Found " << indexes_to_filter.size() << " windows with too many variants.";
-    BOOST_LOG_TRIVIAL(info) << "[graphtyper::variant_map] Total variant range is " << (positions.back() - positions.front());
-
-    // Start on the last window so the indexes are correct
-    for (auto it = indexes_to_filter.rbegin(); it != indexes_to_filter.rend(); ++it)
+    // Filter on strand bias
+    if (!is_any_hq)
     {
-      assert(it->first < positions.size());
-      assert(it->first + it->second - 1 < positions.size());
-      std::size_t max_variants_in_100_bp_window = (original_max_variants_in_100_bp_window *
-                                                  std::max(static_cast<uint32_t>(125), positions[it->first + it->second - 1] - positions[it->first])
-                                                  ) / 125;
-      auto map_it = std::next(pool_varmap.begin(), it->first);
-      uint32_t window_size = 0;
-      uint32_t erased = 0;
+      std::pair<double, long> abs_dev_sb_depth = get_abs_dev_strand_bias(it->second);
+      double abs_dev_sb = abs_dev_sb_depth.first;
+      long depth = abs_dev_sb_depth.second;
 
-      while(map_it != pool_varmap.end() && Options::instance()->minimum_variant_support < 15)
+      if (is_indel && abs_dev_sb > 0.07)
+        abs_dev_sb -= 0.07;
+
+      if ((abs_dev_sb > 0.49999) ||
+          (abs_dev_sb > 0.45 && depth > 30) ||
+          (abs_dev_sb > 0.40 && depth > 80) ||
+          (abs_dev_sb > 0.37 && depth > 200) ||
+          (abs_dev_sb > 0.34 && depth > 500))
       {
-        if (window_size == it->second)
-        {
-          if (it->second - erased <= max_variants_in_100_bp_window)
-          {
-            break; // We are done, we have erased enough
-          }
-          else
-          {
-            // We need to keep increasing the cutoffs
-            Options::instance()->minimum_variant_support += 1;
-
-            if (Options::instance()->minimum_variant_support_ratio < 0.95)
-              Options::instance()->minimum_variant_support_ratio += 0.033;
-
-            if (max_variants_in_100_bp_window < Options::instance()->hard_cap_of_variants_in_100_bp_window &&
-                Options::instance()->minimum_variant_support % 2 == 0
-                )
-            {
-              max_variants_in_100_bp_window += 1; // Also increase the number of variants allowed every now and then
-            }
-
-            window_size = erased;
-            assert(it->first < pool_varmap.size());
-            map_it = std::next(pool_varmap.begin(), it->first);
-
-            if (map_it == pool_varmap.end())
-              break;
-          }
-        }
-
-        assert(map_it != pool_varmap.end());
-
-        if (std::any_of(map_it->second.begin(), map_it->second.end(), [](VariantSupport const & var_support){return var_support.is_above_cutoff();}))
-        {
-          ++map_it;
-        }
-        else
-        {
-          ++erased;
-          BOOST_LOG_TRIVIAL(info) << "[graphtyper::variant_map] Due to too high graph complexity I erased the variant: " << map_it->first.print()
-                                  << ". It had support in " << map_it->second.size() << " samples.";
-          map_it = pool_varmap.erase(map_it);
-        }
-
-        ++window_size;
+#ifndef NDEBUG
+        BOOST_LOG_TRIVIAL(debug) << "Strand bias removed " << it->first.print() << " " << abs_dev_sb << " " << depth;
+#endif // NDEBUG
+        it = pool_varmap.erase(it);
+        continue;
       }
 
-      Options::instance()->minimum_variant_support = original_variant_support_cutoff;
-      Options::instance()->minimum_variant_support_ratio = original_variant_support_ratio_cutoff;
-    }
-  }
-
-
-  /** Limit to the number of non-SNPs in a 100 bp window */
-  if (pool_varmap.size() > 0)
-  {
-    BOOST_LOG_TRIVIAL(info) << "[graphtyper::variant_map] Soft cap of non-SNPs in 100 bp window is " << Options::instance()->soft_cap_of_non_snps_in_100_bp_window;
-    BOOST_LOG_TRIVIAL(info) << "[graphtyper::variant_map] Hard cap of non-SNPs in 100 bp window is " << Options::instance()->hard_cap_of_non_snps_in_100_bp_window;
-    std::size_t const original_variant_support_cutoff = Options::instance()->minimum_variant_support;
-    std::size_t const original_variant_support_ratio_cutoff = Options::instance()->minimum_variant_support_ratio;
-    std::size_t const original_max_nonsnps_in_100_bp_window = Options::instance()->soft_cap_of_non_snps_in_100_bp_window;
-    std::vector<uint32_t> positions;
-
-    for (auto map_it = pool_varmap.begin(); map_it != pool_varmap.end(); ++map_it)
-    {
-      if (!map_it->first.is_snp_or_snps())
-        positions.push_back(map_it->first.abs_pos);
-      else
-        positions.push_back(0);
-    }
-
-    if (positions.size() > original_max_nonsnps_in_100_bp_window)
-    {
-      uint32_t b = 0;
-      uint32_t window_start = WINDOW_NOT_STARTED;
-      std::deque<uint32_t> aq;
-      std::deque<uint32_t> dq;
-      std::vector<std::pair<uint32_t, uint32_t> > indexes_to_filter;
-
-      // Search for a window with too many variants
-      while (b < positions.size())
+      // Filter on read bias
+      if (!is_indel)
       {
-        if (positions[b] == 0)
+        std::pair<double, long> abs_dev_rb_depth = get_abs_dev_read_bias(it->second);
+        double abs_dev_rb = abs_dev_rb_depth.first;
+        long depth = abs_dev_rb_depth.second;
+
+        if ((abs_dev_rb > 0.49999 && depth > 10) ||
+            (abs_dev_rb > 0.45 && depth > 40) ||
+            (abs_dev_rb > 0.40 && depth > 100) ||
+            (abs_dev_rb > 0.35 && depth > 500))
         {
-          ++b;
+#ifndef NDEBUG
+          BOOST_LOG_TRIVIAL(debug) << "Read bias removed " << it->first.print() << " " << abs_dev_rb << " " << depth;
+#endif // NDEBUG
+          it = pool_varmap.erase(it);
           continue;
         }
-
-        aq.push_back(b);
-        dq.push_back(positions[b]);
-
-        // Remove from the back
-        while(dq.front() + 100 < dq.back())
-        {
-          dq.pop_front();
-          aq.pop_front();
-        }
-
-        assert (dq.size() == aq.size());
-
-        // Check if the deque is too big
-        if (window_start == WINDOW_NOT_STARTED && dq.size() > original_max_nonsnps_in_100_bp_window)
-        {
-          window_start = aq.front();
-        }
-        else if (window_start != WINDOW_NOT_STARTED && dq.size() < original_max_nonsnps_in_100_bp_window)
-        {
-          indexes_to_filter.push_back({window_start, aq.back() + 1 - window_start});
-          window_start = WINDOW_NOT_STARTED;
-        }
-
-        ++b;
       }
+    }
 
-      if (window_start != WINDOW_NOT_STARTED)
+    ++it;
+  }
+  //*/
+
+  /// Limit to the number of variants in a 100 bp window
+  if (static_cast<long>(pool_varmap.size()) > Options::const_instance()->soft_cap_of_variants_in_100_bp_window)
+  {
+    long const max_variants_in_100bp_window = Options::const_instance()->soft_cap_of_variants_in_100_bp_window;
+    assert(max_variants_in_100bp_window > 0);
+
+    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::variant_map] Soft cap of variants in 100 bp window is "
+                             << Options::const_instance()->soft_cap_of_variants_in_100_bp_window;
+
+    // Gather how many variants fall into each bucket (which covers 100 bp)
+    std::vector<long> max_scores_in_bucket;
+    auto window_it = pool_varmap.begin();
+    long current_bucket = window_it->first.abs_pos / 100l;
+
+    auto filter_window =
+      [&max_scores_in_bucket, max_variants_in_100bp_window, this](PoolVarMap::iterator window_it)
       {
-        indexes_to_filter.push_back({window_start, aq.back() + 1 - window_start});
-      }
+        BOOST_LOG_TRIVIAL(debug) << "[graphtyper::variant_map] Too many variants! " << max_scores_in_bucket.size();
 
-      BOOST_LOG_TRIVIAL(info) << "[graphtyper::variant_map] Found " << indexes_to_filter.size() << " windows with too many non SNPs.";
-      assert (positions.size() > 0);
+        // Find the minimum max score for passing a variant in this region
+        std::vector<long> sorted_max_scores_in_bucket(max_scores_in_bucket);
+        std::sort(sorted_max_scores_in_bucket.begin(), sorted_max_scores_in_bucket.end());
+        long const index_with_min_score = sorted_max_scores_in_bucket.size() -
+                                          max_variants_in_100bp_window;
+        assert(index_with_min_score <= static_cast<long>(sorted_max_scores_in_bucket.size()));
+        long const min_score_pass = std::min(50l, sorted_max_scores_in_bucket[index_with_min_score]);
 
-      // Start on the last window so the indexes are correct
-      for (auto it = indexes_to_filter.rbegin(); it != indexes_to_filter.rend(); ++it)
-      {
-        assert (positions[it->first] != 0);
-        assert (positions[it->first + it->second - 1] != 0);
-        std::size_t max_nonsnps_in_100_bp_window = (original_max_nonsnps_in_100_bp_window *
-                                                    std::max(static_cast<uint32_t>(125), positions[it->first + it->second - 1] - positions[it->first])
-                                                    ) / 125;
-        assert(it->first < positions.size());
-        assert(it->first + it->second - 1 < positions.size());
-        auto map_it = std::next(pool_varmap.begin(), it->first);
-        uint32_t window_size = 0;
-        uint32_t erased = 0;
-
-        while(map_it != pool_varmap.end() && Options::instance()->minimum_variant_support < 15)
+        for (long s{0}; s < static_cast<long>(max_scores_in_bucket.size()); ++s)
         {
-          // Loop until we have looped the entire window
-          if (window_size == it->second)
+          if (max_scores_in_bucket[s] >= min_score_pass)
           {
-            auto count_map_it = std::next(pool_varmap.begin(), it->first);
-
-            // Count non SNPs
-            if (std::count_if(count_map_it,
-                              std::next(count_map_it, it->second),
-                              [](std::pair<Variant, std::vector<VariantSupport> > const & var)
-                              {
-                                return var.first.is_snp_or_snps() == false;
-                              }
-                              ) - erased <= static_cast<long>(max_nonsnps_in_100_bp_window)
-               )
-            {
-              break; // We are done, we have erased enough
-            }
-            else
-            {
-              // We need to keep increasing the cutoffs
-              Options::instance()->minimum_variant_support += 1;
-
-              if (Options::instance()->minimum_variant_support_ratio < 0.95)
-                Options::instance()->minimum_variant_support_ratio += 0.033;
-
-              if (max_nonsnps_in_100_bp_window < Options::instance()->hard_cap_of_non_snps_in_100_bp_window &&
-                  Options::instance()->minimum_variant_support % 2 == 0
-                  )
-              {
-                max_nonsnps_in_100_bp_window += 1; // Also increase the number of variants allowed every now and then (but to some cap)
-              }
-
-              window_size = erased;
-              map_it = std::next(pool_varmap.begin(), it->first);
-
-              if (map_it == pool_varmap.end())
-                break;
-            }
-          }
-
-          assert(map_it != pool_varmap.end());
-
-          if (map_it->first.is_snp_or_snps())
-          {
-            // std::cout << "kept snp " << map_it->first.abs_pos << std::endl;
-            ++map_it;
-            ++window_size;
-            continue;
-          }
-
-          if (std::any_of(map_it->second.begin(), map_it->second.end(), [](VariantSupport const & var_support){return var_support.is_above_cutoff();}))
-          {
-            // std::cout << "kept non-snp " << map_it->first.abs_pos << std::endl;
-            ++map_it;
+            ++window_it;
           }
           else
           {
-            ++erased;
-            BOOST_LOG_TRIVIAL(info) << "[graphtyper::variant_map] Due to too high non-SNP graph complexity I erased the variant: " << map_it->first.print()
-                                    << ". It had support in " << map_it->second.size() << " samples with cutoffs " << Options::instance()->minimum_variant_support << " " << Options::instance()->minimum_variant_support_ratio;
-            map_it = pool_varmap.erase(map_it);
+            #ifndef NDEBUG
+            BOOST_LOG_TRIVIAL(debug) << "Due to too high graph complexity I erased the variant: "
+                                     << window_it->first.print()
+                                     << ". It had support in " << window_it->second.size()
+                                     << " samples and score of " << max_scores_in_bucket[s];
+            #endif // NDEBUG
+            window_it = pool_varmap.erase(window_it);
           }
-
-          ++window_size;
         }
 
-        Options::instance()->minimum_variant_support = original_variant_support_cutoff;
-        Options::instance()->minimum_variant_support_ratio = original_variant_support_ratio_cutoff;
+        return window_it; // return the new iterator
+      };
+
+    for (auto map_it = std::next(pool_varmap.begin()); map_it != pool_varmap.end(); ++map_it)
+    {
+      long const bucket = map_it->first.abs_pos / 100l;
+      assert(bucket >= current_bucket); // We should never go backwards in order
+
+      {
+        // Add the max variant score
+        long max_score{0};
+
+        // Get the max score for this variant
+        for (VariantSupport const & supp : map_it->second)
+        {
+          long const score = supp.get_score();
+
+          if (score > max_score)
+            max_score = score;
+        }
+
+        max_scores_in_bucket.push_back(max_score);
       }
-    } // if (positions.size() > 0)
+
+      if (bucket == current_bucket) // Let's continue looping through the variants until we reach the next bucket
+        continue;
+
+      // We have reached a new bucket, check if there are too many variants in the bucket
+      if (static_cast<long>(max_scores_in_bucket.size()) > max_variants_in_100bp_window)
+      {
+        assert(std::distance(window_it, map_it) == static_cast<long>(max_scores_in_bucket.size()));
+        window_it = filter_window(window_it);
+        map_it = window_it;
+      }
+      else
+      {
+        window_it = map_it;
+      }
+
+      // Update current bucket
+      current_bucket = bucket;
+      max_scores_in_bucket.clear();
+    }
+
+    // Check if the last bucket has too many variants
+    if (static_cast<long>(max_scores_in_bucket.size()) > max_variants_in_100bp_window)
+    {
+      assert(std::distance(window_it, pool_varmap.end()) == static_cast<long>(max_scores_in_bucket.size()));
+      filter_window(window_it);
+      // Do stuff to filter variants in range [window_it, map_it[
+    }
   }
 
   /** Break down variants to check if they are duplicates */
-  std::vector<VariantCandidate> broken_vars_to_add;
-  std::vector<std::vector<VariantSupport> > supports_to_add;
+  //*
+  //std::vector<VariantCandidate> broken_vars_to_add;
+  //std::vector<std::vector<VariantSupport> > supports_to_add;
 
-  for (auto map_it = pool_varmap.begin(); map_it != pool_varmap.end(); /*no increment*/)
+  for (auto map_it = pool_varmap.begin(); map_it != pool_varmap.end();)  // no increment
   {
     VariantCandidate var(map_it->first);
-    std::size_t const EXTRA_BASES_TO_ADD = 5;
 
-    for (std::size_t i = 0; i < EXTRA_BASES_TO_ADD; ++i)
-      if (!var.add_base_in_front(false /*add_N*/))
-        break;
+    {
+      long constexpr EXTRA_BASES_TO_ADD = 5;
 
-    for (std::size_t i = 0; i < EXTRA_BASES_TO_ADD; ++i)
-      if (!var.add_base_in_back(false /*add_N*/))
-        break;
+      for (long i = 0; i < EXTRA_BASES_TO_ADD; ++i)
+        if (!var.add_base_in_front(false)) // false is add_N
+          break;
 
-    std::size_t const THRESHOLD = 1;
+      for (long i = 0; i < EXTRA_BASES_TO_ADD; ++i)
+        if (!var.add_base_in_back(false)) // false is add_N
+          break;
+    }
 
-    //
+    std::size_t constexpr THRESHOLD = 1;
+
     Variant var_cp;
     var_cp.abs_pos = var.abs_pos;
     var_cp.seqs = var.seqs;
-    std::vector<Variant> new_broken_down_vars = break_down_variant(Variant(var_cp), THRESHOLD);
+
+    // Force that no variant is overlapping
+    bool const is_no_variant_overlapping = true; // Force it to be true so we wont use skyr
+
+    std::vector<Variant> new_broken_down_vars =
+      break_down_variant(Variant(var_cp), THRESHOLD, is_no_variant_overlapping);
+
     assert(new_broken_down_vars.size() != 0);
 
     if (new_broken_down_vars.size() == 1)
@@ -462,7 +437,7 @@ VariantMap::filter_varmap_for_all()
     {
       new_broken_down_var_candidates[i].abs_pos = new_broken_down_vars[i].abs_pos;
       new_broken_down_var_candidates[i].seqs = std::move(new_broken_down_vars[i].seqs);
-      new_broken_down_var_candidates[i].is_low_qual = var.is_low_qual;
+      new_broken_down_var_candidates[i].flags = var.flags;
     }
 
     // Remove broken variants which are already in the varmap
@@ -481,15 +456,11 @@ VariantMap::filter_varmap_for_all()
         return graph.is_variant_in_graph(Variant(broken_var));
       }), new_broken_down_var_candidates.end());
 
-    if (new_broken_down_var_candidates.size() <= 1)
+    if (new_broken_down_var_candidates.size() == 0)
     {
-      // Add this variant (if there is one) and remove the old one
-      if (new_broken_down_var_candidates.size() == 1)
-      {
-        broken_vars_to_add.push_back(std::move(new_broken_down_var_candidates[0]));
-        supports_to_add.push_back(map_it->second);
-      }
-
+#ifndef NDEBUG
+      BOOST_LOG_TRIVIAL(debug) << "Erased " << map_it->first.print();
+#endif // NDEBUG
       map_it = pool_varmap.erase(map_it); // Erase the old variant
     }
     else
@@ -497,144 +468,151 @@ VariantMap::filter_varmap_for_all()
       ++map_it; // Don't erase the old variant, just move on to the next one
     }
   }
-
-  assert(broken_vars_to_add.size() == supports_to_add.size());
-
-  for (std::size_t i = 0; i < broken_vars_to_add.size(); ++i)
-    pool_varmap[broken_vars_to_add[i]] = supports_to_add[i];
+  //*/
 }
 
 
+#ifndef NDEBUG
 void
-VariantMap::write_vcf(std::string const & output_name)
+VariantMap::write_stats(std::string const & prefix)
 {
-  Vcf new_variant_vcf(WRITE_BGZF_MODE, output_name);
+  auto const & pn = samples[0];
 
-  if (samples.size() == 0 || Options::instance()->stats.size() == 0)
+  // Determine filename
+  std::string const discovery_fn =
+    Options::const_instance()->stats + "/" + prefix + "_" + pn + "_discovery.tsv.gz";
+
+  // Open the stream
+  std::stringstream discovery_ss;
+
+  // Write header to the stream
+  discovery_ss << "CHROM\tPOS\tREF\tALT\tSAMPLE\tGT\tAD\tDP\tHQ\tLQ\tPP\tMQ0\tCR\tVS\tG\tUP\tREV\t1\tSUP\tSUPR\tPL\n";
+
+  //for (auto const & sample_name : samples)
+  //  discovery_ss << "\t" << sample_name;
+
+  //discovery_ss << '\n';
+
+  for (auto map_it = pool_varmap.begin(); map_it != pool_varmap.end(); ++map_it)
   {
-    BOOST_LOG_TRIVIAL(info) << "[graphtyper::variant_map] Writing " << pool_varmap.size() << " variants.";
+    Variant var(map_it->first);
+    assert(var.seqs.size() == 2);
+    auto contig_pos = absolute_pos.get_contig_position(var.abs_pos, gyper::graph);
 
-    for (auto map_it = pool_varmap.begin(); map_it != pool_varmap.end(); ++map_it)
-      new_variant_vcf.variants.push_back(Variant(map_it->first));
-  }
-  else
-  {
-    auto const & pn = samples[0];
 
-    // Determine filename
-    std::string const discovery_fn =
-      Options::instance()->stats + "/" + pn + "_discovery.tsv.gz";
+    discovery_ss << contig_pos.first << "\t" << contig_pos.second << "\t";
 
-    // Open the stream
-    std::stringstream discovery_ss;
+    // REF
+    std::copy(var.seqs[0].begin(), var.seqs[0].end(), std::ostream_iterator<char>(discovery_ss));
+    discovery_ss << '\t';
 
-    // Write header to the stream
-    discovery_ss << "CHROM\tPOS\tREF\tALT\tFORMAT";
+    // ALT
+    std::copy(var.seqs[1].begin(), var.seqs[1].end(), std::ostream_iterator<char>(discovery_ss));
+    discovery_ss << '\t';
 
-    for (auto const & sample_name : samples)
-      discovery_ss << "\t" << sample_name;
-
-    discovery_ss << '\n';
-
-    for (auto map_it = pool_varmap.begin(); map_it != pool_varmap.end(); ++map_it)
-    {
-      Variant var(map_it->first);
-      assert (var.seqs.size() == 2);
-      auto contig_pos = absolute_pos.get_contig_position(var.abs_pos);
-      discovery_ss << contig_pos.first << "\t" << contig_pos.second << "\t";
-
-      // REF
-      std::copy(var.seqs[0].begin(), var.seqs[0].end(), std::ostream_iterator<char>(discovery_ss));
-      discovery_ss << '\t';
-
-      // ALT
-      std::copy(var.seqs[1].begin(), var.seqs[1].end(), std::ostream_iterator<char>(discovery_ss));
-
-      // FORMAT
-      discovery_ss << "\tnaiveGT:AD:SeqDepth:HQsupport:LQsupport:ProperPairs:"
-                      "MAPQ0:Unaligned:Clipped:"
-                      "readUniquePositions:ratio:naivePL\t";
-
-      // Add naive genotype calls
-      std::sort(map_it->second.begin(),
-                map_it->second.end(),
-                [](VariantSupport const & a, VariantSupport const & b) -> bool
-                {
-                  return a.pn_index < b.pn_index;
-                }
-        );
-
-      assert (Options::instance()->stats.size() > 0);
-      std::size_t m = 0; // Index in map->second
-
-      // Loop over all samples
-      for (std::size_t p = 0; p < varmaps.size(); ++p)
+    // Add naive genotype calls
+    std::sort(map_it->second.begin(),
+              map_it->second.end(),
+              [](VariantSupport const & a, VariantSupport const & b) -> bool
       {
-        std::vector<uint16_t> coverage(2);
-        std::vector<uint16_t> phred(3);
-
-        if (m >= map_it->second.size() || p < map_it->second[m].pn_index)
-        {
-          // Add empty call
-          discovery_ss << ".\t";
-        }
-        else
-        {
-          auto const & var_support = map_it->second[m];
-          assert (p == var_support.pn_index);
-
-          coverage[1] = var_support.lq_support + var_support.hq_support;
-          coverage[0] = var_support.depth - coverage[1];
-          uint32_t phred0 = coverage[1] * 25u;
-          uint32_t phred1 = var_support.depth * 3u;
-          uint32_t phred2 = coverage[0] * 25u;
-          uint32_t const normalizer = std::min(phred0, std::min(phred1, phred2));
-          phred0 -= normalizer;
-          phred1 -= normalizer;
-          phred2 -= normalizer;
-          assert (phred0 == 0 || phred1 == 0 || phred2 == 0);
-          phred[0] = phred0 < 255 ? phred0 : 255;
-          phred[1] = phred1 < 255 ? phred1 : 255;
-          phred[2] = phred2 < 255 ? phred2 : 255;
-
-          long const gt = std::distance(phred.begin(),
-                                               std::find(phred.begin(),phred.end(), 0u)
-            );
-
-          if (gt == 0)
-            discovery_ss << "0/0:";
-          else if (gt == 1)
-            discovery_ss << "0/1:";
-          else
-            discovery_ss << "1/1:";
-
-          discovery_ss.setf(std::ios::fixed);
-          discovery_ss.precision(2);
-          discovery_ss << coverage[0] << ',' << coverage[1] << ':'
-                       << var_support.depth << ':'
-                       << var_support.hq_support << ':'
-                       << var_support.lq_support << ':'
-                       << var_support.proper_pairs << ':'
-                       << var_support.mapq0 << ':'
-                       << var_support.unaligned << ':'
-                       << var_support.clipped << ':'
-                       << var_support.unique_positions.size() << ':'
-                       << var_support.get_ratio() << ':'
-                       << phred[0] << ',' << phred[1] << ',' << phred[2]
-                       << '\t';
-
-          ++m;
-        }
+        return a.pn_index < b.pn_index;
       }
+              );
 
-      discovery_ss << '\n';
-      new_variant_vcf.variants.push_back(std::move(var));
+    assert(Options::const_instance()->stats.size() > 0);
+    std::size_t m = 0; // Index in map->second
+
+    // Loop over all samples
+    for (std::size_t p = 0; p < varmaps.size(); ++p)
+    {
+      // SAMPLE
+      discovery_ss << samples[p] << '\t';
+
+      std::vector<uint16_t> coverage(2);
+      std::vector<uint16_t> phred(3);
+
+      if (m >= map_it->second.size() || p < map_it->second[m].pn_index)
+      {
+        // Add empty call
+        discovery_ss << ".\t";
+      }
+      else
+      {
+        auto const & var_support = map_it->second[m];
+        assert(p == var_support.pn_index);
+
+        coverage[1] = var_support.lq_support + var_support.hq_support;
+        coverage[0] = var_support.depth - coverage[1];
+        uint32_t phred0 = coverage[1] * 25u;
+        uint32_t phred1 = var_support.depth * 3u;
+        uint32_t phred2 = coverage[0] * 25u;
+        uint32_t const normalizer = std::min(phred0, std::min(phred1, phred2));
+        phred0 -= normalizer;
+        phred1 -= normalizer;
+        phred2 -= normalizer;
+        assert(phred0 == 0 || phred1 == 0 || phred2 == 0);
+        phred[0] = phred0 < 255 ? phred0 : 255;
+        phred[1] = phred1 < 255 ? phred1 : 255;
+        phred[2] = phred2 < 255 ? phred2 : 255;
+
+        long const gt = std::distance(phred.begin(),
+                                      std::find(phred.begin(), phred.end(), 0u)
+                                      );
+
+        if (gt == 0)
+          discovery_ss << "0/0\t";
+        else if (gt == 1)
+          discovery_ss << "0/1\t";
+        else
+          discovery_ss << "1/1\t";
+
+        discovery_ss.setf(std::ios::fixed);
+        discovery_ss.precision(2);
+        discovery_ss << coverage[0] << ',' << coverage[1] << '\t'
+                     << var_support.depth << '\t'
+                     << var_support.hq_support << '\t'
+                     << var_support.lq_support << '\t'
+                     << var_support.proper_pairs << '\t'
+//                     << var_support.mapq0 << '\t'
+//                     << var_support.clipped << '\t'
+                     << var_support.var_size << '\t'
+                     << var_support.growth << '\t'
+                     << var_support.unique_positions.size() << '\t'
+                     << var_support.sequence_reversed << '\t'
+                     << var_support.first_in_pairs << '\t'
+                     << var_support.get_corrected_support() << '\t'
+                     << var_support.get_ratio() << '\t'
+                     << phred[0] << ',' << phred[1] << ',' << phred[2]
+                     << '\t';
+
+        ++m;
+      }
     }
 
-    write_gzipped_to_file(discovery_ss, discovery_fn, false /*append*/);
+    discovery_ss << '\n';
+    //new_variant_vcf.variants.push_back(std::move(var));
   }
 
-  new_variant_vcf.write();
+  write_gzipped_to_file(discovery_ss, discovery_fn, false /*append*/);
+}
+
+
+#endif // NDEBUG
+
+
+void
+VariantMap::get_vcf(Vcf & new_variant_vcf, std::string const & output_name)
+{
+  new_variant_vcf.open(WRITE_BGZF_MODE, output_name);
+
+#ifndef NDEBUG
+  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::variant_map] Writing " << pool_varmap.size() << " variants.";
+#endif // NDEBUG
+
+  for (auto map_it = pool_varmap.begin(); map_it != pool_varmap.end(); ++map_it)
+  {
+    new_variant_vcf.variants.push_back(Variant(map_it->first));
+  }
 }
 
 
@@ -645,7 +623,7 @@ save_variant_map(std::string const & path, VariantMap const & map)
 
   if (!ofs.is_open())
   {
-    BOOST_LOG_TRIVIAL(fatal) << "[graphtyper::variant_map] Could not save graph at '"
+    BOOST_LOG_TRIVIAL(error) << "[graphtyper::variant_map] Could not save variant_map at '"
                              << path
                              << "'";
 
@@ -665,7 +643,7 @@ load_variant_map(std::string const & path)
 
   if (!ifs.is_open())
   {
-    BOOST_LOG_TRIVIAL(fatal) << "[graphtyper::constructor] Could not load graph at '"
+    BOOST_LOG_TRIVIAL(error) << "[graphtyper::constructor] Could not load variant_map at '"
                              << path
                              << "'";
 
@@ -682,33 +660,54 @@ void
 VariantMap::set_samples(std::vector<std::string> const & new_samples)
 {
   samples = new_samples;
-  this->set_pn_count(samples.size());
+  varmaps.resize(samples.size());
 }
 
 
 void
 VariantMap::load_many_variant_maps(std::string const & path)
 {
-  this->samples.clear();
-  this->pool_varmap.clear();  // Should be empty initially
-
+  std::vector<std::string> paths;
   std::ifstream ifs(path.c_str());
 
   for (std::string line; std::getline(ifs, line);)
-  {
-    VariantMap new_map = load_variant_map(line);
+    paths.push_back(line);
 
+  this->load_many_variant_maps(paths);
+}
+
+
+void
+VariantMap::load_many_variant_maps(std::vector<std::string> const & paths)
+{
+  this->pool_varmap.clear();  // Should be empty initially
+
+  for (long p = 0; p < static_cast<long>(paths.size()); ++p)
+  {
+    auto const & file_path = paths[p];
+    VariantMap new_map = load_variant_map(file_path);
+
+    if (p == 0)
+    {
+      minimum_variant_support = new_map.minimum_variant_support;
+      minimum_variant_support_ratio = new_map.minimum_variant_support_ratio;
+    }
+
+#ifndef NDEBUG
     // Sample index offset
     long sample_index_offset = samples.size();
+#endif // NDEBUG
 
     // Copy samples
     std::copy(new_map.samples.begin(), new_map.samples.end(), std::back_inserter(samples));
 
     for (auto it = new_map.pool_varmap.begin(); it != new_map.pool_varmap.end(); ++it)
     {
+#ifndef NDEBUG
       // Change all pn_indexes with offset
       for (auto variant_support : it->second)
         variant_support.pn_index += sample_index_offset;
+#endif // NDEBUG
 
       auto find_it = pool_varmap.find(it->first);
 
@@ -726,7 +725,5 @@ VariantMap::load_many_variant_maps(std::string const & path)
   }
 }
 
-
-VariantMap global_varmap;
 
 } // namespace gyper

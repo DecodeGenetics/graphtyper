@@ -8,6 +8,7 @@
 
 #include <catch.hpp>
 
+/*
 TEST_CASE("Getting absolute and contig positions from genomic region")
 {
   gyper::GenomicRegion genomic_region;
@@ -39,3 +40,4 @@ TEST_CASE("Getting absolute and contig positions from genomic region")
     REQUIRE(genomic_region.get_contig_position(CHR01_LENGTH).second == CHR01_LENGTH);
   }
 }
+*/

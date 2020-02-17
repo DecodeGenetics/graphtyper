@@ -27,28 +27,31 @@ using TSVKey = std::tuple<uint32_t, std::vector<char>, std::vector<std::vector<c
 
 struct Contig
 {
-  std::string name = std::string("");
+  std::string name = "";
   uint32_t length = 0;
 
   template <typename Archive>
-  void serialize(Archive & ar, unsigned int)
+  void
+  serialize(Archive & ar, unsigned int)
   {
     ar & name;
     ar & length;
   }
+
+
 };
 
 class Graph
 {
-  friend class boost::serialization::access; // boost is my friend
+  friend class boost::serialization::access; // boost is my friend, allow him to see my privates
 
 public:
-  bool use_prefix_chr = true;
-  bool use_absolute_positions = true;
-  bool is_sv_graph = false;
-  std::vector<GenomicRegion> genomic_regions;
+  bool use_prefix_chr{true};
+  bool use_absolute_positions{true};
+  bool is_sv_graph{false};
+  GenomicRegion genomic_region;
   std::vector<char> reference;
-  uint32_t reference_offset = 0;
+  uint32_t reference_offset{0};
   std::vector<RefNode> ref_nodes;
   std::vector<VarNode> var_nodes;
   std::vector<SV> SVs;
@@ -60,7 +63,6 @@ public:
   explicit Graph(bool _use_absolute_positions = true);
 
   void clear();
-
   void add_genomic_region(std::vector<char> && reference_sequence,
                           std::vector<VarRecord> && var_records,
                           GenomicRegion && region
@@ -91,30 +93,25 @@ public:
   std::vector<Haplotype> get_all_haplotypes(uint32_t variant_distance = MAX_READ_LENGTH) const;
 
   std::vector<char> get_sequence_of_a_haplotype_call(std::vector<Genotype> const & gts,
-                                                     uint32_t const haplotype_call
-    ) const;
+                                                     uint32_t const haplotype_call) const;
 
   std::vector<std::vector<char> > get_all_sequences_of_a_genotype(Genotype const & gt) const;
-
-//  std::vector<std::vector<char> >
-//  get_all_sequences(uint32_t start,
-//                    uint32_t end,
-//                    std::vector<char> const & prefix = std::vector<char>(0)
-//    ) const;
 
   std::vector<std::vector<char> >
   get_sequence_from_location(Location const & loc,
                              uint32_t const length,
                              std::vector<char> const & prefix
-    ) const;
+                             ) const;
 
   std::vector<std::vector<char> >
   get_all_sequences_of_length(uint32_t start, uint32_t length,
                               std::vector<char> const & prefix
-    ) const;
+                              ) const;
 
   bool is_variant_in_graph(Variant const & var) const;
   uint8_t get_10log10_num_paths(TNodeIndex const v, uint32_t const MAX_DISTANCE = 60);
+  bool is_snp(Genotype const & gt) const;
+  bool is_homopolymer(Genotype const & gt) const;
 
   /*************************
    * GRAPH LOCAL ALIGNMENT *
@@ -122,13 +119,13 @@ public:
   std::unordered_set<long>
   reference_distance_between_locations(std::vector<Location> const & ll1,
                                        std::vector<Location> const & ll2
-    ) const;
+                                       ) const;
 
   std::vector<Location> get_locations_of_a_position(uint32_t pos, Path const & path) const;
   std::vector<Location> get_locations_of_an_actual_position(uint32_t pos,
                                                             Path const & path = Path(),
                                                             bool const is_special = false
-    ) const;
+                                                            ) const;
 
   std::vector<KmerLabel>
   get_labels_forward(Location const & s,
@@ -187,14 +184,14 @@ private:
   void add_reference(unsigned end_pos,
                      unsigned const & num_var,
                      std::vector<char> const & reference_sequence
-    );
+                     );
 
   void add_variants(VarRecord && record);
 
   void break_apart_haplotypes(std::vector<Genotype> gts,
                               std::vector<Haplotype> & haplotypes,
                               int32_t max_read_length
-    ) const;
+                              ) const;
 };
 
 extern Graph graph;

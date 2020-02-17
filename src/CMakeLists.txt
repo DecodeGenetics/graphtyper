@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.8)
 
 set(graphtyper_SOURCE_FILES
-  paw.cpp
+#  paw.cpp
   graph/absolute_position.cpp
   graph/constructor.cpp
   graph/genomic_region.cpp
@@ -12,6 +12,7 @@ set(graphtyper_SOURCE_FILES
   graph/haplotype_calls.cpp
   graph/haplotype_extractor.cpp
   graph/label.cpp
+  graph/read_strand.cpp
   graph/reference_depth.cpp
   graph/ref_node.cpp
   graph/sequence_extractor.cpp
@@ -23,13 +24,13 @@ set(graphtyper_SOURCE_FILES
   index/rocksdb.cpp
   typer/alignment.cpp
   typer/caller.cpp
-  typer/discovery.cpp
+#  typer/discovery.cpp
   typer/genotype_paths.cpp
   typer/graph_swapper.cpp
   typer/path.cpp
   typer/sample_call.cpp
   typer/segment.cpp
-  typer/segment_calling.cpp
+#  typer/segment_calling.cpp
   typer/var_stats.cpp
   typer/variant.cpp
   typer/variant_candidate.cpp
@@ -38,19 +39,25 @@ set(graphtyper_SOURCE_FILES
   typer/vcf.cpp
   typer/vcf_operations.cpp
   typer/vcf_writer.cpp
-  utilities/adapter_removal.cpp
+  utilities/bamshrink.cpp
+  utilities/genotype.cpp
+  utilities/genotype_camou.cpp
+  utilities/genotype_sv.cpp
+  utilities/hts_parallel_reader.cpp
+  utilities/hts_reader.cpp
+  utilities/hts_writer.cpp
   utilities/io.cpp
   utilities/kmer_help_functions.cpp
+  utilities/options.cpp
   utilities/type_conversions.cpp
   utilities/sam_reader.cpp
-  utilities/options.cpp
+  utilities/system.cpp
 )
 
 # Object libarary
 add_library(graphtyper_objects OBJECT ${graphtyper_SOURCE_FILES})
 add_dependencies(graphtyper_objects project_htslib) # Depends on building htslib
 add_dependencies(graphtyper_objects project_sparsehash) # Depends on building sparsehash
-add_dependencies(graphtyper_objects project_statgen) # Depends on building statgen
 add_dependencies(graphtyper_objects project_snappy) # Depends on building snappy
 add_dependencies(graphtyper_objects project_rocksdb) # Depends on building rocksdb
 

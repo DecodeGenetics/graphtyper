@@ -27,7 +27,7 @@ public:
 
   void clear();
   void merge_one_path(VarRecord && prev_record);
-  void merge(VarRecord && prev_record);
+  void merge(VarRecord && prev_record, long EXTRA_SUFFIX = 0);
 
   std::vector<char> get_common_suffix();
 };

@@ -7,20 +7,26 @@
 namespace gyper
 {
 
-void
+
+// returns the prefix to the output files
+std::vector<std::string>
 call(std::vector<std::string> const & hts_path,
      std::string const & graph_path,
      std::string const & index_path,
-     std::vector<std::string> const & regions,
-     std::vector<std::string> const & segment_fasta_files,
-     std::string const & output_dir
-     );
+     std::string const & output_dir,
+     long const minimum_variant_support,
+     double const minimum_variant_support_ratio,
+     bool const is_writing_calls_vcf,
+     bool const is_discovery,
+     bool const is_writing_hap);
 
-void
+// returns the written variant maps
+std::vector<std::string>
 discover_directly_from_bam(std::string const & graph_path,
-                           std::vector<std::string> const & sams,
-                           std::vector<std::string> const & regions,
-                           std::string const & output_dir
-  );
+                           std::vector<std::string> const & hts_paths,
+                           std::string const & region_str,
+                           std::string const & output_dir,
+                           long minimum_variant_support,
+                           double minimum_variant_support_ratio);
 
 } // namespace gyper

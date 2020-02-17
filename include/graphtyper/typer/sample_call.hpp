@@ -8,17 +8,18 @@ namespace gyper
 
 struct AlleleCoverage;
 class SV;
+class ReferenceDepth;
 
 class SampleCall
 {
 public:
   SampleCall() noexcept;
-  SampleCall(std::vector<uint8_t> const & phred,
-             std::vector<uint16_t> const & coverage,
+  SampleCall(std::vector<uint8_t> && phred,
+             std::vector<uint16_t> && coverage,
              uint8_t ambiguous_depth,
              uint8_t ambiguous_depth_alt,
              uint8_t alt_proper_pair_depth
-    ) noexcept;
+             ) noexcept;
 
   // If R is the number of alleles, then phred should be of size R * (R + 1) / 2 and coverage of size R.
   std::vector<uint8_t> phred; // GT and PL
@@ -43,14 +44,12 @@ public:
  * \brief Create a biallelic call from a multi-allelic call
  * \param old_call Old multi-allelic call
  * \param aa index of alternative allele
- * \param pn_index index of the sample/PN
- * \param sv structural variant
  * \return Biallelic call for alternative allele at index aa
  */
 SampleCall
 make_bi_allelic_call(SampleCall const & old_call, long aa);
 
 SampleCall
-make_call_based_on_coverage(long pn_index, SV const & sv);
+make_call_based_on_coverage(long pn_index, SV const & sv, ReferenceDepth const & reference_depth);
 
 } // namespace gyper
