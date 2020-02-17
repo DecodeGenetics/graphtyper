@@ -16,11 +16,27 @@ Eggertsson, H.P., Kristmundsdottir, S., Beyter, D. et al. GraphTyper2 enables po
 ### Download binary
 The easiest way to get GraphTyper is to download the latest 64bit linux binary release
 ```sh
-wget https://github.com/DecodeGenetics/graphtyper/releases/download/v2.0/graphtyper
+wget https://github.com/DecodeGenetics/graphtyper/releases/download/v2.1/graphtyper
 chmod a+x graphtyper
 ```
 
-The binary is linked statically and therefore does not require any runtime libraries. Refer to our [recommended pipeline](https://github.com/DecodeGenetics/graphtyper-pipelines) for running the tool.
+The binary is linked statically and therefore does not require any runtime libraries.
+
+### Running GraphTyper
+
+The recommended way of running GraphTyper is using the `genotype` subcommand
+
+```
+./graphtyper genotype <REFERENCE.fa> --sams=<SAMS> --region=<chrN:begin-end> --threads=<T>
+```
+
+where `REFERENCE.fa` is the FASTA reference genome, `SAMS` are the input SAM/BAM/CRAM files, and T is the maximum amount of threads you wish to allocate. Note that T should be equal or lower than your number of input SAM files as there is always just one thread reading each SAM file. For more details and other options see the help page
+
+```
+./graphtyper genotype --help
+```
+
+The output files will be in small regions but to concatenate them you can use the `bcftools concat --naive` command. For SV genotyping you should instead use the `genotype_sv` subcommand. If you wish to run GraphTyper in some non-recommended way refer to our [pipeline](https://github.com/DecodeGenetics/graphtyper-pipelines) repo.
 
 ### Build from source
 Alternatively you may want to build GraphTyper from source. First, you'll need the following:

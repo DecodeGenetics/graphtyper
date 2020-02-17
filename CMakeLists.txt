@@ -5,7 +5,7 @@ include(ExternalProject)
 
 # The version number.
 set (graphtyper_VERSION_MAJOR 2)
-set (graphtyper_VERSION_MINOR 0)
+set (graphtyper_VERSION_MINOR 1)
 set (graphtyper_VERSION_PATCH 0)
 
 # Get the current working branch
@@ -139,7 +139,7 @@ ExternalProject_Add(
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/htslib
   BUILD_IN_SOURCE 1
   PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/htslib
-  CONFIGURE_COMMAND ""
+  CONFIGURE_COMMAND autoheader COMMAND autoconf COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/htslib/configure --disable-libcurl
   BUILD_COMMAND $(MAKE) -C ${CMAKE_CURRENT_SOURCE_DIR}/htslib "CFLAGS=-g -Wall -O3" libhts.a
   INSTALL_COMMAND ""
 )
@@ -250,5 +250,7 @@ message(STATUS "Libraries: ${graphtyper_all_libraries}")
 add_subdirectory(src)
 
 ## Testing
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/catch/single_include/)
+
 enable_testing(true)
 add_subdirectory(test)
