@@ -6,6 +6,7 @@
 #include <google/dense_hash_map> // google::dense_hash_map
 
 #include <graphtyper/index/kmer_label.hpp> // gyper::KmerLabel
+#include <graphtyper/index/rocksdb.hpp> // gyper::Index<gyper::RocksDB>
 
 
 namespace gyper
@@ -21,7 +22,7 @@ public:
   std::unordered_map<uint64_t, uint64_t> hamming1;
 
   MemIndex() = default;
-  void load();
+  void load(Index<RocksDB> & index);
   // void generate_hamming1_hash_map();
   std::vector<KmerLabel> get(std::vector<uint64_t> const & keys) const;
   std::vector<std::vector<KmerLabel> > multi_get(std::vector<std::vector<uint64_t> > const & keys) const;

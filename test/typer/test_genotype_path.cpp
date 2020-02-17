@@ -27,10 +27,8 @@ TEST_CASE("Genotype paths")
   label2.variant_order = 16;
   label2.variant_num = 0;
 
-  gyper::GenotypePaths geno(test_read, "" /*qual*/);
+  gyper::GenotypePaths geno(0, seqan::length(test_read));
   geno.add_next_kmer_labels({label1, label2}, 0, 31);
-
-  REQUIRE(geno.read == gyper::to_vec("ACGTTGCA"));
 
   REQUIRE(geno.paths.size() == 1);
   REQUIRE(geno.paths[0].size() == 32);

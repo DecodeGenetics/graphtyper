@@ -13,7 +13,7 @@ namespace gyper
 {
 
 void
-MemIndex::load()
+MemIndex::load(Index<RocksDB> & index)
 {
   assert(index.hamming0.db); // Index is open
   assert(index.opened);
@@ -29,8 +29,8 @@ MemIndex::load()
   }
 
   this->hamming0.set_empty_key(empty_key);
-  rocksdb::Iterator* it = index.hamming0.db->NewIterator(rocksdb::ReadOptions());
-  assert (it);
+  rocksdb::Iterator * it = index.hamming0.db->NewIterator(rocksdb::ReadOptions());
+  assert(it);
 
   for (it->SeekToFirst(); it->Valid(); it->Next())
   {
@@ -41,6 +41,7 @@ MemIndex::load()
   assert(it->status().ok()); // Check for any errors
   delete it;
 }
+
 
 /*
 void
@@ -112,7 +113,8 @@ std::vector<std::vector<KmerLabel> >
 MemIndex::multi_get(std::vector<std::vector<uint64_t> > const & keys) const
 {
   std::vector<std::vector<KmerLabel> > labels(keys.size());
-  std::vector<std::vector<google::dense_hash_map<uint64_t, std::vector<KmerLabel> >::const_iterator> > results(keys.size());
+  std::vector<std::vector<google::dense_hash_map<uint64_t, std::vector<KmerLabel> >::const_iterator> > results(
+    keys.size());
 
   for (std::size_t i = 0; i < keys.size(); ++i)
   {
@@ -186,7 +188,7 @@ load_secondary_mem_index(std::string const & secondary_index_path, Graph & secon
   Index<RocksDB> secondary_index = load_secondary_index(secondary_index_path);
   std::swap(index, secondary_index);
   MemIndex secondary_mem_index;
-  secondary_mem_index.load();
+  secondary_mem_index.load(index);
   std::swap(index, secondary_index);
   secondary_index.close();
 

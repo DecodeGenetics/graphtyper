@@ -21,6 +21,7 @@ namespace gyper
 using TEntrySublist = std::deque<IndexEntry>;
 using TEntryList = std::deque<TEntrySublist>;
 
+void index_graph(std::string const & index_path);
 void index_graph(std::string const & graph_path, std::string const & index_path);
 void load_index(std::string const & index_path);
 Index<RocksDB> load_secondary_index(std::string const & index_path);

@@ -48,7 +48,7 @@ load_graph(std::string const & graph_path)
 
   // Create a reference genome each time the graph is loaded
   graph.generate_reference_genome();
-  absolute_pos.calculate_offsets();
+  absolute_pos.calculate_offsets(graph);
 }
 
 

@@ -12,6 +12,7 @@ namespace gyper
 {
 
 class Variant;
+class ReferenceDepth;
 
 
 enum SVTYPE
@@ -55,13 +56,14 @@ public:
   SV() = default;
   std::string get_type() const;
   std::string get_allele() const;
+  std::string get_allele_with_model() const;
 
 private:
-  template<typename Archive>
-  void serialize(Archive &ar, unsigned int);
+  template <typename Archive>
+  void serialize(Archive & ar, unsigned int);
 };
 
 
-void reformat_sv_vcf_records(std::vector<Variant> & variant);
+void reformat_sv_vcf_records(std::vector<Variant> & variant, ReferenceDepth const & reference_depth);
 
 } // namespace gyper

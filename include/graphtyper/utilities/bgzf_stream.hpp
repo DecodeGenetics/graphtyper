@@ -7,6 +7,7 @@
 #include <sstream> // std::stringstream
 #include <string> // std::string
 
+#define INCLUDE_SEQAN_STREAM_IOSTREAM_BGZF_H_
 #include "bgzf.h" // part of htslib
 
 
@@ -30,6 +31,7 @@ public:
   BGZF_stream & operator<<(T const & x);
   void flush();
   void open(std::string const & filename, std::string const & filemode);
+  bool is_open() const;
   void close(); // Close BGZF file
 
   long MAX_CACHE_SIZE = 10000000ll;
@@ -96,6 +98,13 @@ BGZF_stream::open(std::string const & filename, std::string const & filemode)
   {
     fp = bgzf_open(filename.c_str(), filemode.c_str());
   }
+}
+
+
+inline bool
+BGZF_stream::is_open() const
+{
+  return fp;
 }
 
 

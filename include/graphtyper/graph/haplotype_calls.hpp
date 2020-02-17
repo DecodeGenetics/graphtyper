@@ -15,21 +15,21 @@ class HaplotypeCall
   friend class boost::serialization::access;
 
 public:
-  std::vector<uint16_t> calls{};
-  std::vector<Genotype> gts{};
+  std::vector<uint16_t> calls;
+  std::vector<Genotype> gts;
+  std::vector<std::vector<ReadStrand> > read_strand;
 
   HaplotypeCall() = default;
-  explicit HaplotypeCall(std::vector<uint16_t> && _calls,
-                std::vector<Genotype> const & _gts
-    );
+  explicit HaplotypeCall(Haplotype const & hap);
+
+  void merge_with(HaplotypeCall const & other);
+  void make_calls_unique();
 
 private:
   template <class Archive>
   void serialize(Archive & ar, unsigned int version);
 };
 
-
-using THapCalls = std::vector<HaplotypeCall>;
 
 class HaplotypeCalls
 {
@@ -37,13 +37,18 @@ class HaplotypeCalls
 
 public:
   HaplotypeCalls() = default;
-  explicit HaplotypeCalls(THapCalls const & hap_calls);
+  explicit HaplotypeCalls(std::vector<HaplotypeCall> const & hap_calls);
 
   /** \brief Return a list of haplotype calls. */
-  THapCalls inline get_hap_calls(){return hap_calls;}
+  inline std::vector<HaplotypeCall>
+  get_hap_calls()
+  {
+    return hap_calls;
+  }
+
 
 private:
-  THapCalls hap_calls;
+  std::vector<HaplotypeCall> hap_calls;
 
   template <class Archive>
   void serialize(Archive & ar, unsigned int version);
@@ -51,6 +56,6 @@ private:
 
 
 void save_calls(HaplotypeCalls & calls, std::string const & filename);
-THapCalls load_calls(std::string filename);
+std::vector<HaplotypeCall> load_calls(std::string filename);
 
 }
