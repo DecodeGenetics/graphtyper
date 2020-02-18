@@ -39,13 +39,13 @@ where `REFERENCE.fa` is the FASTA reference genome, `SAMS` are the input SAM/BAM
 The output files will be in small regions but to concatenate them you can use the `bcftools concat --naive` command. For SV genotyping you should instead use the `genotype_sv` subcommand. If you wish to run GraphTyper in some non-recommended way refer to our [pipeline](https://github.com/DecodeGenetics/graphtyper-pipelines) repo.
 
 ### Build from source
-Alternatively you may want to build GraphTyper from source. First, you'll need the following:
-* C++ compiler with C++11 supported (we mostly use gcc 4.8.5, gcc 5.4.0, and the latest gcc 6 and 7 releases)
+Alternatively, you may want to build GraphTyper from source. First, you'll need the following:
+* C++ compiler with C++11 supported
 * Boost>=1.57.0
 * zlib>=1.2.8
 * libbz2
 * liblzma
-* Autotools, Automake, libtool, Make, and CMake>=2.8.8 (if you want to use our build system)
+* Autotools, Automake, libtool, Make, and CMake>=3.2 (if you want to use our build system)
 
 All other dependencies are submodules of this repository. Make sure have the `CXX` environment variable set as the same compiler as `which g++` returns (because some of the submodules use the compiler directed by the `CXX` variable while other ignore it). Also set the `BOOST_ROOT` variable to the root of BOOST which should already be compiled with the same compiler. Graphtyper is linked with BOOST dynamically, but other libraries statically.
 
