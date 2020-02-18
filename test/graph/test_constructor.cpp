@@ -91,15 +91,13 @@ create_graph(std::string const & fasta,
     ia >> new_graph;
 
     REQUIRE(new_graph.size() == gyper::graph.size());
-    REQUIRE(new_graph.get_genomic_region().rID == gyper::graph.get_genomic_region().rID);
-    REQUIRE(new_graph.get_genomic_region().chr == gyper::graph.get_genomic_region().chr);
-    REQUIRE(new_graph.get_genomic_region().begin == gyper::graph.get_genomic_region().begin);
-    REQUIRE(new_graph.get_genomic_region().end == gyper::graph.get_genomic_region().end);
+    REQUIRE(new_graph.genomic_region.chr == gyper::graph.genomic_region.chr);
+    REQUIRE(new_graph.genomic_region.begin == gyper::graph.genomic_region.begin);
+    REQUIRE(new_graph.genomic_region.end == gyper::graph.genomic_region.end);
   }
 }
 
 
-/*
 TEST_CASE("Construct test graph (chr1)")
 {
   create_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr1", true);
@@ -342,7 +340,6 @@ TEST_CASE("Construct test graph (chr8) in a region that fully overlaps only a se
     REQUIRE(graph.actual_poses.size() == 0);
   }
 }
-*/
 
 
 /*
