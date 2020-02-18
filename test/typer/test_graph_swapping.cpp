@@ -75,7 +75,7 @@ TEST_CASE("Test graph and index swapping with SparseHash index")
 
   gyper::load_graph(my_graph1.str());
   gyper::load_index(my_index1.str());
-  mem_index.load();
+  mem_index.load(gyper::index);
   REQUIRE(mem_index.hamming0.size() > 0);
 
   REQUIRE(graph.size() > 0);

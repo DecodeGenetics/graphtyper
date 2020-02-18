@@ -82,7 +82,6 @@ public:
   std::vector<char> get_generated_reference_genome(uint32_t & from, uint32_t & to) const;
   std::vector<char> get_reference_ref(uint32_t & from, uint32_t & to) const;
   std::vector<char> get_first_var() const;
-  GenomicRegion const & get_genomic_region(std::size_t index = 0) const;
   std::vector<char> walk_random_path(uint32_t from, uint32_t to) const;
 
   /*********************

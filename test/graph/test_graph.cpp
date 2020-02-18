@@ -1755,7 +1755,7 @@ TEST_CASE("Two deletions and one of them overlaps SNPs")
     new_contig.length = 100000;
     graph.contigs.push_back(std::move(new_contig));
 
-    absolute_pos.calculate_offsets();
+    absolute_pos.calculate_offsets(graph);
   }
 
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion("chr1"));
@@ -1887,7 +1887,7 @@ TEST_CASE("Two deletions and one of them overlaps SNPs and an insertion")
     new_contig.length = 100000;
     graph.contigs.push_back(std::move(new_contig));
 
-    absolute_pos.calculate_offsets();
+    absolute_pos.calculate_offsets(graph);
   }
 
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion("chr1"));
