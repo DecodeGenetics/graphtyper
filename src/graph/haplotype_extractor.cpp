@@ -233,7 +233,6 @@ find_variants_in_alignment(uint32_t const pos,
   assert(ref.size() > 1);
   assert(seq.size() > 1);
 
-
   std::pair<std::string, std::string> gapped_strings;
 
   if (!get_gapped_strings(gapped_strings, ref, seq))
@@ -255,35 +254,46 @@ find_variants_in_alignment(uint32_t const pos,
   std::string & gapped_alt = gapped_strings.first;
 
   long ref_to_seq_offset = 0;
-  Variant new_var = make_variant_of_gapped_strings(gapped_ref, gapped_alt, pos, ref_to_seq_offset);
+  Variant var = make_variant_of_gapped_strings(gapped_ref, gapped_alt, pos, ref_to_seq_offset);
 
-  if (new_var.abs_pos == 0)
+  if (var.abs_pos == 0)
     return new_var_candidates;
 
   std::vector<Variant> new_vars =
-    extract_sequences_from_aligned_variant(std::move(new_var), SPLIT_VAR_THRESHOLD);
+    extract_sequences_from_aligned_variant(std::move(var), SPLIT_VAR_THRESHOLD);
+
+  if (new_vars.size() == 0)
+    return new_var_candidates;
 
   new_var_candidates.reserve(new_vars.size());
 
-  for (unsigned i = 0; i < new_vars.size(); ++i)
+  for (long i = 0; i < static_cast<long>(new_vars.size()); ++i)
   {
     //assert(i < new_var_candidates.size());
     auto & new_var = new_vars[i];
 
-    //// Limit variant size to 46 bp
-    //if (std::any_of(new_var.seqs.begin(), new_var.seqs.end(), [](std::vector<char> const & a){
-    //    return a.size() > 45;
-    //  }))
-    //{
-    //  std::cerr << "Large variant:\n" << gapped_ref << "\n" << gapped_alt << "\n\n"
-    //            << std::string(new_var.seqs[0].begin(), new_var.seqs[0].end()) << "\n"
-    //            << std::string(new_var.seqs[1].begin(), new_var.seqs[1].end()) << "\n";
-    //  continue;
-    //}
+#ifndef NDEBUG
+    if (new_var.seqs.size() != 2 || new_var.seqs[0].size() == 0 || new_var.seqs[1].size() == 0)
+    {
+      BOOST_LOG_TRIVIAL(error) << "Error in discovery. " << new_var.seqs.size() << ","
+                               << new_var.seqs[0].size() << ","
+                               << new_var.seqs[1].size();
+      std::exit(1);
+    }
+#endif // NDEBUG
 
     VariantCandidate new_var_candidate;
-    assert(new_var.seqs.size() >= 2);
-    new_var.normalize();
+    assert(new_var.seqs.size() == 2);
+    assert(new_var.seqs[0].size() > 0);
+    assert(new_var.seqs[1].size() > 0);
+    assert(new_var.is_normalized());
+
+    // its a sign of a problem if the new variant candidate is not normalized, most likely this means the 50bp where not enough
+    if (!new_var.is_normalized())
+    {
+      BOOST_LOG_TRIVIAL(debug) << "Removed variant candidate since it was not in normalized form " << new_var.print();
+      continue;
+    }
 
     // Check if high or low quality
     long const r = new_var.abs_pos - ref_to_seq_offset - 50; // because we added 50 bp in front
@@ -363,7 +373,7 @@ post_process_hap_calls(std::vector<gyper::HaplotypeCall> & hap_calls)
             return a >= min_calls;
           });
 
-        if (unique_calls <= Options::instance()->max_extracted_haplotypes)
+        if (unique_calls <= Options::const_instance()->max_extracted_haplotypes)
           break;
 
 
@@ -392,6 +402,24 @@ post_process_hap_calls(std::vector<gyper::HaplotypeCall> & hap_calls)
       continue;
 
     std::unordered_set<uint16_t> bad_calls;
+
+    // Check for high impurity if we have multiple samples
+    if (hap_call.num_samples >= 50)
+    {
+      for (long i = 0; i < static_cast<long>(hap_call.haplotype_impurity.size()); ++i)
+      {
+        double const impurity = hap_call.haplotype_impurity[i] / static_cast<double>(hap_call.num_samples);
+        assert(impurity > -0.001);
+        assert(impurity < 0.251);
+
+        if (impurity > Options::const_instance()->impurity_threshold)
+        {
+          BOOST_LOG_TRIVIAL(debug) << "Too high impurity of " << impurity << " on haplotype " << (i + 1);
+          bad_calls.insert(i + 1);
+        }
+      }
+    }
+
     auto const & gts = hap_call.gts;
     assert(gts.size() > 0);
     assert(gts.size() == hap_call.read_strand.size());

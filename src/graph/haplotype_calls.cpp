@@ -18,7 +18,8 @@ namespace gyper
 //
 HaplotypeCall::HaplotypeCall(Haplotype const & hap)
 {
-  calls = hap.get_haplotype_calls();
+  calls = hap.get_haplotype_calls(haplotype_impurity);
+  num_samples = hap.hap_samples.size();
   gts = hap.gts;
   assert(hap.var_stats.size() == hap.gts.size());
 
@@ -41,6 +42,13 @@ HaplotypeCall::merge_with(HaplotypeCall const & other)
   assert(other.calls.size() >= 1);
   assert(other.calls[0] == 0);
   std::copy(other.calls.begin() + 1, other.calls.end(), std::back_inserter(calls));
+  num_samples += other.num_samples;
+
+  assert(haplotype_impurity.size() == other.haplotype_impurity.size());
+
+  for (long i = 0; i < static_cast<long>(haplotype_impurity.size()); ++i)
+    haplotype_impurity[i] += other.haplotype_impurity[i];
+
   assert(read_strand.size() == other.read_strand.size());
 
   for (long i = 0; i < static_cast<long>(read_strand.size()); ++i)
@@ -68,6 +76,8 @@ void
 HaplotypeCall::serialize(Archive & ar, unsigned const int /*version*/)
 {
   ar & calls;
+  ar & haplotype_impurity;
+  ar & num_samples;
   ar & gts;
   ar & read_strand;
 }
@@ -128,7 +138,7 @@ load_calls(std::string filename)
 
   if (!ifs.is_open())
   {
-    BOOST_LOG_TRIVIAL(error) << "Could not open file " << filename;
+    BOOST_LOG_TRIVIAL(error) << "Could not open haplotype calls file " << filename;
     std::exit(1);
   }
 

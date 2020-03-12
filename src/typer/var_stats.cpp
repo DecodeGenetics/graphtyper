@@ -254,12 +254,25 @@ get_strand_bias(std::map<std::string, std::string> const & infos, std::string co
 }
 
 
-uint32_t
+long
 get_accumulated_strand_bias(std::map<std::string, std::string> const & infos,
                             std::string const & bias)
 {
   std::vector<uint32_t> strand_bias = get_strand_bias(infos, bias);
-  return std::accumulate(strand_bias.begin(), strand_bias.end(), static_cast<uint32_t>(0u));
+  return std::accumulate(strand_bias.begin(), strand_bias.end(), 0l);
+}
+
+
+long
+get_accumulated_alt_strand_bias(std::map<std::string, std::string> const & infos,
+                                std::string const & bias)
+{
+  std::vector<uint32_t> strand_bias = get_strand_bias(infos, bias);
+
+  if (strand_bias.size() == 0)
+    return 0;
+
+  return std::accumulate(strand_bias.begin() + 1, strand_bias.end(), 0l);
 }
 
 

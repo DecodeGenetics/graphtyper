@@ -101,7 +101,7 @@ public:
   /*********************
    * CLASS INFORMATION *
    *********************/
-  std::vector<uint16_t> get_haplotype_calls() const;
+  std::vector<uint16_t> get_haplotype_calls(std::vector<double> & haplotype_impurity) const;
   uint32_t get_genotype_num() const;
   bool has_too_many_genotypes() const;
   std::vector<uint32_t> get_genotype_ids() const;
@@ -113,8 +113,7 @@ public:
                         bool fully_aligned,
                         bool is_read_overlapping,
                         bool is_low_qual,
-                        std::size_t mismatches
-                        );
+                        std::size_t mismatches);
 
   void clipped_reads_to_stats(bool fully_aligned);
   void mapq_to_stats(uint8_t mapq);

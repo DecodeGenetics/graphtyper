@@ -68,29 +68,31 @@ VariantSupport::is_ratio_above_cutoff(double const min_ratio) const
 bool
 VariantSupport::is_support_above_cutoff(long const min_support) const
 {
+  int const _depth = hq_support + lq_support;
   bool const is_promising = unique_positions.size() >= 3 &&
                             hq_support >= 4 &&
                             proper_pairs >= 3 &&
-                            (hq_support + lq_support - clipped >= 3);
+                            (_depth - clipped >= 3);
+  Options const & copts = *(Options::const_instance());
 
   return unique_positions.size() > 1
          &&
-         (!Options::const_instance()->filter_on_mapq || is_any_mapq_good)
+         (!copts.filter_on_mapq || is_any_mapq_good)
          &&
-         (!Options::const_instance()->filter_on_proper_pairs || (proper_pairs >= 2 || (proper_pairs >= 1 && is_indel)))
+         (!copts.filter_on_proper_pairs || (proper_pairs >= 2 || (proper_pairs >= 1 && is_indel)))
          &&
          (hq_support >= 3 || (hq_support >= 2 && is_indel))
          &&
          (is_indel ||
           is_promising ||
-          (first_in_pairs > 0 && first_in_pairs < (lq_support + hq_support)))
+          (first_in_pairs > 0 && first_in_pairs < _depth))
          &&
          (is_indel ||
-          (is_promising && sequence_reversed > 0 && sequence_reversed < (lq_support + hq_support)) ||
-          (sequence_reversed > 1 && sequence_reversed < (lq_support + hq_support - 1)))
+          (is_promising && sequence_reversed > 0 && sequence_reversed < _depth) ||
+          (sequence_reversed > 1 && sequence_reversed < (_depth - 1)))
          &&
-         (clipped <= (lq_support + hq_support - 3) ||
-          (is_indel && clipped <= (lq_support + hq_support - 1)))
+         (clipped <= (_depth - 3) ||
+          (is_indel && clipped <= (_depth - 1)))
          &&
          static_cast<long>(get_corrected_support() + 0.5) >= min_support;
 }

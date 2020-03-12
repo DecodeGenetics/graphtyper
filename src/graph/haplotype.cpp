@@ -1,8 +1,9 @@
-#include <iostream>
-#include <vector>
 #include <cmath>
+#include <iostream>
 #include <limits>
+#include <numeric>
 #include <set>
+#include <vector>
 
 #include <boost/log/trivial.hpp>
 
@@ -663,10 +664,11 @@ Haplotype::get_genotype_ids() const
 
 
 std::vector<uint16_t>
-Haplotype::get_haplotype_calls() const
+Haplotype::get_haplotype_calls(std::vector<double> & haplotype_impurity) const
 {
   std::vector<uint16_t> all_calls{0u}; // Add the reference
   int const cnum = get_genotype_num();
+  haplotype_impurity.resize(cnum - 1);
 
   /// Filter options for haplotype extraction
   // the minimum support of any allele in a haplotype
@@ -678,26 +680,64 @@ Haplotype::get_haplotype_calls() const
 
   for (auto const & hap_sample : hap_samples)
   {
+    // Update impurity
+    for (int c = 1; c < cnum; ++c)
+    {
+      int call{c};
+      auto & impurity = haplotype_impurity[call - 1];
+      int q = cnum;
+      assert(gts.size() == hap_sample.gt_coverage.size());
+      long total_uniq_coverage{0l};
+      long call_coverage{0l};
+
+      for (int i = 0; i < static_cast<int>(hap_sample.gt_coverage.size()); ++i)
+      {
+        auto const & cov = hap_sample.gt_coverage[i];
+        q /= gts[i].num;
+        assert(q != 0);
+        auto const a = call / q;
+        assert(a < static_cast<int>(cov.size()));
+        total_uniq_coverage += std::accumulate(cov.begin(), cov.end(), 0l);
+        call_coverage += cov[a];
+        call %= q;
+      }
+
+      if (total_uniq_coverage > 0)
+      {
+        double const ab = static_cast<double>(call_coverage) / static_cast<double>(total_uniq_coverage);
+
+        if (ab < 0.25)
+          impurity += ab;
+        else if (ab < 0.5)
+          impurity += (0.5 - ab);
+        else if (ab < 0.75)
+          impurity += (ab - 0.5);
+        else if (ab < 1.0)
+          impurity += 1.0 - ab;
+      }
+    }
+
     // Check if coverage is above the minimum variant support.
     // Note: The function may return false negatives.
     auto coverage_above_cutoff =
       [&](uint16_t call)
       {
+        assert(call > 0);
         int q = cnum;
         assert(gts.size() == hap_sample.gt_coverage.size());
 
         for (int i = 0; i < static_cast<int>(hap_sample.gt_coverage.size()); ++i)
         {
+          auto const & cov = hap_sample.gt_coverage[i];
           q /= gts[i].num;
           assert(q != 0);
-          assert(call / q < static_cast<int>(hap_sample.gt_coverage[i].size()));
+          auto const a = call / q;
+          assert(a < static_cast<int>(cov.size()));
 
           // Require 'MINIMUM_VARIANT_SUPPORT'-many reads to overlap at least one of the alleles of
           // the genotype call
-          if (static_cast<int>(hap_sample.gt_coverage[i][call / q]) >= MINIMUM_VARIANT_SUPPORT)
-          {
+          if (a > 0 && static_cast<int>(cov[a]) >= MINIMUM_VARIANT_SUPPORT)
             return true;
-          }
 
           call %= q;
         }
@@ -747,7 +787,9 @@ Haplotype::get_haplotype_calls() const
     if (call1 != 0 && coverage_above_cutoff(call1))
       all_calls.push_back(call1);
 
-    if (call2 != 0 && coverage_above_cutoff(call2))
+    if (call2 == call1)
+      all_calls.push_back(call2);
+    else if (call2 != 0 && coverage_above_cutoff(call2))
       all_calls.push_back(call2);
   }
 

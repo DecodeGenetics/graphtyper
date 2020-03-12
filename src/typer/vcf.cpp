@@ -656,6 +656,8 @@ Vcf::write_header()
        "insertion for an insertion of unknown length.\">\n"
       << "##INFO=<ID=SB,Number=1,Type=Float,Description=\"Strand bias (F/(F+R)) where F and R are "
        "forward and reverse strands, respectively. -1 if not available.\">\n"
+      << "##INFO=<ID=SBAlt,Number=1,Type=Float,Description=\"Strand bias of alternative alleles only. "
+       "-1 if not available.\">\n"
       << "##INFO=<ID=SBF,Number=R,Type=Integer,Description=\"Number of forward stranded reads per "
        "allele.\">\n"
       << "##INFO=<ID=SBF1,Number=R,Type=Integer,Description=\"Number of first forward stranded "
@@ -686,7 +688,8 @@ Vcf::write_header()
   // FORMAT definitions
   {
     bgzf_stream
-      << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"GenoType call.\">\n"
+      << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"GenoType call. ./. is called if there is no "
+       "coverage at the variant site.\">\n"
       << "##FORMAT=<ID=FT,Number=1,Type=String,Description=\"Filter. PASS or FAILN where N is a number.\">\n"
       << "##FORMAT=<ID=AD,Number=R,Type=Integer,Description="
        "\"Allelic depths for the ref and alt alleles in the order listed.\">\n"
@@ -1453,7 +1456,7 @@ Vcf::add_haplotypes_for_extraction(std::vector<HaplotypeCall> const & hap_calls,
           }
           else
           {
-            std::cout << "Variant to be splitted: " << var.print()  << "\n";
+            BOOST_LOG_TRIVIAL(debug) << "Variant to be splitted: " << var.print();
 
             for (auto & spl_var : spl_vars)
             {
@@ -1472,7 +1475,7 @@ Vcf::add_haplotypes_for_extraction(std::vector<HaplotypeCall> const & hap_calls,
               if (is_any_zero_size)
                 new_var.add_base_in_front(true); // Add N is true
 
-              std::cout << "  into " << new_var.print() << "\n";
+              BOOST_LOG_TRIVIAL(debug) << "...into " << new_var.print();
               this->variants.push_back(std::move(new_var));
             }
           }//*/

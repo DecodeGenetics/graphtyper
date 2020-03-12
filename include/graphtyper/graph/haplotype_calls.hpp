@@ -18,6 +18,8 @@ public:
   std::vector<uint16_t> calls;
   std::vector<Genotype> gts;
   std::vector<std::vector<ReadStrand> > read_strand;
+  std::vector<double> haplotype_impurity;
+  long num_samples{0};
 
   HaplotypeCall() = default;
   explicit HaplotypeCall(Haplotype const & hap);

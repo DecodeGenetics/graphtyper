@@ -35,7 +35,9 @@ public:
   ~HtsParallelReader();
 
   // Opens multiple hts paths
-  void open(std::vector<std::string> const & hts_file_paths, std::string const & reference = "");
+  void open(std::vector<std::string> const & hts_file_paths,
+            std::string const & reference = "",
+            std::string const & region = ".");
 
   // Closes all hts files
   void close();
@@ -61,16 +63,21 @@ public:
 };
 
 
-void parallel_reader_genotype_only(std::string * out_path,
-                                   std::vector<std::string> const * hts_paths_ptr,
-                                   std::string const & output_dir,
-                                   bool const is_writing_calls_vcf,
-                                   bool const is_writing_hap);
+void
+parallel_reader_genotype_only(std::string * out_path,
+                              std::vector<std::string> const * hts_paths_ptr,
+                              std::string const & output_dir,
+                              std::string const & reference,
+                              std::string const & region,
+                              bool const is_writing_calls_vcf,
+                              bool const is_writing_hap);
 
 void
 parallel_reader_with_discovery(std::string * out_path,
                                std::vector<std::string> const * hts_paths_ptr,
                                std::string const & output_dir,
+                               std::string const & reference,
+                               std::string const & region,
                                long const minimum_variant_support,
                                double const minimum_variant_support_ratio,
                                bool const is_writing_calls_vcf,

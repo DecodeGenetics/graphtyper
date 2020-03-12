@@ -68,12 +68,14 @@ HtsParallelReader::~HtsParallelReader()
 
 
 void
-HtsParallelReader::open(std::vector<std::string> const & hts_file_paths, std::string const & reference)
+HtsParallelReader::open(std::vector<std::string> const & hts_file_paths,
+                        std::string const & reference,
+                        std::string const & region)
 {
   for (auto const & bam : hts_file_paths)
   {
     HtsReader f(store);
-    f.open(bam);
+    f.open(bam, region);
 
     if (!reference.empty())
       f.set_reference(reference);
@@ -338,6 +340,13 @@ genotype_only(HtsParallelReader const & hts_preader,
     update_paths(geno_paths, hts_rec.record);
 #endif
 
+    if ((geno_paths.first.flags & IS_FIRST_IN_PAIR) == (find_it->second.first.flags & IS_FIRST_IN_PAIR))
+    {
+      BOOST_LOG_TRIVIAL(error) << "Reads with name '" << read_name << "' both have IS_FIRST_IN_PAIR="
+                               << ((geno_paths.first.flags & IS_FIRST_IN_PAIR) != 0);
+      std::exit(1);
+    }
+
     // Find the better pair of geno paths
     std::pair<GenotypePaths *, GenotypePaths *> better_paths =
       get_better_paths(find_it->second, geno_paths);
@@ -443,6 +452,13 @@ genotype_and_discover(HtsParallelReader const & hts_preader,
     update_paths(geno_paths, hts_rec.record);
 #endif
 
+    if ((geno_paths.first.flags & IS_FIRST_IN_PAIR) == (find_it->second.first.flags & IS_FIRST_IN_PAIR))
+    {
+      BOOST_LOG_TRIVIAL(error) << "Reads with name '" << read_name << "' both have IS_FIRST_IN_PAIR="
+                               << ((geno_paths.first.flags & IS_FIRST_IN_PAIR) != 0);
+      std::exit(1);
+    }
+
     further_update_paths_for_discovery(geno_paths, seq, rseq, hts_rec.record);
 
     // Find the better pair of geno paths
@@ -481,6 +497,8 @@ void
 parallel_reader_genotype_only(std::string * out_path,
                               std::vector<std::string> const * hts_paths_ptr,
                               std::string const & output_dir,
+                              std::string const & reference,
+                              std::string const & region,
                               bool const is_writing_calls_vcf,
                               bool const is_writing_hap)
 {
@@ -489,7 +507,7 @@ parallel_reader_genotype_only(std::string * out_path,
 
   // Inititalize the HTS parallel reader
   HtsParallelReader hts_preader;
-  hts_preader.open(hts_paths);
+  hts_preader.open(hts_paths, reference, region); // "" is reference, "." is the region
 
   // Set up VcfWriter
   VcfWriter writer(SPLIT_VAR_THRESHOLD - 1);
@@ -542,6 +560,10 @@ parallel_reader_genotype_only(std::string * out_path,
 
     while (hts_preader.read_record(curr))
     {
+      // Ignore reads with the following bits set
+      if ((curr.record->core.flag & (IS_SECONDARY | IS_QC_FAIL | IS_DUPLICATION | IS_SUPPLEMENTARY)) != 0u)
+        continue;
+
       ++num_records;
 
       if (equal_pos_seq(prev.record, curr.record))
@@ -626,6 +648,8 @@ void
 parallel_reader_with_discovery(std::string * out_path,
                                std::vector<std::string> const * hts_paths_ptr,
                                std::string const & output_dir,
+                               std::string const & reference,
+                               std::string const & region,
                                long const minimum_variant_support,
                                double const minimum_variant_support_ratio,
                                bool const is_writing_calls_vcf,
@@ -636,7 +660,7 @@ parallel_reader_with_discovery(std::string * out_path,
 
   // Initialize the HTS parallel reader
   HtsParallelReader hts_preader;
-  hts_preader.open(hts_paths);
+  hts_preader.open(hts_paths, reference, region);
 
   // Set up VcfWriter
   VcfWriter writer(SPLIT_VAR_THRESHOLD - 1);
@@ -684,6 +708,10 @@ parallel_reader_with_discovery(std::string * out_path,
 
     while (hts_preader.read_record(curr))
     {
+      // Ignore reads with the following bits set
+      if ((curr.record->core.flag & (IS_SECONDARY | IS_QC_FAIL | IS_DUPLICATION | IS_SUPPLEMENTARY)) != 0u)
+        continue;
+
       ++num_records;
 
       if (equal_pos_seq(prev.record, curr.record))

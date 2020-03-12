@@ -591,6 +591,22 @@ Variant::generate_infos()
     infos["SB"] = ss_sb.str();
   }
 
+  // Write Alternative Strand Bias (SBAlt)
+  {
+    uint32_t total_f = get_accumulated_alt_strand_bias(infos, "SBF");
+    uint32_t total_r = get_accumulated_alt_strand_bias(infos, "SBR");
+
+    std::stringstream ss_sb;
+    ss_sb.precision(4);
+
+    if (total_f + total_r == 0)
+      ss_sb << "-1";
+    else
+      ss_sb << (static_cast<double>(total_f) / static_cast<double>(total_f + total_r));
+
+    infos["SBAlt"] = ss_sb.str();
+  }
+
   if (seqs.size() > 2)
   {
     // Write ABHetMulti
@@ -660,7 +676,10 @@ Variant::generate_infos()
 
   // Calculate QD
   {
-    infos["QD"] = std::to_string(get_qual_by_depth());
+    std::stringstream ss;
+    ss.precision(4);
+    ss << get_qual_by_depth();
+    infos["QD"] = ss.str();
   }
 
   // Calculate MQ
@@ -853,24 +872,31 @@ Variant::normalize()
   if (seqs.size() < 2)
     return;
 
+  auto const & ref = seqs[0];
+
+  // Check if some sequence is of length 0 or prefix is not matching
+  for (long i = 0; i < static_cast<long>(seqs.size()); ++i)
+  {
+    auto const & seq = seqs[i];
+
+    if (seq.size() == 0 || seq[0] != ref[0])
+      return;
+
+    // If a sequence is the same as the ref then we will loop forever
+    if (i > 0 && seq == ref)
+      return;
+  }
+
   remove_common_suffix(seqs);
 
   // A lambda function which checks if all last bases matches
   auto all_last_bases_match =
-    [&]()
+    [&ref, this]()
     {
-      char const ref = seqs[0].back();
-
-      for (std::size_t i = 1; i < seqs.size(); ++i)
+      for (long i = 1; i < static_cast<long>(this->seqs.size()); ++i)
       {
-        if (seqs[i].back() != ref)
-        {
+        if (this->seqs[i].back() != ref.back())
           return false;
-        }
-        else
-        {
-          assert(seqs[i] != seqs[0]); // Make sure the sequences are not identical
-        }
       }
 
       return true;
@@ -1121,8 +1147,8 @@ Variant::get_qual() const
 double
 Variant::get_qual_by_depth() const
 {
-  uint64_t total_qual = 0;
-  uint64_t total_depth = 0;
+  long total_qual = 0;
+  long total_depth = 0;
 
   for (auto const & sample_call : calls)
   {
@@ -1130,8 +1156,9 @@ Variant::get_qual_by_depth() const
     if (sample_call.phred[0] > 0)
     {
       auto const & cov = sample_call.coverage;
-      total_qual += sample_call.phred[0];
-      total_depth += std::min(10l, std::accumulate(cov.begin() + 1, cov.end(), 0l));
+      total_qual += static_cast<long>(sample_call.phred[0]);
+      long const depth = std::min(10l, std::accumulate(cov.begin() + 1, cov.end(), 0l));
+      total_depth += depth;
     }
   }
 
@@ -1230,7 +1257,7 @@ extract_sequences_from_aligned_variant(Variant const && var, std::size_t const T
 
   // Lambda function which handles any matches found
   auto matches_handle =
-    [&]() -> void
+    [](std::vector<Variant> & new_vars, Variant && new_var) -> void
     {
       // Remove sequences with Ns
       assert(new_var.seqs.size() > 1);
@@ -1241,20 +1268,19 @@ extract_sequences_from_aligned_variant(Variant const && var, std::size_t const T
       }), new_var.seqs.end());
 
       if (new_var.seqs.size() <= 1 ||
-          std::find(new_var.seqs[0].begin(), new_var.seqs[0].end(), 'N') != new_var.seqs[0].end()
-          )
+          std::find(new_var.seqs[0].begin(), new_var.seqs[0].end(), 'N') != new_var.seqs[0].end())
       {
         // Do not do anything if there is only the reference or the reference has Ns
         return;
       }
 
-      new_var.trim_sequences(true);  // Keep one match
+      new_var.trim_sequences(false);  // Keep one match
       new_vars.push_back(std::move(new_var));
     };
 
   std::vector<char> const & reference = var.seqs[0];
 
-  for (unsigned i = 1; i < reference.size(); ++i)
+  for (long i = 1; i < static_cast<long>(reference.size()); ++i)
   {
     assert(new_var.seqs.size() >= 2);
 
@@ -1265,9 +1291,9 @@ extract_sequences_from_aligned_variant(Variant const && var, std::size_t const T
 
     bool all_match = true;
 
-    for (unsigned a = 1; a < new_var.seqs.size(); ++a)
+    for (int a = 1; a < static_cast<long>(new_var.seqs.size()); ++a)
     {
-      assert(a < var.seqs.size());
+      assert(a < static_cast<int>(var.seqs.size()));
 
       if (var.seqs[a][i] != '-')
         new_var.seqs[a].push_back(var.seqs[a][i]);
@@ -1288,16 +1314,18 @@ extract_sequences_from_aligned_variant(Variant const && var, std::size_t const T
 
     if (match_length >= static_cast<long>(THRESHOLD))
     {
-      first_base = var.seqs[0][i];
+      //first_base = var.seqs[0][i];
       find_variant_sequences(new_var, var);
-      matches_handle();   // Uses new_var, so don't move this anywhere else
+      matches_handle(new_vars, std::move(new_var));   // Uses new_var, so don't move this anywhere else
       match_length = -1;
-      new_var = Variant();   // Create a new one
-      new_var.abs_pos = original_pos + i - ref_gaps;
-      new_var.seqs =
-        std::vector<std::vector<char> >(var.seqs.size(), std::vector<char>(1, first_base));
+      //new_var = Variant();   // Create a new one
+      new_var.abs_pos = original_pos + i - ref_gaps + 1;
+      new_var.seqs = std::vector<std::vector<char> >(var.seqs.size());
+      //new_var.abs_pos = original_pos + i - ref_gaps;
+      //new_var.seqs =
+      //  std::vector<std::vector<char> >(var.seqs.size(), std::vector<char>(1, first_base));
 
-      new_var.infos = var.infos;
+//      new_var.infos = var.infos;
 //      new_var.phase = var.phase;
       new_var.suffix_id = var.suffix_id;
     }
@@ -1311,7 +1339,7 @@ extract_sequences_from_aligned_variant(Variant const && var, std::size_t const T
     find_variant_sequences(new_var, var);
 
     if (new_var.seqs.size() >= 2)
-      matches_handle();
+      matches_handle(new_vars, std::move(new_var));
   }
 
   return new_vars;

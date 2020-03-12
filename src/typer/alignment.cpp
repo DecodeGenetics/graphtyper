@@ -111,6 +111,37 @@ find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read,
 }
 
 
+bool
+is_clipped(bam1_t const & b)
+{
+  if (b.core.n_cigar == 0)
+    return false;
+
+  auto it = b.data + b.core.l_qname;
+
+  // Check first
+  uint32_t opAndCnt;
+  memcpy(&opAndCnt, it, sizeof(uint32_t));
+
+  if ((opAndCnt & 15) == 4)
+  {
+    //std::cerr << "MIDNSHP=X*******"[opAndCnt & 15] << " first ";
+    return true;
+  }
+
+  // Check last
+  memcpy(&opAndCnt, it + sizeof(uint32_t) * (b.core.n_cigar - 1), sizeof(uint32_t));
+
+  if ((opAndCnt & 15) == 4)
+  {
+    //std::cerr << "MIDNSHP=X*******"[opAndCnt & 15] << " last ";
+    return true;
+  }
+
+  return false;
+}
+
+
 } // anon namespace
 
 
@@ -125,8 +156,7 @@ align_read(bam1_t * rec, seqan::IupacString const & seq, seqan::IupacString cons
 
   std::pair<GenotypePaths, GenotypePaths> geno_paths = std::make_pair<GenotypePaths, GenotypePaths>(
     GenotypePaths(core.flag, core.l_qseq),
-    GenotypePaths(core.flag, core.l_qseq)
-    );
+    GenotypePaths(core.flag, core.l_qseq));
 
   find_genotype_paths_of_one_of_the_sequences(seq, geno_paths.first);
   find_genotype_paths_of_one_of_the_sequences(rseq, geno_paths.second);
@@ -155,6 +185,9 @@ update_unpaired_read_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths,
     if (core.qual < 25) // True if MQ is below 25
       set_bit(geno->flags, IS_MAPQ_BAD);
 
+    if (is_clipped(*rec))
+      set_bit(geno->flags, IS_CLIPPED);
+
 #ifndef NDEBUG
     if (Options::instance()->stats.size() > 0)
       geno->details->query_name = std::string(reinterpret_cast<char *>(rec->data));
@@ -174,6 +207,9 @@ update_unpaired_read_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths,
 
     if (core.qual < 25) // True if MQ is below 25
       set_bit(geno->flags, IS_MAPQ_BAD);
+
+    if (is_clipped(*rec))
+      set_bit(geno->flags, IS_CLIPPED);
 
 #ifndef NDEBUG
     if (Options::instance()->stats.size() > 0)
@@ -259,6 +295,12 @@ update_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths, bam1_t * rec)
   if (core.qual < 25)
     set_bit(geno1.flags, IS_MAPQ_BAD);
 
+  if (is_clipped(*rec))
+  {
+    set_bit(geno1.flags, IS_CLIPPED);
+    set_bit(geno2.flags, IS_CLIPPED);
+  }
+
   geno2.flags = (core.flag ^ IS_SEQ_REVERSED) & ~IS_PROPER_PAIR;
   geno2.mapq = geno1.mapq;
   geno2.ml_insert_size = geno1.ml_insert_size;
@@ -339,6 +381,15 @@ get_better_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths1,
     assert(arr[1]);
     assert(arr[2]);
     assert(arr[3]);
+
+    // Make sure we got a ptr in every field in release mode as well
+    if (!arr[0] || !arr[1] || !arr[2] || !arr[3])
+    {
+      BOOST_LOG_TRIVIAL(warning) << "Unexpected read orientation, ptr array: "
+                                 << arr[0] << " " << arr[1] << " " << arr[2] << " " << arr[3];
+      genos1.first = nullptr;
+      return genos1;
+    }
 
     genos1 = {arr[3], arr[0]};
     genos2 = {arr[1], arr[2]};

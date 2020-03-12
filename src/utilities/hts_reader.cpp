@@ -19,7 +19,7 @@ HtsReader::HtsReader(HtsStore & _store)
 
 
 void
-HtsReader::open(std::string const & path)
+HtsReader::open(std::string const & path, std::string const & region)
 {
   fp = hts_open(path.c_str(), "r");
 
@@ -105,7 +105,17 @@ HtsReader::open(std::string const & path)
   }
 
   rec = store.get();
-  ret = sam_read1(fp, fp->bam_header, rec);
+
+  if (region == ".")
+  {
+    ret = sam_read1(fp, fp->bam_header, rec);
+  }
+  else
+  {
+    hts_index = sam_index_load(fp, path.c_str());
+    hts_iter = sam_itr_querys(hts_index, fp->bam_header, region.c_str());
+    ret = sam_itr_next(fp, hts_iter, rec);
+  }
 }
 
 
@@ -116,6 +126,18 @@ HtsReader::close()
   {
     hts_close(fp);
     fp = nullptr;
+  }
+
+  if (hts_iter)
+  {
+    hts_itr_destroy(hts_iter);
+    hts_iter = nullptr;
+  }
+
+  if (hts_index)
+  {
+    hts_idx_destroy(hts_index);
+    hts_index = nullptr;
   }
 }
 
@@ -179,20 +201,38 @@ HtsReader::get_next_read(bam1_t * old_record)
   auto const pos = rec->core.pos;
   records.push_back(rec);
   rec = old_record;
-  ret = sam_read1(fp, fp->bam_header, rec);
 
-  // Read while the records have the same position
-  while (ret >= 0 && rec->core.pos == pos)
+  // Check if we are reading region or not
+  if (hts_iter)
   {
-    assert(rec);
-    records.push_back(rec);
-    rec = store.get();
-    assert(rec);
+    ret = sam_itr_next(fp, hts_iter, rec);
+
+    // Read while the records have the same position
+    while (ret >= 0 && rec->core.pos == pos)
+    {
+      assert(rec);
+      records.push_back(rec);
+      rec = store.get();
+      assert(rec);
+      ret = sam_itr_next(fp, hts_iter, rec);
+    }
+  }
+  else
+  {
     ret = sam_read1(fp, fp->bam_header, rec);
+
+    // Read while the records have the same position
+    while (ret >= 0 && rec->core.pos == pos)
+    {
+      assert(rec);
+      records.push_back(rec);
+      rec = store.get();
+      assert(rec);
+      ret = sam_read1(fp, fp->bam_header, rec);
+    }
   }
 
   std::sort(records.begin(), records.end(), gt_pos_seq_same_pos);
-
   bam1_t * record = *(records.end() - 1);
   records.pop_back();
   return record;
@@ -225,16 +265,34 @@ HtsReader::get_next_read()
   records.push_back(rec);
   rec = store.get();
   assert(rec);
-  ret = sam_read1(fp, fp->bam_header, rec);
 
-  // Read while the records have the same position
-  while (ret >= 0 && rec->core.pos == pos)
+  if (hts_iter)
   {
-    assert(rec);
-    records.push_back(rec);
-    rec = store.get();
-    assert(rec);
+    ret = sam_itr_next(fp, hts_iter, rec);
+
+    // Read while the records have the same position
+    while (ret >= 0 && rec->core.pos == pos)
+    {
+      assert(rec);
+      records.push_back(rec);
+      rec = store.get();
+      assert(rec);
+      ret = sam_itr_next(fp, hts_iter, rec);
+    }
+  }
+  else
+  {
     ret = sam_read1(fp, fp->bam_header, rec);
+
+    // Read while the records have the same position
+    while (ret >= 0 && rec->core.pos == pos)
+    {
+      assert(rec);
+      records.push_back(rec);
+      rec = store.get();
+      assert(rec);
+      ret = sam_read1(fp, fp->bam_header, rec);
+    }
   }
 
   std::sort(records.begin(), records.end(), gt_pos_seq_same_pos);
@@ -257,7 +315,7 @@ HtsReader::get_next_pos()
 
   bam1_t * record = rec;
   rec = store.get();
-  ret = sam_read1(fp, fp->bam_header, rec);
+  ret = hts_iter ? sam_itr_next(fp, hts_iter, rec) : sam_read1(fp, fp->bam_header, rec);
   return record;
 }
 

@@ -55,7 +55,7 @@ std::string
 create_temp_dir(GenomicRegion const & region)
 {
   std::ostringstream ss;
-  ss << get_env_var("GT_TMPDIR", "/tmp") << "/graphtyper_" << current_sec() << "_"
+  ss << get_env_var("TMPDIR", "/tmp") << "/graphtyper_" << current_sec() << "_"
      << region.chr << "_" << std::setw(9) << std::setfill('0') << (region.begin + 1);
 
   std::string tmp = ss.str();
@@ -169,6 +169,19 @@ is_directory(std::string const & filename)
 {
   struct stat sb;
   return stat(filename.c_str(), &sb) == 0;
+}
+
+
+bool
+is_defined_in_env(std::string const & var)
+{
+  char * ref_cache;
+  ref_cache = getenv(var.c_str());
+
+  if (ref_cache != NULL)
+    return true;
+
+  return false;
 }
 
 

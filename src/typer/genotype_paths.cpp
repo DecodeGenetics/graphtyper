@@ -769,7 +769,8 @@ GenotypePaths::find_new_variants() const
               }
 
               // Determine if it is a proper pair
-              new_var.normalize();
+              assert(new_var.is_normalized());
+              //new_var.normalize();
               new_variants.push_back(std::move(new_var));
             }
           }
@@ -821,8 +822,9 @@ GenotypePaths::find_new_variants() const
             // Make sure the sequences are not empty
             assert(new_var.seqs[0].size() > 0);
             assert(new_var.seqs[1].size() > 0);
+            assert(new_var.is_normalized());
 
-            new_var.normalize();
+            //new_var.normalize();
             new_variants.push_back(std::move(new_var));
           }
         }
@@ -837,19 +839,17 @@ GenotypePaths::find_new_variants() const
     // Parameters
     uint32_t constexpr EXTRA_BASES_BEFORE = 50;
     uint32_t constexpr EXTRA_BASES_AFTER = 50;
-    uint32_t ref_pos_start;
+    uint32_t ref_pos_start{0};
 
     // Check if we would underflow, and if we would then prevent an underflow
     if (read_pos_start <= path.start_ref_reach_pos() && read_pos_start > EXTRA_BASES_BEFORE)
       ref_pos_start = read_pos_start - EXTRA_BASES_BEFORE;
-    else
-      ref_pos_start = 0;
 
     uint32_t ref_pos_end = static_cast<uint32_t>(read_pos_start + read2.size() + EXTRA_BASES_AFTER);
     std::vector<char> reference = graph.get_generated_reference_genome(ref_pos_start, ref_pos_end);
 
     // Make sure the extracted reference is much larger than the read
-    if (reference.size() >= read2.size() + EXTRA_BASES_BEFORE)
+    if (reference.size() >= (read2.size() + EXTRA_BASES_BEFORE))
     {
       new_variants = find_variants_in_alignment(ref_pos_start,
                                                 reference,
@@ -864,7 +864,8 @@ GenotypePaths::find_new_variants() const
     assert(new_var.seqs.size() == 2);
     assert(new_var.seqs[0].size() > 0);
     assert(new_var.seqs[1].size() > 0);
-    new_var.normalize();
+    assert(new_var.is_normalized());
+    //new_var.normalize();
     new_var.flags |= flags;
     new_var.original_pos = original_pos;
   }
@@ -1051,8 +1052,7 @@ compare_pair_of_genotype_paths(GenotypePaths const & geno1, GenotypePaths const 
 
 int
 compare_pair_of_genotype_paths(std::pair<GenotypePaths *, GenotypePaths *> const & genos1_ptr,
-                               std::pair<GenotypePaths *, GenotypePaths *> const & genos2_ptr
-                               )
+                               std::pair<GenotypePaths *, GenotypePaths *> const & genos2_ptr)
 {
   assert(genos1_ptr.first);
   assert(genos1_ptr.second);

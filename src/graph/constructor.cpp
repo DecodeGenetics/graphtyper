@@ -12,6 +12,7 @@
 #include <graphtyper/graph/graph_serialization.hpp>
 #include <graphtyper/graph/constructor.hpp>
 #include <graphtyper/graph/var_record.hpp>
+#include <graphtyper/typer/variant.hpp>
 #include <graphtyper/utilities/options.hpp>
 #include <graphtyper/utilities/gzstream.hpp>
 
@@ -20,6 +21,16 @@
 #include <seqan/seq_io.h>
 #include <seqan/vcf_io.h>
 
+
+namespace gyper
+{
+
+std::vector<std::size_t> get_all_pos(std::string const & line, char const delim = '\t');
+std::string get_string_at_tab_index(std::string const & line,
+                                    std::vector<std::size_t> const & tabs,
+                                    int index);
+
+} // namespace gyper
 
 namespace
 {
@@ -1662,8 +1673,7 @@ construct_graph(std::string const & reference_filename,
     {
       std::sort(var_record.alts.begin(), var_record.alts.end());
       var_record.alts.erase(std::unique(var_record.alts.begin(), var_record.alts.end()),
-                            var_record.alts.end()
-                            );
+                            var_record.alts.end());
     }
 
 #ifndef NDEBUG
@@ -1710,6 +1720,46 @@ construct_graph(std::string const & reference_filename,
 
   // Create all specials positions
   graph.create_special_positions();
+}
+
+
+std::vector<gyper::Variant>
+get_variants_using_tabix(std::string const & vcf, GenomicRegion const & genomic_region)
+{
+  std::vector<gyper::Variant> variants;
+  seqan::Tabix tabix;
+  open_tabix(tabix, vcf, genomic_region);
+
+  std::string line;
+
+  while (seqan::readRawRecord(line, tabix))
+  {
+    std::vector<std::size_t> const tabs = get_all_pos(line, '\t');
+
+    std::string const chrom = get_string_at_tab_index(line, tabs, 0);
+    long const pos = std::stoul(get_string_at_tab_index(line, tabs, 1));
+    std::string const id = get_string_at_tab_index(line, tabs, 2);
+    std::string const ref = get_string_at_tab_index(line, tabs, 3);
+    std::string const alts = get_string_at_tab_index(line, tabs, 4);
+    std::vector<std::size_t> const alt_commas = get_all_pos(alts, ',');
+
+    Variant var;
+    var.abs_pos = gyper::absolute_pos.get_absolute_position(chrom, pos);
+    var.seqs.push_back(std::vector<char>(ref.begin(), ref.end()));
+
+    assert(alt_commas.size() >= 2);
+
+    for (int a = 0; a < static_cast<int>(alt_commas.size()) - 1; ++a)
+    {
+      std::string alt = get_string_at_tab_index(alts, alt_commas, a);
+      var.seqs.push_back(std::vector<char>(alt.begin(), alt.end()));
+    }
+
+    //std::cerr << "Read line: " << var.print() << "\n";
+    variants.push_back(std::move(var));
+  }
+
+  return variants;
 }
 
 

@@ -18,14 +18,16 @@ namespace gyper
 class HtsReader
 {
 public:
-  htsFile * fp = nullptr; // htslib file pointer
+  htsFile * fp{nullptr}; // htslib file pointer
+  hts_idx_t * hts_index{nullptr};
+  hts_itr_t * hts_iter{nullptr};
   std::vector<std::string> samples;
   int sample_index_offset = 0;
   int rg_index_offset = 0;
 
 private:
-  int ret = 0; // return value of the most recently read record
-  bam1_t * rec = nullptr; // The most recently read record
+  int ret{0}; // return value of the most recently read record
+  bam1_t * rec{nullptr}; // The most recently read record
   std::vector<bam1_t *> records; // A bulk of records that have the same position.
   // TODO check if it is faster to first check if the records are sorted
   HtsStore & store;
@@ -36,7 +38,7 @@ private:
 public:
   HtsReader(HtsStore & _store);
 
-  void open(std::string const & path);
+  void open(std::string const & path, std::string const & region);
   void close();
   int set_reference(std::string const & reference_path);
   void set_sample_index_offset(int new_sample_index_offset);

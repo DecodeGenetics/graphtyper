@@ -88,8 +88,9 @@ genotype_sv(std::string ref_path,
 
   //std::vector<std::string> shrinked_sams = std::move(sams);
   GenomicRegion padded_region(genomic_region);
-  padded_region.pad(1000l);
   padded_region.pad_end(200000l);
+  GenomicRegion unpadded_region(padded_region);
+  padded_region.pad(1000l);
 
   // Iteration 1 out of 1
   {
@@ -98,17 +99,21 @@ genotype_sv(std::string ref_path,
     std::string const out_dir = tmp + "/it1";
     mkdir(out_dir.c_str(), 0755);
     std::string const index_path = out_dir + "/graph_gti";
+    BOOST_LOG_TRIVIAL(info) << "Padded region is: " << padded_region.to_string();
 
     {
       bool constexpr is_sv_graph{true};
       bool constexpr use_absolute_positions{true};
       bool constexpr check_index{true};
+
       gyper::construct_graph(ref_path,
                              sv_vcf,
                              padded_region.to_string(),
                              is_sv_graph,
                              use_absolute_positions,
                              check_index);
+
+      absolute_pos.calculate_offsets(gyper::graph);
     }
 
 #ifndef NDEBUG
@@ -116,7 +121,6 @@ genotype_sv(std::string ref_path,
     save_graph(out_dir + "/graph");
 #endif // NDEBUG
 
-    absolute_pos.calculate_offsets(gyper::graph);
     index_graph(index_path);
 
     std::vector<std::string> paths =
@@ -124,14 +128,13 @@ genotype_sv(std::string ref_path,
                   "",   // graph_path
                   index_path,
                   out_dir,
+                  "", // reference
+                  unpadded_region.to_string(), // region
                   5,//minimum_variant_support,
                   0.25,//minimum_variant_support_ratio,
                   is_writing_calls_vcf,
                   is_discovery,
                   is_writing_hap);
-
-    // free memory
-    graph = Graph();
 
     BOOST_LOG_TRIVIAL(info) << "Merging output VCFs.";
 
@@ -190,6 +193,9 @@ genotype_sv(std::string ref_path,
 
     BOOST_LOG_TRIVIAL(info) << "Finished! Output written at: " << ss.str();
   }
+
+  // free memory
+  graph = Graph();
 }
 
 
@@ -202,7 +208,9 @@ genotype_sv_regions(std::string ref_path,
                     bool const is_copy_reference)
 {
   for (auto const & region : regions)
+  {
     genotype_sv(ref_path, sv_vcf, sams, region, output_path, is_copy_reference);
+  }
 }
 
 

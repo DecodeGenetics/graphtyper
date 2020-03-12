@@ -433,7 +433,7 @@ VariantMap::filter_varmap_for_all()
     // Change Variant -> VariantCandidate
     std::vector<VariantCandidate> new_broken_down_var_candidates(new_broken_down_vars.size());
 
-    for (unsigned i = 0; i < new_broken_down_vars.size(); ++i)
+    for (long i = 0; i < static_cast<long>(new_broken_down_vars.size()); ++i)
     {
       new_broken_down_var_candidates[i].abs_pos = new_broken_down_vars[i].abs_pos;
       new_broken_down_var_candidates[i].seqs = std::move(new_broken_down_vars[i].seqs);

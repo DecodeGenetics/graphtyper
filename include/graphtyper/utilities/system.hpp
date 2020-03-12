@@ -30,4 +30,7 @@ check_file_exists_or_empty(std::string const & filename);
 bool
 is_directory(std::string const & filename);
 
+bool
+is_defined_in_env(std::string const & var);
+
 } // namespace gyper

@@ -17,14 +17,11 @@
 #include <boost/log/trivial.hpp>
 
 #include <graphtyper/utilities/bamshrink.hpp>
+#include <graphtyper/utilities/options.hpp>
 
 
 namespace bamshrink
 {
-
-int constexpr minReadLen = 63;
-int constexpr minReadLenMapQ0 = 94;
-int constexpr minUnpairedReadLen = 94;
 
 #ifndef NDEBUG
 bool constexpr CHANGE_READ_NAMES = false;
@@ -81,7 +78,7 @@ is_one_end_clipped(seqan::String<seqan::CigarElement<> > const & cigar, long con
 
 // returns true if the alignment is good
 bool
-process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_tags)
+process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_tags, bamshrink::Options const & opts)
 {
   unsigned i = 0;
   int64_t as = -1;
@@ -286,7 +283,7 @@ process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_tags)
         indels += c.count + 2; // Extra 2 for each event
     }
 
-    if ((as + 35l) <= (matches - indels))
+    if ((as + opts.as_filter_threshold) <= (matches - indels))
       return false;
   }
 
@@ -486,7 +483,7 @@ resetCigarStringBegin(String<CigarElement<> > & cigarString, unsigned nRemoved)
 
 
 bool
-removeSoftClipped(BamAlignmentRecord & record)
+removeSoftClipped(BamAlignmentRecord & record, Options const & opts)
 {
   auto const & first_cigar = record.cigar[0];
   auto const & last_cigar = record.cigar[length(record.cigar) - 1];
@@ -508,15 +505,18 @@ removeSoftClipped(BamAlignmentRecord & record)
     eraseBack(record.cigar);
   }
 
-  if (length(record.seq) >= minReadLen || (record.mapQ < 5 && length(record.seq) >= minReadLenMapQ0))
-    return true;
+  if (static_cast<long>(length(record.seq)) < opts.minReadLen ||
+      (record.mapQ < 25 && static_cast<long>(length(record.seq)) < opts.minReadLenMapQ0))
+  {
+    return false;
+  }
 
-  return false;
+  return true;
 }
 
 
 bool
-removeNsAtEnds(BamAlignmentRecord & record)
+removeNsAtEnds(BamAlignmentRecord & record, Options const & opts)
 {
   int nOfNs = 0;
 
@@ -531,19 +531,22 @@ removeNsAtEnds(BamAlignmentRecord & record)
       ++idx;
     }
 
-    //Remove ns from beginning of sequence and qual fields:
+    // Remove ns from beginning of sequence and qual fields
     erase(record.seq, 0, nOfNs);
     erase(record.qual, 0, nOfNs);
 
-    if (!hasFlagUnmapped(record))     //Only have to fix CIGAR, beginPos and fragLen if the read is mapped.
+    if (!hasFlagUnmapped(record)) // Only have to fix CIGAR, beginPos and fragLen if the read is mapped
     {
       unsigned shift = resetCigarStringBegin(record.cigar, nOfNs);
       record.beginPos += shift;
     }
   }
 
-  if (length(record.seq) < minReadLen || (record.mapQ < 5 && length(record.seq) < minReadLenMapQ0))
+  if (static_cast<long>(length(record.seq)) < opts.minReadLen ||
+      (record.mapQ < 25 && static_cast<long>(length(record.seq)) < opts.minReadLenMapQ0))
+  {
     return false;
+  }
 
   nOfNs = 0;
 
@@ -562,12 +565,15 @@ removeNsAtEnds(BamAlignmentRecord & record)
     erase(record.seq, length(record.seq) - nOfNs, length(record.seq));
     erase(record.qual, length(record.qual) - nOfNs, length(record.qual));
 
-    if (!hasFlagUnmapped(record)) //Only have to fix CIGAR, beginPos and fragLen if the read is mapped.
+    if (!hasFlagUnmapped(record)) // Only have to fix CIGAR, beginPos and fragLen if the read is mapped
       resetCigarStringEnd(record.cigar, nOfNs);
   }
 
-  if (length(record.seq) < minReadLen || (record.mapQ < 5 && length(record.seq) < minReadLenMapQ0))
+  if (static_cast<long>(length(record.seq)) < opts.minReadLen ||
+      (record.mapQ < 25 && static_cast<long>(length(record.seq)) < opts.minReadLenMapQ0))
+  {
     return false;
+  }
 
   return true;
 }
@@ -619,16 +625,11 @@ findNum2Clip(BamAlignmentRecord & recordReverse, int forwardStartPos)
 
 bool
 removeAdapters(BamAlignmentRecord & recordForward,
-               BamAlignmentRecord & recordReverse)
+               BamAlignmentRecord & recordReverse,
+               Options const & opts)
 {
   //Check for soft clipped bases at beginning of forward record.
-  //if (recordForward.cigar[0].operation == 'S')
-  //{
-  //  if (static_cast<long>(recordForward.beginPos - recordForward.cigar[0].count) <= recordReverse.beginPos)
-  //    return true;
-  //}
-
-  if (!removeSoftClipped(recordForward) || !removeSoftClipped(recordReverse))
+  if (removeSoftClipped(recordForward, opts) && removeSoftClipped(recordReverse, opts))
     return false;
 
   //delStats.nAdapterReads += 2;
@@ -677,14 +678,14 @@ removeAdapters(BamAlignmentRecord & recordForward,
   }
 #endif // NDEBUG
 
-  if (length(recordForward.seq) >= minReadLen ||
-      (recordForward.mapQ < 5 && length(recordForward.seq) >= minReadLenMapQ0))
+  if (static_cast<long>(length(recordForward.seq)) < opts.minReadLen ||
+      (recordForward.mapQ < 25 && static_cast<long>(length(recordForward.seq)) < opts.minReadLenMapQ0))
   {
-    return true;
+    return false;
   }
   else
   {
-    return false;
+    return true;
   }
 }
 
@@ -694,6 +695,7 @@ qualityFilterSlice2(Options const & opts,
                     Triple<CharString, int, int> chr_start_end, // cannot be const& due to some seqan issue
                     BamFileIn & bamFileIn,
                     BamFileOut & bamFileOut,
+                    long & read_num,
                     bool const is_single_contig)
 {
   if (!loadIndex(bamFileIn, opts.bamIndex.c_str()))
@@ -725,7 +727,6 @@ qualityFilterSlice2(Options const & opts,
   std::vector<uint32_t> bin_counts;
   long const max_bin_sum = static_cast<long>(opts.avgCovByReadLen * 50.0 * 2.5);
   long const max_fragment_length = opts.maxFragLen;
-  long read_num = 0;
 
   auto filter_unpaired =
     [&chr_start_end, &opts](BamAlignmentRecord const & rec) -> bool
@@ -737,8 +738,8 @@ qualityFilterSlice2(Options const & opts,
         return false;
       }
 
-      if (rec.mapQ < 5 ||
-          length(rec.seq) < minUnpairedReadLen ||
+      if (rec.mapQ < 25 ||
+          static_cast<long>(length(rec.seq)) < opts.minUnpairedReadLen ||
           is_one_end_clipped(rec.cigar, 12) ||
           is_clipped_both_ends(rec.cigar, 5) ||
           countMatchingBases(rec.cigar) < opts.minNumMatching + 5)
@@ -752,6 +753,11 @@ qualityFilterSlice2(Options const & opts,
   auto filter_paired =
     [&chr_start_end, &opts](BamAlignmentRecord const & rec) -> bool
     {
+      if (opts.is_filtering_mapq0 && rec.mapQ == 0)
+      {
+        return false;
+      }
+
       // Paired read that does not overlap the target region
       if (static_cast<long>(rec.beginPos + seqan::length(rec.seq)) < static_cast<long>(chr_start_end.i2) &&
           (static_cast<long>(rec.beginPos + rec.tLen) < static_cast<long>(chr_start_end.i2)))
@@ -773,8 +779,8 @@ qualityFilterSlice2(Options const & opts,
       }
 
       // Filter for paired reads
-      if (length(rec.seq) < minReadLen ||
-          (rec.mapQ <= 30 && is_clipped_both_ends(rec.cigar, 12)) ||
+      if (static_cast<long>(length(rec.seq)) < opts.minReadLen ||
+          (rec.mapQ < 30 && is_clipped_both_ends(rec.cigar, 12)) ||
           (rec.mapQ < 5 && is_one_end_clipped(rec.cigar, length(rec.seq) / 4)) ||
           is_clipped_both_ends(rec.cigar, length(rec.seq) / 2) ||
           countMatchingBases(rec.cigar) < opts.minNumMatching)
@@ -786,16 +792,16 @@ qualityFilterSlice2(Options const & opts,
     };
 
   auto post_process_unpaired =
-    [&bin_counts, &first_pos, &max_bin_sum, &read_num, &read_set](BamAlignmentRecord && rec) -> void
+    [&bin_counts, &first_pos, &max_bin_sum, &read_num, &read_set, &opts](BamAlignmentRecord && rec) -> void
     {
       // Filter for unpaired reads
       seqan::CharString new_tags;
-      bool is_good_alignment = process_tags(rec, new_tags);
+      bool is_good_alignment = process_tags(rec, new_tags, opts);
 
       if (!is_good_alignment)
         return;
 
-      if (!removeNsAtEnds(rec))
+      if (!removeNsAtEnds(rec, opts))
         return;
 
       rec.tags = std::move(new_tags);
@@ -827,15 +833,15 @@ qualityFilterSlice2(Options const & opts,
     };
 
   auto post_process_paired =
-    [](BamAlignmentRecord & rec, long const read_num) -> bool
+    [&opts](BamAlignmentRecord & rec, long const read_num) -> bool
     {
       seqan::CharString new_tags;
-      bool is_good_alignment = process_tags(rec, new_tags);
+      bool is_good_alignment = process_tags(rec, new_tags, opts);
 
       if (!is_good_alignment)
         return false;
 
-      if (!removeNsAtEnds(rec))
+      if (!removeNsAtEnds(rec, opts))
         return false;
 
       rec.tags = std::move(new_tags);
@@ -858,7 +864,7 @@ qualityFilterSlice2(Options const & opts,
         hasFlagQCNoPass(record) ||
         hasFlagSecondary(record) ||
         hasFlagSupplementary(record) ||
-        (record.tLen != 0 && abs(record.tLen) < minReadLen))
+        (record.tLen != 0 && abs(record.tLen) < opts.minReadLen))
     {
       continue;
     }
@@ -973,9 +979,9 @@ qualityFilterSlice2(Options const & opts,
         if (record.tLen == 0 || abs(record.tLen) > std::max(length(record.seq), length(find_it->second.seq)))
           is_ok = true;
         else if (hasFlagRC(record))
-          is_ok = removeAdapters(find_it->second, record);
+          is_ok = removeAdapters(find_it->second, record, opts);
         else
-          is_ok = removeAdapters(record, find_it->second);
+          is_ok = removeAdapters(record, find_it->second, opts);
 
         if (is_ok && post_process_paired(record, read_num) && post_process_paired(find_it->second, read_num))
         {
@@ -1065,6 +1071,13 @@ readIntervals(Options const & opts)
 
     if (intFile.eof())
       break;
+
+    if (chr_start_end.i1 == intervalString[length(intervalString) - 1].i1 &&
+        chr_start_end.i2 < intervalString[length(intervalString) - 1].i2)
+    {
+      BOOST_LOG_TRIVIAL(error) << "The input intervals are not sorted.";
+      std::exit(1);
+    }
 
     // If beginning of interval is closer than 2*maxFragLen bases to the previous interval we merge them.
     // Otherwise we cannot ensure sorting of reads.
@@ -1176,16 +1189,18 @@ main(bamshrink::Options & opts)
     bamFileOut.hdr->text = static_cast<char *>(realloc(bamFileOut.hdr->text, sizeof(char) * new_header.size()));
     strncpy(bamFileOut.hdr->text, new_header.c_str(), new_header.size());
     writeHeader(bamFileOut);
-    qualityFilterSlice2(opts, intervalString[0], bamFileIn, bamFileOut, true); // is_single_contig
+    long read_num{0};
+    qualityFilterSlice2(opts, intervalString[0], bamFileIn, bamFileOut, read_num, true); // is_single_contig
   }
   else
   {
     copyHeader(bamFileOut, bamFileIn);
     writeHeader(bamFileOut);
+    long read_num{0};
 
     for (unsigned i = 0; i < length(intervalString); ++i)
     {
-      qualityFilterSlice2(opts, intervalString[i], bamFileIn, bamFileOut, false); // is_single_contig
+      qualityFilterSlice2(opts, intervalString[i], bamFileIn, bamFileOut, read_num, false); // is_single_contig
     }
   }
 
@@ -1219,18 +1234,23 @@ bamshrink(seqan::String<seqan::Triple<seqan::CharString, int, int> > const & int
   BamFileOut bamFileOut(path_out.c_str(), "wb");
 
   if (path_in.size() > 5 && std::string(path_in.rbegin(), path_in.rbegin() + 5) == "marc.")
-  {
     opts.bamIndex = path_in + ".crai";
-  }
   else
-  {
     opts.bamIndex = path_in + ".bai";
-  }
 
   if (avg_cov_by_readlen > 0.0)
     opts.avgCovByReadLen = avg_cov_by_readlen;
   else
     opts.SUPER_HI_DEPTH = 1000; // Do not apply super hi depth if coverage is unknown
+
+  auto const & copts = *(Options::const_instance());
+  opts.maxFragLen = copts.bamshrink_max_fraglen;
+  opts.minNumMatching = copts.bamshrink_min_matching;
+  opts.is_filtering_mapq0 = !copts.bamshrink_is_not_filtering_mapq0;
+  opts.minReadLen = copts.bamshrink_min_readlen;
+  opts.minReadLenMapQ0 = copts.bamshrink_min_readlen_low_mapq;
+  opts.minUnpairedReadLen = copts.bamshrink_min_unpair_readlen;
+  opts.as_filter_threshold = copts.bamshrink_as_filter_threshold;
 
   // When there is only one contig, remove all other contigs from header to save space
   if (seqan::length(intervals) == 1)
@@ -1248,7 +1268,7 @@ bamshrink(seqan::String<seqan::Triple<seqan::CharString, int, int> > const & int
 
     while (t <= t_end)
     {
-      long line_size = std::distance(t, std::find(t, t_end, '\n'));
+      long const line_size = std::distance(t, std::find(t, t_end, '\n'));
 
       if (line_size > 4 &&
           (std::equal(hd.begin(), hd.begin() + 4, t) ||
@@ -1267,16 +1287,18 @@ bamshrink(seqan::String<seqan::Triple<seqan::CharString, int, int> > const & int
     bamFileOut.hdr->text = static_cast<char *>(realloc(bamFileOut.hdr->text, sizeof(char) * new_header.size()));
     strncpy(bamFileOut.hdr->text, new_header.c_str(), new_header.size());
     writeHeader(bamFileOut);
-    bamshrink::qualityFilterSlice2(opts, interval, bamFileIn, bamFileOut, true); // is_single_contig
+    long read_num{0};
+    bamshrink::qualityFilterSlice2(opts, interval, bamFileIn, bamFileOut, read_num, true); // is_single_contig
   }
   else
   {
     copyHeader(bamFileOut, bamFileIn);
     writeHeader(bamFileOut);
+    long read_num{0};
 
     for (auto const & interval : intervals)
     {
-      bamshrink::qualityFilterSlice2(opts, interval, bamFileIn, bamFileOut, false); // is_single_contig
+      bamshrink::qualityFilterSlice2(opts, interval, bamFileIn, bamFileOut, read_num, false); // is_single_contig
     }
   }
 }

@@ -5,8 +5,15 @@ namespace bamshrink
 
 struct Options
 {
-  int maxFragLen = 1000;
-  int minNumMatching = 40;
+  // Note: You must change defaults in gyper options as well
+  int maxFragLen{1000};
+  int minNumMatching{55};
+  bool is_filtering_mapq0{true};
+  int minReadLen{75};
+  int minReadLenMapQ0{94};
+  int minUnpairedReadLen{94};
+  long as_filter_threshold{40};
+
   double avgCovByReadLen = 0.30000001;
   std::string bamPathIn;
   std::string bamIndex = "<bamPathIn>.[bai,crai]";

@@ -1,3 +1,8 @@
+#include <cstdint>
+#include <iostream>
+#include <string>
+#include <vector>
+
 #include <boost/log/trivial.hpp>
 #include <boost/functional/hash.hpp> // boost::hash_range
 
@@ -51,7 +56,13 @@ VariantCandidate::normalize()
   Variant new_var;
   new_var.abs_pos = abs_pos;
   new_var.seqs = std::move(seqs);
+
+  //std::cerr << new_var.abs_pos << " " << new_var.seqs.size()
+  //          << " " << std::string(new_var.seqs[0].begin(), new_var.seqs[0].end())
+  //          << " " << std::string(new_var.seqs[1].begin(), new_var.seqs[1].end()) << "\n";
+
   new_var.normalize();
+  //std::cerr << "ok\n";
   abs_pos = new_var.abs_pos;
   seqs = std::move(new_var.seqs);
 }

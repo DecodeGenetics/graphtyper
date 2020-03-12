@@ -54,7 +54,8 @@ std::string join_strand_bias(std::vector<uint32_t> const & r1bias, std::vector<u
 std::vector<std::string> split_bias_to_strings(std::string const & bias);
 std::vector<uint32_t> split_bias_to_numbers(std::string const & bias);
 std::vector<uint32_t> get_strand_bias(std::map<std::string, std::string> const & infos, std::string const & bias);
-uint32_t get_accumulated_strand_bias(std::map<std::string, std::string> const & infos, std::string const & bias);
+long get_accumulated_strand_bias(std::map<std::string, std::string> const & infos, std::string const & bias);
+long get_accumulated_alt_strand_bias(std::map<std::string, std::string> const & infos, std::string const & bias);
 std::vector<uint16_t> get_list_of_uncalled_alleles(std::string const & ac);
 
 } // namespace gyper

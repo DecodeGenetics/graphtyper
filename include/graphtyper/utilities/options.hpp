@@ -40,14 +40,27 @@ public:
   /*******************
    * GENERAL OPTIONS *
    *******************/
-  std::vector<std::string> regions = {"."}; // "." means the entire SAM file is read.
-  std::string stats = ""; // Filename for statistics file
+  std::vector<std::string> regions = {"."}; // "." means the entire SAM file is read
+  std::string stats{}; // Filename for statistics file
+
+  /*********************
+   * BAMSHRINK OPTIONS *
+   *********************/
+  int bamshrink_max_fraglen{1000};
+  int bamshrink_min_matching{55};
+  bool bamshrink_is_not_filtering_mapq0{false};
+  int bamshrink_min_readlen{75};
+  int bamshrink_min_readlen_low_mapq{94};
+  int bamshrink_min_unpair_readlen{94};
+  long bamshrink_as_filter_threshold{40};
+  bool force_use_input_ref_for_cram_reading{false};
 
   /************************
    * CONSTRUCTOR OPTIONS *
    ************************/
-  std::string vcf = "";
-  bool add_all_variants = false;
+  std::string vcf{};
+  std::string prior_vcf{};
+  bool add_all_variants{false};
 
   /********************
    * INDEXING OPTIONS *
@@ -62,20 +75,27 @@ public:
 //  std::size_t certain_variant_support{14};
 //  double certain_variant_support_ratio{0.49};
   bool hq_reads{false};
-  long max_files_open{1000l}; // Maximum amount of SAM/BAM/CRAM files can be opened at the same time
+  long max_files_open{1000}; // Maximum amount of SAM/BAM/CRAM files can be opened at the same time
   long soft_cap_of_variants_in_100_bp_window{22};
   bool get_sample_names_from_filename{false};
   bool output_all_variants{false};
   bool is_one_genotype_per_haplotype{false};
   std::string variant_suffix_id = "";
-//  bool is_perfect_alignments_only{false};
+
+  // 7 and 0.26 for >= 1000 samples
+  long genotype_aln_min_support{4};
+  double genotype_aln_min_support_ratio{0.21};
+  long genotype_dis_min_support{8};
+  double genotype_dis_min_support_ratio{0.30};
+
 
   /********************************
    * HAPLOTYPE EXTRACTION OPTIONS *
    ********************************/
   long max_extracted_haplotypes{64};
   int minimum_extract_variant_support{2};
-  int minimum_extract_score_over_homref{6};
+  int minimum_extract_score_over_homref{9};
+  double impurity_threshold{0.15};
   /*******************
    * LOGGING OPTIONS *
    *******************/

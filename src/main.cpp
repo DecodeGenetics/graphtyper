@@ -321,6 +321,8 @@ subcmd_call(paw::Parser & parser)
               graph_fn,
               index_dir,
               output_dir,
+              "", // reference
+              ".", // region
               minimum_variant_support,
               minimum_variant_support_ratio,
               !skip_writing_calls_vcf,
@@ -479,6 +481,7 @@ int
 subcmd_genotype(paw::Parser & parser)
 {
   gyper::Options & opts = *(gyper::Options::instance());
+  bool see_advanced_options = false;
 
   std::string avg_cov_by_readlen_fn;
   std::string output_dir = "results";
@@ -492,42 +495,178 @@ subcmd_genotype(paw::Parser & parser)
   bool no_filter_on_proper_pairs{false};
 
   // Parse options
+  parser.parse_option(see_advanced_options,
+                      'a',
+                      "advanced",
+                      "Set to enable advanced options. "
+                      "See a list of all options (including advanced) with 'graphtyper genotype --advanced --help'");
+
   parser.parse_option(avg_cov_by_readlen_fn,
                       ' ',
                       "avg_cov_by_readlen",
-                      "File with average boverage by read length.");
+                      "File with average coverage by read length (one value per line). "
+                      "The values are used for subsampling regions with extremely high coverage and should be in the same "
+                      "order as the SAM/BAM/CRAM list.");
 
-  parser.parse_option(opts.max_files_open,
+  parser.parse_option(opts.no_decompose,
                       ' ',
-                      "max_files_open",
-                      "Select how many files can be open at the same time.");
+                      "no_decompose",
+                      "Set to prohibit decomposing variants in VCF output, which means complex variants wont be "
+                      "split/decomposed into smaller variants.");
 
-  parser.parse_option(opts.no_asterisks, ' ', "no_asterisks", "Set to avoid using asterisk in VCF output.");
-  parser.parse_option(opts.no_bamshrink, ' ', "no_bamshrink",
-                      "Set to skip bamShrink.");
-  parser.parse_option(opts.no_cleanup, ' ', "no_cleanup",
-                      "Set to skip removing temporary files. Useful for debugging.");
-  parser.parse_option(opts.no_decompose, ' ', "no_decompose", "Set to avoid decomposing variants in VCF output.");
-  parser.parse_option(opts.no_variant_overlapping, ' ', "no_variant_overlapping", "Set to avoid that variants "
-                                                                                  "overlap each other in the VCF output");
-  parser.parse_option(no_filter_on_proper_pairs, ' ', "no_filter_on_proper_pairs",
-                      "Set to disable filter on proper pairs. This should be set if you have unpaired reads.");
   parser.parse_option(force_copy_reference, ' ', "force_copy_reference",
                       "Force copy of the reference FASTA to temporary folder.");
-  parser.parse_option(force_no_copy_reference, ' ', "force_no_copy_reference",
-                      "Force that the reference FASTA is NOT copied to temporary folder.");
-  parser.parse_option(output_dir, 'O', "output", "Output directory.");
-  parser.parse_option(opts_region, 'r', "region", "Genomic region to genotype.");
-  parser.parse_option(opts_region_file, 'R', "region_file", "File with genomic regions to genotype.");
-  parser.parse_option(opts.threads, 't', "threads", "Max. number of threads to use.");
-  parser.parse_option(sam, 's', "sam", "SAM/BAM/CRAM to analyze.");
-  parser.parse_option(sams, 'S', "sams", "File with SAM/BAM/CRAMs to analyze (one per line).");
+
+  parser.parse_option(force_no_copy_reference,
+                      ' ',
+                      "force_no_copy_reference",
+                      "Force that the reference FASTA is NOT copied to temporary folder. "
+                      "Useful if you have limit storage on your local disk or the reference is already on your local disk.");
+
+  parser.parse_option(output_dir,
+                      'O',
+                      "output",
+                      "Output directory. Results will be written in <output>/<contig>/<region>.vcf.gz");
+
+  parser.parse_option(opts.prior_vcf,
+                      'p',
+                      "prior_vcf",
+                      "Input VCF file with prior variants sites. With this option set GraphTyper will be run normally except the given input variant sites are used in constructing the initial graph. We recommend only using common variants as a prior (1% allele frequency or higher). Note that the final output may not necessarily include every prior variant and GraphTyper may discover other variants as well. If you rather want to call only a specific set of variants then use the --vcf option instead.");
+
+  parser.parse_option(opts_region,
+                      'r',
+                      "region",
+                      "Genomic region to genotype. Use --region_file if you have more than one region.");
+
+  parser.parse_option(opts_region_file,
+                      'R',
+                      "region_file",
+                      "File with a list of genomic regions to genotype (one per line).");
+
+  parser.parse_option(opts.threads,
+                      't',
+                      "threads",
+                      "Max. number of threads to use. Note that it is not possible to utilize more threads than input "
+                      "SAM/BAM/CRAMs.");
+
+  parser.parse_option(sam,
+                      's',
+                      "sam",
+                      "Input SAM/BAM/CRAM to analyze. If you have more than one file then create a list and use --sams instead.");
+
+  parser.parse_option(sams, 'S', "sams", "File with SAM/BAM/CRAMs paths to analyze (one per line).");
+
+  parser.parse_option(opts.vcf,
+                      ' ',
+                      "vcf",
+                      "Input VCF file with variant sites. "
+                      "Use this option if you want GraphTyper to only genotype variants from this VCF.");
+
+  if (see_advanced_options)
+  {
+    parser.parse_option(opts.no_asterisks, ' ', "no_asterisks",
+                        "(advanced) Set to avoid using asterisk in VCF output.");
+
+    parser.parse_option(opts.no_bamshrink, ' ', "no_bamshrink",
+                        "(advanced) Set to skip bamShrink.");
+
+    parser.parse_option(opts.no_cleanup, ' ', "no_cleanup",
+                        "(advanced) Set to skip removing temporary files. Useful for debugging.");
+
+    parser.parse_option(no_filter_on_proper_pairs,
+                        ' ',
+                        "no_filter_on_proper_pairs",
+                        "(advanced) Set to disable filter on proper pairs. This should be set if you have unpaired reads.");
+
+    parser.parse_option(opts.no_variant_overlapping,
+                        ' ',
+                        "no_variant_overlapping",
+                        "(advanced) Set to avoid that variants overlap in the VCF output");
+
+    parser.parse_option(opts.max_files_open,
+                        ' ',
+                        "max_files_open",
+                        "(advanced) Select how many input files are allowed to be open at the same time. "
+                        "See your current limit with 'ulimit -n'.");
+
+    parser.parse_option(opts.bamshrink_max_fraglen,
+                        ' ',
+                        "bamshrink_max_fraglen",
+                        "(advanced) Maximum fragment length for bamShrink to consider reads in proper pair.");
+
+    parser.parse_option(opts.bamshrink_min_matching,
+                        ' ',
+                        "bamshrink_min_matching",
+                        "(advanced) Minimum amount of matches in reads.");
+
+    parser.parse_option(opts.bamshrink_is_not_filtering_mapq0,
+                        ' ',
+                        "bamshrink_is_not_filtering_mapq0",
+                        "(advanced) Set to turn of bamShrink's filtering of MAPQ==0 reads.");
+
+    parser.parse_option(opts.bamshrink_min_readlen,
+                        ' ',
+                        "bamshrink_min_readlen",
+                        "(advanced) Minimum read length after adapter trimming.");
+
+    parser.parse_option(opts.bamshrink_min_readlen_low_mapq,
+                        ' ',
+                        "bamshrink_min_readlen_low_mapq",
+                        "(advanced) Minimum read length after adapter trimming for low MAPQ reads.");
+
+    parser.parse_option(opts.bamshrink_min_unpair_readlen,
+                        ' ',
+                        "bamshrink_min_unpair_readlen",
+                        "(advanced) Minimum read length after adapter trimming for unpaired reads.");
+
+    parser.parse_option(opts.bamshrink_as_filter_threshold,
+                        ' ',
+                        "bamshrink_as_filter_threshold",
+                        "(advanced) Threshold for alignment score filter. Lower value is stricter.");
+
+    parser.parse_option(opts.force_use_input_ref_for_cram_reading, ' ', "force_use_input_ref_for_cram_reading",
+                        "Force using the input reference FASTA file when reading CRAMs.");
+
+    parser.parse_option(opts.genotype_aln_min_support,
+                        ' ',
+                        "genotype_aln_min_support",
+                        "(advanced) Minimum alignment support for a variant so it can be added to the graph.");
+
+    parser.parse_option(opts.genotype_aln_min_support_ratio,
+                        ' ',
+                        "genotype_aln_min_support_ratio",
+                        "(advanced) Minimum alignment support ratio for a variant so it can be added to the graph.");
+
+    parser.parse_option(opts.genotype_dis_min_support,
+                        ' ',
+                        "genotype_dis_min_support",
+                        "(advanced) Minimum graph discovery support for a variant so it can be added to the graph.");
+
+    parser.parse_option(opts.genotype_dis_min_support_ratio,
+                        ' ',
+                        "genotype_dis_min_support_ratio",
+                        "(advanced) Minimum graph discovery support ratio for a variant so it can be added to the graph.");
+
+    parser.parse_option(opts.impurity_threshold,
+                        ' ',
+                        "impurity_threshold",
+                        "Set a threshold of variant impurity. Should be in range ]0.0, 0.25] where a lower number is stricter.");
+
+    parser.parse_option(opts.minimum_extract_variant_support,
+                        ' ',
+                        "minimum_extract_variant_support",
+                        "(advanced) Minimum support for a variant for it to be allowed to go into the next iteration.");
+
+    parser.parse_option(opts.minimum_extract_score_over_homref,
+                        ' ',
+                        "minimum_extract_score_over_homref",
+                        "(advanced) Minimum likelihood score over homozygous reference needed for a variant for it to be "
+                        "allowed to go into the next iteration.");
 
 #ifndef NDEBUG
-  parser.parse_option(opts.stats, ' ', "stats", "Directory for statistics files.");
+    parser.parse_option(opts.stats, ' ', "stats", "(advanced) Directory for statistics files.");
 #endif // NDEBUG
-
-  parser.parse_option(opts.vcf, ' ', "vcf", "Input VCF file with variant sites.");
+  }
 
   parser.parse_positional_argument(ref_fn, "REF.FA", "Reference genome in FASTA format.");
   parser.finalize();
@@ -547,12 +686,15 @@ subcmd_genotype(paw::Parser & parser)
 
   // Get the SAM/BAM/CRAM file names
   std::vector<std::string> sams_fn = get_sams(sam, sams);
+  long const NUM_SAMPLES = sams_fn.size();
 
-  // If neither force copy reference or force no copy reference we determine it from number of SAMs
-  bool is_copy_reference = force_copy_reference || (!force_no_copy_reference && sams_fn.size() >= 100);
+  // If neither force copy reference or force no copy reference we determine it from number of SAMs and
+  // whether REF_CACHE is set or not
+  bool is_copy_reference = force_copy_reference ||
+                           (!force_no_copy_reference && NUM_SAMPLES >= 100 && !gyper::is_defined_in_env("REF_CACHE"));
 
   // Get the avgCovByReadLen for each of the SAM/BAM/CRAM
-  std::vector<double> avg_cov_by_readlen = get_avg_cov_by_readlen(avg_cov_by_readlen_fn, sams_fn.size());
+  std::vector<double> avg_cov_by_readlen = get_avg_cov_by_readlen(avg_cov_by_readlen_fn, NUM_SAMPLES);
 
   gyper::genotype_regions(ref_fn,
                           sams_fn,
@@ -571,14 +713,14 @@ subcmd_genotype_sv(paw::Parser & parser)
 
   std::string avg_cov_by_readlen_fn;
   std::string output_dir = "sv_results";
-  std::string opts_region = "";
-  std::string opts_region_file = "";
-  std::string ref_fn;
-  std::string sam;
-  std::string sams;
-  std::string sv_vcf;
-  bool force_copy_reference = false;
-  bool force_no_copy_reference = false;
+  std::string opts_region{};
+  std::string opts_region_file{};
+  std::string ref_fn{};
+  std::string sam{};
+  std::string sams{};
+  std::string sv_vcf{};
+  bool force_copy_reference{false};
+  bool force_no_copy_reference{false};
 
   // Parse options
   parser.parse_option(opts.max_files_open,
@@ -644,7 +786,6 @@ subcmd_genotype_camou(paw::Parser & parser)
   std::string interval_fn;
   std::string output_dir = "results";
   std::string ref_fn;
-  std::string region;
   std::string sam;
   std::string sams;
 
@@ -662,10 +803,10 @@ subcmd_genotype_camou(paw::Parser & parser)
   parser.parse_option(opts.no_cleanup, ' ', "no_cleanup",
                       "Set to skip removing temporary files. Useful for debugging.");
 
-  parser.parse_option(region,
-                      'r',
-                      "region",
-                      "Region to genotype. If not specified, then the first interval in the \"interval-file\" is used.");
+  parser.parse_option(output_dir,
+                      'O',
+                      "output",
+                      "Output directory. Results will be written in <output>/<contig>/<region>.vcf.gz");
 
   parser.parse_option(sam, 's', "sam", "SAM/BAM/CRAM to analyze.");
   parser.parse_option(sams, 'S', "sams", "File with SAM/BAM/CRAMs to analyze (one per line).");
@@ -678,7 +819,8 @@ subcmd_genotype_camou(paw::Parser & parser)
   parser.finalize();
   setup_logger();
 
-  // Do not filter on MAPQ in camou calling
+  // Force no filter on MAPQ in camou calling
+  opts.bamshrink_is_not_filtering_mapq0 = true;
   opts.filter_on_mapq = false;
 
   // Get the SAM/BAM/CRAM file names
@@ -690,7 +832,6 @@ subcmd_genotype_camou(paw::Parser & parser)
   gyper::genotype_camou(interval_fn,
                         ref_fn,
                         sams_fn,
-                        region,
                         output_dir,
                         avg_cov_by_readlen);
 

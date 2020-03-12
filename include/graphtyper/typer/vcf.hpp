@@ -100,7 +100,6 @@ public:
 std::vector<std::size_t> get_all_pos(std::string const & line, char const delim = '\t');
 std::string get_string_at_tab_index(std::string const & line,
                                     std::vector<std::size_t> const & tabs,
-                                    int index
-                                    );
+                                    int index);
 
 } // namespace gyper

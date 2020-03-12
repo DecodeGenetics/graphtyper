@@ -258,12 +258,12 @@ run_samtools_merge(std::vector<std::string> & shrinked_sams, std::string const &
 
 
 void
-genotype_with_a_vcf(std::string const & ref_path,
-                    std::vector<std::string> const & shrinked_sams,
-                    GenomicRegion const & region,
-                    GenomicRegion const & padded_region,
-                    std::string const & tmp
-                    )
+genotype_only_with_a_vcf(std::string const & ref_path,
+                         std::vector<std::string> const & shrinked_sams,
+                         GenomicRegion const & region,
+                         GenomicRegion const & padded_region,
+                         std::string const & tmp
+                         )
 {
   // Iteration 1
   BOOST_LOG_TRIVIAL(info) << "Genotyping using an input VCF.";
@@ -297,6 +297,8 @@ genotype_with_a_vcf(std::string const & ref_path,
                                                "", // graph_path
                                                index_path,
                                                out_dir,
+                                               "", // reference
+                                               ".", // region
                                                5, //minimum_variant_support,
                                                0.25, //minimum_variant_support_ratio,
                                                is_writing_calls_vcf,
@@ -332,11 +334,12 @@ genotype(std::string ref_path,
   bool is_discovery{true};
   long minimum_variant_support = 5;
   double minimum_variant_support_ratio = 0.25;
+  gyper::Options const & copts = *(Options::const_instance());
 
   long const NUM_SAMPLES = sams.size();
   BOOST_LOG_TRIVIAL(info) << "Genotyping region " << region.to_string();
   BOOST_LOG_TRIVIAL(info) << "Path to genome is '" << ref_path << "'";
-  BOOST_LOG_TRIVIAL(info) << "Running with up to " << Options::const_instance()->threads << " threads.";
+  BOOST_LOG_TRIVIAL(info) << "Running with up to " << copts.threads << " threads.";
   BOOST_LOG_TRIVIAL(info) << "Copying data from " << NUM_SAMPLES << " input SAM/BAM/CRAMs to local disk.";
 
   std::string tmp = create_temp_dir(region);
@@ -386,13 +389,18 @@ genotype(std::string ref_path,
 
   std::vector<std::string> shrinked_sams;
 
-  if (Options::const_instance()->no_bamshrink)
+  if (copts.no_bamshrink)
   {
     shrinked_sams = std::move(sams);
   }
   else
   {
-    shrinked_sams = run_bamshrink(sams, ref_path, region, avg_cov_by_readlen, tmp);
+    std::string bamshrink_ref_path;
+
+    if (copts.force_use_input_ref_for_cram_reading)
+      bamshrink_ref_path = ref_path;
+
+    shrinked_sams = run_bamshrink(sams, bamshrink_ref_path, region, avg_cov_by_readlen, tmp);
     std::sort(shrinked_sams.begin(), shrinked_sams.end()); // Sort by input filename
     run_samtools_merge(shrinked_sams, tmp);
   }
@@ -400,24 +408,15 @@ genotype(std::string ref_path,
   GenomicRegion padded_region(region);
   padded_region.pad(1000l);
 
-  if (Options::const_instance()->vcf.size() > 0)
+  if (copts.vcf.size() > 0)
   {
     BOOST_LOG_TRIVIAL(info) << "Genotyping a input VCF";
-    genotype_with_a_vcf(ref_path, shrinked_sams, region, padded_region, tmp);
+    genotype_only_with_a_vcf(ref_path, shrinked_sams, region, padded_region, tmp);
   }
   else
   {
-    minimum_variant_support = 4;
-    minimum_variant_support_ratio = 0.21;
-
-    if (NUM_SAMPLES >= 500)
-      minimum_variant_support_ratio += 0.03;
-
-    if (NUM_SAMPLES >= 10000)
-    {
-      ++minimum_variant_support;
-      minimum_variant_support_ratio += 0.03;
-    }
+    minimum_variant_support = copts.genotype_aln_min_support;
+    minimum_variant_support_ratio = copts.genotype_aln_min_support_ratio;
 
 #ifdef NDEBUG
     is_writing_calls_vcf = false; // Skip writing calls vcf in release mode in all iterations except the last one
@@ -446,6 +445,16 @@ genotype(std::string ref_path,
       varmap.filter_varmap_for_all();
       Vcf final_vcf;
       varmap.get_vcf(final_vcf, output_vcf);
+
+      if (copts.prior_vcf.size() > 0)
+      {
+        BOOST_LOG_TRIVIAL(info) << "Inserting prior variant sites.";
+        std::vector<Variant> prior_variants = get_variants_using_tabix(copts.prior_vcf, region);
+
+        BOOST_LOG_TRIVIAL(info) << "Found " << prior_variants.size() << " prior variants.";
+        std::move(prior_variants.begin(), prior_variants.end(), std::back_inserter(final_vcf.variants));
+      }
+
       final_vcf.write();
 #ifndef NDEBUG
       final_vcf.write_tbi_index(); // Write index in debug mode
@@ -481,20 +490,16 @@ genotype(std::string ref_path,
 #endif // NDEBUG
       index_graph(index_path);
 
-      minimum_variant_support = 9;
-      minimum_variant_support_ratio = 0.32;
-
-      if (NUM_SAMPLES >= 500)
-        ++minimum_variant_support;
-
-      if (NUM_SAMPLES >= 10000)
-        minimum_variant_support += 2;
+      minimum_variant_support = copts.genotype_dis_min_support;
+      minimum_variant_support_ratio = copts.genotype_dis_min_support_ratio;
 
       std::vector<std::string> paths =
         gyper::call(shrinked_sams,
                     "", // graph_path
                     index_path,
                     out_dir,
+                    "", // reference
+                    ".",       // region
                     minimum_variant_support,
                     minimum_variant_support_ratio,
                     is_writing_calls_vcf,
@@ -574,6 +579,8 @@ genotype(std::string ref_path,
                           "", // graph_path
                           index_path,
                           out_dir,
+                          "", // reference
+                          ".", // region
                           minimum_variant_support,
                           minimum_variant_support_ratio,
                           is_writing_calls_vcf,
@@ -691,61 +698,67 @@ genotype_regions(std::string const & ref_path,
                  std::vector<double> const & avg_cov_by_readlen,
                  bool const is_copy_reference)
 {
+  auto & opts = *(gyper::Options::instance());
   long const NUM_SAMPLES = sams.size();
 
-  if (NUM_SAMPLES >= 500)
+  // parameter adjustment based on cohort size
+  // default aln: 4 and 0.21, dis:0.30 and 8, ext: 9 and 2
+  if (NUM_SAMPLES >= 4)
   {
-    ++Options::instance()->minimum_extract_variant_support;
-    Options::instance()->minimum_extract_score_over_homref += 3;
-  }
+    // default aln: 5 and 0.23, dis:0.30 and 9, ext: 15 and 2
+    ++opts.genotype_aln_min_support;
+    ++opts.genotype_dis_min_support;
+    opts.genotype_aln_min_support_ratio += 0.02;
+    opts.minimum_extract_score_over_homref += 6;
 
-  if (NUM_SAMPLES >= 10000)
-  {
-    ++Options::instance()->minimum_extract_variant_support;
-    Options::instance()->minimum_extract_score_over_homref += 3;
-  }
-
-  //long const NUM_REGIONS = regions.size();
-  //gyper::Options & opts = *(gyper::Options::instance());
-  //long const NUM_THREADS = opts.threads;
-
-  /*
-  ** First make everything in genotype thread safe before enabling this
-  if (NUM_REGIONS > NUM_SAMPLES && NUM_THREADS > NUM_SAMPLES)
-  {
-    // Genotype regions in parallel
-    paw::Station region_station(NUM_THREADS);
-    opts.threads = 1;
-    opts.max_files_open /= NUM_THREADS;
-
-    for (long r = 0; r < static_cast<long>(regions.size()) - 1l; ++r)
+    if (NUM_SAMPLES >= 100)
     {
-      region_station.add_work(genotype, ref_path, sams, regions[r], output_path, avg_cov_by_readlen);
+      // default aln:6 and 0.25, dis:0.30 and 10, ext: 21 and 2
+      ++opts.genotype_aln_min_support;
+      ++opts.genotype_dis_min_support;
+      opts.genotype_aln_min_support_ratio += 0.02;
+      opts.minimum_extract_score_over_homref += 6;
+
+      if (NUM_SAMPLES >= 500)
+      {
+        // default aln:7 and 0.26, ext: 27 and 2
+        ++opts.genotype_aln_min_support;
+        ++opts.genotype_dis_min_support;
+        opts.genotype_aln_min_support_ratio += 0.01;
+        opts.minimum_extract_score_over_homref += 6;
+
+        if (NUM_SAMPLES >= 10000)
+        {
+          // default aln:8 and 0.27, ext:30 and 3
+          ++opts.genotype_aln_min_support;
+          ++opts.genotype_dis_min_support;
+          opts.genotype_aln_min_support_ratio += 0.01;
+          opts.genotype_dis_min_support_ratio += 0.01;
+          ++opts.minimum_extract_variant_support;
+          opts.minimum_extract_score_over_homref += 3;
+        }
+      }
     }
-
-    assert(regions.size() > 0);
-    region_station.add_to_thread(NUM_THREADS - 1,
-                                 genotype,
-                                 ref_path,
-                                 sams,
-                                 regions[regions.size() - 1l],
-                                 output_path,
-                                 avg_cov_by_readlen);
-
   }
-  else
-  */
+
+  // Make impurity threshold more lenient for small cohorts
+  if (NUM_SAMPLES <= 100)
   {
-    // Genotype regions serially
-    for (auto const & region : regions)
-    {
-      genotype(ref_path,
-               sams,
-               region,
-               output_path,
-               avg_cov_by_readlen,
-               is_copy_reference);
-    }
+    if (NUM_SAMPLES <= 20)
+      opts.impurity_threshold = 0.30; // disabled for 1-20 samples
+    else
+      opts.impurity_threshold = 0.20; // very lenient for 21-100 samples
+  }
+
+  // Genotype regions serially
+  for (auto const & region : regions)
+  {
+    genotype(ref_path,
+             sams,
+             region,
+             output_path,
+             avg_cov_by_readlen,
+             is_copy_reference);
   }
 }
 
