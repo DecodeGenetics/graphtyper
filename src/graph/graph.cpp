@@ -985,11 +985,13 @@ Graph::get_locations_of_an_actual_position(uint32_t pos, Path const & path, bool
       --rr; // Variants behind the reference can only have this location
     }
 
+    long const PADDING = is_sv_graph ? 1000000 : 1000;
+    
     // Check variants behind this reference
-    while (rr >= 0 && ref_nodes[rr].get_label().reach() + 5000u > pos)
+    while (rr >= 0 && ref_nodes[rr].get_label().reach() + PADDING > pos)
     {
       // Assume there is no variants larger than 5000 bp
-      for (unsigned i = 0; i < ref_nodes[rr].out_degree(); ++i)
+      for (int i = 0; i < static_cast<int>(ref_nodes[rr].out_degree()); ++i)
       {
         uint32_t const v = static_cast<uint32_t>(ref_nodes[rr].get_var_index(i));
 
@@ -1122,42 +1124,6 @@ Graph::get_sequence_from_location(Location const & loc,
 }
 
 
-std::vector<std::vector<char> >
-Graph::get_all_sequences_of_length(uint32_t start,
-                                   uint32_t const length,
-                                   std::vector<char> const & prefix
-                                   ) const
-{
-  std::vector<Location> locs = get_locations_of_an_actual_position(start + 1);
-
-  std::cerr << "DEBUG From pos "
-            << start
-            << " I found "
-            << locs.size()
-            << " locations.";
-
-  std::vector<std::vector<char> > seqs;
-
-  for (auto const & loc : locs)
-  {
-    std::vector<std::vector<char> > new_seqs = get_sequence_from_location(loc, length, prefix);
-    std::move(new_seqs.begin(), new_seqs.end(), std::back_inserter(seqs));
-  }
-
-  // Resize sequences
-  for (auto & seq : seqs)
-  {
-    if (seq.size() > length)
-      seq.resize(length);
-  }
-
-  // Remove duplicates
-  std::sort(seqs.begin(), seqs.end());
-  seqs.erase(std::unique(seqs.begin(), seqs.end()), seqs.end());
-  return seqs;
-}
-
-
 std::unordered_set<long>
 Graph::reference_distance_between_locations(std::vector<Location> const & ll1,
                                             std::vector<Location> const & ll2
@@ -1211,7 +1177,12 @@ Graph::get_locations_of_a_position(uint32_t pos, gyper::Path const & path) const
 
 #ifndef NDEBUG
   if (locs.size() == 0)
-    BOOST_LOG_TRIVIAL(warning) << "[graphtyper::graph] Found no location for position " << pos;
+  {
+    BOOST_LOG_TRIVIAL(warning) << "[graphtyper::graph] Found no location for position " << pos << " (start "
+			       << ref_nodes[0].get_label().order
+			       << ", end " 
+			       << ref_nodes.back().get_label().reach() << ")";
+  }
 #endif
 
   return locs;

@@ -114,7 +114,10 @@ parse_info_sv_type(std::string const check_if_key,
     else if (val == "BND")
       parsed_val = BND;
     else
+    {
+      BOOST_LOG_TRIVIAL(warning) << "Unknown SV type " << val;
       parsed_val = OTHER;
+    }
 
     return true;
   }
@@ -256,19 +259,6 @@ complement(char const c)
 
   default: return c;
   }
-}
-
-
-std::vector<std::vector<char> > inline
-read_reference_graph(std::vector<char> const & prefix,
-                     gyper::Graph const & sv_graph,
-                     std::string const & chr,
-                     uint32_t const begin,
-                     uint32_t length
-                     )
-{
-  uint32_t const abs_begin = gyper::absolute_pos.get_absolute_position(chr, begin);
-  return sv_graph.get_all_sequences_of_length(abs_begin, length, prefix);
 }
 
 
@@ -947,9 +937,9 @@ add_sv_inversion(std::vector<VarRecord> & var_records,
     if (sv.or_start == -1)
     {
       /// Case 1: Both breakpoints are known and the duplication is tandem
-      /// Duplication starts after: beginPos
-      /// Duplicated sequence is [beginPos + 1, beginPos + min(SVLEN, 150)]
-      BOOST_LOG_TRIVIAL(debug) << "Case 1: Both breakpoints are known and the duplication is "
+      /// Inversion starts after: beginPos
+      /// Inverted sequence is [beginPos + 1, beginPos + min(SVLEN, 150)]
+      BOOST_LOG_TRIVIAL(debug) << "Case 1: Both breakpoints are known and the inversion is "
                                << "tandem.";
 
       // Read the duplicated sequence

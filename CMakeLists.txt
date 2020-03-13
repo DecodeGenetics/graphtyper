@@ -5,7 +5,7 @@ include(ExternalProject)
 
 # The version number.
 set (graphtyper_VERSION_MAJOR 2)
-set (graphtyper_VERSION_MINOR 1)
+set (graphtyper_VERSION_MINOR 2)
 set (graphtyper_VERSION_PATCH 0)
 
 # Get the current working branch
@@ -39,9 +39,6 @@ execute_process(
   OUTPUT_VARIABLE GIT_NUM_DIRTY_LINES
   OUTPUT_STRIP_TRAILING_WHITESPACE
 )
-
-# SeqAn options
-set(SEQAN_BUILD_SYSTEM "SEQAN_RELEASE_LIBRARY" CACHE TYPE STRING)
 
 if ($ENV{GT_BUILD_TYPE})
   set(GT_BUILD_TYPE $ENV{GT_BUILD_TYPE})

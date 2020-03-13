@@ -102,11 +102,6 @@ public:
                              std::vector<char> const & prefix
                              ) const;
 
-  std::vector<std::vector<char> >
-  get_all_sequences_of_length(uint32_t start, uint32_t length,
-                              std::vector<char> const & prefix
-                              ) const;
-
   bool is_variant_in_graph(Variant const & var) const;
   uint8_t get_10log10_num_paths(TNodeIndex const v, uint32_t const MAX_DISTANCE = 60);
   bool is_snp(Genotype const & gt) const;
