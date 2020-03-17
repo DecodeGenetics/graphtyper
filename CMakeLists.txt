@@ -6,7 +6,7 @@ include(ExternalProject)
 # The version number.
 set (graphtyper_VERSION_MAJOR 2)
 set (graphtyper_VERSION_MINOR 2)
-set (graphtyper_VERSION_PATCH 0)
+set (graphtyper_VERSION_PATCH 1)
 
 # Get the current working branch
 execute_process(
@@ -89,7 +89,9 @@ include_directories(SYSTEM ${BZIP_INCLUDE_DIRS})
 set(Boost_USE_STATIC_LIBS ON)
 message (STATUS "Checking for Boost")
 find_package(Boost 1.57.0 REQUIRED COMPONENTS system iostreams log_setup log thread serialization filesystem REQUIRED)
-include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
+message (STATUS "Boost include directory: ${Boost_INCLUDE_DIR}")
+include_directories(SYSTEM ${Boost_INCLUDE_DIR})
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isystem ${Boost_INCLUDE_DIR}")
 
 # snappy
 ExternalProject_Add(
