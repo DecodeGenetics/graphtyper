@@ -117,7 +117,7 @@ parse_info_sv_type(std::string const check_if_key,
       parsed_val = BND;
     else
     {
-      BOOST_LOG_TRIVIAL(warning) << "[" << __HERE__ << "] Unknown SV type " << val;
+      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Unknown SV type " << val;
       parsed_val = OTHER;
     }
 
@@ -949,8 +949,8 @@ add_sv_inversion(std::vector<VarRecord> & var_records,
       /// Case 1: Both breakpoints are known and the duplication is tandem
       /// Inversion starts after: beginPos
       /// Inverted sequence is [beginPos + 1, beginPos + min(SVLEN, 150)]
-      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ <<
-        "] Case 1: Both breakpoints are known and the inversion is "
+      BOOST_LOG_TRIVIAL(debug) << __HERE__ <<
+        " Case 1: Both breakpoints are known and the inversion is "
                                << "tandem.";
 
       // Read the duplicated sequence

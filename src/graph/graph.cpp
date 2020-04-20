@@ -1179,10 +1179,10 @@ Graph::get_locations_of_a_position(uint32_t pos, Path const & path) const
 #ifndef NDEBUG
   if (locs.size() == 0)
   {
-    BOOST_LOG_TRIVIAL(warning) << "[" << __HERE__ << "] Found no location for position " << pos << " (start "
-                               << ref_nodes[0].get_label().order
-                               << ", end "
-                               << ref_nodes.back().get_label().reach() << ")";
+    BOOST_LOG_TRIVIAL(warning) << "[graphtyper::graph] Found no location for position " << pos << " (start "
+			       << ref_nodes[0].get_label().order
+			       << ", end " 
+			       << ref_nodes.back().get_label().reach() << ")";
   }
 #endif
 

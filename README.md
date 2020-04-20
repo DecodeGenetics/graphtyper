@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/DecodeGenetics/graphtyper.svg?branch=master)](https://travis-ci.org/DecodeGenetics/graphtyper)
+[![Build Status](https://travis-ci.org/DecodeGenetics/graphtyper.svg?branch=master)](https://travis-ci.org/DecodeGenetics/graphtyper) [![Conda](https://img.shields.io/conda/pn/bioconda/graphtyper?color=green)](http://bioconda.github.io/recipes/graphtyper/README.html) [![Conda](https://img.shields.io/conda/v/bioconda/graphtyper?color=green)](http://bioconda.github.io/recipes/graphtyper/README.html) 
 
 # GraphTyper
 GraphTyper is a highly scalable genotyping software. It represents a reference genome and known variants of a genomic region using an acyclic mathematical graph structure (a "pangenome reference"), which high-throughput sequence reads are re-aligned to for the purpose of discovering and genotyping SNPs, small indels, and structural variants.
@@ -13,10 +13,12 @@ Hannes P. Eggertsson, Hakon Jonsson, Snaedis Kristmundsdottir, Eirikur Hjartarso
 Eggertsson, H.P., Kristmundsdottir, S., Beyter, D. et al. GraphTyper2 enables population-scale genotyping of structural variation using pangenome graphs. *Nature Communications* **10**, 5402 (2019) [doi:10.1038/s41467-019-13341-9](https://www.nature.com/articles/s41467-019-13341-9)
 
 ## Getting started
-### Download binary
-The easiest way to get GraphTyper is go to "Releases" and download the latest 64bit linux binary, here: https://github.com/DecodeGenetics/graphtyper/releases
+### Install
 
-The binary is linked statically and therefore does not require any runtime libraries.
+The easiest way to install GraphTyper is go to "Releases" and download the latest binary, here: https://github.com/DecodeGenetics/graphtyper/releases
+
+The binary is linked statically and therefore does not require any runtime libraries. If you prefer, you can also install graphtyper via bioconda: http://bioconda.github.io/recipes/graphtyper/README.html
+
 
 ### Running GraphTyper
 
@@ -34,8 +36,8 @@ where `REFERENCE.fa` is the FASTA reference genome, `SAMS` are the input SAM/BAM
 
 The output files will be in small regions but to concatenate them you can use the `bcftools concat --naive` command. For SV genotyping you should instead use the `genotype_sv` subcommand. If you wish to run GraphTyper in some non-recommended way refer to our [pipeline](https://github.com/DecodeGenetics/graphtyper-pipelines) repo.
 
-### Build from source
-Alternatively, you may want to build GraphTyper from source. First, you'll need the following:
+### Building from source
+You may want to build GraphTyper from source. In this case, you'll first need the following:
 * C++ compiler with C++11 supported
 * Boost>=1.57.0
 * zlib>=1.2.8
