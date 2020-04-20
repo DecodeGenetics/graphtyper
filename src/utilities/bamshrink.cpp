@@ -729,7 +729,7 @@ qualityFilterSlice2(Options const & opts,
     std::exit(1);
   }
 
-  bool is_paired_reads_with_no_mate{false};
+  //bool is_paired_reads_with_no_mate{false};
   std::multiset<BamAlignmentRecord> read_set;
   std::unordered_map<seqan::String<char>, seqan::BamAlignmentRecord> read_first;
   std::vector<seqan::BamAlignmentRecord> unpaired_reads;
@@ -900,7 +900,7 @@ qualityFilterSlice2(Options const & opts,
              (record.qName != it->first))
       {
         makeUnpaired(it->second);
-        is_paired_reads_with_no_mate = true;
+        //is_paired_reads_with_no_mate = true;
 
         if (filter_unpaired(it->second))
           post_process_unpaired(std::move(it->second));
@@ -1078,11 +1078,11 @@ qualityFilterSlice2(Options const & opts,
   }
 
   // Check if there are any paired reads which their mate was never found
-  if (is_paired_reads_with_no_mate)
-  {
-    BOOST_LOG_TRIVIAL(info) << __HERE__ << " Some reads had flags indicating that they "
-                            << "are paired with a mate read in the region but the mate was never found.";
-  }
+  //if (is_paired_reads_with_no_mate)
+  //{
+  //  BOOST_LOG_TRIVIAL(info) << __HERE__ << " Some reads had flags indicating that they "
+  //                          << "are paired with a mate read in the region but the mate was never found.";
+  //}
 }
 
 
