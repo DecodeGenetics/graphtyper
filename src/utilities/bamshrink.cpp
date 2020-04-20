@@ -896,7 +896,7 @@ qualityFilterSlice2(Options const & opts,
       auto it = read_first.begin();
 
       while (it != read_first.end() &&
-             (record.beginPos > max_fragment_length + it->second.beginPos + 151) &&
+             (record.beginPos > 2 * max_fragment_length + it->second.beginPos + 151) &&
              (record.qName != it->first))
       {
         makeUnpaired(it->second);
