@@ -9,18 +9,19 @@ struct Options
   int maxFragLen{1000};
   int minNumMatching{55};
   bool is_filtering_mapq0{true};
+  bool no_filter_on_coverage{false};
   int minReadLen{75};
   int minReadLenMapQ0{94};
   int minUnpairedReadLen{94};
   long as_filter_threshold{40};
 
-  double avgCovByReadLen = 0.30000001;
-  std::string bamPathIn;
-  std::string bamIndex = "<bamPathIn>.[bai,crai]";
-  std::string bamPathOut = "-";
-  std::string interval;
-  std::string intervalFile;
-  long SUPER_HI_DEPTH = 2;
+  double avgCovByReadLen{0.30000001};
+  std::string bamPathIn{};
+  std::string bamIndex{"<bamPathIn>.[bai,crai]"};
+  std::string bamPathOut{"-"};
+  std::string interval{};
+  std::string intervalFile{};
+  long SUPER_HI_DEPTH{2};
 };
 
 int main(Options & opts);

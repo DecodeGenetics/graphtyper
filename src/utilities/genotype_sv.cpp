@@ -9,7 +9,7 @@
 #include <graphtyper/graph/graph_serialization.hpp>
 #include <graphtyper/graph/haplotype_extractor.hpp>
 #include <graphtyper/index/indexer.hpp>
-#include <graphtyper/index/mem_index.hpp>
+#include <graphtyper/index/ph_index.hpp>
 #include <graphtyper/typer/caller.hpp>
 #include <graphtyper/typer/variant_map.hpp>
 #include <graphtyper/typer/vcf.hpp>
@@ -34,9 +34,16 @@ genotype_sv(std::string ref_path,
 {
   // TODO: If the reference is only Ns then output an empty vcf with the sample names
   // TODO: Extract the reference sequence and use that to discover directly from BAM
-  bool constexpr is_writing_calls_vcf{true};
-  bool constexpr is_writing_hap{false};
-  bool constexpr is_discovery{false};
+  bool constexpr is_writing_calls_vcf {
+    true
+  };
+  bool constexpr is_writing_hap {
+    false
+  };
+  bool constexpr is_discovery {
+    false
+  };
+
   long const NUM_SAMPLES = sams.size();
 
   BOOST_LOG_TRIVIAL(info) << "SV genotyping region " << genomic_region.to_string();
@@ -98,13 +105,14 @@ genotype_sv(std::string ref_path,
     std::string const output_vcf = tmp + "/it1/final.vcf.gz";
     std::string const out_dir = tmp + "/it1";
     mkdir(out_dir.c_str(), 0755);
-    std::string const index_path = out_dir + "/graph_gti";
     BOOST_LOG_TRIVIAL(info) << "Padded region is: " << padded_region.to_string();
 
     {
       bool constexpr is_sv_graph{true};
       bool constexpr use_absolute_positions{true};
       bool constexpr check_index{true};
+
+      BOOST_LOG_TRIVIAL(info) << "Constructing graph.";
 
       gyper::construct_graph(ref_path,
                              sv_vcf,
@@ -113,7 +121,9 @@ genotype_sv(std::string ref_path,
                              use_absolute_positions,
                              check_index);
 
-      absolute_pos.calculate_offsets(gyper::graph);
+      BOOST_LOG_TRIVIAL(info) << "Calculating contig offsets.";
+
+      absolute_pos.calculate_offsets(gyper::graph.contigs);
     }
 
 #ifndef NDEBUG
@@ -121,15 +131,16 @@ genotype_sv(std::string ref_path,
     save_graph(out_dir + "/graph");
 #endif // NDEBUG
 
-    index_graph(index_path);
+    PHIndex ph_index = index_graph(gyper::graph);
 
     std::vector<std::string> paths =
       gyper::call(sams,
                   "",   // graph_path
-                  index_path,
+                  ph_index,
                   out_dir,
                   "", // reference
                   unpadded_region.to_string(), // region
+                  nullptr,
                   5,//minimum_variant_support,
                   0.25,//minimum_variant_support_ratio,
                   is_writing_calls_vcf,
@@ -144,7 +155,7 @@ genotype_sv(std::string ref_path,
       for (auto & path : paths)
         path += "_calls.vcf.gz";
 
-      vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", genomic_region.to_string(), true); //> FILTER_ZERO_QUAL
+      vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", genomic_region.to_string(), false); //> FILTER_ZERO_QUAL
     }
   }
 

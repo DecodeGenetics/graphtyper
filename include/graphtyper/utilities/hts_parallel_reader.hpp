@@ -7,6 +7,7 @@
 #include <string> // std::string
 #include <vector> // std::vector
 
+#include <graphtyper/index/ph_index.hpp> // PHIndex
 #include <graphtyper/typer/vcf_writer.hpp>
 #include <graphtyper/utilities/hts_reader.hpp>
 #include <graphtyper/utilities/hts_store.hpp>
@@ -15,6 +16,7 @@
 namespace gyper
 {
 
+class Primers;
 class VariantMap;
 
 class HtsParallelReader
@@ -69,6 +71,8 @@ parallel_reader_genotype_only(std::string * out_path,
                               std::string const & output_dir,
                               std::string const & reference,
                               std::string const & region,
+                              PHIndex const & index,
+                              Primers const * primers,
                               bool const is_writing_calls_vcf,
                               bool const is_writing_hap);
 
@@ -78,6 +82,8 @@ parallel_reader_with_discovery(std::string * out_path,
                                std::string const & output_dir,
                                std::string const & reference,
                                std::string const & region,
+                               PHIndex const & index,
+                               Primers const * primers,
                                long const minimum_variant_support,
                                double const minimum_variant_support_ratio,
                                bool const is_writing_calls_vcf,

@@ -19,6 +19,7 @@
 #include <graphtyper/graph/constructor.hpp>
 #include <graphtyper/graph/graph_serialization.hpp>
 #include <graphtyper/index/indexer.hpp>
+#include <graphtyper/index/ph_index.hpp>
 #include <graphtyper/typer/caller.hpp>
 #include <graphtyper/typer/variant_map.hpp>
 #include <graphtyper/typer/vcf.hpp>
@@ -263,77 +264,6 @@ subcmd_bamshrink(paw::Parser & parser)
 
 
 int
-subcmd_call(paw::Parser & parser)
-{
-  bool skip_writing_calls_vcf{false};
-  bool no_new_variants{false};
-  bool is_writing_hap{true};
-
-  gyper::Options & opts = *(gyper::Options::instance());
-
-  long minimum_variant_support = 5;
-  double minimum_variant_support_ratio = 0.25;
-
-  std::string graph_fn;
-  std::string index_dir = "<graph>_gti";
-  std::string output_dir;
-  std::string sam;
-  std::string sams;
-
-  parser.parse_option(index_dir, ' ', "index", "Path to index directory.");
-  parser.parse_option(minimum_variant_support, ' ',
-                      "minimum_variant_support", "Minimum variant support for it to be considered.");
-  parser.parse_option(minimum_variant_support_ratio, ' ',
-                      "minimum_variant_support_ratio", "Minimum variant support ratio for it to be considered.");
-  parser.parse_option(opts.no_asterisks, ' ', "no_asterisks", "Set to avoid using asterisk in VCF output.");
-  parser.parse_option(opts.no_decompose, ' ', "no_decompose", "Set to avoid decomposing variants in VCF output.");
-  parser.parse_option(no_new_variants, ' ', "no_new_variants", "Set if no new variants should be discovered.");
-  parser.parse_option(opts.no_variant_overlapping, ' ', "no_variant_overlapping", "Set to avoid that variants "
-                                                                                  "overlap each other in the VCF output");
-  parser.parse_option(opts.is_one_genotype_per_haplotype, ' ', "one_genotype_per_haplotype",
-                      "Do not consider multiple variants together.");
-  parser.parse_option(output_dir, 'O', "output", "Output directory.");
-  parser.parse_option(sam, 's', "sam", "SAM/BAM/CRAM to analyze.");
-  parser.parse_option(sams, 'S', "sams", "File with SAM/BAM/CRAMs to analyze (one per line).");
-  parser.parse_option(skip_writing_calls_vcf, ' ', "skip_writing_calls_vcf", "Do not write VCF with calls.");
-#ifndef NDEBUG
-  parser.parse_option(opts.stats, ' ', "stats", "Directory for statistics files.");
-#endif // NDEBUG
-  parser.parse_option(opts.threads, 't', "threads", "Max. number of threads to use.");
-  parser.parse_option(opts.variant_suffix_id, ' ', "suffix_id", "Suffix which will be added behind each variant.");
-
-  parser.parse_positional_argument(graph_fn, "GRAPH", "Path to graph.");
-
-  parser.finalize();
-  setup_logger();
-
-  std::vector<std::string> sams_fn = get_sams(sam, sams);
-
-  if (index_dir == "<graph>_gti")
-    index_dir = graph_fn + "_gti";
-
-#ifndef NDEBUG
-  if (opts.stats.size() > 0 && !gyper::is_directory(opts.stats))
-    mkdir(opts.stats.c_str(), 0755);
-#endif // NDEBUG
-
-  gyper::call(sams_fn,
-              graph_fn,
-              index_dir,
-              output_dir,
-              "", // reference
-              ".", // region
-              minimum_variant_support,
-              minimum_variant_support_ratio,
-              !skip_writing_calls_vcf,
-              !no_new_variants,
-              is_writing_hap);
-
-  return 0;
-}
-
-
-int
 subcmd_check(paw::Parser & parser)
 {
   std::string graph_fn;
@@ -493,6 +423,8 @@ subcmd_genotype(paw::Parser & parser)
   bool force_copy_reference{false};
   bool force_no_copy_reference{false};
   bool no_filter_on_proper_pairs{false};
+  bool no_filter_on_read_bias{false};
+  bool no_filter_on_strand_bias{false};
 
   // Parse options
   parser.parse_option(see_advanced_options,
@@ -573,10 +505,33 @@ subcmd_genotype(paw::Parser & parser)
     parser.parse_option(opts.no_cleanup, ' ', "no_cleanup",
                         "(advanced) Set to skip removing temporary files. Useful for debugging.");
 
+    parser.parse_option(opts.is_all_biallelic, ' ', "is_all_biallelic",
+                        "(advanced) Set to force all output variants to be biallelic in the VCF output.");
+
     parser.parse_option(no_filter_on_proper_pairs,
                         ' ',
                         "no_filter_on_proper_pairs",
                         "(advanced) Set to disable filter on proper pairs. This should be set if you have unpaired reads.");
+
+    parser.parse_option(no_filter_on_read_bias,
+                        ' ',
+                        "no_filter_on_read_bias",
+                        "(advanced) Set to disable filter on read bias.");
+
+    parser.parse_option(no_filter_on_strand_bias,
+                        ' ',
+                        "no_filter_on_strand_bias",
+                        "(advanced) Set to disable filter on strand bias.");
+
+    parser.parse_option(opts.no_filter_on_coverage,
+                        ' ',
+                        "no_filter_on_coverage",
+                        "(advanced) Set to disable filter on coverage.");
+
+    parser.parse_option(opts.no_filter_on_begin_pos,
+                        ' ',
+                        "no_filter_on_begin_pos",
+                        "(advanced) Set to disable filter on number of unique begin position of reads.");
 
     parser.parse_option(opts.no_variant_overlapping,
                         ' ',
@@ -647,6 +602,16 @@ subcmd_genotype(paw::Parser & parser)
                         "genotype_dis_min_support_ratio",
                         "(advanced) Minimum graph discovery support ratio for a variant so it can be added to the graph.");
 
+    parser.parse_option(opts.is_only_cigar_discovery,
+                        ' ',
+                        "is_only_cigar_discovery",
+                        "(advanced) If set, graphtyper will only discover variants from the aligner via the cigar.");
+
+    parser.parse_option(opts.is_discovery_only_for_paired_reads,
+                        ' ',
+                        "is_discovery_only_for_paired_reads",
+                        "(advanced) If set, graphtyper will only discover variants from paired reads via the cigar.");
+
     parser.parse_option(opts.impurity_threshold,
                         ' ',
                         "impurity_threshold",
@@ -663,9 +628,22 @@ subcmd_genotype(paw::Parser & parser)
                         "(advanced) Minimum likelihood score over homozygous reference needed for a variant for it to be "
                         "allowed to go into the next iteration.");
 
+    parser.parse_option(opts.primer_bedpe,
+                        ' ',
+                        "primer_bedpe",
+                        "(advanced) In case you have PCR amplicons sequence data you may specify here a BEDPE file containing "
+                        "coordinates of the primer pairs. The primer sequence will be used in GraphTyper's alignment but are "
+                        "ignored in the genotyping model.");
+
+    parser.parse_option(opts.sam_flag_filter,
+                        ' ',
+                        "sam_flag_filter",
+                        "(advanced) ANY of these bits set in reads will be completely ignored by GraphTyper. Use with care.");
+
+
 #ifndef NDEBUG
     parser.parse_option(opts.stats, ' ', "stats", "(advanced) Directory for statistics files.");
-#endif // NDEBUG
+#endif // ifndef NDEBUG
   }
 
   parser.parse_positional_argument(ref_fn, "REF.FA", "Reference genome in FASTA format.");
@@ -673,13 +651,15 @@ subcmd_genotype(paw::Parser & parser)
   setup_logger();
 
   opts.filter_on_proper_pairs = !no_filter_on_proper_pairs;
+  opts.filter_on_read_bias = !no_filter_on_read_bias;
+  opts.filter_on_strand_bias = !no_filter_on_strand_bias;
   BOOST_LOG_TRIVIAL(info) << "Running the 'genotype' subcommand.";
 
 #ifndef NDEBUG
   // Create stats directory if it doesn't exist
   if (opts.stats.size() > 0 && !gyper::is_directory(opts.stats))
     mkdir(opts.stats.c_str(), 0755);
-#endif // NDEBUG
+#endif // ifndef NDEBUG
 
   // Get the genomic regions to process from the --region and --region_file options
   std::vector<gyper::GenomicRegion> regions = get_regions(ref_fn, opts_region, opts_region_file, 50000);
@@ -990,8 +970,6 @@ main(int argc, char ** argv)
 
     if (subcmd == "bamshrink")
       ret = subcmd_bamshrink(parser);
-    else if (subcmd == "call")
-      ret = subcmd_call(parser);
     else if (subcmd == "check")
       ret = subcmd_check(parser);
     else if (subcmd == "construct")

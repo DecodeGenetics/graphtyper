@@ -75,7 +75,7 @@ VariantSupport::is_support_above_cutoff(long const min_support) const
                             (_depth - clipped >= 3);
   Options const & copts = *(Options::const_instance());
 
-  return unique_positions.size() > 1
+  return (copts.no_filter_on_begin_pos || unique_positions.size() > 1)
          &&
          (!copts.filter_on_mapq || is_any_mapq_good)
          &&
@@ -83,11 +83,13 @@ VariantSupport::is_support_above_cutoff(long const min_support) const
          &&
          (hq_support >= 3 || (hq_support >= 2 && is_indel))
          &&
-         (is_indel ||
+         (!copts.filter_on_read_bias ||
+          is_indel ||
           is_promising ||
           (first_in_pairs > 0 && first_in_pairs < _depth))
          &&
-         (is_indel ||
+         (!copts.filter_on_strand_bias ||
+          is_indel ||
           (is_promising && sequence_reversed > 0 && sequence_reversed < _depth) ||
           (sequence_reversed > 1 && sequence_reversed < (_depth - 1)))
          &&

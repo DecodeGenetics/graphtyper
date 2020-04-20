@@ -8,7 +8,11 @@
 namespace gyper
 {
 
-Path::Path(KmerLabel const & l, uint16_t const _read_start_index, uint16_t const _read_end_index, uint16_t const _mismatches) noexcept
+Path::Path(Graph const & graph,
+           KmerLabel const & l,
+           uint16_t const _read_start_index,
+           uint16_t const _read_end_index,
+           uint16_t const _mismatches) noexcept
   : start(l.start_index)
   , end(l.end_index)
   , read_start_index(_read_start_index)
@@ -17,11 +21,13 @@ Path::Path(KmerLabel const & l, uint16_t const _read_start_index, uint16_t const
 {
   assert(_read_end_index > _read_start_index);
 
-  if (l.variant_id != INVALID_ID)
+  if (l.variant_id != gyper::INVALID_ID)
   {
-    var_order.push_back(l.variant_order);
+    assert(l.variant_id < graph.var_nodes.size());
+    //var_order.push_back(graph.var_nodes[l.variant_id].get_label().order);
+    var_order.push_back(graph.get_variant_order(l.variant_id));
     std::bitset<MAX_NUMBER_OF_HAPLOTYPES> new_bitset(1);
-    new_bitset <<= l.variant_num;
+    new_bitset <<= graph.get_variant_num(l.variant_id);
     nums.push_back(new_bitset);
   }
 }
@@ -31,11 +37,11 @@ Path::Path(Path const & p1, Path const & p2) noexcept
 {
   *this = p2; // Take everything from the latter path
 
-  for (unsigned i = 0; i < p1.var_order.size(); ++i)
+  for (long i = 0; i < static_cast<long>(p1.var_order.size()); ++i)
   {
     bool id_found = false;
 
-    for (unsigned j = 0; j < var_order.size(); ++j)
+    for (long j = 0; j < static_cast<long>(var_order.size()); ++j)
     {
       if (p1.var_order[i] == var_order[j])
       {
@@ -49,7 +55,7 @@ Path::Path(Path const & p1, Path const & p2) noexcept
       }
     }
 
-    if (not id_found)
+    if (!id_found)
     {
       var_order.push_back(p1.var_order[i]);
       nums.push_back(p1.nums[i]);
@@ -68,7 +74,7 @@ Path::Path(Path const & p1, Path const & p2) noexcept
 
 
 void
-Path::erase_var_order(long index)
+Path::erase_var_order(long const index)
 {
   assert(index < static_cast<long>(var_order.size()));
   assert(index < static_cast<long>(nums.size()));
@@ -76,29 +82,44 @@ Path::erase_var_order(long index)
   nums.erase(nums.begin() + index);
 }
 
+
+void
+Path::erase_ref_support(long const index)
+{
+  assert(index < static_cast<long>(var_order.size()));
+  assert(index < static_cast<long>(nums.size()));
+
+  if (nums[index].test(0))
+    erase_var_order(index); // delete if the sequence supports the reference
+}
+
+
 void
 Path::merge_with_current(KmerLabel const & l)
 {
   assert(l.end_index == end);
   assert(l.start_index == start);
 
-  if (l.variant_order == INVALID_ID)
+  if (l.variant_id == INVALID_ID)
     return;
 
-  for (unsigned i = 0; i < var_order.size(); ++i)
+  auto const variant_order = graph.get_variant_order(l.variant_id);
+  auto const variant_num = graph.get_variant_num(l.variant_id);
+
+  for (int i = 0; i < static_cast<int>(var_order.size()); ++i)
   {
-    if (var_order[i] == l.variant_order)
+    if (var_order[i] == variant_order)
     {
       std::bitset<MAX_NUMBER_OF_HAPLOTYPES> new_bitset(1);
-      new_bitset <<= l.variant_num;
+      new_bitset <<= variant_num;
       nums[i] |= new_bitset;
       return;
     }
   }
 
-  var_order.push_back(l.variant_order);
+  var_order.push_back(variant_order);
   std::bitset<MAX_NUMBER_OF_HAPLOTYPES> new_bitset(1);
-  new_bitset <<= l.variant_num;
+  new_bitset <<= variant_num;
   nums.push_back(std::move(new_bitset));
 }
 

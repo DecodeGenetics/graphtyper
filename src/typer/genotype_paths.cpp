@@ -37,7 +37,8 @@ merge_forward_compatibility(gyper::Path const & prev, gyper::Path const & next)
 
 
 std::vector<gyper::Path>
-find_all_nonduplicated_paths(std::vector<gyper::KmerLabel> const & ll,
+find_all_nonduplicated_paths(gyper::Graph const & graph,
+                             std::vector<gyper::KmerLabel> const & ll,
                              uint32_t const read_start_index,
                              uint32_t const read_end_index,
                              uint16_t const mismatches)
@@ -46,7 +47,7 @@ find_all_nonduplicated_paths(std::vector<gyper::KmerLabel> const & ll,
     return std::vector<gyper::Path>(0);
 
   assert(read_end_index > read_start_index);
-  std::vector<gyper::Path> paths(1, gyper::Path(ll.front(), read_start_index, read_end_index, mismatches));
+  std::vector<gyper::Path> paths(1, gyper::Path(graph, ll.front(), read_start_index, read_end_index, mismatches));
 
   for (unsigned i = 1; i < ll.size(); ++i)
   {
@@ -65,7 +66,7 @@ find_all_nonduplicated_paths(std::vector<gyper::KmerLabel> const & ll,
     if (nothing_found)
     {
       // Nothing was found. This means the label isn't a duplicate, we can add it.
-      paths.push_back(gyper::Path(ll[i], read_start_index, read_end_index, mismatches));
+      paths.push_back(gyper::Path(graph, ll[i], read_start_index, read_end_index, mismatches));
     }
   }
 
@@ -244,7 +245,8 @@ GenotypePaths::add_prev_kmer_labels(std::vector<KmerLabel> const & ll,
 {
   assert(read_end_index > read_start_index);
   assert(mismatches >= 0);
-  std::vector<Path> const pp = find_all_nonduplicated_paths(ll,
+  std::vector<Path> const pp = find_all_nonduplicated_paths(gyper::graph,
+                                                            ll,
                                                             read_start_index,
                                                             read_end_index,
                                                             (uint16_t)mismatches);
@@ -309,7 +311,8 @@ GenotypePaths::add_next_kmer_labels(std::vector<KmerLabel> const & ll,
                                     )
 {
   assert(read_end_index > read_start_index);
-  std::vector<Path> const pp = find_all_nonduplicated_paths(ll,
+  std::vector<Path> const pp = find_all_nonduplicated_paths(gyper::graph,
+                                                            ll,
                                                             read_start_index,
                                                             read_end_index,
                                                             (uint16_t)mismatches

@@ -29,6 +29,7 @@ public:
    ****************/
   explicit GenomicRegion();
   explicit GenomicRegion(std::string const & region);
+  explicit GenomicRegion(std::string const & chrom, long begin, long end);
 
   void clear();
   void pad(long N_bases); // pad region by N_bases

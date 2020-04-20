@@ -14,11 +14,7 @@ Eggertsson, H.P., Kristmundsdottir, S., Beyter, D. et al. GraphTyper2 enables po
 
 ## Getting started
 ### Download binary
-The easiest way to get GraphTyper is to download the latest 64bit linux binary release
-```sh
-wget https://github.com/DecodeGenetics/graphtyper/releases/download/v2.1/graphtyper
-chmod a+x graphtyper
-```
+The easiest way to get GraphTyper is go to "Releases" and download the latest 64bit linux binary, here: https://github.com/DecodeGenetics/graphtyper/releases
 
 The binary is linked statically and therefore does not require any runtime libraries.
 

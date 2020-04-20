@@ -1,7 +1,6 @@
-cmake_minimum_required(VERSION 2.8.8)
+cmake_minimum_required(VERSION 3.2)
 
 set(graphtyper_SOURCE_FILES
-#  paw.cpp
   graph/absolute_position.cpp
   graph/constructor.cpp
   graph/genomic_region.cpp
@@ -20,17 +19,15 @@ set(graphtyper_SOURCE_FILES
   graph/var_node.cpp
   graph/var_record.cpp
   index/indexer.cpp
-  index/mem_index.cpp
-  index/rocksdb.cpp
+  index/kmer_label.cpp
+  index/ph_index.cpp
   typer/alignment.cpp
   typer/caller.cpp
-#  typer/discovery.cpp
   typer/genotype_paths.cpp
-  typer/graph_swapper.cpp
   typer/path.cpp
+  typer/primers.cpp
   typer/sample_call.cpp
   typer/segment.cpp
-#  typer/segment_calling.cpp
   typer/var_stats.cpp
   typer/variant.cpp
   typer/variant_candidate.cpp
@@ -57,13 +54,6 @@ set(graphtyper_SOURCE_FILES
 # Object libarary
 add_library(graphtyper_objects OBJECT ${graphtyper_SOURCE_FILES})
 add_dependencies(graphtyper_objects project_htslib) # Depends on building htslib
-add_dependencies(graphtyper_objects project_sparsehash) # Depends on building sparsehash
-add_dependencies(graphtyper_objects project_snappy) # Depends on building snappy
-add_dependencies(graphtyper_objects project_rocksdb) # Depends on building rocksdb
-
-# Static library
-add_library(static STATIC $<TARGET_OBJECTS:graphtyper_objects>)
-SET_TARGET_PROPERTIES(static PROPERTIES OUTPUT_NAME graphtyper)
 
 # Binary
 add_executable(graphtyper main.cpp $<TARGET_OBJECTS:graphtyper_objects>)

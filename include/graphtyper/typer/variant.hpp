@@ -80,8 +80,9 @@ struct VariantHash
 };
 
 std::vector<Variant> break_down_variant(Variant && variant,
-                                        long const reach = -1,
-                                        bool const is_no_variant_overlapping = Options::const_instance()->no_variant_overlapping);
+                                        long const reach,
+                                        bool const is_no_variant_overlapping,
+                                        bool const is_all_biallelic);
 
 std::vector<Variant> break_down_skyr(Variant && var, long const reach);
 std::vector<Variant> extract_sequences_from_aligned_variant(Variant const && variant, std::size_t const THRESHOLD);

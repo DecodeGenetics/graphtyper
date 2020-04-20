@@ -15,8 +15,8 @@ class RefNode
   friend class boost::serialization::access;
 
 public:
-  Label label;
-  std::vector<TNodeIndex> out_var_ids;
+  Label label{};
+  std::vector<TNodeIndex> out_var_ids{};
 
   RefNode();
   RefNode(Label && l, std::vector<TNodeIndex> && c) noexcept;
@@ -40,8 +40,8 @@ class VarNode
   friend class boost::serialization::access;
 
 public:
-  Label label;
-  TNodeIndex out_ref_id;
+  Label label{};
+  TNodeIndex out_ref_id{};
 
   VarNode();
   VarNode(Label && l, TNodeIndex && ori) noexcept;

@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint> // uintN_t
+#include <string.h>
 
 // CMake variables
 #define graphtyper_VERSION_MAJOR @graphtyper_VERSION_MAJOR@
@@ -103,3 +104,9 @@ clear_bit(uint16_t & flag, uint16_t with)
 
 
 } // namespace gyper
+
+// Macros
+#define S1(x) # x
+#define S2(x) S1(x)
+#define __FILENAME__ (strrchr("/" __FILE__, '/') + 1)
+#define __HERE__ (strrchr("/" __FILE__ ":" S2(__LINE__), '/') + 1)

@@ -407,17 +407,17 @@ VariantMap::filter_varmap_for_all()
           break;
     }
 
-    std::size_t constexpr THRESHOLD = 1;
-
     Variant var_cp;
     var_cp.abs_pos = var.abs_pos;
     var_cp.seqs = var.seqs;
 
     // Force that no variant is overlapping
-    bool const is_no_variant_overlapping = true; // Force it to be true so we wont use skyr
+    long const reach{-1};
+    bool const is_no_variant_overlapping{true}; // Force it to be true so we wont use skyr
+    bool const is_all_biallelic{false};
 
     std::vector<Variant> new_broken_down_vars =
-      break_down_variant(Variant(var_cp), THRESHOLD, is_no_variant_overlapping);
+      break_down_variant(Variant(var_cp), reach, is_no_variant_overlapping, is_all_biallelic);
 
     assert(new_broken_down_vars.size() != 0);
 
@@ -497,9 +497,7 @@ VariantMap::write_stats(std::string const & prefix)
   {
     Variant var(map_it->first);
     assert(var.seqs.size() == 2);
-    auto contig_pos = absolute_pos.get_contig_position(var.abs_pos, gyper::graph);
-
-
+    auto contig_pos = absolute_pos.get_contig_position(var.abs_pos, gyper::graph.contigs);
     discovery_ss << contig_pos.first << "\t" << contig_pos.second << "\t";
 
     // REF

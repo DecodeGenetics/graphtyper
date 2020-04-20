@@ -1,4 +1,8 @@
+#include <stdlib.h>
+
 #include <cassert>
+#include <cstdlib>
+#include <string>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/absolute_position.hpp>
@@ -9,29 +13,29 @@
 namespace gyper
 {
 
-AbsolutePosition::AbsolutePosition(gyper::Graph const & graph)
+AbsolutePosition::AbsolutePosition(std::vector<Contig> const & contigs)
 {
-  this->calculate_offsets(graph);
+  this->calculate_offsets(contigs);
 }
 
 
 void
-AbsolutePosition::calculate_offsets(gyper::Graph const & graph)
+AbsolutePosition::calculate_offsets(std::vector<Contig> const & contigs)
 {
-  if (graph.contigs.size() == 0 || graph.contigs.size() == offsets.size())
+  if (contigs.size() == 0 || contigs.size() == offsets.size())
     return;
 
   offsets.clear();
   chromosome_to_offset.clear();
 
-  offsets.resize(graph.contigs.size());
+  offsets.resize(contigs.size());
   offsets[0] = 0;
-  chromosome_to_offset[graph.contigs[0].name] = 0;
+  chromosome_to_offset[contigs[0].name] = 0;
 
   for (long i = 1; i < static_cast<long>(offsets.size()); ++i)
   {
-    offsets[i] = offsets[i - 1] + graph.contigs[i - 1].length;
-    chromosome_to_offset[graph.contigs[i].name] = offsets[i];
+    offsets[i] = offsets[i - 1] + contigs[i - 1].length;
+    chromosome_to_offset[contigs[i].name] = offsets[i];
   }
 }
 
@@ -44,7 +48,8 @@ AbsolutePosition::is_contig_available(std::string const & contig) const
 
 
 uint32_t
-AbsolutePosition::get_absolute_position(std::string const & chromosome, uint32_t const contig_position) const
+AbsolutePosition::get_absolute_position(std::string const & chromosome,
+                                        uint32_t const contig_position) const
 {
   uint32_t abs_pos;
 
@@ -70,13 +75,14 @@ AbsolutePosition::get_absolute_position(std::string const & chromosome, uint32_t
 
 
 std::pair<std::string, uint32_t>
-AbsolutePosition::get_contig_position(uint32_t const absolute_position, Graph const & graph) const
+AbsolutePosition::get_contig_position(uint32_t const absolute_position,
+                                      std::vector<Contig> const & contigs) const
 {
   auto offset_it = std::lower_bound(offsets.begin(), offsets.end(), absolute_position);
   long const i = std::distance(offsets.begin(), offset_it);
   assert(i > 0);
-  assert(i <= static_cast<long>(gyper::graph.contigs.size()));
-  return std::make_pair<std::string, uint32_t>(std::string(graph.contigs[i - 1].name),
+  assert(i <= static_cast<long>(contigs.size()));
+  return std::make_pair<std::string, uint32_t>(std::string(contigs[i - 1].name),
                                                absolute_position - offsets[i - 1]);
 }
 

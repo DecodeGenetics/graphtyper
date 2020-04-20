@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -7,10 +8,11 @@
 #include <boost/serialization/access.hpp>
 
 #include <graphtyper/constants.hpp>
-#include <graphtyper/graph/node.hpp>
+#include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/genomic_region.hpp>
 #include <graphtyper/graph/haplotype.hpp>
 #include <graphtyper/graph/location.hpp>
+#include <graphtyper/graph/node.hpp>
 #include <graphtyper/graph/sv.hpp>
 #include <graphtyper/index/kmer_label.hpp>
 #include <graphtyper/typer/path.hpp>
@@ -23,12 +25,11 @@ class Path;
 class Variant;
 class VarRecord;
 
-using TSVKey = std::tuple<uint32_t, std::vector<char>, std::vector<std::vector<char> > >; // pos, ref, alts
 
 struct Contig
 {
-  std::string name = "";
-  uint32_t length = 0;
+  std::string name{};
+  uint32_t length{0};
 
   template <typename Archive>
   void
@@ -46,12 +47,12 @@ class Graph
   friend class boost::serialization::access; // boost is my friend, allow him to see my privates
 
 public:
-  bool use_prefix_chr{true};
   bool use_absolute_positions{true};
   bool is_sv_graph{false};
   GenomicRegion genomic_region;
   std::vector<char> reference;
-  uint32_t reference_offset{0};
+  //uint32_t reference_offset{0};
+  AbsolutePosition absolute_pos;
   std::vector<RefNode> ref_nodes;
   std::vector<VarNode> var_nodes;
   std::vector<SV> SVs;
@@ -60,13 +61,13 @@ public:
   /****************
    * CONSTRUCTORS *
    ****************/
-  explicit Graph(bool _use_absolute_positions = true);
+  explicit
+  Graph(bool _use_absolute_positions = true);
 
   void clear();
   void add_genomic_region(std::vector<char> && reference_sequence,
                           std::vector<VarRecord> && var_records,
-                          GenomicRegion && region
-                          );
+                          GenomicRegion && region);
 
   /******************
    * GRAPH CREATION *
@@ -88,6 +89,7 @@ public:
    * GRAPH INFORMATION *
    *********************/
   std::size_t size() const;
+  uint32_t get_variant_order(long variant_id) const;
   uint16_t get_variant_num(uint32_t v) const;
   std::vector<Haplotype> get_all_haplotypes(uint32_t variant_distance = MAX_READ_LENGTH) const;
 
@@ -102,11 +104,6 @@ public:
                              std::vector<char> const & prefix
                              ) const;
 
-  std::vector<std::vector<char> >
-  get_all_sequences_of_length(uint32_t start, uint32_t length,
-                              std::vector<char> const & prefix
-                              ) const;
-
   bool is_variant_in_graph(Variant const & var) const;
   uint8_t get_10log10_num_paths(TNodeIndex const v, uint32_t const MAX_DISTANCE = 60);
   bool is_snp(Genotype const & gt) const;
@@ -117,33 +114,28 @@ public:
    *************************/
   std::unordered_set<long>
   reference_distance_between_locations(std::vector<Location> const & ll1,
-                                       std::vector<Location> const & ll2
-                                       ) const;
+                                       std::vector<Location> const & ll2) const;
 
   std::vector<Location> get_locations_of_a_position(uint32_t pos, Path const & path) const;
   std::vector<Location> get_locations_of_an_actual_position(uint32_t pos,
-                                                            Path const & path = Path(),
-                                                            bool const is_special = false
-                                                            ) const;
+                                                            Path const & path,
+                                                            bool const is_special = false) const;
 
   std::vector<KmerLabel>
   get_labels_forward(Location const & s,
                      std::vector<char> const & read,
-                     uint32_t & max_mismatches
-                     ) const;
+                     uint32_t & max_mismatches) const;
 
   std::vector<KmerLabel>
   get_labels_backward(Location const & e,
                       std::vector<char> const & read,
-                      uint32_t & max_mismatches
-                      ) const;
+                      uint32_t & max_mismatches) const;
 
   std::vector<KmerLabel>
   iterative_dfs(std::vector<Location> const & start_locations,
                 std::vector<Location> const & end_locations,
                 std::vector<char> const & read,
-                uint32_t & max_mismatches
-                ) const;
+                uint32_t & max_mismatches) const;
 
   /*********************
    * SPECIAL POSITIONS *

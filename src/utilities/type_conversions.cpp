@@ -2,8 +2,11 @@
 #include <iomanip> // std::hex
 
 #include <graphtyper/utilities/type_conversions.hpp>
+
 #include <boost/log/trivial.hpp>
 
+#include <seqan/basic.h>
+#include <seqan/sequence.h>
 
 namespace gyper
 {
@@ -17,23 +20,28 @@ namespace gyper
 uint64_t
 to_uint64(char const c)
 {
-  switch(c)
+  switch (c)
   {
-    case 'A':
-      return 0ul;
-    case 'C':
-      return 1ul;
-    case 'G':
-      return 2ul;
-    case 'T':
-      return 3ul;
-    default:
-      BOOST_LOG_TRIVIAL(warning) << "[graphtyper::type_conversions] Invalid character " << c;
-      return 0ul;
+  case 'A':
+    return 0ul;
+
+  case 'C':
+    return 1ul;
+
+  case 'G':
+    return 2ul;
+
+  case 'T':
+    return 3ul;
+
+  default:
+    BOOST_LOG_TRIVIAL(warning) << "[graphtyper::type_conversions] Invalid character " << c;
+    return 0ul;
   }
 }
 
 
+/*
 uint64_t
 to_uint64(seqan::DnaString const & s, std::size_t i)
 {
@@ -48,15 +56,32 @@ to_uint64(seqan::DnaString const & s, std::size_t i)
 
   return d;
 }
+*/
 
 
 uint64_t
-to_uint64(std::vector<char> const & s)
+to_uint64(std::vector<char> const & s, int i)
 {
-  assert(s.size() == 32u);
+  assert(s.size() >= 32u);
   uint64_t d = 0ull;
 
-  for (unsigned i = 0; i < 32; ++i)
+  for (int const j = i + 32; i < j; ++i)
+  {
+    d <<= 2;
+    d += to_uint64(s[i]);
+  }
+
+  return d;
+}
+
+
+uint64_t
+to_uint64(std::string const & s, int i)
+{
+  assert(s.size() >= 32u);
+  uint64_t d = 0ull;
+
+  for (int const j = i + 32; i < j; ++i)
   {
     d <<= 2;
     d += to_uint64(s[i]);
@@ -69,16 +94,19 @@ to_uint64(std::vector<char> const & s)
 uint16_t
 to_uint16(char const c)
 {
-  switch(c)
+  switch (c)
   {
-    case 'A':
-      return 0u;
-    case 'C':
-      return 1u;
-    case 'G':
-      return 2u;
-    default:
-      return 3u; // 'T' or anything else
+  case 'A':
+    return 0u;
+
+  case 'C':
+    return 1u;
+
+  case 'G':
+    return 2u;
+
+  default:
+    return 3u;   // 'T' or anything else
   }
 }
 
@@ -162,9 +190,60 @@ to_uint64_vec(TSeq const & s, std::size_t i)
 }
 
 
+template <>
+std::vector<uint64_t>
+to_uint64_vec(std::string const & s, std::size_t i)
+{
+  assert(s.size() >= 32 + i); // Otherwise its impossible to read 32 bases from read!
+  std::vector<uint64_t> uints(1, 0u);
+
+  for (unsigned const j = i + 32; i < j; ++i)
+  {
+    long const origin_size = uints.size();
+
+    if (origin_size > 97)
+      return std::vector<uint64_t>();
+
+    char const c = s[i];
+
+    for (long u = 0; u < origin_size; ++u)
+    {
+      switch (c)
+      {
+      case 'A':
+        uints[u] += 4 + 0;
+        break;
+
+      case 'C':
+        uints[u] += 4 + 1;
+        break;
+
+      case 'G':
+        uints[u] += 4 + 2;
+        break;
+
+      case 'T':
+        uints[u] += 4 + 3;
+        break;
+
+      default:
+        uints.push_back(uints[u] * 4 + 0);  // A
+        uints.push_back(uints[u] * 4 + 1);  // C
+        uints.push_back(uints[u] * 4 + 2);  // G
+        uints[u] <<= 2; uints[u] += 3;      // T
+        break;
+      }
+    }
+  }
+
+  return uints;
+}
+
+
 // Explicit instantation
 template std::vector<uint64_t> to_uint64_vec<seqan::Dna5String>(seqan::Dna5String const & s, std::size_t i);
 template std::vector<uint64_t> to_uint64_vec<seqan::IupacString>(seqan::IupacString const & s, std::size_t i);
+template std::vector<uint64_t> to_uint64_vec<std::string>(std::string const & s, std::size_t i);
 
 
 std::array<uint64_t, 96>
@@ -187,6 +266,7 @@ to_uint64_vec_hamming_distance_1(uint64_t const key)
 }
 
 
+/*
 seqan::DnaString
 to_dna(uint64_t const & d, uint8_t k)
 {
@@ -218,6 +298,39 @@ to_dna(uint64_t const & d, uint8_t k)
 
   return new_dna_string;
 }
+*/
+
+std::string
+to_dna_str(uint64_t const d, uint8_t k)
+{
+  std::string new_dna;
+
+  while (k > 0)
+  {
+    --k;
+
+    switch ((d & (0x0000000000000003ULL << 2 * k)) >> 2 * k)
+    {
+    case A_VALUE:
+      new_dna.push_back('A');
+      break;
+
+    case C_VALUE:
+      new_dna.push_back('C');
+      break;
+
+    case G_VALUE:
+      new_dna.push_back('G');
+      break;
+
+    case T_VALUE:
+      new_dna.push_back('T');
+      break;
+    }
+  }
+
+  return new_dna;
+}
 
 
 std::array<uint64_t, 3>
@@ -228,20 +341,20 @@ get_mismatches_of_last_base(uint64_t const d)
   switch (d & 0x0000000000000003ULL)
   {
   case A_VALUE: return {{
-                          d2 | C_VALUE, d2 | G_VALUE, d2 | T_VALUE
-                        }};
+      d2 | C_VALUE, d2 | G_VALUE, d2 | T_VALUE
+    }};
 
   case C_VALUE: return {{
-                          d2 | A_VALUE, d2 | G_VALUE, d2 | T_VALUE
-                        }};
+      d2 | A_VALUE, d2 | G_VALUE, d2 | T_VALUE
+    }};
 
   case G_VALUE: return {{
-                          d2 | A_VALUE, d2 | C_VALUE, d2 | T_VALUE
-                        }};
+      d2 | A_VALUE, d2 | C_VALUE, d2 | T_VALUE
+    }};
 
   default: /*T*/ return {{
-                           d2 | A_VALUE, d2 | C_VALUE, d2 | G_VALUE
-                         }};
+      d2 | A_VALUE, d2 | C_VALUE, d2 | G_VALUE
+    }};
   }
 }
 
@@ -254,20 +367,20 @@ get_mismatches_of_first_base(uint64_t const d)
   switch (d & 0xC000000000000000ULL)
   {
   case A_LAST_VALUE: return {{
-                               d2 | C_LAST_VALUE, d2 | G_LAST_VALUE, d2 | T_LAST_VALUE
-                             }};
+      d2 | C_LAST_VALUE, d2 | G_LAST_VALUE, d2 | T_LAST_VALUE
+    }};
 
   case C_LAST_VALUE: return {{
-                               d2 | A_LAST_VALUE, d2 | G_LAST_VALUE, d2 | T_LAST_VALUE
-                             }};
+      d2 | A_LAST_VALUE, d2 | G_LAST_VALUE, d2 | T_LAST_VALUE
+    }};
 
   case G_LAST_VALUE: return {{
-                               d2 | A_LAST_VALUE, d2 | C_LAST_VALUE, d2 | T_LAST_VALUE
-                             }};
+      d2 | A_LAST_VALUE, d2 | C_LAST_VALUE, d2 | T_LAST_VALUE
+    }};
 
   default: /*T*/ return {{
-                           d2 | A_LAST_VALUE, d2 | C_LAST_VALUE, d2 | G_LAST_VALUE
-                         }};
+      d2 | A_LAST_VALUE, d2 | C_LAST_VALUE, d2 | G_LAST_VALUE
+    }};
   }
 }
 

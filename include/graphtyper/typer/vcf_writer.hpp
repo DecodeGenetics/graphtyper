@@ -15,6 +15,7 @@
 namespace gyper
 {
 
+class Primers;
 class HaplotypeCall;
 
 class VcfWriter
@@ -27,7 +28,7 @@ public:
    * CLASS MODIFIERS *
    *******************/
   void set_samples(std::vector<std::string> const & samples);
-  void update_haplotype_scores_geno(GenotypePaths & geno, long pn_index);
+  void update_haplotype_scores_geno(GenotypePaths & geno, long pn_index, Primers const * primers);
   void push_to_haplotype_scores(GenotypePaths & geno, long pn_index);
 
   /*********************

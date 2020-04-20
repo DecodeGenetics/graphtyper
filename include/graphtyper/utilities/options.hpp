@@ -29,6 +29,9 @@ public:
   bool no_decompose{false};
   bool no_bamshrink{false};
   bool no_variant_overlapping{false};
+  bool is_all_biallelic{false};
+  bool is_only_cigar_discovery{false};
+  bool is_discovery_only_for_paired_reads{false};
   long ploidy{2};
 
   /****
@@ -36,6 +39,10 @@ public:
    */
   bool filter_on_mapq{true};
   bool filter_on_proper_pairs{true};
+  bool filter_on_read_bias{true};
+  bool filter_on_strand_bias{true};
+  bool no_filter_on_begin_pos{false};
+  bool no_filter_on_coverage{false};
 
   /*******************
    * GENERAL OPTIONS *
@@ -65,22 +72,20 @@ public:
   /********************
    * INDEXING OPTIONS *
    ********************/
-  uint64_t max_index_labels{32};
+  long max_index_labels{75};
 
   /*******************
    * CALLING OPTIONS *
    *******************/
-//  std::size_t minimum_variant_support{5}; // 5 default, 3 in eagle calling
-//  double minimum_variant_support_ratio{0.25}; // 0.3 default, 0.2 in eagle calling
-//  std::size_t certain_variant_support{14};
-//  double certain_variant_support_ratio{0.49};
   bool hq_reads{false};
+  int sam_flag_filter{3840};
   long max_files_open{1000}; // Maximum amount of SAM/BAM/CRAM files can be opened at the same time
   long soft_cap_of_variants_in_100_bp_window{22};
   bool get_sample_names_from_filename{false};
   bool output_all_variants{false};
   bool is_one_genotype_per_haplotype{false};
-  std::string variant_suffix_id = "";
+  std::string variant_suffix_id{};
+  std::string primer_bedpe{};
 
   // 7 and 0.26 for >= 1000 samples
   long genotype_aln_min_support{4};
@@ -94,8 +99,9 @@ public:
    ********************************/
   long max_extracted_haplotypes{64};
   int minimum_extract_variant_support{2};
-  int minimum_extract_score_over_homref{9};
+  int minimum_extract_score_over_homref{27};
   double impurity_threshold{0.15};
+
   /*******************
    * LOGGING OPTIONS *
    *******************/

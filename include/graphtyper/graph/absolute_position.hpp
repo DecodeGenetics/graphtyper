@@ -4,11 +4,13 @@
 #include <unordered_map>
 #include <vector>
 
+#include <boost/serialization/access.hpp>
+
 
 namespace gyper
 {
 
-class Graph;
+class Contig;
 
 class AbsolutePosition
 {
@@ -17,10 +19,10 @@ public:
   std::unordered_map<std::string, uint32_t> chromosome_to_offset;
 
   AbsolutePosition() = default;
-  AbsolutePosition(Graph const & graph);
+  AbsolutePosition(std::vector<Contig> const & contigs);
 
   ///* non-const methods */
-  void calculate_offsets(Graph const & graph);
+  void calculate_offsets(std::vector<Contig> const & contigs);
 
   ///* const methods */
   bool is_contig_available(std::string const & chromosome) const;
@@ -28,7 +30,16 @@ public:
 
   std::pair<std::string, uint32_t>
   get_contig_position(uint32_t absolute_position,
-                      Graph const & graph) const;
+                      std::vector<Contig> const & contigs) const;
+
+
+  template <typename Archive>
+  void
+  serialize(Archive & ar, unsigned int)
+  {
+    ar & offsets;
+    ar & chromosome_to_offset;
+  }
 
 
 };

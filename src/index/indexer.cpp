@@ -7,8 +7,7 @@
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/graph_serialization.hpp>
 #include <graphtyper/index/indexer.hpp>
-
-#include <seqan/stream.h>
+#include <graphtyper/index/ph_index.hpp>
 
 
 namespace
@@ -17,8 +16,9 @@ namespace
 bool
 entry_has_too_many_nonrefs(gyper::IndexEntry const & entry)
 {
-  uint32_t const MAX_TOTAL_VAR_NUM = 401u; // 131 is a prime
-  uint32_t const MAX_TOTAL_VAR_COUNT = 4u;
+  uint32_t constexpr MAX_TOTAL_VAR_NUM = 401u; // 131 is a prime
+  uint32_t constexpr MAX_TOTAL_VAR_COUNT = 4u;
+
   return entry.total_var_count > 1 &&
          (entry.total_var_num > MAX_TOTAL_VAR_NUM || entry.total_var_count > MAX_TOTAL_VAR_COUNT);
 }
@@ -32,11 +32,13 @@ namespace gyper
 
 
 void
-index_reference_label(Index<RocksDB> & new_index, TEntryList & mers, Label const & label)
+index_reference_label(PHIndex & ph_index, TEntryList & mers, Label const & label)
 {
-  for (unsigned d = 0; d < seqan::length(label.dna); ++d)
+  for (int d = 0; d < static_cast<int>(label.dna.size()); ++d)
   {
-    if (label.dna[d] == 'N')
+    char const dna_base = label.dna[d];
+
+    if (dna_base != 'A' && dna_base != 'C' && dna_base != 'G' && dna_base != 'T')
     {
       mers.clear();
       continue;
@@ -46,14 +48,14 @@ index_reference_label(Index<RocksDB> & new_index, TEntryList & mers, Label const
     {
       for (auto sublist_it = list_it->begin(); sublist_it != list_it->end(); ++sublist_it)
       {
-        sublist_it->add_to_dna(label.dna[d]);
+        sublist_it->add_to_dna(dna_base);
       }
     }
 
     // Add a new element with the new DNA base
     {
       IndexEntry index_entry(label.order + d);
-      index_entry.add_to_dna(label.dna[d]);
+      index_entry.add_to_dna(dna_base);
       mers.push_front(TEntrySublist(1, index_entry));
     }
 
@@ -67,17 +69,22 @@ index_reference_label(Index<RocksDB> & new_index, TEntryList & mers, Label const
 
         if (q_it->variant_id.size() == 0)
         {
-          new_index.put(q_it->dna, KmerLabel(q_it->start_index, label.order + d)); // KmerLabel has implicit var_id = INVALID_ID
+          // KmerLabel has implicit var_id = INVALID_ID
+          ph_index.put(q_it->dna, KmerLabel(q_it->start_index, label.order + d));
         }
         else
         {
           std::vector<KmerLabel> new_labels;
           new_labels.reserve(q_it->variant_id.size());
 
-          for (unsigned i = 0; i < q_it->variant_id.size(); ++i)
-            new_labels.push_back(KmerLabel(q_it->start_index, label.order + d, q_it->variant_id[i]));
+          for (long i = 0; i < static_cast<long>(q_it->variant_id.size()); ++i)
+          {
+            new_labels.push_back(KmerLabel(q_it->start_index,
+                                           label.order + d,
+                                           q_it->variant_id[i]));
+          }
 
-          new_index.put(q_it->dna, std::move(new_labels));
+          ph_index.put(q_it->dna, std::vector<KmerLabel>(new_labels));
         }
       }
 
@@ -88,25 +95,36 @@ index_reference_label(Index<RocksDB> & new_index, TEntryList & mers, Label const
 
 
 void
-insert_variant_label(Index<RocksDB> & new_index,
+insert_variant_label(PHIndex & ph_index,
                      TEntryList & mers,
                      Label const & label,
                      TNodeIndex const v,
                      bool const is_reference,
                      unsigned const var_count,
-                     std::size_t const ref_reach
-                     )
+                     std::size_t const ref_reach)
 {
-  for (unsigned d = 0; d < seqan::length(label.dna); ++d)
+  for (int d = 0; d < static_cast<int>(label.dna.size()); ++d)
   {
+    char const dna_base = label.dna[d];
+
+    if (dna_base != 'A' && dna_base != 'C' && dna_base != 'G' && dna_base != 'T')
+    {
+      mers.clear();
+      continue;
+    }
+
     for (auto sublist_it = mers.begin(); sublist_it != mers.end(); ++sublist_it)
     {
       for (auto entry_it = sublist_it->begin(); entry_it != sublist_it->end(); ++entry_it)
       {
-        entry_it->add_to_dna(label.dna[d]);
+        entry_it->add_to_dna(dna_base);
 
-        if (std::find(entry_it->variant_id.begin(), entry_it->variant_id.end(), v) == entry_it->variant_id.end())
+        if (std::find(entry_it->variant_id.begin(),
+                      entry_it->variant_id.end(),
+                      v) == entry_it->variant_id.end())
+        {
           entry_it->variant_id.push_back(static_cast<unsigned>(v));
+        }
       }
     }
 
@@ -117,7 +135,7 @@ insert_variant_label(Index<RocksDB> & new_index,
       pos = graph.get_special_pos(pos, static_cast<uint32_t>(ref_reach));
 
     IndexEntry new_index_entry(pos, static_cast<uint32_t>(v), is_reference, var_count);
-    new_index_entry.add_to_dna(label.dna[d]);
+    new_index_entry.add_to_dna(dna_base);
 
     // If we are using a list
     mers.push_front(TEntrySublist(1, new_index_entry));
@@ -137,7 +155,7 @@ insert_variant_label(Index<RocksDB> & new_index,
         for (unsigned i = 0; i < q_it->variant_id.size(); ++i)
           new_labels.push_back(KmerLabel(q_it->start_index, pos, q_it->variant_id[i]));
 
-        new_index.put(q_it->dna, std::move(new_labels));
+        ph_index.put(q_it->dna, std::vector<KmerLabel>(new_labels));
       }
 
       mers.pop_back();
@@ -177,25 +195,27 @@ remove_large_variants_from_list(TEntryList & list, unsigned const var_count)
       ++entry_it->total_var_count;
     }
 
-    sublist_it->erase(std::remove_if(sublist_it->begin(), sublist_it->end(), entry_has_too_many_nonrefs),
+    sublist_it->erase(std::remove_if(sublist_it->begin(),
+                                     sublist_it->end(),
+                                     entry_has_too_many_nonrefs),
                       sublist_it->end());
   }
 }
 
 
 void
-index_variant(Index<RocksDB> & new_index,
+index_variant(PHIndex & ph_index,
               std::vector<VarNode> const & var_nodes,
               TEntryList & mers,
               unsigned var_count,
-              TNodeIndex v
-              )
+              TNodeIndex v)
 {
   TEntryList clean_list(mers); // copies all mers, we find new kmers using the copy.
 
   // Insert reference label
   std::size_t const ref_label_reach = var_nodes[v].get_label().reach();
-  insert_variant_label(new_index, mers, var_nodes[v].get_label(), v, true /*is reference*/, 1, ref_label_reach);
+  insert_variant_label(ph_index, mers, var_nodes[v].get_label(), v, true /*is reference*/, 1,
+                       ref_label_reach);
 
   // Remove all labels with large variants
   remove_large_variants_from_list(clean_list, var_count);
@@ -208,7 +228,7 @@ index_variant(Index<RocksDB> & new_index,
     ++v;
 
     TEntryList new_list(clean_list); // copies all mers, we find new kmers using the new copy
-    insert_variant_label(new_index,
+    insert_variant_label(ph_index,
                          new_list,
                          var_nodes[v].get_label(),
                          v,
@@ -220,7 +240,7 @@ index_variant(Index<RocksDB> & new_index,
 
   // No need to copy clean_list on the last variant
   ++v;
-  insert_variant_label(new_index,
+  insert_variant_label(ph_index,
                        clean_list,
                        var_nodes[v].get_label(),
                        v,
@@ -231,10 +251,10 @@ index_variant(Index<RocksDB> & new_index,
 }
 
 
-void
-index_graph(std::string const & index_path)
+PHIndex
+index_graph(Graph const & graph)
 {
-  Index<RocksDB> new_index(index_path, true /*clear_first*/, false /*read_only*/);
+  PHIndex ph_index;
 
   assert(graph.ref_nodes.back().out_degree() == 0);
   uint32_t const start_order = graph.ref_nodes.front().get_label().order;
@@ -244,24 +264,24 @@ index_graph(std::string const & index_path)
   uint32_t goal = 0;
 
   TNodeIndex r = 0; // Reference node index
-  // TNodeIndex v = 0; // Variant node index
   TEntryList mers;
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::indexer] The number of reference nodes are " << graph.ref_nodes.size();
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] The number of reference nodes are "
+                           << graph.ref_nodes.size();
 
   while (r < graph.ref_nodes.size() - 1)
   {
     if (graph.ref_nodes[r].get_label().order >= goal_order)
     {
-      BOOST_LOG_TRIVIAL(debug) << "[graphtyper::indexer] Indexing progress: " << goal << '%';
+      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Indexing progress: " << goal << '%';
       goal_order += (end_order - start_order) / 5;
       goal += 20;
     }
 
-    index_reference_label(new_index, mers, graph.ref_nodes[r].get_label());
+    index_reference_label(ph_index, mers, graph.ref_nodes[r].get_label());
 
     if (graph.ref_nodes[r].out_degree() > 0)
     {
-      index_variant(new_index,
+      index_variant(ph_index,
                     graph.var_nodes,
                     mers,
                     static_cast<int>(graph.ref_nodes[r].out_degree()),
@@ -272,45 +292,30 @@ index_graph(std::string const & index_path)
     ++r;
   }
 
-  index_reference_label(new_index, mers, graph.ref_nodes.back().get_label());
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::indexer] Indexing progress: 100" << '%';
+  index_reference_label(ph_index, mers, graph.ref_nodes.back().get_label());
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Indexing progress: 100%";
   mers.clear();
 
   // Commit the rest of the buffer before closing
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::indexer] Writing index to disk...";
-  new_index.commit();
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::indexer] Done.";
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Writing index to disk...";
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Done indexing graph.";
+  return ph_index;
 }
 
 
-void
-index_graph(std::string const & graph_path, std::string const & index_path)
+PHIndex
+index_graph(std::string const & graph_path)
 {
   load_graph(graph_path);
 
   if (graph.size() == 0)
   {
-    BOOST_LOG_TRIVIAL(warning) << "[graphtyper::indexer] WARNING: Trying to index empty graph.";
-    return;
+    BOOST_LOG_TRIVIAL(warning) << "[" << __HERE__ << "] Trying to index empty graph.";
+    PHIndex ph_index; // Make empty index
+    return ph_index;
   }
 
-  index_graph(index_path);
-}
-
-
-void
-load_index(std::string const & index_path)
-{
-  index.open(index_path.c_str(), false /*clear_first*/, true /*read_only*/);
-}
-
-
-Index<RocksDB>
-load_secondary_index(std::string const & index_path)
-{
-  Index<RocksDB> secondary_index;
-  secondary_index.open(index_path.c_str(), false /*clear_first*/, true /*read_only*/);
-  return secondary_index;
+  return index_graph(graph);
 }
 
 

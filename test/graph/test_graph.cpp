@@ -21,24 +21,6 @@
 
 #include <catch.hpp>
 
-TEST_CASE("Logging setup")
-{
-  boost::log::core::get()->set_filter
-  (
-    boost::log::trivial::severity >= boost::log::trivial::warning
-  );
-
-
-  boost::log::add_common_attributes();
-  boost::log::register_simple_formatter_factory<boost::log::trivial::severity_level, char>("Severity");
-  std::string log_format = "[%TimeStamp%] <%Severity%> %Message%";
-
-  boost::log::add_console_log(std::clog,
-                              boost::log::keywords::auto_flush = true,
-                              boost::log::keywords::format = log_format
-                              );
-}
-
 
 std::vector<std::vector<char> >
 get_var_dna(std::vector<gyper::VarNode> const & var_nodes)
@@ -55,6 +37,9 @@ get_var_dna(std::vector<gyper::VarNode> const & var_nodes)
 TEST_CASE("Get the reference sequence of a graph")
 {
   using namespace gyper;
+
+  BOOST_LOG_TRIVIAL(debug) << "TEST_CASE: Get the reference sequence of a graph.";
+
   std::vector<char> reference_sequence;
   char testdata[] = "SGTACGEEF";
   reference_sequence.insert(reference_sequence.end(), testdata, testdata + 9);
@@ -91,13 +76,13 @@ TEST_CASE("Get the reference sequence of a graph")
   graph = gyper::Graph(false); // use_absolute_positions
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion());
 
-  SECTION("Get the entire reference")
+  // Get the entire reference
   {
     REQUIRE(graph.get_all_ref() == gyper::to_vec("SGTACGEEF"));
     REQUIRE(graph.get_ref(0, 999) == gyper::to_vec("SGTACGEEF"));
   }
 
-  SECTION("Get the partial reference")
+  // Get the partial reference
   {
     REQUIRE(graph.get_ref(0, 2) == gyper::to_vec("SG"));
     REQUIRE(graph.get_ref(1, 2) == gyper::to_vec("G"));
@@ -106,13 +91,13 @@ TEST_CASE("Get the reference sequence of a graph")
     REQUIRE(graph.get_ref(8, 12) == gyper::to_vec("F"));
   }
 
-  SECTION("Out of bounds reference")
+  // Out of bounds reference
   {
     REQUIRE(graph.get_ref(9, 12) == gyper::to_vec(""));
     REQUIRE(graph.get_ref(9999, 1999992) == gyper::to_vec(""));
   }
 
-  SECTION("To is smaller")
+  // To is smaller
   {
     REQUIRE(graph.get_ref(4, 1) == gyper::to_vec(""));
   }
@@ -122,6 +107,9 @@ TEST_CASE("Get the reference sequence of a graph")
 TEST_CASE("Graph with a reference only.")
 {
   using namespace gyper;
+
+  BOOST_LOG_TRIVIAL(debug) << "TEST_CASE: Graph with a reference only.";
+
   std::vector<char> reference_sequence;
   char testdata[] = "ACCGGGAAAA";
   reference_sequence.insert(reference_sequence.end(), testdata, testdata + 10);
@@ -131,13 +119,13 @@ TEST_CASE("Graph with a reference only.")
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-  SECTION("The graph has the correct size")
+  // The graph has the correct size
   {
     REQUIRE(ref_nodes.size() == 1);
     REQUIRE(var_nodes.size() == 0);
   }
 
-  SECTION("The only node has the correct order and dna")
+  // The only node has the correct order and dna
   {
     REQUIRE(ref_nodes[0].out_degree() == 0);
     REQUIRE(ref_nodes[0].get_label().order == 0);
@@ -145,7 +133,7 @@ TEST_CASE("Graph with a reference only.")
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("ACCGGGAAAA"));
   }
 
-  SECTION("The graph outputs the correct reference sequence")
+  // The graph outputs the correct reference sequence
   {
     REQUIRE(graph.get_all_ref() == gyper::to_vec("ACCGGGAAAA"));
   }
@@ -155,6 +143,9 @@ TEST_CASE("Graph with a reference only.")
 TEST_CASE("Graph with two variant records.")
 {
   using namespace gyper;
+
+  BOOST_LOG_TRIVIAL(debug) << "TEST_CASE: Graph with two variant records.";
+
   std::vector<char> reference_sequence;
   char testdata[] = "ACCGGGAAAA";
   reference_sequence.insert(reference_sequence.end(), testdata, testdata + 10);
@@ -180,14 +171,14 @@ TEST_CASE("Graph with two variant records.")
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-  SECTION("The graph should have the correct size")
+  // The graph should have the correct size
   {
     REQUIRE(ref_nodes.size() == 3);
     REQUIRE(var_nodes.size() == 5);
     REQUIRE(graph.size() == 8);
   }
 
-  SECTION("The nodes should be correctly connected")
+  // The nodes should be correctly connected
   {
     REQUIRE(ref_nodes[0].out_degree() == 2);
     REQUIRE(ref_nodes[0].get_var_index(0) == 0);
@@ -216,7 +207,7 @@ TEST_CASE("Graph with two variant records.")
     REQUIRE(ref_nodes[2].out_degree() == 0);
   }
 
-  SECTION("The nodes should have the correct order")
+  // The nodes should have the correct order
   {
     REQUIRE(ref_nodes[0].get_label().order == 0);
     REQUIRE(var_nodes[0].get_label().order == 3);
@@ -228,7 +219,7 @@ TEST_CASE("Graph with two variant records.")
     REQUIRE(ref_nodes[2].get_label().order == 7);
   }
 
-  SECTION("The nodes should have a label with the correct DNA bases")
+  // The nodes should have a label with the correct DNA bases
   {
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("ACC"));
     REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("G"));
@@ -270,14 +261,14 @@ TEST_CASE("Graph can start with a variant record.")
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-  SECTION("The graph should have the correct size")
+  // The graph should have the correct size
   {
     REQUIRE(ref_nodes.size() == 3);
     REQUIRE(var_nodes.size() == 5);
     REQUIRE(graph.size() == 8);
   }
 
-  SECTION("The nodes should be correctly connected")
+  // The nodes should be correctly connected
   {
     REQUIRE(ref_nodes[0].out_degree() == 2);
     REQUIRE(var_nodes[0].out_degree() == 1);
@@ -289,7 +280,7 @@ TEST_CASE("Graph can start with a variant record.")
     REQUIRE(ref_nodes[2].out_degree() == 0);
   }
 
-  SECTION("The nodes should have the correct order")
+  // The nodes should have the correct order
   {
     REQUIRE(ref_nodes[0].get_label().order == 0);
     REQUIRE(var_nodes[0].get_label().order == 0);
@@ -301,7 +292,7 @@ TEST_CASE("Graph can start with a variant record.")
     REQUIRE(ref_nodes[2].get_label().order == 7);
   }
 
-  SECTION("The nodes should have a label with the correct DNA bases")
+  // The nodes should have a label with the correct DNA bases
   {
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec(""));
     REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("A"));
@@ -318,6 +309,10 @@ TEST_CASE("Graph can start with a variant record.")
 TEST_CASE("The reference can contain Ns. Note however that variants cannot overlap the N.")
 {
   using namespace gyper;
+
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST_CASE: The reference can contain Ns. "
+                           << "Note however that variants cannot overlap the N.";
+
   std::vector<char> reference_sequence;
   char testdata[] = "ACCGNGAAAA";
   reference_sequence.insert(reference_sequence.end(), testdata, testdata + 10);
@@ -348,7 +343,7 @@ TEST_CASE("The reference can contain Ns. Note however that variants cannot overl
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-  SECTION("The nodes should be correctly connected")
+  // "The nodes should be correctly connected")
   {
     REQUIRE(ref_nodes[0].out_degree() == 2);
     REQUIRE(ref_nodes[0].get_var_index(0) == 0);
@@ -377,7 +372,7 @@ TEST_CASE("The reference can contain Ns. Note however that variants cannot overl
     REQUIRE(ref_nodes[2].out_degree() == 0);
   }
 
-  SECTION("The nodes should have the correct order")
+  // The nodes should have the correct order
   {
     REQUIRE(ref_nodes[0].get_label().order == 0);
     REQUIRE(var_nodes[0].get_label().order == 3);
@@ -390,7 +385,7 @@ TEST_CASE("The reference can contain Ns. Note however that variants cannot overl
 
   }
 
-  SECTION("The nodes should have a label with the correct DNA bases")
+  // The nodes should have a label with the correct DNA bases
   {
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("ACC"));
     REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("G"));
@@ -409,6 +404,8 @@ TEST_CASE("The reference can contain Ns. Note however that variants cannot overl
 TEST_CASE("The reference can start with Ns.")
 {
   using namespace gyper;
+
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST CASE: The reference can start with Ns.";
   std::vector<char> reference_sequence;
   char testdata[] = "NNCGGGAAAA";
   reference_sequence.insert(reference_sequence.end(), testdata, testdata + 10);
@@ -439,7 +436,7 @@ TEST_CASE("The reference can start with Ns.")
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-  SECTION("The nodes should be correctly connected")
+  // The nodes should be correctly connected
   {
     REQUIRE(ref_nodes[0].out_degree() == 2);
     REQUIRE(ref_nodes[0].get_var_index(0) == 0);
@@ -455,7 +452,7 @@ TEST_CASE("The reference can start with Ns.")
     REQUIRE(ref_nodes[1].get_var_index(2) == 4);
   }
 
-  SECTION("The nodes should have the correct order")
+  // The nodes should have the correct order
   {
     REQUIRE(ref_nodes[0].get_label().order == 0);
     REQUIRE(var_nodes[0].get_label().order == 3);
@@ -467,7 +464,7 @@ TEST_CASE("The reference can start with Ns.")
     REQUIRE(ref_nodes[2].get_label().order == 7);
   }
 
-  SECTION("The nodes should have a label with the correct DNA bases")
+  // The nodes should have a label with the correct DNA bases
   {
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("NNC"));
     REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("G"));
@@ -484,6 +481,8 @@ TEST_CASE("The reference can start with Ns.")
 TEST_CASE("We can start at any location of the reference.")
 {
   using namespace gyper;
+
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST CASE: We can start at any location of the reference.";
   std::vector<char> reference_sequence;
   char testdata[] = "CCGGTAAAT";
   reference_sequence.insert(reference_sequence.end(), testdata, testdata + 9);
@@ -514,7 +513,7 @@ TEST_CASE("We can start at any location of the reference.")
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-  SECTION("The nodes should be correctly connected")
+  // The nodes should be correctly connected
   {
     REQUIRE(ref_nodes[0].out_degree() == 2);
     REQUIRE(ref_nodes[0].get_var_index(0) == 0);
@@ -537,7 +536,7 @@ TEST_CASE("We can start at any location of the reference.")
     REQUIRE(ref_nodes[2].out_degree() == 0);
   }
 
-  SECTION("The nodes should have the correct order")
+  // The nodes should have the correct order
   {
     REQUIRE(ref_nodes[0].get_label().order == 1);
     REQUIRE(var_nodes[0].get_label().order == 3);
@@ -548,7 +547,7 @@ TEST_CASE("We can start at any location of the reference.")
     REQUIRE(ref_nodes[2].get_label().order == 7);
   }
 
-  SECTION("The nodes should have a label with the correct DNA bases")
+  // The nodes should have a label with the correct DNA bases
   {
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("CC"));
     REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("GG"));
@@ -563,6 +562,8 @@ TEST_CASE("We can start at any location of the reference.")
 TEST_CASE("Variants can overlap", "[graph]")
 {
   using namespace gyper;
+
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST CASE: Variants can overlap.";
   std::vector<char> reference_sequence;
   char testdata[] = "ACGGTAA";
   reference_sequence.insert(reference_sequence.end(), testdata, testdata + 7);
@@ -591,14 +592,14 @@ TEST_CASE("Variants can overlap", "[graph]")
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-  SECTION("The graph should have the correct size")
+  // The graph should have the correct size
   {
     REQUIRE(ref_nodes.size() == 2);
     REQUIRE(var_nodes.size() == 3);
     REQUIRE(graph.size() == 5);
   }
 
-  SECTION("The nodes should be correctly connected")
+  // The nodes should be correctly connected
   {
     REQUIRE(ref_nodes[0].out_degree() == 3);
     REQUIRE(ref_nodes[0].get_var_index(0) == 0);
@@ -615,7 +616,7 @@ TEST_CASE("Variants can overlap", "[graph]")
     REQUIRE(ref_nodes[1].out_degree() == 0);
   }
 
-  SECTION("The nodes should have the correct order")
+  // The nodes should have the correct order
   {
     REQUIRE(ref_nodes[0].get_label().order == 0);
     REQUIRE(var_nodes[0].get_label().order == 2);
@@ -624,7 +625,7 @@ TEST_CASE("Variants can overlap", "[graph]")
     REQUIRE(ref_nodes[1].get_label().order == 5);
   }
 
-  SECTION("The nodes should have a label with the correct DNA bases")
+  // The nodes should have a label with the correct DNA bases
   {
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("AC"));
     REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("GGT"));
@@ -635,9 +636,13 @@ TEST_CASE("Variants can overlap", "[graph]")
 }
 
 
-TEST_CASE("Variants can overlap. Case where the second variant reaches further")
+TEST_CASE("Variants can overlap. Case where the second variant reaches further.")
 {
   using namespace gyper;
+
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST CASE: Variants can overlap. "
+                           << "Case where the second variant reaches further.";
+
   std::vector<char> reference_sequence;
   char testdata[] = "ACGGTAA";
   reference_sequence.insert(reference_sequence.end(), testdata, testdata + 7);
@@ -666,14 +671,14 @@ TEST_CASE("Variants can overlap. Case where the second variant reaches further")
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-  SECTION("The graph should have the correct size")
+  // "The graph should have the correct size"
   {
     REQUIRE(ref_nodes.size() == 2);
     REQUIRE(var_nodes.size() == 3);
     REQUIRE(graph.size() == 5);
   }
 
-  SECTION("The nodes should be correctly connected")
+  // "The nodes should be correctly connected"
   {
     REQUIRE(ref_nodes[0].out_degree() == 3);
     REQUIRE(ref_nodes[0].get_var_index(0) == 0);
@@ -690,7 +695,7 @@ TEST_CASE("Variants can overlap. Case where the second variant reaches further")
     REQUIRE(ref_nodes[1].out_degree() == 0);
   }
 
-  SECTION("The nodes should have the correct order")
+  // "The nodes should have the correct order"
   {
     REQUIRE(ref_nodes[0].get_label().order == 0);
     REQUIRE(var_nodes[0].get_label().order == 2);
@@ -699,7 +704,7 @@ TEST_CASE("Variants can overlap. Case where the second variant reaches further")
     REQUIRE(ref_nodes[1].get_label().order == 6);
   }
 
-  SECTION("The nodes should have a label with the correct DNA bases")
+  // "The nodes should have a label with the correct DNA bases"
   {
     // ACGGTAA
     // ACGCA
@@ -746,14 +751,14 @@ TEST_CASE("Two variants next to each other won't overlap")
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-  SECTION("The graph should have the correct size")
+  // "The graph should have the correct size"
   {
     REQUIRE(ref_nodes.size() == 3);
     REQUIRE(var_nodes.size() == 5);
     REQUIRE(graph.size() == 8);
   }
 
-  SECTION("The nodes should be correctly connected")
+  // "The nodes should be correctly connected"
   {
     REQUIRE(ref_nodes[0].out_degree() == 2);
     REQUIRE(ref_nodes[0].get_var_index(0) == 0);
@@ -776,7 +781,7 @@ TEST_CASE("Two variants next to each other won't overlap")
     REQUIRE(ref_nodes[2].out_degree() == 0);
   }
 
-  SECTION("The nodes should have the correct order")
+  // "The nodes should have the correct order"
   {
     REQUIRE(ref_nodes[0].get_label().order == 0);
     REQUIRE(var_nodes[0].get_label().order == 2);
@@ -789,7 +794,7 @@ TEST_CASE("Two variants next to each other won't overlap")
 
   }
 
-  SECTION("The nodes should have a label with the correct DNA bases")
+  // "The nodes should have a label with the correct DNA bases"
   {
     // ACGCTAA
     // ACTCTAA
@@ -814,6 +819,11 @@ TEST_CASE(
   "[test2]")
 {
   using namespace gyper;
+
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST CASE: "
+                           << "When merging a deletion covering multiple short variants, all "
+                           << "combinations of the variants need to be added.";
+
   Options::instance()->add_all_variants = true;
   std::vector<char> reference_sequence;
   char testdata[] = "SSGTAEE";
@@ -853,14 +863,14 @@ TEST_CASE(
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-  SECTION("The graph should have the correct size")
+  // "The graph should have the correct size"
   {
     REQUIRE(ref_nodes.size() == 2);
     REQUIRE(var_nodes.size() == 10);
     REQUIRE(graph.size() == 12);
   }
 
-  SECTION("The nodes should be correctly connected")
+  // "The nodes should be correctly connected"
   {
     REQUIRE(ref_nodes[0].out_degree() == 10);
     REQUIRE(ref_nodes[0].get_var_index(0) == 0);
@@ -888,7 +898,7 @@ TEST_CASE(
     REQUIRE(ref_nodes[1].out_degree() == 0);
   }
 
-  SECTION("The nodes should have the correct order")
+  // "The nodes should have the correct order"
   {
     REQUIRE(ref_nodes[0].get_label().order == 0);
 
@@ -906,7 +916,7 @@ TEST_CASE(
     REQUIRE(ref_nodes[1].get_label().order == 7);
   }
 
-  SECTION("The nodes should have a label with the correct DNA bases")
+  // "The nodes should have a label with the correct DNA bases"
   {
     std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
 
@@ -931,6 +941,10 @@ TEST_CASE(
 TEST_CASE("Same as above but with bases in between the variants.", "[test2]")
 {
   using namespace gyper;
+
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST CASE: "
+                           << "Same as above but with bases in between the variants.";
+
   Options::instance()->add_all_variants = true;
   std::vector<char> reference_sequence;
   char testdata[] = "GTACE";
@@ -961,7 +975,7 @@ TEST_CASE("Same as above but with bases in between the variants.", "[test2]")
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-  SECTION("The nodes should have a label with the correct DNA bases")
+  // "The nodes should have a label with the correct DNA bases"
   {
     std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
 
@@ -981,14 +995,14 @@ TEST_CASE("Same as above but with bases in between the variants.", "[test2]")
     REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec("E"));
   }
 
-  SECTION("The graph should have the correct size")
+  // "The graph should have the correct size"
   {
     REQUIRE(ref_nodes.size() == 2);
     REQUIRE(var_nodes.size() == 10);
     REQUIRE(graph.size() == 12);
   }
 
-  SECTION("The nodes should be correctly connected")
+  // "The nodes should be correctly connected"
   {
     REQUIRE(ref_nodes[0].out_degree() == 10);
     REQUIRE(ref_nodes[0].get_var_index(0) == 0);
@@ -1016,7 +1030,7 @@ TEST_CASE("Same as above but with bases in between the variants.", "[test2]")
     REQUIRE(ref_nodes[1].out_degree() == 0);
   }
 
-  SECTION("The nodes should have the correct order")
+  // "The nodes should have the correct order"
   {
     REQUIRE(ref_nodes[0].get_label().order == 0);
 
@@ -1041,6 +1055,9 @@ TEST_CASE("Same as above but with bases in between the variants.", "[test2]")
 TEST_CASE("Four variants joined", "[test2]")
 {
   using namespace gyper;
+
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST CASE: Four variants joined.";
+
   Options::instance()->add_all_variants = true;
   std::vector<char> reference_sequence;
   char testdata[] = "SGTACGE";
@@ -1076,7 +1093,7 @@ TEST_CASE("Four variants joined", "[test2]")
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-  SECTION("The nodes should have a label with the correct DNA bases")
+  // The nodes should have a label with the correct DNA bases
   {
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("S"));
     std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
@@ -1100,14 +1117,14 @@ TEST_CASE("Four variants joined", "[test2]")
     REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec("E"));
   }
 
-  SECTION("The graph should have the correct size")
+  // The graph should have the correct size
   {
     REQUIRE(ref_nodes.size() == 2);
     REQUIRE(var_nodes.size() == 13);
     REQUIRE(graph.size() == 15);
   }
 
-  SECTION("The nodes should be correctly connected")
+  // The nodes should be correctly connected
   {
     REQUIRE(ref_nodes[0].out_degree() == 13);
     REQUIRE(ref_nodes[0].get_var_index(0) == 0);
@@ -1141,23 +1158,12 @@ TEST_CASE("Four variants joined", "[test2]")
     REQUIRE(ref_nodes[1].out_degree() == 0);
   }
 
-  SECTION("The nodes should have the correct order")
+  // The nodes should have the correct order
   {
     REQUIRE(ref_nodes[0].get_label().order == 0);
 
-    REQUIRE(var_nodes[0].get_label().order == 1);
-    REQUIRE(var_nodes[1].get_label().order == 1);
-    REQUIRE(var_nodes[2].get_label().order == 1);
-    REQUIRE(var_nodes[3].get_label().order == 1);
-    REQUIRE(var_nodes[4].get_label().order == 1);
-    REQUIRE(var_nodes[5].get_label().order == 1);
-    REQUIRE(var_nodes[6].get_label().order == 1);
-    REQUIRE(var_nodes[7].get_label().order == 1);
-    REQUIRE(var_nodes[8].get_label().order == 1);
-    REQUIRE(var_nodes[9].get_label().order == 1);
-    REQUIRE(var_nodes[10].get_label().order == 1);
-    REQUIRE(var_nodes[11].get_label().order == 1);
-    REQUIRE(var_nodes[12].get_label().order == 1);
+    for (auto const & v : var_nodes)
+      REQUIRE(v.get_label().order == 1);
 
     REQUIRE(ref_nodes[1].get_label().order == 6);
   }
@@ -1169,6 +1175,10 @@ TEST_CASE("Four variants joined", "[test2]")
 TEST_CASE("Variants of any number can be joined, here 3 are tested.", "[test]")
 {
   using namespace gyper;
+
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__
+                           << "] TEST CASE: Variants of any number can be joined, here 3 are tested.";
+
   Options::instance()->add_all_variants = true;
   std::vector<char> reference_sequence;
   char testdata[] = "SGTACGEEF";
@@ -1209,7 +1219,7 @@ TEST_CASE("Variants of any number can be joined, here 3 are tested.", "[test]")
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-  SECTION("The nodes should have a label with the correct DNA bases")
+  // The nodes should have a label with the correct DNA bases"
   {
     std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
     std::sort(var_dna.begin(), var_dna.end());
@@ -1245,14 +1255,14 @@ TEST_CASE("Variants of any number can be joined, here 3 are tested.", "[test]")
     REQUIRE(ref_nodes[1].get_label().dna ==  gyper::to_vec("F"));
   }
 
-  SECTION("The graph should have the correct size")
+  // The graph should have the correct size
   {
     REQUIRE(ref_nodes.size() == 2);
     REQUIRE(var_nodes.size() == 25);
     REQUIRE(graph.size() == 27);
   }
 
-  SECTION("The nodes should be correctly connected")
+  // The nodes should be correctly connected
   {
     REQUIRE(ref_nodes[0].out_degree() == 25);
     REQUIRE(ref_nodes[0].get_var_index(0) == 0);
@@ -1276,6 +1286,9 @@ TEST_CASE("Variants of any number can be joined, here 3 are tested.", "[test]")
 TEST_CASE("Check if the above creates the graph correctly")
 {
   using namespace gyper;
+
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST CASE: Check if the above creates the graph correctly";
+
   Options::instance()->add_all_variants = true;
   std::vector<char> reference_sequence;
   char testdata[] = "CG1xGAaTGTTGGGGGGGAACAGT";
@@ -1283,7 +1296,6 @@ TEST_CASE("Check if the above creates the graph correctly")
 
   std::vector<gyper::VarRecord> records_step1;
   std::vector<gyper::VarRecord> records_step2;
-  std::vector<gyper::VarRecord> records_step3;
 
   {
     gyper::VarRecord record;
@@ -1292,31 +1304,26 @@ TEST_CASE("Check if the above creates the graph correctly")
     record.alts = {gyper::to_vec("A2"), gyper::to_vec("G3")};
     records_step1.push_back(record);
     records_step2.push_back(record);
-    records_step3.push_back(record);
 
     record.pos = 2;
     record.ref = gyper::to_vec("1xGA");
     record.alts = {gyper::to_vec("3yAG")};
     records_step1.push_back(record);
     records_step2.push_back(record);
-    records_step3.push_back(record);
 
     record.pos = 4;
     record.ref = gyper::to_vec("GA");
     record.alts = {gyper::to_vec("AG")};
     records_step2.push_back(record);
-    records_step3.push_back(record);
-
-    record.pos = 5;
-    record.ref = gyper::to_vec("Aa");
-    record.alts = {gyper::to_vec("Gb"), gyper::to_vec("Gc")};
-    records_step3.push_back(record);
   }
 
-  SECTION("Step 1: Simpler graph")
+  // Step 1: Simpler graph
   {
     graph = gyper::Graph(false);
-    graph.add_genomic_region(std::move(reference_sequence), std::move(records_step1), gyper::GenomicRegion());
+    graph.add_genomic_region(std::vector<char>(reference_sequence),
+                             std::move(records_step1),
+                             gyper::GenomicRegion());
+
     std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
     std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
@@ -1331,10 +1338,13 @@ TEST_CASE("Check if the above creates the graph correctly")
     REQUIRE(var_nodes.size() == 4);
   }
 
-  SECTION("Step 2: Simpler graph")
+  // Step 2: Simpler graph
   {
     graph = gyper::Graph(false);
-    graph.add_genomic_region(std::move(reference_sequence), std::move(records_step2), gyper::GenomicRegion());
+    graph.add_genomic_region(std::vector<char>(reference_sequence),
+                             std::move(records_step2),
+                             gyper::GenomicRegion());
+
     std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
     std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
@@ -1371,7 +1381,7 @@ TEST_CASE("Variant overlapping a N on the reference genome")
   char testdata[] = "GCTGCGGCGGGCGTCGCGGCCGCCCCCGGGGAGCCCGGCGGGCGCCGGCGCGNCCCCCCCCCCACCCCACGTCTCGTCGCGCGCGC";
   reference_sequence.insert(reference_sequence.end(), testdata, testdata + 86);
 
-  SECTION("The reference allele has a N")
+  // The reference allele has a N
   {
     std::vector<gyper::VarRecord> records;
 
@@ -1395,7 +1405,7 @@ TEST_CASE("Variant overlapping a N on the reference genome")
     REQUIRE(var_nodes.size() == 0);
   }
 
-  SECTION("If an alternative allele has a N, we remove it")
+  // If an alternative allele has a N, we remove it
   {
     std::vector<gyper::VarRecord> records;
 
@@ -1420,7 +1430,7 @@ TEST_CASE("Variant overlapping a N on the reference genome")
     REQUIRE(var_nodes[1].get_label().dna == gyper::to_vec("GA"));
   }
 
-  SECTION("If all alternative allele have a N, we remove the variant")
+  // If all alternative allele have a N, we remove the variant
   {
     std::vector<gyper::VarRecord> records;
 
@@ -1478,20 +1488,20 @@ TEST_CASE("Prior test for the next")
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-  SECTION("The number of nodes is correct")
+  // The number of nodes is correct
   {
     REQUIRE(ref_nodes.size() == 3);
     REQUIRE(var_nodes.size() == 4);
   }
 
-  SECTION("We have the correct labels on the reference nodes")
+  // We have the correct labels on the reference nodes
   {
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("GT"));
     REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec(""));
     REQUIRE(ref_nodes[2].get_label().dna == gyper::to_vec("ATG"));
   }
 
-  SECTION("We have the correct labels on the variant nodes")
+  // We have the correct labels on the variant nodes"
   {
     REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("TC"));
     REQUIRE(var_nodes[1].get_label().dna == gyper::to_vec("T"));
@@ -1536,13 +1546,13 @@ TEST_CASE("Merge one path should check if we can remove the suffix of a variant 
   REQUIRE(ref_nodes.size() == 2);
   REQUIRE(var_nodes.size() == 4);
 
-  SECTION("We have the correct labels on the reference nodes")
+  // We have the correct labels on the reference nodes
   {
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("S"));
     REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec("TF"));
   }
 
-  SECTION("We have the correct labels on the variant nodes")
+  // We have the correct labels on the variant nodes
   {
     REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("TAAAAAA"));
     REQUIRE(var_nodes[1].get_label().dna == gyper::to_vec("TAAAAA"));
@@ -1582,19 +1592,19 @@ TEST_CASE("Merge one path works with connected indel+SNP")
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-  SECTION("The number of nodes is corrent")
+  // The number of nodes is corrent
   {
     REQUIRE(ref_nodes.size() == 2);
     REQUIRE(var_nodes.size() == 3);
   }
 
-  SECTION("The ref nodes have the correct DNA bases")
+  // The ref nodes have the correct DNA bases
   {
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("ST"));
     REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec("F"));
   }
 
-  SECTION("The var nodes have the correct DNA bases")
+  // The var nodes have the correct DNA bases
   {
     REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("AA"));
     REQUIRE(var_nodes[1].get_label().dna == gyper::to_vec("AT"));
@@ -1638,13 +1648,13 @@ TEST_CASE("Merge path works with 3 pairs of connected SNPs")
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-  SECTION("The number of nodes is corrent")
+  // The number of nodes is corrent
   {
     REQUIRE(ref_nodes.size() == 4);
     REQUIRE(var_nodes.size() == 6);
   }
 
-  SECTION("The ref nodes have the correct DNA bases")
+  // The ref nodes have the correct DNA bases
   {
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("ST"));
     REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec(""));
@@ -1652,7 +1662,7 @@ TEST_CASE("Merge path works with 3 pairs of connected SNPs")
     REQUIRE(ref_nodes[3].get_label().dna == gyper::to_vec("F"));
   }
 
-  SECTION("The var nodes have the correct DNA bases")
+  // The var nodes have the correct DNA bases
   {
     REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("A"));
     REQUIRE(var_nodes[1].get_label().dna == gyper::to_vec("T"));
@@ -1694,19 +1704,19 @@ TEST_CASE("Two overlapping indels")
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-  SECTION("The number of nodes is corrent")
+  // The number of nodes is corrent
   {
     REQUIRE(ref_nodes.size() == 2);
     REQUIRE(var_nodes.size() == 3);
   }
 
-  SECTION("The ref nodes have the correct DNA bases")
+  // The ref nodes have the correct DNA bases
   {
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("TGCAAATCTCATATATATATATATATATAT"));
     REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec("TTTTTTTTTTTTTA"));
   }
 
-  SECTION("The var nodes have the correct DNA bases")
+  // The var nodes have the correct DNA bases
   {
     REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("ATATATATATATATATTTTTTTTTTTT"));
     REQUIRE(var_nodes[1].get_label().dna == gyper::to_vec("A"));
@@ -1755,72 +1765,47 @@ TEST_CASE("Two deletions and one of them overlaps SNPs")
     new_contig.length = 100000;
     graph.contigs.push_back(std::move(new_contig));
 
-    absolute_pos.calculate_offsets(graph);
+    absolute_pos.calculate_offsets(graph.contigs);
   }
 
-  graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion("chr1"));
+  graph.add_genomic_region(std::move(reference_sequence),
+                           std::move(records),
+                           gyper::GenomicRegion("chr1"));
+
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-
-  SECTION("The graph should have the correct size")
+  // The graph should have the correct size
   {
-    //graph.print();
     REQUIRE(ref_nodes.size() == 2);
     REQUIRE(var_nodes.size() == 11);
     REQUIRE(graph.size() == 13);
   }
 
-  /*SECTION("The nodes should be correctly connected")
+  // The nodes should be correctly connected
   {
-    //REQUIRE(ref_nodes[0].out_degree() == 10);
-    //REQUIRE(ref_nodes[0].get_var_index(0) == 0);
-    //REQUIRE(ref_nodes[0].get_var_index(1) == 1);
-    //REQUIRE(ref_nodes[0].get_var_index(2) == 2);
-    //REQUIRE(ref_nodes[0].get_var_index(3) == 3);
-    //REQUIRE(ref_nodes[0].get_var_index(4) == 4);
-    //REQUIRE(ref_nodes[0].get_var_index(5) == 5);
-    //REQUIRE(ref_nodes[0].get_var_index(6) == 6);
-    //REQUIRE(ref_nodes[0].get_var_index(7) == 7);
-    //REQUIRE(ref_nodes[0].get_var_index(8) == 8);
-    //REQUIRE(ref_nodes[0].get_var_index(9) == 9);
-    //
-    //REQUIRE(var_nodes[0].get_out_ref_index() == 1);
-    //REQUIRE(var_nodes[1].get_out_ref_index() == 1);
-    //REQUIRE(var_nodes[2].get_out_ref_index() == 1);
-    //REQUIRE(var_nodes[3].get_out_ref_index() == 1);
-    //REQUIRE(var_nodes[4].get_out_ref_index() == 1);
-    //REQUIRE(var_nodes[5].get_out_ref_index() == 1);
-    //REQUIRE(var_nodes[6].get_out_ref_index() == 1);
-    //REQUIRE(var_nodes[7].get_out_ref_index() == 1);
-    //REQUIRE(var_nodes[8].get_out_ref_index() == 1);
-    //REQUIRE(var_nodes[9].get_out_ref_index() == 1);
-    //
-    //REQUIRE(ref_nodes[1].out_degree() == 0);
-  }*/
+    REQUIRE(ref_nodes[0].out_degree() == 11);
 
-  SECTION("The nodes should have the correct order")
+    for (auto i = 0; i < 11; ++i)
+      REQUIRE(ref_nodes[0].get_var_index(i) == i);
+
+    for (auto const & v : var_nodes)
+      REQUIRE(v.get_out_ref_index() == 1);
+
+    REQUIRE(ref_nodes[1].out_degree() == 0);
+  }
+
+  // The nodes should have the correct order
   {
     REQUIRE(ref_nodes[0].get_label().order == 1);
 
     for (auto & v : var_nodes)
       REQUIRE(v.get_label().order == 2);
 
-    //REQUIRE(var_nodes[0].get_label().order == 2);
-    //REQUIRE(var_nodes[1].get_label().order == 2);
-    //REQUIRE(var_nodes[2].get_label().order == 2);
-    //REQUIRE(var_nodes[3].get_label().order == 2);
-    //REQUIRE(var_nodes[4].get_label().order == 2);
-    //REQUIRE(var_nodes[5].get_label().order == 2);
-    //REQUIRE(var_nodes[6].get_label().order == 2);
-    //REQUIRE(var_nodes[7].get_label().order == 2);
-    //REQUIRE(var_nodes[8].get_label().order == 2);
-    //REQUIRE(var_nodes[9].get_label().order == 2);
-    //
-    //REQUIRE(ref_nodes[1].get_label().order == 7);
+    REQUIRE(ref_nodes[1].get_label().order == 22);
   }
 
-  SECTION("The nodes should have a label with the correct DNA bases")
+  // The nodes should have a label with the correct DNA bases
   {
     std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
 
@@ -1887,15 +1872,14 @@ TEST_CASE("Two deletions and one of them overlaps SNPs and an insertion")
     new_contig.length = 100000;
     graph.contigs.push_back(std::move(new_contig));
 
-    absolute_pos.calculate_offsets(graph);
+    absolute_pos.calculate_offsets(graph.contigs);
   }
 
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion("chr1"));
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-
-  SECTION("The graph should have the correct size")
+  // The graph should have the correct size
   {
     //graph.print();
     REQUIRE(ref_nodes.size() == 2);
@@ -1903,7 +1887,7 @@ TEST_CASE("Two deletions and one of them overlaps SNPs and an insertion")
     REQUIRE(graph.size() == 17);
   }
 
-  SECTION("The nodes should have the correct order")
+  // The nodes should have the correct order
   {
     REQUIRE(ref_nodes[0].get_label().order == 1);
 
@@ -1911,7 +1895,7 @@ TEST_CASE("Two deletions and one of them overlaps SNPs and an insertion")
       REQUIRE(v.get_label().order == 2);
   }
 
-  SECTION("The nodes should have a label with the correct DNA bases")
+  // The nodes should have a label with the correct DNA bases
   {
     std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
 

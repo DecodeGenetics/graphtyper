@@ -525,7 +525,7 @@ Vcf::read_samples()
 
   // Recalculate contig offsets since they may have been changed
   if (is_checking_contigs)
-    absolute_pos.calculate_offsets(gyper::graph);
+    absolute_pos.calculate_offsets(gyper::graph.contigs);
 }
 
 
@@ -625,7 +625,8 @@ Vcf::write_header()
        "genotypes, respectively.\">\n"
       << "##INFO=<ID=NHet,Number=1,Type=Integer,Description=\"Number of heterozygous genotype "
        "calls.\">\n"
-      << "##INFO=<ID=NHom,Number=1,Type=Integer,Description=\"Number of homozygous genotype calls.\">\n"
+      << "##INFO=<ID=NHomRef,Number=1,Type=Integer,Description=\"Number of homozygous reference genotype calls.\">\n"
+      << "##INFO=<ID=NHomAlt,Number=1,Type=Integer,Description=\"Number of homozygous alternative genotype calls.\">\n"
       << "##INFO=<ID=NRP,Number=0,Type=Flag,Description=\"Set if no Non-Reference has PASS.\">\n"
       << "##INFO=<ID=NUM_MERGED_SVS,Number=1,Type=Integer,Description=\"Number of SVs merged.\">\n"
       << "##INFO=<ID=OLD_VARIANT_ID,Number=1,Type=String,Description=\"Variant ID from a VCF (SVs only).\">\n"
@@ -734,7 +735,7 @@ void
 Vcf::write_record(Variant const & var, std::string const & suffix, bool const FILTER_ZERO_QUAL)
 {
   // Parse the position
-  auto contig_pos = absolute_pos.get_contig_position(var.abs_pos, gyper::graph);
+  auto contig_pos = absolute_pos.get_contig_position(var.abs_pos, gyper::graph.contigs);
 
   if (!Options::instance()->output_all_variants && var.calls.size() > 0 && var.seqs.size() > 200)
   {
@@ -1128,7 +1129,7 @@ Vcf::write_segments()
   for (auto const & segment : segments)
   {
     assert(sample_names.size() == segment.segment_calls.size());
-    auto contig_pos = absolute_pos.get_contig_position(segment.id, gyper::graph);
+    auto contig_pos = absolute_pos.get_contig_position(segment.id, gyper::graph.contigs);
 
     // Write CHROM and POS
     bgzf_stream << contig_pos.first << "\t" << contig_pos.second;
@@ -1400,7 +1401,9 @@ Vcf::add_haplotypes_for_extraction(std::vector<HaplotypeCall> const & hap_calls,
 
           if (std::distance(find_it, seq.cend()) > 11)
           {
-            std::istringstream ss{std::string(find_it + 4, find_it + 11)};
+            std::istringstream ss {
+              std::string(find_it + 4, find_it + 11)
+            };
             long sv_id;
             ss >> sv_id;
 
@@ -1432,7 +1435,7 @@ Vcf::add_haplotypes_for_extraction(std::vector<HaplotypeCall> const & hap_calls,
 
         if (is_splitting_vars && var.seqs.size() >= 3 && std::all_of(var.seqs.begin(),
                                                                      var.seqs.end(),
-                                                                     [SPLIT_THRESHOLD](std::vector<char> const & seq)
+                                                                     [](std::vector<char> const & seq)
           {
             return static_cast<long>(seq.size()) > SPLIT_THRESHOLD + 25;
           })
@@ -1443,8 +1446,12 @@ Vcf::add_haplotypes_for_extraction(std::vector<HaplotypeCall> const & hap_calls,
           //std::cout << var.print() << "\n";
           paw::Skyr skyr(var.seqs);
 
-          bool constexpr is_normalize{false}; // The events must not be normalized
-          bool constexpr use_asterisks{false}; // We should not use asterisks
+          bool constexpr is_normalize {
+            false
+          };                                  // The events must not be normalized
+          bool constexpr use_asterisks {
+            false
+          };                                   // We should not use asterisks
           skyr.find_all_edits(is_normalize);
           skyr.find_variants_from_edits();
           skyr.populate_variants_with_calls(use_asterisks);

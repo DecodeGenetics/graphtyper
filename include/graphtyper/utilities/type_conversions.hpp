@@ -1,12 +1,11 @@
 #pragma once
 
-// functions to split a string by a specific delimiter
-#include <stdio.h>
-#include <iostream>
-#include <stdint.h> // For uint64_t
+#include <array>
+#include <cstdint> // For uint64_t
+#include <forward_list>
+#include <string>
+#include <vector>
 
-#include <seqan/basic.h>
-#include <seqan/sequence.h>
 
 #include <graphtyper/constants.hpp>
 
@@ -31,8 +30,8 @@ static const uint64_t T_LAST_VALUE = 0xC000000000000000ULL; /** \brief C is hex 
  * @return The new unsigned 64 bit integer.
  */
 uint64_t to_uint64(char const c);
-uint64_t to_uint64(std::vector<char> const & s);
-uint64_t to_uint64(seqan::DnaString const & s, std::size_t i);
+uint64_t to_uint64(std::vector<char> const & s, int i = 0);
+uint64_t to_uint64(std::string const & s, int i = 0);
 
 uint16_t to_uint16(char const c);
 uint16_t to_uint16(std::vector<char> const & s, std::size_t i);
@@ -41,7 +40,7 @@ template <typename TSeq>
 std::vector<uint64_t> to_uint64_vec(TSeq const & s, std::size_t i);
 std::array<uint64_t, 96> to_uint64_vec_hamming_distance_1(uint64_t const key);
 
-seqan::String<seqan::Dna> to_dna(uint64_t const & d, uint8_t k = K);
+std::string to_dna_str(uint64_t const d, uint8_t k = K);
 std::array<uint64_t, 3> get_mismatches_of_last_base(uint64_t const d);
 std::array<uint64_t, 3> get_mismatches_of_first_base(uint64_t const d);
 

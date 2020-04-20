@@ -9,7 +9,7 @@
 #include <graphtyper/graph/graph_serialization.hpp>
 #include <graphtyper/graph/haplotype_extractor.hpp>
 #include <graphtyper/index/indexer.hpp>
-#include <graphtyper/index/mem_index.hpp>
+#include <graphtyper/index/ph_index.hpp>
 #include <graphtyper/typer/caller.hpp>
 #include <graphtyper/typer/variant_map.hpp>
 #include <graphtyper/typer/vcf.hpp>
@@ -29,7 +29,7 @@ parse_interval(std::string const & line)
   std::string interval;
   int field = 0;
 
-  for (int i{0}; i < static_cast<int>(line.size()); ++i)
+  for (int i {0}; i < static_cast<int>(line.size()); ++i)
   {
     char c = line[i];
 
@@ -129,12 +129,18 @@ genotype_camou(std::string const & interval_fn,
     run_samtools_merge(shrinked_sams, tmp_bams);
   }
 
-  bool constexpr is_writing_hap{false};
+  bool constexpr is_writing_hap {
+    false
+  };
 
   for (auto const & interval : intervals)
   {
-    bool is_writing_calls_vcf{false};
-    bool is_discovery{true};
+    bool is_writing_calls_vcf {
+      false
+    };
+    bool is_discovery {
+      true
+    };
 
     BOOST_LOG_TRIVIAL(info) << "Genotyping interval " << interval;
     GenomicRegion genomic_region(interval);
@@ -151,13 +157,12 @@ genotype_camou(std::string const & interval_fn,
     {
       BOOST_LOG_TRIVIAL(info) << "Camou variant discovery step starting.";
       std::string const out_dir = tmp + "/it1";
-      std::string const index_path = out_dir + "/graph_gti";
       std::string const haps_output_vcf = out_dir + "/haps.vcf.gz";
       std::string const discovery_output_vcf = out_dir + "/discovery.vcf.gz";
 
       mkdir(out_dir.c_str(), 0755);
       construct_graph(ref_fn, "", padded_genomic_region.to_string(), false, true, false);
-      absolute_pos.calculate_offsets(gyper::graph);
+      absolute_pos.calculate_offsets(gyper::graph.contigs);
       BOOST_LOG_TRIVIAL(info) << "Graph construction complete.";
 
 #ifndef NDEBUG
@@ -165,7 +170,7 @@ genotype_camou(std::string const & interval_fn,
       save_graph(out_dir + "/graph");
 #endif // NDEBUG
 
-      index_graph(index_path);
+      PHIndex ph_index = index_graph(gyper::graph);
       BOOST_LOG_TRIVIAL(info) << "Index construction complete.";
 
       long minimum_variant_support = 14;
@@ -174,10 +179,11 @@ genotype_camou(std::string const & interval_fn,
       std::vector<std::string> paths =
         gyper::call(shrinked_sams,
                     "", // graph_path
-                    index_path,
+                    ph_index,
                     out_dir,
                     "", // reference
                     ".",       // region
+                    nullptr,
                     minimum_variant_support,
                     minimum_variant_support_ratio,
                     is_writing_calls_vcf,
@@ -210,7 +216,6 @@ genotype_camou(std::string const & interval_fn,
 
       // free memory
       graph = Graph();
-      mem_index = MemIndex();
     }
 
     // Iteration 2
@@ -221,7 +226,6 @@ genotype_camou(std::string const & interval_fn,
       is_discovery = false;
 
       std::string const out_dir = tmp + "/it2";
-      std::string const index_path = out_dir + "/graph_gti";
       std::string const haps_output_vcf = out_dir + "/haps.vcf.gz";
       std::string const discovery_output_vcf = out_dir + "/discovery.vcf.gz";
       mkdir(out_dir.c_str(), 0755);
@@ -233,15 +237,16 @@ genotype_camou(std::string const & interval_fn,
       save_graph(out_dir + "/graph");
     #endif // NDEBUG
 
-      index_graph(index_path);
+      PHIndex ph_index = index_graph(gyper::graph);
 
       std::vector<std::string> paths =
         gyper::call(shrinked_sams,
                     "", // graph_path
-                    index_path,
+                    ph_index,
                     out_dir,
                     "", // reference
                     ".",       // region
+                    nullptr,
                     5, // minimum_variant_support - will be ignored
                     0.25, // minimum_variant_support_ratio - will be ignored
                     is_writing_calls_vcf,
@@ -297,7 +302,6 @@ genotype_camou(std::string const & interval_fn,
        << ".vcf.gz";
 
     graph = Graph();
-    mem_index = MemIndex();
     BOOST_LOG_TRIVIAL(info) << "Finished " << genomic_region.to_string() << "! Output written at: " << ss.str();
   }
 

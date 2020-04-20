@@ -37,9 +37,15 @@ TEST_CASE("Get the number of kmers in a dna string")
 
   SECTION("3 kmers (32 + 31 + 31 = 94)")
   {
-    REQUIRE(get_num_kmers(seqan::Dna5String("AAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAA")) == 2);
-    REQUIRE(get_num_kmers(seqan::Dna5String("AAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAG")) == 3);
-    REQUIRE(get_num_kmers(seqan::Dna5String("AAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAGA")) == 3);
+    REQUIRE(get_num_kmers(seqan::Dna5String(
+                            "AAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAA")) ==
+            2);
+    REQUIRE(get_num_kmers(seqan::Dna5String(
+                            "AAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAG")) ==
+            3);
+    REQUIRE(get_num_kmers(seqan::Dna5String(
+                            "AAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAGA")) ==
+            3);
   }
 }
 
@@ -52,7 +58,8 @@ TEST_CASE("Get the ith kmers in a dna string")
     seqan::Dna5String kmer1 = "AAAACAAAAGAAAACAAAAGAAAACAAAAGAT";
     REQUIRE(get_ith_kmer(kmer1, 0u) == kmer1);
     REQUIRE(get_ith_kmer(seqan::Dna5String("AAAACAAAAGAAAACAAAAGAAAACAAAAGATT"), 0u) == kmer1);
-    REQUIRE(get_ith_kmer(seqan::Dna5String("AAAACAAAAGAAAACAAAAGAAAACAAAAGATTT"), 0u) == seqan::Dna5String("AAACAAAAGAAAACAAAAGAAAACAAAAGATT"));
+    REQUIRE(get_ith_kmer(seqan::Dna5String("AAAACAAAAGAAAACAAAAGAAAACAAAAGATTT"),
+                         0u) == seqan::Dna5String("AAACAAAAGAAAACAAAAGAAAACAAAAGATT"));
   }
 
   SECTION("2 kmers (32 + 31 = 63)")
@@ -75,34 +82,35 @@ TEST_CASE("Get multiple uint64_t with Iupac reads")
     std::vector<uint64_t> keys = gyper::to_uint64_vec(read1, 0);
 
     REQUIRE(keys.size() == 1);
-    REQUIRE(gyper::to_dna(keys[0]) == seqan::DnaString("ACCGGGGTTAAAATTGAAAACCCCTAAAATTG"));
+    REQUIRE(gyper::to_dna_str(keys[0]) == "ACCGGGGTTAAAATTGAAAACCCCTAAAATTG");
 
     keys = gyper::to_uint64_vec(read1, 10);
     REQUIRE(keys.size() == 1);
-    REQUIRE(gyper::to_dna(keys[0]) == seqan::DnaString("AAATTGAAAACCCCTAAAATTGAAAAAAAAAA"));
+    REQUIRE(gyper::to_dna_str(keys[0]) == "AAATTGAAAACCCCTAAAATTGAAAAAAAAAA");
   }
 
   SECTION("One and two non ACGT")
   {
-    seqan::IupacString read1 = "ACCGGGGTTAAAATTGAAAACCCCTAAAATTNAAAAAAAAAAAAAAAAAAAAAAAAAWAAAAAAAAAATTTTTTTBTTTTTTTTTTTTTTTTTTT";
+    seqan::IupacString read1 =
+      "ACCGGGGTTAAAATTGAAAACCCCTAAAATTNAAAAAAAAAAAAAAAAAAAAAAAAAWAAAAAAAAAATTTTTTTBTTTTTTTTTTTTTTTTTTT";
     std::vector<uint64_t> keys = gyper::to_uint64_vec(read1, 0);
 
     REQUIRE(keys.size() == 4);
-    REQUIRE(gyper::to_dna(keys[0]) == seqan::DnaString("ACCGGGGTTAAAATTGAAAACCCCTAAAATTT"));
-    REQUIRE(gyper::to_dna(keys[1]) == seqan::DnaString("ACCGGGGTTAAAATTGAAAACCCCTAAAATTA"));
-    REQUIRE(gyper::to_dna(keys[2]) == seqan::DnaString("ACCGGGGTTAAAATTGAAAACCCCTAAAATTC"));
-    REQUIRE(gyper::to_dna(keys[3]) == seqan::DnaString("ACCGGGGTTAAAATTGAAAACCCCTAAAATTG"));
+    REQUIRE(gyper::to_dna_str(keys[0]) == "ACCGGGGTTAAAATTGAAAACCCCTAAAATTT");
+    REQUIRE(gyper::to_dna_str(keys[1]) == "ACCGGGGTTAAAATTGAAAACCCCTAAAATTA");
+    REQUIRE(gyper::to_dna_str(keys[2]) == "ACCGGGGTTAAAATTGAAAACCCCTAAAATTC");
+    REQUIRE(gyper::to_dna_str(keys[3]) == "ACCGGGGTTAAAATTGAAAACCCCTAAAATTG");
 
     keys = gyper::to_uint64_vec(read1, 32);
     REQUIRE(keys.size() == 2);
-    REQUIRE(gyper::to_dna(keys[0]) == seqan::DnaString("AAAAAAAAAAAAAAAAAAAAAAAAATAAAAAA"));
-    REQUIRE(gyper::to_dna(keys[1]) == seqan::DnaString("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"));
+    REQUIRE(gyper::to_dna_str(keys[0]) == "AAAAAAAAAAAAAAAAAAAAAAAAATAAAAAA");
+    REQUIRE(gyper::to_dna_str(keys[1]) == "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
 
     keys = gyper::to_uint64_vec(read1, 63);
     REQUIRE(keys.size() == 3);
-    REQUIRE(gyper::to_dna(keys[0]) == seqan::DnaString("AAAAATTTTTTTTTTTTTTTTTTTTTTTTTTT"));
-    REQUIRE(gyper::to_dna(keys[1]) == seqan::DnaString("AAAAATTTTTTTCTTTTTTTTTTTTTTTTTTT"));
-    REQUIRE(gyper::to_dna(keys[2]) == seqan::DnaString("AAAAATTTTTTTGTTTTTTTTTTTTTTTTTTT"));
+    REQUIRE(gyper::to_dna_str(keys[0]) == "AAAAATTTTTTTTTTTTTTTTTTTTTTTTTTT");
+    REQUIRE(gyper::to_dna_str(keys[1]) == "AAAAATTTTTTTCTTTTTTTTTTTTTTTTTTT");
+    REQUIRE(gyper::to_dna_str(keys[2]) == "AAAAATTTTTTTGTTTTTTTTTTTTTTTTTTT");
   }
 
   SECTION("High amounts of Ns result in no keys")

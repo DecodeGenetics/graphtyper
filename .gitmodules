@@ -11,19 +11,11 @@
 	path = catch
 	url = https://github.com/philsquared/Catch.git
 	ignore = dirty
-[submodule "rocksdb"]
-	path = rocksdb
-	url = https://github.com/facebook/rocksdb.git
-	ignore = dirty
-[submodule "snappy"]
-	path = snappy
-	url = https://github.com/google/snappy.git
-	ignore = dirty
-[submodule "sparsehash"]
-	path = sparsehash
-	url = https://github.com/sparsehash/sparsehash.git
-	ignore = dirty
 [submodule "paw"]
 	path = paw
 	url = https://github.com/hannespetur/paw.git
 	ignore = dirty
+[submodule "parallel-hashmap"]
+	path = parallel-hashmap
+	url = https://github.com/greg7mdp/parallel-hashmap.git
+  ignore = dirty

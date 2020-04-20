@@ -11,6 +11,8 @@
 namespace gyper
 {
 
+class Graph;
+
 class Path
 {
 public:
@@ -37,8 +39,9 @@ public:
   /*********************
    * PATH CONSTRUCTORS *
    *********************/
-  Path() = default;
-  Path(KmerLabel const & l,
+  Path() noexcept = default;
+  Path(Graph const & graph,
+       KmerLabel const & l,
        uint16_t read_start_index,
        uint16_t read_end_index,
        uint16_t mismatches = 0) noexcept;
@@ -49,6 +52,7 @@ public:
    * PATH MODIFICATIONS *
    **********************/
   void erase_var_order(long index);
+  void erase_ref_support(long index);
   void merge_with_current(KmerLabel const & l);
 
   /********************

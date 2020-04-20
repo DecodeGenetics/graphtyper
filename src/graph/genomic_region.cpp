@@ -1,13 +1,10 @@
-#include <ostream>
-#include <sstream>
-#include <utility>
-
-#include <seqan/basic.h>
-#include <seqan/bam_io.h>
+#include <sstream> // std::ostringstream
+#include <string> // std::string, std::stol
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/genomic_region.hpp>
+#include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/var_record.hpp>
 
 #include <boost/archive/binary_oarchive.hpp>
@@ -59,7 +56,7 @@ has_matching_longest_prefix(std::vector<char> const & ref, std::vector<std::vect
         // Detect if there are duplicate alt alleles
         if (alts[i] == alts[j])
         {
-          BOOST_LOG_TRIVIAL(fatal) << "Duplicated alt. alleles detected. "
+          BOOST_LOG_TRIVIAL(error) << __HERE__ << " Duplicated alt. alleles detected. "
                                    << "Aborting constructing graph.";
           std::exit(1);
         }
@@ -104,18 +101,31 @@ GenomicRegion::GenomicRegion(std::string const & region)
 
     if (std::count(region.begin(), region.end(), '-') == 0)
     {
-      begin = stoi(region.substr(colon + 1, region.size() - colon));
+      begin = std::stol(region.substr(colon + 1, region.size() - colon));
     }
     else
     {
       std::size_t const dash = region.find('-');
 
-      begin = stoi(region.substr(colon + 1, dash - colon));
-      end = stoi(region.substr(dash + 1, region.size() - dash));
+      begin = std::stol(region.substr(colon + 1, dash - colon));
+      end = std::stol(region.substr(dash + 1, region.size() - dash));
     }
   }
 
 
+  if (begin != 0)
+  {
+    // Switch to 0-based indexing
+    --begin;
+  }
+}
+
+
+GenomicRegion::GenomicRegion(std::string const & chrom, long _begin, long _end)
+  : chr(chrom)
+  , begin(_begin)
+  , end(_end)
+{
   if (begin != 0)
   {
     // Switch to 0-based indexing
@@ -197,7 +207,7 @@ GenomicRegion::get_absolute_position(uint32_t contig_position) const
 std::pair<std::string, uint32_t>
 GenomicRegion::get_contig_position(uint32_t absolute_position, Graph const & graph) const
 {
-  return absolute_pos.get_contig_position(absolute_position, graph);
+  return absolute_pos.get_contig_position(absolute_position, graph.contigs);
 }
 
 
@@ -209,7 +219,7 @@ GenomicRegion::check_if_var_records_match_reference_genome(std::vector<VarRecord
   {
     uint32_t const pos = record.pos;
 
-    if (pos >= GenomicRegion::begin + reference.size())
+    if (pos >= GenomicRegion::begin + reference.size() || GenomicRegion::begin > pos)
       continue;
 
     assert(record.ref.size() > 0);
@@ -217,15 +227,15 @@ GenomicRegion::check_if_var_records_match_reference_genome(std::vector<VarRecord
 
     auto start_it = reference.begin() + (pos - GenomicRegion::begin);
     std::size_t const ref_len = std::min(static_cast<std::size_t>(std::distance(start_it, reference.end())),
-                                         record.ref.size()
-                                         );
+                                         record.ref.size());
 
     std::vector<char> const reference_ref(start_it, start_it + ref_len);
 
     if (reference_ref.size() > 0 && !prefix_match(record.ref, reference_ref))
     {
-      BOOST_LOG_TRIVIAL(warning) << "[graphtyper::genomic_region] Record @ position " << pos
-                                 << " (REF = " << std::string(record.ref.begin(), record.ref.end()) << ')'
+      BOOST_LOG_TRIVIAL(warning) << "[" << __HERE__ << "] Record @ position " << pos
+                                 << " (REF = "
+                                 << std::string(record.ref.begin(), record.ref.end()) << ')'
                                  << " did not match the reference genome ("
                                  << std::string(reference_ref.begin(), reference_ref.end()) << ")";
     }

@@ -26,14 +26,15 @@ namespace
 void
 find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read,
                                             gyper::GenotypePaths & geno,
-                                            gyper::Graph const & graph = gyper::graph,
-                                            gyper::MemIndex const & mem_index = gyper::mem_index
+                                            gyper::PHIndex const & ph_index,
+                                            gyper::Graph const & graph = gyper::graph
                                             )
 {
   using namespace gyper;
 
-  TKmerLabels r_hamming0 = query_index(read, mem_index);
-  TKmerLabels r_hamming1 = query_index_hamming_distance1_without_index(read, mem_index);
+  TKmerLabels r_hamming0 = query_index(read, ph_index);
+  TKmerLabels r_hamming1 = query_index_hamming_distance1_without_index(read, ph_index);
+  assert(r_hamming0.size() > 0);
 
   // Stop if all kmer are extremely common
   for (auto it = r_hamming0.cbegin();;)
@@ -150,16 +151,25 @@ namespace gyper
 
 
 std::pair<GenotypePaths, GenotypePaths>
-align_read(bam1_t * rec, seqan::IupacString const & seq, seqan::IupacString const & rseq)
+align_read(bam1_t * rec,
+           seqan::IupacString const & seq,
+           seqan::IupacString const & rseq,
+           gyper::PHIndex const & ph_index)
 {
   auto const & core = rec->core;
 
-  std::pair<GenotypePaths, GenotypePaths> geno_paths = std::make_pair<GenotypePaths, GenotypePaths>(
-    GenotypePaths(core.flag, core.l_qseq),
-    GenotypePaths(core.flag, core.l_qseq));
+  std::pair<GenotypePaths, GenotypePaths> geno_paths =
+    std::make_pair<GenotypePaths, GenotypePaths>(
+      GenotypePaths(core.flag, core.l_qseq),
+      GenotypePaths(core.flag, core.l_qseq));
 
-  find_genotype_paths_of_one_of_the_sequences(seq, geno_paths.first);
-  find_genotype_paths_of_one_of_the_sequences(rseq, geno_paths.second);
+  // Hard restriction on read length is 63 bp (2*32 - 1)
+  if (seqan::length(seq) >= (2 * K - 1))
+  {
+    find_genotype_paths_of_one_of_the_sequences(seq, geno_paths.first, ph_index);
+    find_genotype_paths_of_one_of_the_sequences(rseq, geno_paths.second, ph_index);
+  }
+
   return geno_paths;
 }
 

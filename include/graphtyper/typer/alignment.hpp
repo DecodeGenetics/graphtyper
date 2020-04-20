@@ -3,7 +3,7 @@
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/graph.hpp>
-#include <graphtyper/index/mem_index.hpp>
+#include <graphtyper/index/ph_index.hpp>
 #include <graphtyper/typer/genotype_paths.hpp>
 #include <graphtyper/utilities/sam_reader.hpp>
 
@@ -17,8 +17,8 @@ namespace gyper
 std::pair<GenotypePaths, GenotypePaths>
 align_read(bam1_t * rec,
            seqan::IupacString const & seq,
-           seqan::IupacString const & rseq
-           );
+           seqan::IupacString const & rseq,
+           gyper::PHIndex const & ph_index);
 
 GenotypePaths *
 update_unpaired_read_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths, bam1_t * rec);

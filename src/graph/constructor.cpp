@@ -46,12 +46,14 @@ parse_info_int(std::string const check_if_key,
 {
   if (check_if_key == key)
   {
-    std::istringstream is{val};
+    std::istringstream is {
+      val
+    };
     is >> parsed_val;
 
     if (!is.eof())
     {
-      BOOST_LOG_TRIVIAL(error) << "[graphtyper::constructor] VCF PARSE ERROR: Could not parse "
+      BOOST_LOG_TRIVIAL(error) << "[" << __HERE__ << "] ERROR: Could not parse "
                                << check_if_key
                                << " from the INFO field (val = '"
                                << val
@@ -114,7 +116,10 @@ parse_info_sv_type(std::string const check_if_key,
     else if (val == "BND")
       parsed_val = BND;
     else
+    {
+      BOOST_LOG_TRIVIAL(warning) << "[" << __HERE__ << "] Unknown SV type " << val;
       parsed_val = OTHER;
+    }
 
     return true;
   }
@@ -151,8 +156,8 @@ get_chrom_idx(seqan::FaiIndex const & fasta_index, std::string const & chrom)
 
   if (!seqan::getIdByName(chrom_idx, fasta_index, chrom.c_str()))
   {
-    std::cerr << "[graphtyper::constructor] ERROR: FAI index has no entry for "
-              << "contig/chromosome '" << chrom << "'" << std::endl;
+    BOOST_LOG_TRIVIAL(error) << "[" << __HERE__ << "] FAI index has no entry for "
+                             << "contig/chromosome '" << chrom << "'";
 
     std::exit(30);
   }
@@ -195,14 +200,16 @@ open_reference_genome(seqan::FaiIndex & fasta_index, std::string const & fasta_f
 
     if (!f.is_open() || f.eof())
     {
-      BOOST_LOG_TRIVIAL(error) << "[graphtyper::constructor] Failed to open FASTA index '"
+      BOOST_LOG_TRIVIAL(error) << "[" << __HERE__ << "] Failed to open FASTA index '"
                                << fasta_filename << ".fai'";
       std::exit(111);
     }
 
     for (std::string line; std::getline(f, line);)
     {
-      std::istringstream ss{line};
+      std::istringstream ss {
+        line
+      };
       gyper::Contig new_contig;
       ss >> new_contig.name;
       ss >> new_contig.length;
@@ -219,7 +226,7 @@ open_reference_genome(seqan::FaiIndex & fasta_index, std::string const & fasta_f
 
     if (sum > 0x00000000FFFFFFFFull)
     {
-      BOOST_LOG_TRIVIAL(error) << "[graphtyper::construct] Graphtyper only supports references "
+      BOOST_LOG_TRIVIAL(error) << "[" << __HERE__ << "] Graphtyper only supports references "
                                << "with a total length less than 4,294,967,295 (2^32 - 1)\n";
       std::exit(112);
     }
@@ -229,12 +236,12 @@ open_reference_genome(seqan::FaiIndex & fasta_index, std::string const & fasta_f
   {
     if (!seqan::build(fasta_index, fasta_filename.c_str()))
     {
-      std::cerr << "[graphtyper::constructor] ERROR: Index could not be loaded or built.\n";
+      BOOST_LOG_TRIVIAL(error) << "[" << __HERE__ << "] FASTA index could not be loaded or built.";
       std::exit(31);
     }
     else if (!seqan::save(fasta_index))
     {
-      std::cerr << "[graphtyper::constructor] ERROR: Index could not be saved to disk.\n";
+      BOOST_LOG_TRIVIAL(error) << "[" << __HERE__ << "] FASTA index could not be saved to disk.";
       std::exit(32);
     }
   }
@@ -256,19 +263,6 @@ complement(char const c)
 
   default: return c;
   }
-}
-
-
-std::vector<std::vector<char> > inline
-read_reference_graph(std::vector<char> const & prefix,
-                     gyper::Graph const & sv_graph,
-                     std::string const & chr,
-                     uint32_t const begin,
-                     uint32_t length
-                     )
-{
-  uint32_t const abs_begin = gyper::absolute_pos.get_absolute_position(chr, begin);
-  return sv_graph.get_all_sequences_of_length(abs_begin, length, prefix);
 }
 
 
@@ -358,9 +352,9 @@ add_sv_breakend(SV & sv,
 
   auto invalid_bnd_alt = [&var, &alt]()
                          {
-                           std::cerr << "[graphtyper::constructor] ERROR: Invalid breakend alt allele: "
-                                     << std::string(begin(alt), end(alt))
-                                     << " at position " << var.pos << std::endl;
+                           BOOST_LOG_TRIVIAL(error) << "[" << __HERE__ << "] Invalid breakend alt allele: "
+                                                    << std::string(begin(alt), end(alt))
+                                                    << " at position " << var.pos;
                            std::exit(2);
                          };
 
@@ -384,7 +378,9 @@ add_sv_breakend(SV & sv,
                             invalid_bnd_alt();
 
                           long pos = 0;
-                          std::istringstream ss{std::string(find_colon_it + 1, find_end_it)};
+                          std::istringstream ss {
+                            std::string(find_colon_it + 1, find_end_it)
+                          };
                           ss >> pos;
 
                           if (!ss.eof())
@@ -406,7 +402,7 @@ add_sv_breakend(SV & sv,
     if (find_it != alt.begin())
     {
       // Case 1: S SNNN[chr:pos[ => Extending sequence right of chr:pos
-      BOOST_LOG_TRIVIAL(debug) << "[graphtyper::constructor] BND variant case 1 @ " << var.pos + 1;
+      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] BND variant case 1 @ " << var.pos + 1;
       bnd = std::vector<char>(var.ref);
       std::copy(alt.begin() + 1, find_it, std::back_inserter(bnd)); // Extra insertion
 
@@ -418,7 +414,7 @@ add_sv_breakend(SV & sv,
     else
     {
       // Case 2: S [chr:pos[NNNS => Extending reversed sequence left of chr:pos
-      BOOST_LOG_TRIVIAL(debug) << "[graphtyper::constructor] BND variant case 2 @ " << var.pos + 1;
+      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] BND variant case 2 @ " << var.pos + 1;
       append_sv_tag_to_node(bnd);
 
       auto find2_it = std::find(find_it + 1, alt.end(), '[');
@@ -452,7 +448,7 @@ add_sv_breakend(SV & sv,
     if (find_it == alt.begin())
     {
       // Case 3: S ]chr:pos]NNS => Take sequence from chr:pos and extend it to the left of S
-      BOOST_LOG_TRIVIAL(debug) << "[graphtyper::constructor] BND variant case 3 @ " << var.pos + 1;
+      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] BND variant case 3 @ " << var.pos + 1;
       append_sv_tag_to_node(bnd);
       auto find2_it = std::find(find_it + 1, alt.end(), ']');
 
@@ -468,7 +464,7 @@ add_sv_breakend(SV & sv,
       bnd = std::vector<char>(var.ref);
       // Case 4: S SNN]chr:pos] => Take sequence from chr:pos, reverse complement it and extend it
       // to the right of S
-      BOOST_LOG_TRIVIAL(debug) << "[graphtyper::constructor] BND variant case 4 @ " << var.pos + 1;
+      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] BND variant case 4 @ " << var.pos + 1;
       std::copy(alt.begin() + 1, find_it, std::back_inserter(bnd)); // Extra insertion
       auto const len = EXTRA_SEQUENCE_LENGTH - bnd.size() + 1;
       std::vector<char> seq;
@@ -548,7 +544,7 @@ add_sv_insertion(SV & sv,
 
   if (!sv.seq.empty())
   {
-    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::construtor] Insertion sequence given: "
+    BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Insertion sequence given: "
                              << std::string(sv.seq.begin(), sv.seq.end());
 
     // Read the first matching reference base
@@ -684,7 +680,7 @@ add_sv_insertion(SV & sv,
   }
   else if (sv.ins_seq_left.size() > 0 || sv.ins_seq_right.size() > 0)
   {
-    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::construct] Insertion with incomplete sequence.";
+    BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Insertion with incomplete sequence.";
     std::vector<char> left;
     std::vector<char> right;
 
@@ -714,7 +710,7 @@ add_sv_insertion(SV & sv,
 
     if (left.size() > 1 && right.size() > 0)
     {
-      BOOST_LOG_TRIVIAL(debug) << "[graphtyper::construct] Both breakpoints defined.";
+      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Both breakpoints defined.";
 
       {
         // Breakpoint 1
@@ -740,7 +736,7 @@ add_sv_insertion(SV & sv,
     }
     else if (left.size() > 1)
     {
-      BOOST_LOG_TRIVIAL(debug) << "[graphtyper::construct] Only breakpoint 1 defined.";
+      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Only breakpoint 1 defined.";
       std::vector<char> alt1(var.ref);
       std::move(begin(left), end(left), std::back_inserter(alt1));
       append_sv_tag_to_node(alt1);
@@ -750,7 +746,7 @@ add_sv_insertion(SV & sv,
     }
     else if (right.size() > 0)
     {
-      BOOST_LOG_TRIVIAL(debug) << "[graphtyper::construct] Only breakpoint 2 defined.";
+      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Only breakpoint 2 defined.";
       std::vector<char> alt2;
       append_sv_tag_to_node(alt2);
       std::move(begin(right), end(right), std::back_inserter(alt2));
@@ -761,7 +757,7 @@ add_sv_insertion(SV & sv,
   }
   else
   {
-    BOOST_LOG_TRIVIAL(warning) << "[graphtyper::constructor] I do not know how to add an insertion"
+    BOOST_LOG_TRIVIAL(warning) << "[" << __HERE__ << "] I do not know how to add an insertion"
                                << " at position " << var.pos;
   }
 }
@@ -787,7 +783,8 @@ add_sv_duplication(std::vector<VarRecord> & var_records,
       /// Case 1: Both breakpoints are known and the duplication is tandem
       /// Duplication starts after: beginPos
       /// Duplicated sequence is [beginPos + 1, beginPos + min(SVLEN, 150)]
-      BOOST_LOG_TRIVIAL(debug) << "Case 1: Both breakpoints are known and the duplication is tandem.";
+      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ <<
+        "] Case 1: Both breakpoints are known and the duplication is tandem.";
 
       // Read the duplicated sequence
       std::vector<char> dup = read_reference_genome_ends(fasta_index,
@@ -797,7 +794,9 @@ add_sv_duplication(std::vector<VarRecord> & var_records,
                                                          EXTRA_SEQUENCE_LENGTH
                                                          );
 
-      BOOST_LOG_TRIVIAL(debug) << "Duplicated sequence: " << std::string(dup.begin(), dup.end());
+      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Duplicated sequence: " << std::string(
+        dup.begin(),
+        dup.end());
 
       VarRecord var2(var); // First breakpoint is at a different location
       // Change the position of the duplication to the end of it (since there is the breakpoint)
@@ -872,12 +871,14 @@ add_sv_duplication(std::vector<VarRecord> & var_records,
       // Case 2: ORSTART given but OREND not. Only one of the breakpoints is known
       // Duplication starts after: beginPos
       // Duplicated sequence is [ORSTART, ORSTART + 150]
-      BOOST_LOG_TRIVIAL(debug) << "Case 2: ORSTART="
+      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Case 2: ORSTART="
                                << sv.or_start
                                << " but OREND=N/A. Only one of the breakpoints is known";
+
       std::vector<char> dup_begin(var.ref);
       std::copy(sv.ins_seq.begin(), sv.ins_seq.end(), std::back_inserter(dup_begin));
-      read_reference_seq(dup_begin, fasta_index, chrom_idx, sv.or_start - 1, EXTRA_SEQUENCE_LENGTH);
+      read_reference_seq(dup_begin, fasta_index, chrom_idx, sv.or_start - 1,
+                         EXTRA_SEQUENCE_LENGTH);
       append_sv_tag_to_node(dup_begin);
       sv.model = "BREAKPOINT1";
       var.alts.push_back(std::move(dup_begin));
@@ -891,7 +892,7 @@ add_sv_duplication(std::vector<VarRecord> & var_records,
     // Case 3: OREND given but ORSTART not. Only one of the breakpoints is known
     // Duplication starts after: beginPos
     // Duplicated sequence is [OREND - 150, OREND]
-    BOOST_LOG_TRIVIAL(debug) << "Case 3: OREND="
+    BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Case 3: OREND="
                              << sv.or_end
                              << " but ORSTART=N/A. Only one of the breakpoints is known";
 
@@ -923,8 +924,7 @@ add_sv_inversion(std::vector<VarRecord> & var_records,
                  VarRecord & var,
                  seqan::FaiIndex const & fasta_index,
                  unsigned const chrom_idx,
-                 uint32_t const EXTRA_SEQUENCE_LENGTH
-                 )
+                 uint32_t const EXTRA_SEQUENCE_LENGTH)
 {
   // Read the first matching reference base
   read_reference_seq(var.ref, fasta_index, chrom_idx, var.pos, 1);
@@ -947,9 +947,10 @@ add_sv_inversion(std::vector<VarRecord> & var_records,
     if (sv.or_start == -1)
     {
       /// Case 1: Both breakpoints are known and the duplication is tandem
-      /// Duplication starts after: beginPos
-      /// Duplicated sequence is [beginPos + 1, beginPos + min(SVLEN, 150)]
-      BOOST_LOG_TRIVIAL(debug) << "Case 1: Both breakpoints are known and the duplication is "
+      /// Inversion starts after: beginPos
+      /// Inverted sequence is [beginPos + 1, beginPos + min(SVLEN, 150)]
+      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ <<
+        "] Case 1: Both breakpoints are known and the inversion is "
                                << "tandem.";
 
       // Read the duplicated sequence
@@ -957,13 +958,14 @@ add_sv_inversion(std::vector<VarRecord> & var_records,
                                                          chrom_idx,
                                                          var.pos + 1,
                                                          var.pos + sv.length + 1,
-                                                         EXTRA_SEQUENCE_LENGTH
-                                                         );
+                                                         EXTRA_SEQUENCE_LENGTH);
 
       std::vector<char> inv(dup.rbegin(), dup.rend());
       std::transform(inv.begin(), inv.end(), inv.begin(), complement);
 
-      BOOST_LOG_TRIVIAL(debug) << "Inverted sequence: " << std::string(inv.begin(), inv.end());
+      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Inverted sequence: " << std::string(
+        inv.begin(),
+        inv.end());
 
       std::vector<char> inv_begin(var.ref);
       std::copy(sv.ins_seq.begin(), sv.ins_seq.end(), std::back_inserter(inv_begin));
@@ -1037,7 +1039,7 @@ add_sv_inversion(std::vector<VarRecord> & var_records,
       // Case 2: ORSTART given but OREND not. Only one of the breakpoints is known
       // Duplication starts after: beginPos
       // Duplicated sequence is [ORSTART, ORSTART + 150]
-      BOOST_LOG_TRIVIAL(debug) << "Case 2: ORSTART="
+      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Case 2: ORSTART="
                                << sv.or_start
                                << " but OREND=N/A. Only one of the breakpoints is known";
       std::vector<char> dup;
@@ -1060,7 +1062,7 @@ add_sv_inversion(std::vector<VarRecord> & var_records,
     // Case 3: OREND given but ORSTART not. Only one of the breakpoints is known
     // Duplication starts after: beginPos
     // Duplicated sequence is [OREND - 150, OREND]
-    BOOST_LOG_TRIVIAL(debug) << "Case 3: OREND="
+    BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Case 3: OREND="
                              << sv.or_end
                              << " but ORSTART=N/A. Only one of the breakpoints is known";
 
@@ -1094,6 +1096,19 @@ std::vector<seqan::VcfRecord>
 split_multi_allelic(seqan::VcfRecord && vcf_record)
 {
   std::vector<seqan::VcfRecord> vcf_records;
+
+  if (seqan::length(vcf_record.ref) == 0)
+  {
+    BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Ignoring record with an empty reference allele in VCF file.";
+    return vcf_records;
+  }
+
+  if (seqan::length(vcf_record.alt) == 0)
+  {
+    BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Ignoring record with an empty alternative allele in VCF file.";
+    return vcf_records;
+  }
+
   long const NUM_ALT_ALLELES = 1 + std::count(begin(vcf_record.alt), end(vcf_record.alt), ',');
   vcf_records.reserve(NUM_ALT_ALLELES);
 
@@ -1110,6 +1125,12 @@ split_multi_allelic(seqan::VcfRecord && vcf_record)
 
   for (long i = 0; i < NUM_ALT_ALLELES; ++i)
   {
+    if (seqan::length(alts[i]) == 0 || alts[i][0] == '.')
+    {
+      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Ignoring an empty alternative allele in VCF file.";
+      continue;
+    }
+
     seqan::VcfRecord new_rec(vcf_record);
     new_rec.alt = alts[i];
     vcf_records.push_back(std::move(new_rec));
@@ -1119,25 +1140,29 @@ split_multi_allelic(seqan::VcfRecord && vcf_record)
 }
 
 
-void
+bool
 transform_sv_records(seqan::VcfRecord & vcf_record,
                      seqan::FaiIndex const & fasta_index,
-                     GenomicRegion const & genomic_region
-                     )
+                     GenomicRegion const & genomic_region)
 {
+  if (seqan::length(vcf_record.alt) == 0ul)
+  {
+    BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Ignoring VCF record with empty alt. allele sequence at position "
+                               << (vcf_record.beginPos + 1);
+    return false;
+  }
+
   if (vcf_record.beginPos == 0)
-    return;
+    return true;
 
   // Make sure it is a biallelic variant
-  assert(seqan::length(vcf_record.alt) > 0ul);
   assert(std::count(seqan::begin(vcf_record.alt), seqan::end(vcf_record.alt), ',') == 0);
 
   if (std::find(begin(vcf_record.alt), end(vcf_record.alt), '<') != end(vcf_record.alt) ||
       std::find(begin(vcf_record.alt), end(vcf_record.alt), ']') != end(vcf_record.alt) ||
-      std::find(begin(vcf_record.alt), end(vcf_record.alt), '[') != end(vcf_record.alt)
-      )
+      std::find(begin(vcf_record.alt), end(vcf_record.alt), '[') != end(vcf_record.alt))
   {
-    return; // Already transformed
+    return true; // Already transformed
   }
 
 
@@ -1147,7 +1172,7 @@ transform_sv_records(seqan::VcfRecord & vcf_record,
 
   if (size_diff <= -50) // DEL
   {
-    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::constructor] Transformed an SV deletion @ "
+    BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Transformed an SV deletion @ "
                              << vcf_record.beginPos + 1
                              << " with size diff " << size_diff;
 
@@ -1192,7 +1217,7 @@ transform_sv_records(seqan::VcfRecord & vcf_record,
   }
   else if (size_diff >= 50)
   {
-    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::constructor] Transformed an SV insertion @ "
+    BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Transformed an SV insertion @ "
                              << vcf_record.beginPos + 1
                              << " with size diff " << size_diff;
 
@@ -1237,6 +1262,8 @@ transform_sv_records(seqan::VcfRecord & vcf_record,
     seqan::CharString new_info = ss.str();
     seqan::append(vcf_record.info, new_info);
   }
+
+  return true;
 }
 
 
@@ -1245,10 +1272,22 @@ add_var_record(std::vector<VarRecord> & var_records,
                seqan::VcfRecord const & vcf_record,
                seqan::FaiIndex const & fasta_index,
                GenomicRegion genomic_region,
-               bool is_sv_graph
-               )
+               bool is_sv_graph)
 {
   assert(vcf_record.beginPos >= 0);
+
+  if (seqan::length(vcf_record.ref) == 0)
+  {
+    BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Ignoring VCF record with empty reference allele.";
+    return;
+  }
+
+  if (seqan::length(vcf_record.alt) == 0)
+  {
+    BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Ignoring VCF record with empty alternative allele.";
+    return;
+  }
+
   VarRecord var(static_cast<uint32_t>(vcf_record.beginPos));
 
   var.is_sv = false;
@@ -1265,7 +1304,7 @@ add_var_record(std::vector<VarRecord> & var_records,
 
         if (not is_sv_graph)
         {
-          BOOST_LOG_TRIVIAL(error) << "[graphtyper::constructor] Found an SV in a non-SV graph at "
+          BOOST_LOG_TRIVIAL(error) << "[" << __HERE__ << "] Found an SV in a non-SV graph at "
                                    << genomic_region.chr << ":" << (vcf_record.beginPos + 1);
           std::exit(1234);
         }
@@ -1340,7 +1379,7 @@ add_var_record(std::vector<VarRecord> & var_records,
 
     if (sv.type == NOT_SV)
     {
-      BOOST_LOG_TRIVIAL(error) << "[graphtyper::constructor] Improper VCF input. Detected SV with "
+      BOOST_LOG_TRIVIAL(error) << "[" << __HERE__ << "] Improper VCF input. Detected SV with "
                                << "no SVTYPE defined at pos. "
                                << var.pos;
       std::exit(1);
@@ -1365,7 +1404,7 @@ add_var_record(std::vector<VarRecord> & var_records,
       // If length is less than 50 then it is not an SV
       if (sv.length < 50 && ((int)sv.ins_seq_left.size() + (int)sv.ins_seq_right.size()) < 20)
       {
-        BOOST_LOG_TRIVIAL(warning) << "[graphtyper::constructor] WARNING: Ignored SV at " << var.pos
+        BOOST_LOG_TRIVIAL(warning) << "[" << __HERE__ << "] Ignored SV at " << var.pos
                                    << " because it was less than 50 bp.";
         return;
       }
@@ -1400,7 +1439,8 @@ add_var_record(std::vector<VarRecord> & var_records,
                             seqan_seq2 = std::string(begin(seq2), end(seq2)).c_str();
                           }
 
-                          auto const larger_size = std::max(length(seqan_seq1), length(seqan_seq2));
+                          auto const larger_size =
+                            std::max(length(seqan_seq1), length(seqan_seq2));
                           seqan::Align<seqan::Dna5String> align;
                           seqan::resize(seqan::rows(align), 2);
                           seqan::assignSource(seqan::row(align, 0), seqan_seq1);
@@ -1410,7 +1450,8 @@ add_var_record(std::vector<VarRecord> & var_records,
                           seqan::AlignConfig<> alignConfig;
 
                           int score = seqan::globalAlignment(align, scoringScheme, alignConfig);
-                          return static_cast<double>(score) / static_cast<double>(larger_size) >= 0.8;
+                          return static_cast<double>(score) / static_cast<double>(larger_size) >=
+                                 0.8;
                         };
 
       if (static_cast<long>(var.pos - 1l - sv.seq.size()) >= 0l)
@@ -1421,15 +1462,14 @@ add_var_record(std::vector<VarRecord> & var_records,
                            fasta_index,
                            chrom_idx,
                            (unsigned)std::max(0l, static_cast<long>(var.pos - 1l - sv.seq.size())),
-                           (unsigned)sv.seq.size()
-                           );
+                           (unsigned)sv.seq.size());
 
         assert(ref_before.size() == sv.seq.size());
 
         if (is_similar(ref_before, sv.seq))
         {
           // Change to a duplication
-          BOOST_LOG_TRIVIAL(debug) << "[graphtyper::constructor] Changed insertion at position "
+          BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Changed insertion at position "
                                    << var.pos
                                    << " to a duplication and moved it.";
           var.pos -= sv.seq.size();
@@ -1440,12 +1480,13 @@ add_var_record(std::vector<VarRecord> & var_records,
       if (sv.type == INS)
       {
         std::vector<char> ref_after;
-        read_reference_seq(ref_after, fasta_index, chrom_idx, var.pos + 1, (uint32_t)sv.seq.size());
+        read_reference_seq(ref_after, fasta_index, chrom_idx, var.pos + 1,
+                           (uint32_t)sv.seq.size());
 
         if (is_similar(ref_after, sv.seq))
         {
           // Change to a duplication
-          BOOST_LOG_TRIVIAL(debug) << "[graphtyper::constructor] Changed insertion at position "
+          BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Changed insertion at position "
                                    << var.pos
                                    << " to a duplication.";
           sv.type = DUP;
@@ -1461,7 +1502,8 @@ add_var_record(std::vector<VarRecord> & var_records,
     {
     case BND:
     {
-      BOOST_LOG_TRIVIAL(debug) << "A breakend " << std::string(begin(v_alt), end(v_alt)) << " @ "
+      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] A breakend "
+                               << std::string(begin(v_alt), end(v_alt)) << " @ "
                                << (vcf_record.beginPos + 1);
       add_sv_breakend(sv, var, vcf_record, fasta_index, chrom_idx, EXTRA_SEQUENCE_LENGTH);
       break;
@@ -1472,7 +1514,7 @@ add_var_record(std::vector<VarRecord> & var_records,
     case DEL_ALU:
     {
       // Handle deletions
-      BOOST_LOG_TRIVIAL(debug) << "A deletion of size " << sv.size << " @ "
+      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] A deletion of size " << sv.size << " @ "
                                << (vcf_record.beginPos + 1);
       add_sv_deletion(sv, var, fasta_index, chrom_idx, EXTRA_SEQUENCE_LENGTH);
       break;
@@ -1481,7 +1523,7 @@ add_var_record(std::vector<VarRecord> & var_records,
 
     case DUP:
     {
-      BOOST_LOG_TRIVIAL(debug) << "A duplication of size " << sv.size << " @ "
+      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] A duplication of size " << sv.size << " @ "
                                << (vcf_record.beginPos + 1);
       add_sv_duplication(var_records, sv, var, fasta_index, chrom_idx, EXTRA_SEQUENCE_LENGTH);
       break;
@@ -1490,7 +1532,7 @@ add_var_record(std::vector<VarRecord> & var_records,
 
     case INS:
     {
-      BOOST_LOG_TRIVIAL(debug) << "An insertion of size "
+      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] An insertion of size "
                                << sv.size
                                << " @ " << (vcf_record.beginPos + 1);
 
@@ -1501,7 +1543,7 @@ add_var_record(std::vector<VarRecord> & var_records,
 
     case INV:
     {
-      BOOST_LOG_TRIVIAL(debug) << "An inversion of size "
+      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] An inversion of size "
                                << sv.size
                                << " @ "
                                << (vcf_record.beginPos + 1);
@@ -1519,14 +1561,8 @@ add_var_record(std::vector<VarRecord> & var_records,
   {
     // Handle typical small variants (SNPs, indels <50 bps)
     var.ref = std::vector<char>(seqan::begin(vcf_record.ref), seqan::end(vcf_record.ref));
-    var.alts.push_back(std::vector<char>(seqan::begin(vcf_record.alt), seqan::end(vcf_record.alt)));
-    //seqan::StringSet<seqan::CharString> seqan_alts;
-    //seqan::strSplit(seqan_alts, vcf_record.alt, seqan::EqualsChar<','>());
-    //std::cerr << "t " << seqan::length(seqan_alts) << "\n";
-    //var.alts.reserve(seqan::length(seqan_alts));
-    //
-    //for (unsigned i = 0; i < seqan::length(seqan_alts); ++i)
-    //  var.alts.push_back(std::vector<char>(seqan::begin(seqan_alts[i]), seqan::end(seqan_alts[i])));
+    var.alts.push_back(std::vector<char>(seqan::begin(vcf_record.alt),
+                                         seqan::end(vcf_record.alt)));
 
     // Remove alleles with non-ACGT
     var.alts.erase(
@@ -1567,21 +1603,15 @@ construct_graph(std::string const & reference_filename,
   graph = Graph(use_absolute_positions);
   graph.is_sv_graph = is_sv_graph;
 
-  if (region.substr(0, 3) != "chr" && region.substr(0, 1) != ".")
-    graph.use_prefix_chr = false;
-
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::constructor] Constructing graph for region "
-                           << region;
-
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Constructing graph for region " << region;
   GenomicRegion genomic_region(region);
-
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::constructor] Reading FASTA file located at "
-                           << reference_filename;
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Reading FASTA file located at " <<
+    reference_filename;
 
   // Load the reference genome
   seqan::FaiIndex fasta_index;
   open_reference_genome(fasta_index, reference_filename);
-  absolute_pos.calculate_offsets(graph);
+  absolute_pos.calculate_offsets(graph.contigs);
 
   // Read the reference sequence
   std::vector<char> reference_sequence;
@@ -1592,8 +1622,8 @@ construct_graph(std::string const & reference_filename,
 
   if (vcf_filename.size() > 0)
   {
-    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::constructor] INFO: Reading VCF file located at "
-                             << vcf_filename;
+    BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Reading VCF file located at " <<
+      vcf_filename;
 
     if (check_index)
     {
@@ -1609,9 +1639,9 @@ construct_graph(std::string const & reference_filename,
 
       while (is_read_record)
       {
-        if (vcf_record.beginPos >= static_cast<int64_t>(genomic_region.begin) &&
-            (vcf_record.beginPos + seqan::length(vcf_record.ref)) <=
-            static_cast<int64_t>(genomic_region.end)
+        if (vcf_record.beginPos >= static_cast<long>(genomic_region.begin) &&
+            static_cast<long>(vcf_record.beginPos + seqan::length(vcf_record.ref)) <=
+            static_cast<long>(genomic_region.end)
             )
         {
           std::vector<seqan::VcfRecord> records = split_multi_allelic(std::move(vcf_record));
@@ -1619,9 +1649,18 @@ construct_graph(std::string const & reference_filename,
           for (auto & rec : records)
           {
             if (is_sv_graph)
-              transform_sv_records(rec, fasta_index, genomic_region);
+            {
+              bool const is_ok = transform_sv_records(rec, fasta_index, genomic_region);
 
-            add_var_record(var_records, rec, fasta_index, genomic_region, is_sv_graph);
+              if (is_ok)
+              {
+                add_var_record(var_records, rec, fasta_index, genomic_region, is_sv_graph);
+              }
+            }
+            else
+            {
+              add_var_record(var_records, rec, fasta_index, genomic_region, is_sv_graph);
+            }
           }
         }
 
@@ -1635,7 +1674,7 @@ construct_graph(std::string const & reference_filename,
 
       if (!igz.rdbuf()->is_open())
       {
-        BOOST_LOG_TRIVIAL(error) << "Could not open VCF " << vcf_filename;
+        BOOST_LOG_TRIVIAL(error) << "[" << __HERE__ << "] Could not open VCF " << vcf_filename;
         std::exit(1);
       }
 
@@ -1650,19 +1689,27 @@ construct_graph(std::string const & reference_filename,
         seqan::VcfRecord vcf_record;
         _insertDataToVcfRecord(vcf_record, line.c_str(), 0);
 
-        if (vcf_record.beginPos >= static_cast<int64_t>(genomic_region.begin) &&
-            (vcf_record.beginPos + seqan::length(vcf_record.ref)) <=
-            static_cast<int64_t>(genomic_region.end)
-            )
+        if (vcf_record.beginPos >= static_cast<long>(genomic_region.begin) &&
+            static_cast<long>(vcf_record.beginPos + seqan::length(vcf_record.ref)) <=
+            static_cast<long>(genomic_region.end))
         {
           std::vector<seqan::VcfRecord> records = split_multi_allelic(std::move(vcf_record));
 
           for (auto & rec : records)
           {
             if (is_sv_graph)
-              transform_sv_records(rec, fasta_index, genomic_region);
+            {
+              bool const is_ok = transform_sv_records(rec, fasta_index, genomic_region);
 
-            add_var_record(var_records, rec, fasta_index, genomic_region, is_sv_graph);
+              if (is_ok)
+              {
+                add_var_record(var_records, rec, fasta_index, genomic_region, is_sv_graph);
+              }
+            }
+            else
+            {
+              add_var_record(var_records, rec, fasta_index, genomic_region, is_sv_graph);
+            }
           }
         }
       }
@@ -1710,16 +1757,17 @@ construct_graph(std::string const & reference_filename,
 #ifndef NDEBUG
   if (!graph.check())
   {
-    BOOST_LOG_TRIVIAL(error) << "[graphtyper::graph] Problem creating graph. Printing graph:";
+    BOOST_LOG_TRIVIAL(error) << "[" << __HERE__ << "] Problem creating graph. Printing graph:";
     gyper::graph.print();
     std::exit(1);
   }
 #endif // NDEBUG
 
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::constructor] Graph was successfully constructed.";
-
   // Create all specials positions
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Creating special positions for the graph.";
   graph.create_special_positions();
+
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Graph was successfully constructed.";
 }
 
 
@@ -1755,7 +1803,6 @@ get_variants_using_tabix(std::string const & vcf, GenomicRegion const & genomic_
       var.seqs.push_back(std::vector<char>(alt.begin(), alt.end()));
     }
 
-    //std::cerr << "Read line: " << var.print() << "\n";
     variants.push_back(std::move(var));
   }
 

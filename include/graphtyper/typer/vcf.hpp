@@ -17,7 +17,7 @@
 namespace gyper
 {
 
-struct HaplotypeCall;
+class HaplotypeCall;
 
 enum VCF_FILE_MODE
 {

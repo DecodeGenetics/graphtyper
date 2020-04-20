@@ -16,6 +16,7 @@
 #include <graphtyper/graph/haplotype_calls.hpp>
 #include <graphtyper/graph/haplotype_extractor.hpp>
 #include <graphtyper/typer/read_stats.hpp>
+#include <graphtyper/typer/primers.hpp>
 #include <graphtyper/typer/vcf_writer.hpp>
 #include <graphtyper/utilities/graph_help_functions.hpp>
 #include <graphtyper/utilities/io.hpp>
@@ -104,10 +105,13 @@ VcfWriter::set_samples(std::vector<std::string> const & samples)
 
 
 void
-VcfWriter::update_haplotype_scores_geno(GenotypePaths & geno, long const pn_index)
+VcfWriter::update_haplotype_scores_geno(GenotypePaths & geno, long const pn_index, Primers const * primers)
 {
   if (are_genotype_paths_good(geno))
   {
+    if (primers)
+      primers->check(geno);
+
     push_to_haplotype_scores(geno, pn_index);
 
 #ifndef NDEBUG
@@ -143,7 +147,7 @@ VcfWriter::print_variant_group_details() const
       uint32_t const abs_pos = hap.gts[0].id;
       std::vector<char> seq = graph.get_sequence_of_a_haplotype_call(hap.gts, c);
       assert(seq.size() > 1);
-      auto contig_pos = absolute_pos.get_contig_position(abs_pos, gyper::graph);
+      auto contig_pos = absolute_pos.get_contig_position(abs_pos, gyper::graph.contigs);
 
       hap_file << ps << "\t" << c << "\t"
                << contig_pos.first << "\t" << contig_pos.second << "\t"
@@ -164,7 +168,7 @@ VcfWriter::print_variant_details() const
   std::string const variant_details_fn =
     Options::instance()->stats + "/" + pns[0] + "_variant_details.tsv.gz";
 
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::vcf_writer] Generating variant info statistics to "
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Generating variant info statistics to "
                            << variant_details_fn;
 
   std::stringstream variant_file;
@@ -176,7 +180,7 @@ VcfWriter::print_variant_details() const
   {
     long sv_id = -1; // -1 means not an SV
     auto const & label = graph.var_nodes[v].get_label();
-    auto contig_pos = absolute_pos.get_contig_position(label.order, gyper::graph);
+    auto contig_pos = absolute_pos.get_contig_position(label.order, gyper::graph.contigs);
     auto const & seq = label.dna;
     auto find_it = std::find(seq.cbegin(), seq.cend(), '<');
 
@@ -248,7 +252,8 @@ VcfWriter::print_geno_statistics(std::stringstream & read_ss,
 {
   std::stringstream id;
   assert(geno.details);
-  id << pns[pn_index] << "_" << geno.details->query_name << "/" << ((geno.flags & IS_FIRST_IN_PAIR) != 0 ? 1 : 2);
+  id << pns[pn_index] << "_" << geno.details->query_name << "/"
+     << ((geno.flags & IS_FIRST_IN_PAIR) != 0 ? 1 : 2);
 
   read_ss << id.str() << "\t"
           << pns[pn_index] << "\t"
@@ -270,8 +275,11 @@ VcfWriter::print_geno_statistics(std::stringstream & read_ss,
     uint32_t const ref_reach_start = path.start_ref_reach_pos();
     uint32_t const ref_reach_end = path.end_ref_reach_pos();
 
-    auto const contig_pos_start = absolute_pos.get_contig_position(ref_reach_start, gyper::graph);
-    auto const contig_pos_end = absolute_pos.get_contig_position(ref_reach_end, gyper::graph);
+    auto const contig_pos_start = absolute_pos.get_contig_position(ref_reach_start,
+                                                                   gyper::graph.contigs);
+
+    auto const contig_pos_end = absolute_pos.get_contig_position(ref_reach_end,
+                                                                 gyper::graph.contigs);
 
     std::vector<std::size_t> overlapping_vars;
 
@@ -477,12 +485,11 @@ VcfWriter::push_to_haplotype_scores(GenotypePaths & geno, long const pn_index)
 
     auto & haplotype = haplotypes[it->first];
 
-    // Move INFO to variant statistics. This needs to called before 'coverage_to_gts', because it uses the coverage of each variant.
+    // Move INFO to variant statistics.
+    // This needs to called before 'coverage_to_gts', because it uses the coverage of each variant.
     haplotype.clipped_reads_to_stats(fully_aligned);
     haplotype.mapq_to_stats(geno.mapq);
     haplotype.strand_to_stats(geno.flags);
-    //haplotype.realignment_to_stats(geno.original_pos /*original_pos*/,
-    //                               absolute_pos.get_contig_position(geno.paths[0].start_correct_pos()).second /*new_pos*/);
 
     // Update the likelihood scores
     haplotype.explain_to_score(pn_index,

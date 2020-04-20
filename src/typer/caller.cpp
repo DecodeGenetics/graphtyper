@@ -1,6 +1,5 @@
 #include <cassert> // assert
-#include <list> // std::list
-#include <memory> // std::shared_ptr
+#include <memory> // std::unique_ptr
 #include <sstream> // std::ostringstream
 #include <string> // std::string
 #include <unordered_map> // std::unordered_map
@@ -16,20 +15,17 @@
 #include <boost/log/trivial.hpp> // BOOST_LOG_TRIVIAL
 
 #include <graphtyper/constants.hpp>
-#include <graphtyper/graph/absolute_position.hpp>
+#include <graphtyper/graph/absolute_position.hpp> // gyper::absolute_pos
 #include <graphtyper/graph/graph_serialization.hpp> // gyper::load_graph
 #include <graphtyper/graph/haplotype_calls.hpp>
 #include <graphtyper/graph/haplotype_extractor.hpp>
 #include <graphtyper/graph/reference_depth.hpp>
-#include <graphtyper/index/rocksdb.hpp> // gyper::index (global)
 #include <graphtyper/index/indexer.hpp> // gyper::index (global)
-#include <graphtyper/index/mem_index.hpp> // gyper::mem_index (global)
+#include <graphtyper/index/ph_index.hpp>
 #include <graphtyper/typer/alignment.hpp>
 #include <graphtyper/typer/caller.hpp>
-#include <graphtyper/typer/graph_swapper.hpp>
-#include <graphtyper/typer/genotype_paths.hpp> // gyper::GenotypePaths
-#include <graphtyper/typer/variant_support.hpp>
-#include <graphtyper/typer/vcf.hpp>
+#include <graphtyper/typer/primers.hpp> // gyper::Primers
+#include <graphtyper/typer/variant_candidate.hpp>
 #include <graphtyper/typer/variant_map.hpp>
 #include <graphtyper/utilities/hts_parallel_reader.hpp> // gyper::HtsParallelReader
 #include <graphtyper/utilities/hts_reader.hpp> // gyper::HtsReader
@@ -54,7 +50,7 @@ _read_rg_and_samples(std::vector<std::string> & samples,
     auto & rg2sample_i = vec_rg2sample_i[i];
     std::size_t const old_size = samples.size();
 
-    if (!Options::instance()->get_sample_names_from_filename)
+    if (!Options::const_instance()->get_sample_names_from_filename)
     {
       gyper::get_sample_name_from_bam_header(hts_path, samples, rg2sample_i);
     }
@@ -79,9 +75,9 @@ _determine_num_jobs_and_num_parts(long & jobs,
 {
   using namespace gyper;
 
-  jobs = Options::instance()->threads;
+  jobs = Options::const_instance()->threads;
   num_parts = jobs;
-  long const MAX_FILES_OPEN = Options::instance()->max_files_open;
+  long const MAX_FILES_OPEN = Options::const_instance()->max_files_open;
 
   if (jobs >= NUM_SAMPLES || jobs >= MAX_FILES_OPEN)
   {
@@ -110,10 +106,11 @@ namespace gyper
 std::vector<std::string>
 call(std::vector<std::string> const & hts_paths,
      std::string const & graph_path,
-     std::string const & index_path,
+     PHIndex const & ph_index,
      std::string const & output_dir,
      std::string const & reference,
      std::string const & region,
+     Primers const * primers,
      long const minimum_variant_support,
      double const minimum_variant_support_ratio,
      bool const is_writing_calls_vcf,
@@ -130,12 +127,6 @@ call(std::vector<std::string> const & hts_paths,
 
   if (graph_path.size() > 0)
     load_graph(graph_path); // Loads the graph into the global variable 'graph'
-
-  if (index_path.size() > 0)
-    load_index(index_path); // Loads the index into the global variable 'index'
-
-  mem_index.load(index); // Loads the in-memory index
-  index.close(); // Close the RocksDB index, we will use the in-memory index for querying reads
 
   // Split hts_paths
   std::vector<std::unique_ptr<std::vector<std::string> > > spl_hts_paths;
@@ -159,7 +150,7 @@ call(std::vector<std::string> const & hts_paths,
     }
   }
 
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::caller] Number of pools = " << spl_hts_paths.size();
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Number of pools = " << spl_hts_paths.size();
   long const NUM_POOLS = spl_hts_paths.size();
   paths.resize(NUM_POOLS);
 
@@ -178,6 +169,8 @@ call(std::vector<std::string> const & hts_paths,
                               output_dir,
                               reference,
                               region,
+                              ph_index,
+                              primers,
                               is_writing_calls_vcf,
                               is_writing_hap);
       }
@@ -190,6 +183,8 @@ call(std::vector<std::string> const & hts_paths,
                                  output_dir,
                                  reference,
                                  region,
+                                 ph_index,
+                                 primers,
                                  is_writing_calls_vcf,
                                  is_writing_hap);
     }
@@ -203,6 +198,8 @@ call(std::vector<std::string> const & hts_paths,
                               output_dir,
                               reference,
                               region,
+                              ph_index,
+                              primers,
                               minimum_variant_support,
                               minimum_variant_support_ratio,
                               is_writing_calls_vcf,
@@ -217,6 +214,8 @@ call(std::vector<std::string> const & hts_paths,
                                  output_dir,
                                  reference,
                                  region,
+                                 ph_index,
+                                 primers,
                                  minimum_variant_support,
                                  minimum_variant_support_ratio,
                                  is_writing_calls_vcf,
@@ -429,19 +428,23 @@ parallel_discover_from_cigar(std::string * output_ptr,
     while (seqan::readRecord(record, hts))
     {
       // Skip supplementary, secondary and QC fail, duplicated and unmapped reads
-      if (seqan::hasFlagSupplementary(record) ||
-          seqan::hasFlagSecondary(record) ||
-          seqan::hasFlagQCNoPass(record) ||
-          seqan::hasFlagDuplicate(record) ||
+      if (((record.flag & Options::const_instance()->sam_flag_filter) != 0) ||
           seqan::hasFlagUnmapped(record))
       {
         continue;
       }
 
-      // Skip reads that are clipped on both ends
+      // Skip reads that are clipped on both ends. It is also fine to skip reads with no cigar since they cannot be useful here
       if (length(record.cigar) == 0 ||
           (record.cigar[0].operation == 'S' &&
            record.cigar[length(record.cigar) - 1].operation == 'S'))
+      {
+        continue;
+      }
+
+      if (Options::const_instance()->is_discovery_only_for_paired_reads &&
+          (((record.flag & IS_PAIRED) == 0) ||
+           ((record.flag & IS_PROPER_PAIR) == 0)))
       {
         continue;
       }
@@ -517,7 +520,7 @@ parallel_discover_from_cigar(std::string * output_ptr,
   varmap.create_varmap_for_all(reference_depth);
 
 #ifndef NDEBUG
-  if (Options::instance()->stats.size() > 0)
+  if (Options::const_instance()->stats.size() > 0)
     varmap.write_stats("1");
 #endif // NDEBUG
 

@@ -49,14 +49,11 @@ TEST_CASE("Create a VCF and add variants")
   {
     std::stringstream my_graph;
     my_graph << gyper_SOURCE_DIRECTORY << "/test/data/graphs/index_test_chr2.grf";
-    std::stringstream my_index;
-    my_index << gyper_SOURCE_DIRECTORY << "/test/data/graphs/index_test_chr2";
     // CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCCCCAGGTTTGGACCC
     // chr2    2       rs2     C       A       0       .       .
     // chr2    3       rs3     C       A       0       .       .
 
     gyper::load_graph(my_graph.str());
-    gyper::load_index(my_index.str());
   }
 
 

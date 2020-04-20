@@ -4,8 +4,9 @@
 #include <graphtyper/graph/graph_serialization.hpp>
 #include <graphtyper/graph/haplotype_extractor.hpp>
 #include <graphtyper/index/indexer.hpp>
-#include <graphtyper/index/mem_index.hpp>
+#include <graphtyper/index/ph_index.hpp>
 #include <graphtyper/typer/caller.hpp> // gyper::discover_directly_from_bam
+#include <graphtyper/typer/primers.hpp>
 #include <graphtyper/typer/variant_map.hpp>
 #include <graphtyper/typer/vcf.hpp>
 #include <graphtyper/typer/vcf_operations.hpp>
@@ -54,7 +55,6 @@ run_bamshrink(std::vector<std::string> const & sams,
       // Get basename without extension
       auto slash_it = std::find(sam.rbegin(), sam.rend(), '/');
       auto dot_it = std::find(sam.rbegin(), sam.rend(), '.');
-      assert(slash_it != sam.rend());
       assert(dot_it != sam.rend());
       assert(std::distance(dot_it, slash_it) > 1);
       std::string reversed(dot_it + 1, slash_it);
@@ -262,8 +262,8 @@ genotype_only_with_a_vcf(std::string const & ref_path,
                          std::vector<std::string> const & shrinked_sams,
                          GenomicRegion const & region,
                          GenomicRegion const & padded_region,
-                         std::string const & tmp
-                         )
+                         Primers const * primers,
+                         std::string const & tmp)
 {
   // Iteration 1
   BOOST_LOG_TRIVIAL(info) << "Genotyping using an input VCF.";
@@ -284,21 +284,21 @@ genotype_only_with_a_vcf(std::string const & ref_path,
                          use_absolute_positions,
                          check_index);
 
-  absolute_pos.calculate_offsets(gyper::graph);
+  absolute_pos.calculate_offsets(gyper::graph.contigs);
 
 #ifndef NDEBUG
   // Save graph in debug mode
   save_graph(out_dir + "/graph");
 #endif // NDEBUG
 
-  std::string const index_path = out_dir + "/graph_gti";
-  index_graph(index_path);
+  PHIndex ph_index = index_graph(gyper::graph);
   std::vector<std::string> paths = gyper::call(shrinked_sams,
                                                "", // graph_path
-                                               index_path,
+                                               ph_index,
                                                out_dir,
                                                "", // reference
                                                ".", // region
+                                               primers,
                                                5, //minimum_variant_support,
                                                0.25, //minimum_variant_support_ratio,
                                                is_writing_calls_vcf,
@@ -332,6 +332,7 @@ genotype(std::string ref_path,
   bool is_writing_calls_vcf{true};
   bool is_writing_hap{true};
   bool is_discovery{true};
+
   long minimum_variant_support = 5;
   double minimum_variant_support_ratio = 0.25;
   gyper::Options const & copts = *(Options::const_instance());
@@ -408,10 +409,19 @@ genotype(std::string ref_path,
   GenomicRegion padded_region(region);
   padded_region.pad(1000l);
 
+  // Read primers from amplicon sequencing if they were specified
+  std::unique_ptr<Primers> primers;
+
+  if (copts.primer_bedpe.size() > 0)
+  {
+    BOOST_LOG_TRIVIAL(info) << "Reading primers from " << copts.primer_bedpe;
+    primers = std::unique_ptr<Primers>(new Primers(copts.primer_bedpe));
+  }
+
   if (copts.vcf.size() > 0)
   {
     BOOST_LOG_TRIVIAL(info) << "Genotyping a input VCF";
-    genotype_only_with_a_vcf(ref_path, shrinked_sams, region, padded_region, tmp);
+    genotype_only_with_a_vcf(ref_path, shrinked_sams, region, padded_region, primers.get(), tmp);
   }
   else
   {
@@ -433,7 +443,7 @@ genotype(std::string ref_path,
       // Save graph in debug mode
       save_graph(out_dir + "/graph");
 #endif // NDEBUG
-      absolute_pos.calculate_offsets(gyper::graph);
+      absolute_pos.calculate_offsets(gyper::graph.contigs);
       auto output_paths = gyper::discover_directly_from_bam("",
                                                             shrinked_sams,
                                                             padded_region.to_string(),
@@ -474,12 +484,20 @@ genotype(std::string ref_path,
     }
 #endif // NDEBUG
 
+    long FIRST_CALLONLY_ITERATION = 3;
+    long LAST_ITERATION = 4;
+
     // Iteration 2
-    //if (false)
+    if (Options::const_instance()->is_only_cigar_discovery)
+    {
+      // Skip the graphtyper discovery iteration
+      --FIRST_CALLONLY_ITERATION;
+      --LAST_ITERATION;
+    }
+    else
     {
       BOOST_LOG_TRIVIAL(info) << "Further variant discovery step starting.";
       std::string const out_dir = tmp + "/it2";
-      std::string const index_path = out_dir + "/graph_gti";
       std::string const haps_output_vcf = out_dir + "/haps.vcf.gz";
       std::string const discovery_output_vcf = out_dir + "/discovery.vcf.gz";
       mkdir(out_dir.c_str(), 0755);
@@ -488,7 +506,7 @@ genotype(std::string ref_path,
       // Save graph in debug mode
       save_graph(out_dir + "/graph");
 #endif // NDEBUG
-      index_graph(index_path);
+      PHIndex ph_index = index_graph(gyper::graph);
 
       minimum_variant_support = copts.genotype_dis_min_support;
       minimum_variant_support_ratio = copts.genotype_dis_min_support_ratio;
@@ -496,10 +514,11 @@ genotype(std::string ref_path,
       std::vector<std::string> paths =
         gyper::call(shrinked_sams,
                     "", // graph_path
-                    index_path,
+                    ph_index,
                     out_dir,
                     "", // reference
                     ".",       // region
+                    primers.get(),
                     minimum_variant_support,
                     minimum_variant_support_ratio,
                     is_writing_calls_vcf,
@@ -531,14 +550,10 @@ genotype(std::string ref_path,
 
       // free memory
       graph = Graph();
-      mem_index = MemIndex();
     }
 
     is_discovery = false; // No more discovery
     std::vector<std::string> paths;
-
-    long constexpr FIRST_CALLONLY_ITERATION = 3;
-    long constexpr LAST_ITERATION = 4;
 
     // Iteration FIRST_CALLONLY_ITERATION-LAST_ITERATION
     for (long i = FIRST_CALLONLY_ITERATION; i <= LAST_ITERATION; ++i)
@@ -565,7 +580,6 @@ genotype(std::string ref_path,
       }
 
       mkdir(out_dir.c_str(), 0755);
-      std::string const index_path = out_dir + "/graph_gti";
       std::string const haps_output_vcf = out_dir + "/final.vcf.gz";
       construct_graph(ref_path, prev_out_vcf, padded_region.to_string(), false, true, false);
 
@@ -574,13 +588,14 @@ genotype(std::string ref_path,
       save_graph(out_dir + "/graph");
 #endif // NDEBUG
 
-      index_graph(index_path);
+      PHIndex ph_index = index_graph(gyper::graph);
       paths = gyper::call(shrinked_sams,
                           "", // graph_path
-                          index_path,
+                          ph_index,
                           out_dir,
                           "", // reference
                           ".", // region
+                          primers.get(),
                           minimum_variant_support,
                           minimum_variant_support_ratio,
                           is_writing_calls_vcf,
@@ -605,7 +620,6 @@ genotype(std::string ref_path,
 
         // free memory
         graph = Graph();
-        mem_index = MemIndex();
       }
     }
 

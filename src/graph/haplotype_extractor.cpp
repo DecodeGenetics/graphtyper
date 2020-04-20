@@ -325,6 +325,8 @@ find_variants_in_alignment(uint32_t const pos,
 void
 post_process_hap_calls(std::vector<gyper::HaplotypeCall> & hap_calls)
 {
+  Options const & copts = *(Options::const_instance());
+
   ///*
   for (auto & hap_call : hap_calls)
   {
@@ -362,7 +364,7 @@ post_process_hap_calls(std::vector<gyper::HaplotypeCall> & hap_calls)
     // Make the calls unique
     calls.erase(std::unique(calls.begin(), calls.end()), calls.end());
 
-    if (static_cast<long>(occurences.size()) > Options::instance()->max_extracted_haplotypes)
+    if (static_cast<long>(occurences.size()) > copts.max_extracted_haplotypes)
     {
       long min_calls{2};
 
@@ -373,7 +375,7 @@ post_process_hap_calls(std::vector<gyper::HaplotypeCall> & hap_calls)
             return a >= min_calls;
           });
 
-        if (unique_calls <= Options::const_instance()->max_extracted_haplotypes)
+        if (unique_calls <= copts.max_extracted_haplotypes)
           break;
 
 
@@ -404,7 +406,7 @@ post_process_hap_calls(std::vector<gyper::HaplotypeCall> & hap_calls)
     std::unordered_set<uint16_t> bad_calls;
 
     // Check for high impurity if we have multiple samples
-    if (hap_call.num_samples >= 50)
+    if (hap_call.num_samples >= 50 && copts.impurity_threshold < 0.25)
     {
       for (long i = 0; i < static_cast<long>(hap_call.haplotype_impurity.size()); ++i)
       {
@@ -412,7 +414,7 @@ post_process_hap_calls(std::vector<gyper::HaplotypeCall> & hap_calls)
         assert(impurity > -0.001);
         assert(impurity < 0.251);
 
-        if (impurity > Options::const_instance()->impurity_threshold)
+        if (impurity > copts.impurity_threshold)
         {
           BOOST_LOG_TRIVIAL(debug) << "Too high impurity of " << impurity << " on haplotype " << (i + 1);
           bad_calls.insert(i + 1);
@@ -448,7 +450,7 @@ post_process_hap_calls(std::vector<gyper::HaplotypeCall> & hap_calls)
         unsigned const div = call / q;
         assert(div < rs.size());
 
-        if (div > 0)
+        if (copts.filter_on_read_bias && copts.filter_on_strand_bias && div > 0)
         {
           auto const & rs_num = rs[div];
           long const weight = rs_num.get_weight();
@@ -461,7 +463,7 @@ post_process_hap_calls(std::vector<gyper::HaplotypeCall> & hap_calls)
 #ifndef NDEBUG
             BOOST_LOG_TRIVIAL(debug) << "Heavy read/strand bias: " << max_bias << " / " << weight
                                      << " " << rs_num.str();
-#endif //NDEBUG
+#endif // ifndef NDEBUG
             break;
           }
         }

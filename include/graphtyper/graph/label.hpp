@@ -15,7 +15,6 @@ class RefNode;
 class VarNode;
 
 
-
 class Label
 {
   friend class boost::serialization::access;
@@ -23,10 +22,11 @@ class Label
   friend class gyper::VarNode;
 
 public:
-  uint32_t order;
-  std::vector<char> dna;
-  uint16_t variant_num;
+  uint32_t order{0};
+  std::vector<char> dna{};
+  uint16_t variant_num{0};
 
+  Label() noexcept;
   Label(Label const & l) noexcept;
   Label(Label && l) noexcept;
   Label(uint32_t const & order, std::vector<char> && dna, uint16_t const & variant_num) noexcept;
@@ -37,8 +37,6 @@ public:
   uint32_t reach() const;
 
 private:
-  Label() noexcept;
-
   template <typename Archive>
   void serialize(Archive & ar, const unsigned int);
 };

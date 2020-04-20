@@ -16,6 +16,7 @@
 #include <graphtyper/graph/reference_depth.hpp>
 #include <graphtyper/typer/alignment.hpp>
 #include <graphtyper/typer/genotype_paths.hpp>
+#include <graphtyper/typer/primers.hpp>
 #include <graphtyper/typer/variant_map.hpp>
 #include <graphtyper/typer/vcf.hpp>
 #include <graphtyper/typer/vcf_writer.hpp>
@@ -271,6 +272,8 @@ genotype_only(HtsParallelReader const & hts_preader,
               ReferenceDepth & reference_depth,
               std::vector<TMapGPaths> & maps,
               std::pair<GenotypePaths, GenotypePaths> & prev_paths,
+              PHIndex const & ph_index,
+              Primers const * primers,
               HtsRecord const & hts_rec,
               seqan::IupacString & seq,
               seqan::IupacString & rseq,
@@ -295,7 +298,7 @@ genotype_only(HtsParallelReader const & hts_preader,
   if (update_prev_paths)
   {
     get_sequence(seq, rseq, hts_rec.record);
-    prev_paths = align_read(hts_rec.record, seq, rseq);
+    prev_paths = align_read(hts_rec.record, seq, rseq, ph_index);
   }
 
   std::pair<GenotypePaths, GenotypePaths> geno_paths(prev_paths);
@@ -327,7 +330,7 @@ genotype_only(HtsParallelReader const & hts_preader,
           reference_depth.add_genotype_paths(*selected, sample_i);
         }
 
-        writer.update_haplotype_scores_geno(*selected, sample_i);
+        writer.update_haplotype_scores_geno(*selected, sample_i, primers);
       }
     }
   }
@@ -360,8 +363,8 @@ genotype_only(HtsParallelReader const & hts_preader,
         reference_depth.add_genotype_paths(*better_paths.second, sample_i);
       }
 
-      writer.update_haplotype_scores_geno(*better_paths.first, sample_i);
-      writer.update_haplotype_scores_geno(*better_paths.second, sample_i);
+      writer.update_haplotype_scores_geno(*better_paths.first, sample_i, primers);
+      writer.update_haplotype_scores_geno(*better_paths.second, sample_i, primers);
     }
 
     map_gpaths.erase(find_it); // Remove the read name afterwards
@@ -376,11 +379,12 @@ genotype_and_discover(HtsParallelReader const & hts_preader,
                       VariantMap & varmap,
                       std::vector<TMapGPaths> & maps,
                       std::pair<GenotypePaths, GenotypePaths> & prev_paths,
+                      PHIndex const & ph_index,
+                      Primers const * primers,
                       HtsRecord const & hts_rec,
                       seqan::IupacString & seq,
                       seqan::IupacString & rseq,
-                      bool update_prev_paths
-                      )
+                      bool update_prev_paths)
 {
   assert(hts_rec.record);
   assert(hts_rec.file_index >= 0);
@@ -399,7 +403,7 @@ genotype_and_discover(HtsParallelReader const & hts_preader,
   if (update_prev_paths)
   {
     get_sequence(seq, rseq, hts_rec.record); // Updates seq and rseq
-    prev_paths = align_read(hts_rec.record, seq, rseq);
+    prev_paths = align_read(hts_rec.record, seq, rseq, ph_index);
   }
 
   std::pair<GenotypePaths, GenotypePaths> geno_paths(prev_paths);
@@ -439,7 +443,7 @@ genotype_and_discover(HtsParallelReader const & hts_preader,
         reference_depth.add_genotype_paths(*selected, sample_i);
 
         // Update haplotype likelihood scores
-        writer.update_haplotype_scores_geno(*selected, sample_i);
+        writer.update_haplotype_scores_geno(*selected, sample_i, primers);
       }
     }
   }
@@ -484,8 +488,8 @@ genotype_and_discover(HtsParallelReader const & hts_preader,
       reference_depth.add_genotype_paths(*better_paths.first, sample_i);
       reference_depth.add_genotype_paths(*better_paths.second, sample_i);
 
-      writer.update_haplotype_scores_geno(*better_paths.first, sample_i);
-      writer.update_haplotype_scores_geno(*better_paths.second, sample_i);
+      writer.update_haplotype_scores_geno(*better_paths.first, sample_i, primers);
+      writer.update_haplotype_scores_geno(*better_paths.second, sample_i, primers);
     }
 
     map_gpaths.erase(find_it); // Remove the read name afterwards
@@ -499,6 +503,8 @@ parallel_reader_genotype_only(std::string * out_path,
                               std::string const & output_dir,
                               std::string const & reference,
                               std::string const & region,
+                              PHIndex const & ph_index,
+                              Primers const * primers,
                               bool const is_writing_calls_vcf,
                               bool const is_writing_hap)
 {
@@ -531,37 +537,46 @@ parallel_reader_genotype_only(std::string * out_path,
   maps.resize(hts_preader.get_num_rg());
 
 #ifndef NDEBUG
-  if (Options::instance()->stats.size() > 0)
+  if (Options::const_instance()->stats.size() > 0)
   {
     writer.print_statistics_headers();
     writer.print_variant_details();
     writer.print_variant_group_details();
   }
-#endif // NDEBUG
+#endif // ifndef NDEBUG
 
-  long num_records = 0;
-  long num_duplicated_records = 0;
+  long num_records{0};
+  long num_duplicated_records{0};
   std::pair<GenotypePaths, GenotypePaths> prev_paths;
   HtsRecord prev;
 
   // Read the first record
-  if (!hts_preader.read_record(prev))
+  bool is_done = !hts_preader.read_record(prev);
+  assert(is_done || prev.record);
+
+  while (!is_done && (prev.record->core.flag & Options::const_instance()->sam_flag_filter) != 0u)
   {
-    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::utilities::hts_parallel_reader] No reads read.";
+    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Reread first record";
+    is_done = !hts_preader.read_record(prev);
+  }
+
+  if (is_done)
+  {
+    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " No reads found in BAM.";
   }
   else
   {
     ++num_records;
     seqan::IupacString seq;
     seqan::IupacString rseq;
-    genotype_only(hts_preader, writer, reference_depth, maps, prev_paths, prev, seq, rseq,
+    genotype_only(hts_preader, writer, reference_depth, maps, prev_paths, ph_index, primers, prev, seq, rseq,
                   true /*update prev_geno_paths*/);
     HtsRecord curr;
 
     while (hts_preader.read_record(curr))
     {
       // Ignore reads with the following bits set
-      if ((curr.record->core.flag & (IS_SECONDARY | IS_QC_FAIL | IS_DUPLICATION | IS_SUPPLEMENTARY)) != 0u)
+      if ((curr.record->core.flag & Options::const_instance()->sam_flag_filter) != 0u)
         continue;
 
       ++num_records;
@@ -570,12 +585,12 @@ parallel_reader_genotype_only(std::string * out_path,
       {
         // The two records are equal
         ++num_duplicated_records;
-        genotype_only(hts_preader, writer, reference_depth, maps, prev_paths, curr, seq, rseq,
+        genotype_only(hts_preader, writer, reference_depth, maps, prev_paths, ph_index, primers, curr, seq, rseq,
                       false /*update prev_geno_paths*/);
       }
       else
       {
-        genotype_only(hts_preader, writer, reference_depth, maps, prev_paths, curr, seq, rseq,
+        genotype_only(hts_preader, writer, reference_depth, maps, prev_paths, ph_index, primers, curr, seq, rseq,
                       true /*update prev_geno_paths*/);
         hts_preader.move_record(prev, curr); // move curr to prev
       }
@@ -650,6 +665,8 @@ parallel_reader_with_discovery(std::string * out_path,
                                std::string const & output_dir,
                                std::string const & reference,
                                std::string const & region,
+                               PHIndex const & ph_index,
+                               Primers const * primers,
                                long const minimum_variant_support,
                                double const minimum_variant_support_ratio,
                                bool const is_writing_calls_vcf,
@@ -679,13 +696,13 @@ parallel_reader_with_discovery(std::string * out_path,
   maps.resize(hts_preader.get_num_rg());
 
 #ifndef NDEBUG
-  if (Options::instance()->stats.size() > 0)
+  if (Options::const_instance()->stats.size() > 0)
   {
     writer.print_statistics_headers();
     writer.print_variant_details();
     writer.print_variant_group_details();
   }
-#endif // NDEBUG
+#endif // ifndef NDEBUG
 
   long num_records = 0;
   long num_duplicated_records = 0;
@@ -693,23 +710,32 @@ parallel_reader_with_discovery(std::string * out_path,
   HtsRecord prev;
 
   // Read the first record
-  if (!hts_preader.read_record(prev))
+  bool is_done = !hts_preader.read_record(prev);
+  assert(is_done || prev.record);
+
+  while (!is_done && (prev.record->core.flag & Options::const_instance()->sam_flag_filter) != 0u)
   {
-    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::hts_parallel_reader] No reads were read.";
+    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Reread first record";
+    is_done = !hts_preader.read_record(prev);
+  }
+
+  if (is_done)
+  {
+    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " No reads found in BAM.";
   }
   else
   {
     ++num_records;
     seqan::IupacString seq;
     seqan::IupacString rseq;
-    genotype_and_discover(hts_preader, writer, reference_depth, varmap, maps, prev_paths, prev,
+    genotype_and_discover(hts_preader, writer, reference_depth, varmap, maps, prev_paths, ph_index, primers, prev,
                           seq, rseq, true /*update prev_geno_paths*/);
     HtsRecord curr;
 
     while (hts_preader.read_record(curr))
     {
       // Ignore reads with the following bits set
-      if ((curr.record->core.flag & (IS_SECONDARY | IS_QC_FAIL | IS_DUPLICATION | IS_SUPPLEMENTARY)) != 0u)
+      if ((curr.record->core.flag & Options::const_instance()->sam_flag_filter) != 0u)
         continue;
 
       ++num_records;
@@ -718,12 +744,12 @@ parallel_reader_with_discovery(std::string * out_path,
       {
         // The two records are equal
         ++num_duplicated_records;
-        genotype_and_discover(hts_preader, writer, reference_depth, varmap, maps, prev_paths, curr,
+        genotype_and_discover(hts_preader, writer, reference_depth, varmap, maps, prev_paths, ph_index, primers, curr,
                               seq, rseq, false /*update prev_geno_paths*/);
       }
       else
       {
-        genotype_and_discover(hts_preader, writer, reference_depth, varmap, maps, prev_paths, curr,
+        genotype_and_discover(hts_preader, writer, reference_depth, varmap, maps, prev_paths, ph_index, primers, curr,
                               seq, rseq, true /*update prev_geno_paths*/);
         hts_preader.move_record(prev, curr); // move curr to prev
       }

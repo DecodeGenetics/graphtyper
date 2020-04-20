@@ -20,7 +20,8 @@ save_graph(std::string const & graph_path)
 
   if (!ofs.is_open())
   {
-    BOOST_LOG_TRIVIAL(fatal) << "[graphtyper::constructor] Could not save graph at '" << graph_path << "'";
+    BOOST_LOG_TRIVIAL(fatal) << "[graphtyper::constructor] Could not save graph at '" <<
+      graph_path << "'";
     std::exit(1);
   }
 
@@ -38,7 +39,8 @@ load_graph(std::string const & graph_path)
 
   if (!ifs.is_open())
   {
-    BOOST_LOG_TRIVIAL(fatal) << "[graphtyper::constructor] Could not load graph at '" << graph_path << "'";
+    BOOST_LOG_TRIVIAL(fatal) << "[graphtyper::constructor] Could not load graph at '" <<
+      graph_path << "'";
     std::exit(1);
   }
 
@@ -48,7 +50,7 @@ load_graph(std::string const & graph_path)
 
   // Create a reference genome each time the graph is loaded
   graph.generate_reference_genome();
-  absolute_pos.calculate_offsets(graph);
+  absolute_pos.calculate_offsets(graph.contigs);
 }
 
 
@@ -60,7 +62,8 @@ load_secondary_graph(std::string const & graph_path)
 
   if (!ifs.is_open())
   {
-    BOOST_LOG_TRIVIAL(fatal) << "[graphtyper::constructor] Could not load graph at '" << graph_path << "'";
+    BOOST_LOG_TRIVIAL(fatal) << "[graphtyper::constructor] Could not load graph at '" <<
+      graph_path << "'";
     std::exit(1);
   }
 

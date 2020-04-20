@@ -7,7 +7,7 @@
 namespace bamshrink
 {
 
-class Options;
+struct Options;
 
 }
 

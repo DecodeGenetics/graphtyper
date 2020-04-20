@@ -290,10 +290,6 @@ Variant::generate_infos()
   uint64_t n_ref_alt = 0u;
   uint64_t n_alt_alt = 0u;
 
-  // Num homozygous and heterozygous
-  uint64_t n_hom = 0u;
-  uint64_t n_het = 0u;
-
   // Maximum number of alt proper pairs (MaxAltPP)
   uint8_t n_max_alt_proper_pairs = 0u;
 
@@ -358,7 +354,6 @@ Variant::generate_infos()
         {
           het_allele_depth.first += sample_call.coverage[call.first];
           het_allele_depth.second += sample_call.coverage[call.second];
-          ++n_het;
         }
         else
         {
@@ -367,7 +362,6 @@ Variant::generate_infos()
                                                      sample_call.coverage.cend(),
                                                      0ull
                                                      ) - sample_call.coverage[call.first];
-          ++n_hom;
         }
       }
 
@@ -526,9 +520,9 @@ Variant::generate_infos()
   {
     std::ostringstream n_gt;
     n_gt << n_ref_ref << "," << n_ref_alt << "," << n_alt_alt;
-    infos["NGT"] = n_gt.str();
-    infos["NHet"] = std::to_string(n_het);
-    infos["NHom"] = std::to_string(n_hom);
+    infos["NHomRef"] = std::to_string(n_ref_ref);
+    infos["NHet"] = std::to_string(n_ref_alt);
+    infos["NHomAlt"] = std::to_string(n_alt_alt);
   }
 
   // Write SeqDepth
@@ -1016,7 +1010,7 @@ std::string
 Variant::print() const
 {
   std::stringstream os;
-  auto contig_pos = absolute_pos.get_contig_position(this->abs_pos, gyper::graph);
+  auto contig_pos = absolute_pos.get_contig_position(this->abs_pos, gyper::graph.contigs);
   os << contig_pos.first << "\t" << contig_pos.second;
 
   if (this->seqs.size() > 0)
@@ -1169,9 +1163,88 @@ Variant::get_qual_by_depth() const
 }
 
 
+std::vector<Variant>
+make_biallelic(Variant && var)
+{
+  std::vector<Variant> out;
+
+  if (var.seqs.size() == 2)
+  {
+    // Already biallelic
+    out.push_back(std::move(var));
+    return out;
+  }
+
+  for (long a = 1; a < static_cast<long>(var.seqs.size()); ++a)
+  {
+    Variant new_var;
+    new_var.seqs.push_back(var.seqs[0]);
+    new_var.seqs.push_back(var.seqs[a]);
+    new_var.abs_pos = var.abs_pos; // Add the pos
+    new_var.infos = var.infos; // Copy the INFOs
+    new_var.suffix_id = var.suffix_id; // Copy the suffix ID
+    std::vector<uint16_t> old_phred_to_new_phred(var.seqs.size(), 0);
+    old_phred_to_new_phred[a] = 1;
+
+    for (long i = 0; i < static_cast<long>(var.calls.size()); ++i)
+    {
+      auto const & call = var.calls[i];
+
+      SampleCall new_sample_call;
+      new_sample_call.phred = std::vector<uint8_t>(3, 255u);
+      new_sample_call.coverage = std::vector<uint16_t>(2, 0u);
+      new_sample_call.ambiguous_depth = call.ambiguous_depth;
+      new_sample_call.ref_total_depth = call.ref_total_depth;
+      new_sample_call.alt_total_depth = call.alt_total_depth;
+      new_sample_call.alt_proper_pair_depth = call.alt_proper_pair_depth;
+
+      for (uint32_t y = 0; y < var.seqs.size(); ++y)
+      {
+        uint32_t const new_y = old_phred_to_new_phred[y];
+
+        for (uint32_t x = 0; x <= y; ++x)
+        {
+          uint32_t const index = static_cast<uint32_t>(to_index(x, y));
+          uint32_t const new_x = old_phred_to_new_phred[x];
+          long new_index;
+
+          if (new_x > new_y)
+            new_index = to_index(new_y, new_x);
+          else
+            new_index = to_index(new_x, new_y);
+
+          new_sample_call.phred[new_index] = std::min(new_sample_call.phred[new_index], call.phred[index]);
+        }
+
+        // Check overflow of coverage
+        if (static_cast<uint32_t>(new_sample_call.coverage[new_y]) +
+            static_cast<uint32_t>(call.coverage[y]) < 0xFFFFul)
+        {
+          new_sample_call.coverage[new_y] += call.coverage[y];
+        }
+        else
+        {
+          new_sample_call.coverage[new_y] = 0xFFFFul;
+        }
+      }
+
+      new_var.calls.push_back(std::move(new_sample_call));
+    }
+
+    update_strand_bias(var.seqs.size(), new_var.seqs.size(), old_phred_to_new_phred, var, new_var);
+    out.push_back(std::move(new_var));
+  }
+
+  return out;
+}
+
+
 // Variants functions
 std::vector<Variant>
-break_down_variant(Variant && var, long const reach, bool const is_no_variant_overlapping)
+break_down_variant(Variant && var,
+                   long const reach,
+                   bool const is_no_variant_overlapping,
+                   bool const is_all_biallelic)
 {
   std::vector<Variant> broken_down_vars;
 
@@ -1181,7 +1254,7 @@ break_down_variant(Variant && var, long const reach, bool const is_no_variant_ov
       return c == '<' || c == '[' || c == ']';
     })))
   {
-    broken_down_vars.push_back(std::move(var)); // Don't break down SVs
+    broken_down_vars.push_back(std::move(var)); // Don't break down SVs or if "no_decompose" was given
     return broken_down_vars;
   }
 
@@ -1219,12 +1292,26 @@ break_down_variant(Variant && var, long const reach, bool const is_no_variant_ov
 
     std::move(new_broken_down_vars.begin(),
               new_broken_down_vars.end(),
-              std::back_inserter(broken_down_vars)
-              );
+              std::back_inserter(broken_down_vars));
   }
   else
   {
     broken_down_vars.push_back(std::move(var));
+  }
+
+  if (is_all_biallelic)
+  {
+    // Make everything biallelic
+    std::vector<Variant> broken_down_vars2;
+
+    for (auto && var : broken_down_vars)
+    {
+      auto new_vars = make_biallelic(std::move(var));
+      std::move(new_vars.begin(), new_vars.end(), std::back_inserter(broken_down_vars2));
+    }
+
+    // replace origin broken down vars with biallelic variants
+    broken_down_vars = std::move(broken_down_vars2);
   }
 
   return broken_down_vars;
@@ -1661,45 +1748,6 @@ break_down_skyr(Variant && var, long const reach)
 
     update_strand_bias(seqs.size(), new_var.seqs.size(), old_phred_to_new_phred, var, new_var);
     new_vars.push_back(std::move(new_var));
-
-    /*
-    std::cout << new_edit.pos << '\t';
-
-    // Loop over alleles
-    for (long s = 0; s < static_cast<long>(new_var.seqs.size()); ++s)
-    {
-      if (s > 0)
-        std::cout << ",";
-
-      std::cout << std::string(new_var.seqs[s].begin(), new_var.seqs[s].end());
-    }
-
-    std::cout << '\t';
-
-    // Loop over edit alleles
-    for (long s = 0; s < static_cast<long>(new_edit.seqs.size()); ++s)
-    {
-      if (s > 0)
-        std::cout << ",";
-
-      if (new_edit.seqs[s].size() == 0)
-        std::cout << '-';
-      else
-        std::cout << new_edit.seqs[s];
-    }
-    std::cout << '\t';
-
-    // Loop over alignments
-    for (long i = 0; i < static_cast<long>(skyr.seqs.size()); ++i)
-    {
-      if (i > 0)
-        std::cout << '\t';
-
-      std::cout << std::to_string(new_edit.get_call(i));
-    }
-
-    std::cout << '\n';
-    */
   }
 
   return new_vars;

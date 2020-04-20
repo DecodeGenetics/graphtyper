@@ -19,88 +19,16 @@
 #include <graphtyper/graph/graph_serialization.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
 #include <graphtyper/utilities/options.hpp>
+#include <graphtyper/constants.hpp>
 
-
-namespace
-{
-
-bool inline
-is_file(std::string const & filename)
-{
-  struct stat sb;
-
-  if (stat(filename.c_str(), &sb) == 0 && (S_ISREG(sb.st_mode) || S_ISLNK(sb.st_mode)))
-  {
-    return true;
-  }
-
-  return false;
-}
-
-
-} // anon namespace
-
-
-void
-create_graph(std::string const & fasta,
-             std::string const & vcf,
-             std::string const & region,
-             bool const use_absolute_positions = true
-             )
-{
-  gyper::GenomicRegion const genomic_region(region);
-  std::stringstream vcf_path;
-  vcf_path << gyper_SOURCE_DIRECTORY << vcf;
-  std::stringstream reference_path;
-  reference_path << gyper_SOURCE_DIRECTORY << fasta;
-
-  BOOST_LOG_TRIVIAL(debug) << "Creating a graph for " << reference_path.str() << " " << vcf_path.str()
-                           << " at region " << region;
-
-  gyper::construct_graph(reference_path.str(), vcf_path.str(), region, use_absolute_positions);
-  std::stringstream graph_path;
-  graph_path << gyper_SOURCE_DIRECTORY << "/test/data/graphs";
-
-  std::string graph_directory(graph_path.str());
-
-  // Check if directory exists, and of not, create it
-  struct stat st;
-
-  if (stat(graph_directory.c_str(), &st) == -1)
-  {
-    mkdir(graph_directory.c_str(), 0755);
-  }
-
-  graph_path << fasta.substr(20, fasta.size() - 3 - 20) << '_' << genomic_region.chr << ".grf";
-  REQUIRE(gyper::graph.size() > 0);
-  REQUIRE(gyper::graph.check());
-
-  {
-    std::ofstream ofs(graph_path.str().c_str(), std::ios::binary);
-    REQUIRE(ofs.is_open());
-    boost::archive::binary_oarchive oa(ofs);
-    oa << gyper::graph;
-  }
-
-  // test open
-  {
-    gyper::Graph new_graph;
-    std::ifstream ifs(graph_path.str().c_str(), std::ios::binary);
-    REQUIRE(ifs.is_open());
-    boost::archive::binary_iarchive ia(ifs);
-    ia >> new_graph;
-
-    REQUIRE(new_graph.size() == gyper::graph.size());
-    REQUIRE(new_graph.genomic_region.chr == gyper::graph.genomic_region.chr);
-    REQUIRE(new_graph.genomic_region.begin == gyper::graph.genomic_region.begin);
-    REQUIRE(new_graph.genomic_region.end == gyper::graph.genomic_region.end);
-  }
-}
+#include "../help_functions.hpp" // create_test_graph
 
 
 TEST_CASE("Construct test graph (chr1)")
 {
-  create_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr1", true);
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST CASE: Construct test graph (chr1)";
+
+  create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr1", true);
 
   REQUIRE(gyper::graph.ref_nodes.size() == 2);
   REQUIRE(gyper::graph.var_nodes.size() == 2);
@@ -108,7 +36,7 @@ TEST_CASE("Construct test graph (chr1)")
   std::vector<gyper::RefNode> const & ref_nodes = gyper::graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = gyper::graph.var_nodes;
 
-  SECTION("The nodes should be correctly connected")
+  // The nodes should be correctly connected
   {
     REQUIRE(ref_nodes[0].out_degree() == 2);
     REQUIRE(ref_nodes[0].get_var_index(0) == 0);
@@ -123,7 +51,7 @@ TEST_CASE("Construct test graph (chr1)")
     REQUIRE(ref_nodes[1].out_degree() == 0);
   }
 
-  SECTION("The nodes should have the correct order")
+  // The nodes should have the correct order
   {
     REQUIRE(ref_nodes[0].get_label().order == 1);
     REQUIRE(var_nodes[0].get_label().order == 37);
@@ -131,7 +59,7 @@ TEST_CASE("Construct test graph (chr1)")
     REQUIRE(ref_nodes[1].get_label().order == 38);
   }
 
-  SECTION("The nodes should have a label with the correct DNA bases")
+  // The nodes should have a label with the correct DNA bases
   {
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("AGGTTTCCCCAGGTTTCCCCAGGTTTCCCCAGGTTT"));
     REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("C"));
@@ -145,7 +73,9 @@ TEST_CASE("Construct test graph (chr1) but with absolute positions")
 {
   using namespace gyper;
 
-  create_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr1", true);
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__
+                           << "] TEST CASE: Construct test graph (chr1) but with absolute positions.";
+  create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr1", true);
 
   REQUIRE(graph.ref_nodes.size() == 2);
   REQUIRE(graph.var_nodes.size() == 2);
@@ -153,7 +83,7 @@ TEST_CASE("Construct test graph (chr1) but with absolute positions")
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-  SECTION("The nodes should be correctly connected")
+  // SECTION("The nodes should be correctly connected")
   {
     REQUIRE(ref_nodes[0].out_degree() == 2);
     REQUIRE(ref_nodes[0].get_var_index(0) == 0);
@@ -168,7 +98,7 @@ TEST_CASE("Construct test graph (chr1) but with absolute positions")
     REQUIRE(ref_nodes[1].out_degree() == 0);
   }
 
-  SECTION("The nodes should have the correct order")
+  // SECTION("The nodes should have the correct order")
   {
     REQUIRE(ref_nodes[0].get_label().order == 0 + 1);
     REQUIRE(var_nodes[0].get_label().order == 36 + 1);
@@ -176,7 +106,7 @@ TEST_CASE("Construct test graph (chr1) but with absolute positions")
     REQUIRE(ref_nodes[1].get_label().order == 37 + 1);
   }
 
-  SECTION("The nodes should have a label with the correct DNA bases")
+  // SECTION("The nodes should have a label with the correct DNA bases")
   {
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("AGGTTTCCCCAGGTTTCCCCAGGTTTCCCCAGGTTT"));
     REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("C"));
@@ -190,7 +120,8 @@ TEST_CASE("Construct test graph (chr2)")
 {
   using namespace gyper;
 
-  create_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr2", true);
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Construct test graph (chr2).";
+  create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr2", true);
 
   REQUIRE(graph.ref_nodes.size() == 3);
   REQUIRE(graph.var_nodes.size() == 4);
@@ -198,7 +129,7 @@ TEST_CASE("Construct test graph (chr2)")
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-  SECTION("The nodes should be correctly connected")
+  // SECTION("The nodes should be correctly connected")
   {
     REQUIRE(ref_nodes[0].out_degree() == 2);
     REQUIRE(ref_nodes[0].get_var_index(0) == 0);
@@ -216,7 +147,7 @@ TEST_CASE("Construct test graph (chr2)")
     REQUIRE(ref_nodes[2].out_degree() == 0);
   }
 
-  SECTION("The nodes should have the correct order")
+  // SECTION("The nodes should have the correct order")
   {
     REQUIRE(ref_nodes[0].get_label().order == 0 + 67);
     REQUIRE(var_nodes[0].get_label().order == 1 + 67);
@@ -227,7 +158,7 @@ TEST_CASE("Construct test graph (chr2)")
     REQUIRE(ref_nodes[2].get_label().order == 3 + 67);
   }
 
-  SECTION("The nodes should have a label with the correct DNA bases")
+  // SECTION("The nodes should have a label with the correct DNA bases")
   {
     // CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCCCCAGGTTTGGACCC
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("C"));
@@ -249,12 +180,13 @@ TEST_CASE("Construct test graph (chr3)")
   // AAAACAAAATAAAACAAAATAAAAGAAAACAAAATAAAACAAAATAAAAGAAAACATTATAAAACA
   // chr3 31 rs4 A G,GA
 
-  create_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr3", true);
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST CASE: Construct test graph (chr3).";
+  create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr3", true);
 
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-  SECTION("Nodes are correctly connected")
+  // SECTION("Nodes are correctly connected")
   {
     REQUIRE(ref_nodes[0].out_degree() == 3);
     REQUIRE(ref_nodes[0].get_var_index(0) == 0);
@@ -266,7 +198,7 @@ TEST_CASE("Construct test graph (chr3)")
     REQUIRE(var_nodes[2].get_out_ref_index() == 1);
   }
 
-  SECTION("Nodes have the correct order")
+  // SECTION("Nodes have the correct order")
   {
     REQUIRE(ref_nodes[0].get_label().order == 0  + 133);
     REQUIRE(var_nodes[0].get_label().order == 30 + 133);
@@ -275,7 +207,7 @@ TEST_CASE("Construct test graph (chr3)")
     REQUIRE(ref_nodes[1].get_label().order == 31 + 133);
   }
 
-  SECTION("Nodes have the correct bases")
+  // SECTION("Nodes have the correct bases")
   {
     REQUIRE(graph.ref_nodes.size() == 2);
     REQUIRE(graph.ref_nodes[0].get_label().dna == gyper::to_vec("AAAACAAAATAAAACAAAATAAAAGAAAAC"));
@@ -304,13 +236,16 @@ TEST_CASE("Construct test graph (chr8) in a region that fully overlaps only a se
   //chr8 31 ATATATATATATATATTTTTTTTTTTT,A
   //chr8 39 ATATATATTTTTTTTTTT,A
 
+  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__
+                           << "] TEST CASE: Construct test graph (chr8) in a region "
+                           << "that fully overlaps only a second indel";
 
-  create_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr8:1-56", true);
+  create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr8:1-56", true);
 
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-  SECTION("Nodes are correctly connected")
+  // Nodes are correctly connected
   {
     REQUIRE(ref_nodes[0].out_degree() == 2);
     REQUIRE(ref_nodes[0].get_var_index(0) == 0);
@@ -320,7 +255,7 @@ TEST_CASE("Construct test graph (chr8) in a region that fully overlaps only a se
     REQUIRE(var_nodes[1].get_out_ref_index() == 1);
   }
 
-  SECTION("Nodes have the correct order")
+  // Nodes have the correct order
   {
     REQUIRE(ref_nodes[0].get_label().order == 0  + 1105);
     REQUIRE(var_nodes[0].get_label().order == 38 + 1105);
@@ -328,7 +263,7 @@ TEST_CASE("Construct test graph (chr8) in a region that fully overlaps only a se
     REQUIRE(ref_nodes[1].get_label().order == 56 + 1105);
   }
 
-  SECTION("Nodes have the correct bases")
+  // Nodes have the correct bases
   {
     REQUIRE(graph.ref_nodes.size() == 2);
     REQUIRE(graph.ref_nodes[0].get_label().dna == gyper::to_vec("TGCAAATCTCATATATATATATATATATATATATATAT"));
@@ -351,7 +286,7 @@ TEST_CASE("Construct test graph with SV deletion (chr5)")
   // 70A 70C 70G 70T
   // chr5 70 A70C SVTYPE=DEL,SVSIZE=70
 
-  create_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr5", false);
+  create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr5", false);
 
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
@@ -391,7 +326,7 @@ TEST_CASE("Construct test graph with SV duplication (chr6)")
 {
   using namespace gyper;
 
-  create_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr6", false);
+  create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr6", false);
 
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
@@ -436,7 +371,7 @@ TEST_CASE("Construct test graph with SV duplication (chr7)")
 {
   using namespace gyper;
 
-  create_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr7", false);
+  create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr7", false);
 
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
@@ -483,7 +418,7 @@ TEST_CASE("Construct test graph (chromosome 1, without chr in front)")
 
   // AAAACAAAATAAAACAAAATAAAAGAAAACAAAATAAAACAAAATAAAAGAAAACATTATAAAACA
 
-  create_graph("/test/data/reference/index_test_b37.fa", "/test/data/reference/index_test_b37.vcf.gz", "1", true);
+  create_test_graph("/test/data/reference/index_test_b37.fa", "/test/data/reference/index_test_b37.vcf.gz", "1", true);
 
   REQUIRE(gyper::graph.ref_nodes.size() == 2);
   REQUIRE(gyper::graph.var_nodes.size() == 2);
