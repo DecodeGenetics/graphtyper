@@ -54,6 +54,7 @@ set(graphtyper_SOURCE_FILES
 # Object libarary
 add_library(graphtyper_objects OBJECT ${graphtyper_SOURCE_FILES})
 add_dependencies(graphtyper_objects project_htslib) # Depends on building htslib
+add_dependencies(graphtyper_objects project_paw) # Depends on building paw
 
 # Binary
 add_executable(graphtyper main.cpp $<TARGET_OBJECTS:graphtyper_objects>)

@@ -112,8 +112,8 @@ ExternalProject_Add(
 
 
 add_library(paw STATIC IMPORTED)
-include_directories(SYSTEM paw/include)
-include_directories(SYSTEM paw/build/include)
+include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/paw/include)
+include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/paw/build/include)
 set(paw_location ${CMAKE_CURRENT_SOURCE_DIR}/paw/build/lib/libpaw.a)
 message(STATUS "paw target location is ${paw_location}")
 set_property(TARGET paw PROPERTY IMPORTED_LOCATION ${paw_location})
