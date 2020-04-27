@@ -108,7 +108,7 @@ call(std::vector<std::string> const & hts_paths,
      std::string const & graph_path,
      PHIndex const & ph_index,
      std::string const & output_dir,
-     std::string const & reference,
+     std::string const & reference_fn,
      std::string const & region,
      Primers const * primers,
      long const minimum_variant_support,
@@ -121,7 +121,7 @@ call(std::vector<std::string> const & hts_paths,
 
   if (hts_paths.size() == 0)
   {
-    BOOST_LOG_TRIVIAL(error) << "[graphtyper::caller] No input BAM files.";
+    BOOST_LOG_TRIVIAL(error) << __HERE__ << " No input BAM files.";
     std::exit(1);
   }
 
@@ -161,15 +161,15 @@ call(std::vector<std::string> const & hts_paths,
     // Push all but the last pool to the thread pool
     if (!is_discovery)
     {
-      for (long i = 0; i < NUM_POOLS - 1; ++i)
+      for (long i = 0; i < (NUM_POOLS - 1l); ++i)
       {
         call_station.add_work(parallel_reader_genotype_only,
                               &paths[i],
                               spl_hts_paths[i].get(),
-                              output_dir,
-                              reference,
-                              region,
-                              ph_index,
+                              &output_dir,
+                              &reference_fn,
+                              &region,
+                              &ph_index,
                               primers,
                               is_writing_calls_vcf,
                               is_writing_hap);
@@ -180,25 +180,25 @@ call(std::vector<std::string> const & hts_paths,
                                  parallel_reader_genotype_only,
                                  &paths[NUM_POOLS - 1],
                                  spl_hts_paths[NUM_POOLS - 1].get(),
-                                 output_dir,
-                                 reference,
-                                 region,
-                                 ph_index,
+                                 &output_dir,
+                                 &reference_fn,
+                                 &region,
+                                 &ph_index,
                                  primers,
                                  is_writing_calls_vcf,
                                  is_writing_hap);
     }
     else
     {
-      for (long i = 0; i < NUM_POOLS - 1; ++i)
+      for (long i = 0; i < (NUM_POOLS - 1l); ++i)
       {
         call_station.add_work(parallel_reader_with_discovery,
                               &paths[i],
                               spl_hts_paths[i].get(),
-                              output_dir,
-                              reference,
-                              region,
-                              ph_index,
+                              &output_dir,
+                              &reference_fn,
+                              &region,
+                              &ph_index,
                               primers,
                               minimum_variant_support,
                               minimum_variant_support_ratio,
@@ -211,10 +211,10 @@ call(std::vector<std::string> const & hts_paths,
                                  parallel_reader_with_discovery,
                                  &paths[NUM_POOLS - 1],
                                  spl_hts_paths[NUM_POOLS - 1].get(),
-                                 output_dir,
-                                 reference,
-                                 region,
-                                 ph_index,
+                                 &output_dir,
+                                 &reference_fn,
+                                 &region,
+                                 &ph_index,
                                  primers,
                                  minimum_variant_support,
                                  minimum_variant_support_ratio,
@@ -226,7 +226,7 @@ call(std::vector<std::string> const & hts_paths,
     BOOST_LOG_TRIVIAL(info) << "Finished calling. Thread work: " << thread_info;
   }
 
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::caller] Finished calling all samples.";
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Finished calling all samples.";
   return paths;
 }
 

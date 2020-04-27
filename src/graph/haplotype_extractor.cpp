@@ -296,20 +296,21 @@ find_variants_in_alignment(uint32_t const pos,
     }
 
     // Check if high or low quality
-    long const r = new_var.abs_pos - ref_to_seq_offset - 50; // because we added 50 bp in front
+    long const r = std::max(0l, new_var.abs_pos - ref_to_seq_offset - 50l);
     long const r_end = r + new_var.seqs[1].size();
     ref_to_seq_offset += new_var.seqs[0].size() - new_var.seqs[1].size();
 
     // In case no qual is available
     if (r < static_cast<long>(qual.size()))
     {
-      long MAX_QUAL;
+      std::vector<char>::const_iterator max_qual_it;
 
       if (r_end < static_cast<long>(qual.size()))
-        MAX_QUAL = *std::max_element(qual.begin() + r, qual.begin() + r_end) - 33l;
+        max_qual_it = std::max_element(qual.begin() + r, qual.begin() + r_end);
       else
-        MAX_QUAL = *std::max_element(qual.begin() + r, qual.end()) - 33l;
+        max_qual_it = std::max_element(qual.begin() + r, qual.end());
 
+      long MAX_QUAL = (*max_qual_it) - 33l;
       new_var_candidate.flags |= static_cast<uint16_t>(static_cast<bool>(MAX_QUAL <= 25l)) << IS_LOW_BASE_QUAL_SHIFT;
     }
 

@@ -73,6 +73,7 @@ VariantSupport::is_support_above_cutoff(long const min_support) const
                             hq_support >= 4 &&
                             proper_pairs >= 3 &&
                             (_depth - clipped >= 3);
+
   Options const & copts = *(Options::const_instance());
 
   return (copts.no_filter_on_begin_pos || unique_positions.size() > 1)

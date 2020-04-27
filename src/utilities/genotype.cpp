@@ -177,7 +177,8 @@ run_bamshrink(std::vector<std::string> const & sams,
 void
 run_samtools_merge(std::vector<std::string> & shrinked_sams, std::string const & tmp)
 {
-  if ((3 * Options::const_instance()->max_files_open) < static_cast<long>(shrinked_sams.size()) &&
+  if (Options::const_instance()->is_sam_merging_allowed &&
+      Options::const_instance()->max_files_open > static_cast<long>(shrinked_sams.size()) &&
       (static_cast<long>(shrinked_sams.size()) / static_cast<long>(Options::const_instance()->threads)) >= 200l)
   {
     BOOST_LOG_TRIVIAL(info) << "Merging input files.";
@@ -518,7 +519,7 @@ genotype(std::string ref_path,
                     out_dir,
                     "", // reference
                     ".",       // region
-                    primers.get(),
+                    nullptr,//primers.get(),
                     minimum_variant_support,
                     minimum_variant_support_ratio,
                     is_writing_calls_vcf,

@@ -82,6 +82,7 @@ uint16_t constexpr IS_MAPQ_BAD          = 4096;
 uint16_t constexpr IS_CLIPPED           = 8192;
 uint16_t constexpr IS_LOW_BASE_QUAL     = 16384;
 
+
 inline void
 toggle_bit(uint16_t & flag, uint16_t with)
 {

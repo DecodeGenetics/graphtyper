@@ -31,6 +31,7 @@ public:
   void add_variants(std::vector<VariantCandidate> && vars, long sample_index);
   void create_varmap_for_all(ReferenceDepth const & reference_depth);
   void filter_varmap_for_all();
+  void clear();
 
   /**
    * \brief Opens input file and creates one variant map with all variant maps in input file

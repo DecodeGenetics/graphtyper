@@ -500,16 +500,25 @@ genotype_and_discover(HtsParallelReader const & hts_preader,
 void
 parallel_reader_genotype_only(std::string * out_path,
                               std::vector<std::string> const * hts_paths_ptr,
-                              std::string const & output_dir,
-                              std::string const & reference,
-                              std::string const & region,
-                              PHIndex const & ph_index,
+                              std::string const * output_dir_ptr,
+                              std::string const * reference_fn_ptr,
+                              std::string const * region_ptr,
+                              PHIndex const * ph_index_ptr,
                               Primers const * primers,
                               bool const is_writing_calls_vcf,
                               bool const is_writing_hap)
 {
   assert(hts_paths_ptr);
+  assert(ph_index_ptr);
+  assert(output_dir_ptr);
+  assert(reference_fn_ptr);
+  assert(region_ptr);
+
   auto const & hts_paths = *hts_paths_ptr;
+  auto const & ph_index = *ph_index_ptr;
+  auto const & output_dir = *output_dir_ptr;
+  auto const & reference = *reference_fn_ptr;
+  auto const & region = *region_ptr;
 
   // Inititalize the HTS parallel reader
   HtsParallelReader hts_preader;
@@ -596,7 +605,7 @@ parallel_reader_genotype_only(std::string * out_path,
       }
     }
 
-    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::hts_parallel_reader] Num of duplicated records: "
+    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Num of duplicated records: "
                              << num_duplicated_records << " / " << num_records;
   }
 
@@ -612,7 +621,7 @@ parallel_reader_genotype_only(std::string * out_path,
     hap_calls_path << output_dir << "/" << first_sample << ".hap";
     HaplotypeCalls hap_calls(writer.get_haplotype_calls());
 
-    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::hts_parallel_reader] Writing haplotype calls to '"
+    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Writing haplotype calls to '"
                              << hap_calls_path.str() << "'";
     save_calls(hap_calls, hap_calls_path.str());
   }
@@ -620,7 +629,7 @@ parallel_reader_genotype_only(std::string * out_path,
   // Optionally we can write _calls.vcf.gz files for each pool of samples
   if (is_writing_calls_vcf)
   {
-    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::hts_parallel_reader] Writing calls to '"
+    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Writing calls to '"
                              << output_dir << "/"
                              << first_sample << "_calls.vcf.gz'";
 
@@ -635,8 +644,7 @@ parallel_reader_genotype_only(std::string * out_path,
     {
       vcf.add_haplotype(writer.haplotypes[ps],
                         true /*clear haplotypes*/,
-                        static_cast<uint32_t>(ps)
-                        );
+                        static_cast<uint32_t>(ps));
     }
 
     for (auto & var : vcf.variants)
@@ -655,6 +663,7 @@ parallel_reader_genotype_only(std::string * out_path,
     vcf.write();
   }
 
+  assert(out_path);
   *out_path = output_dir + "/" + first_sample;
 }
 
@@ -662,10 +671,10 @@ parallel_reader_genotype_only(std::string * out_path,
 void
 parallel_reader_with_discovery(std::string * out_path,
                                std::vector<std::string> const * hts_paths_ptr,
-                               std::string const & output_dir,
-                               std::string const & reference,
-                               std::string const & region,
-                               PHIndex const & ph_index,
+                               std::string const * output_dir_ptr,
+                               std::string const * reference_fn_ptr,
+                               std::string const * region_ptr,
+                               PHIndex const * ph_index_ptr,
                                Primers const * primers,
                                long const minimum_variant_support,
                                double const minimum_variant_support_ratio,
@@ -673,7 +682,16 @@ parallel_reader_with_discovery(std::string * out_path,
                                bool const is_writing_hap)
 {
   assert(hts_paths_ptr);
+  assert(ph_index_ptr);
+  assert(output_dir_ptr);
+  assert(reference_fn_ptr);
+  assert(region_ptr);
+
   auto const & hts_paths = *hts_paths_ptr;
+  auto const & ph_index = *ph_index_ptr;
+  auto const & output_dir = *output_dir_ptr;
+  auto const & reference = *reference_fn_ptr;
+  auto const & region = *region_ptr;
 
   // Initialize the HTS parallel reader
   HtsParallelReader hts_preader;
@@ -773,7 +791,7 @@ parallel_reader_with_discovery(std::string * out_path,
 
   std::ostringstream variant_map_path;
   variant_map_path << output_dir << "/" << first_sample << "_variant_map";
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::caller] Writing variant map to '" << variant_map_path.str();
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Writing variant map to '" << variant_map_path.str();
   save_variant_map(variant_map_path.str(), varmap);
 
   // Write haplotype calls
@@ -784,7 +802,7 @@ parallel_reader_with_discovery(std::string * out_path,
     hap_calls_path << output_dir << "/" << writer.pns[0] << ".hap";
     HaplotypeCalls hap_calls(writer.get_haplotype_calls());
 
-    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::hts_parallel_reader] Writing haplotype calls to '"
+    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Writing haplotype calls to '"
                              << hap_calls_path.str() << "'";
     save_calls(hap_calls, hap_calls_path.str());
   }
@@ -792,7 +810,7 @@ parallel_reader_with_discovery(std::string * out_path,
   // Optionally we can write _calls.vcf.gz files for each pool of samples
   if (is_writing_calls_vcf)
   {
-    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::hts_parallel_reader] Writing calls to '"
+    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Writing calls to '"
                              << output_dir << "/"
                              << writer.pns[0] << "_calls.vcf.gz'";
 
@@ -807,8 +825,7 @@ parallel_reader_with_discovery(std::string * out_path,
     {
       vcf.add_haplotype(writer.haplotypes[ps],
                         true /*clear haplotypes*/,
-                        static_cast<uint32_t>(ps)
-                        );
+                        static_cast<uint32_t>(ps));
     }
 
     for (auto & var : vcf.variants)
@@ -827,6 +844,7 @@ parallel_reader_with_discovery(std::string * out_path,
     vcf.write();
   }
 
+  assert(out_path);
   *out_path = output_dir + "/" + first_sample;
 }
 
@@ -860,7 +878,7 @@ sam_merge(std::string const & output_sam, std::vector<std::string> const & input
 
     if (ret < 0)
     {
-      BOOST_LOG_TRIVIAL(warning) << "[graphtyper::hts_parallel_reader] WARNING: Unable to remove " << input_sam;
+      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Unable to remove " << input_sam;
     }
   }
 }

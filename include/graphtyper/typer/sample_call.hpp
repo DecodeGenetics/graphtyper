@@ -18,8 +18,7 @@ public:
              std::vector<uint16_t> && coverage,
              uint8_t ambiguous_depth,
              uint8_t ambiguous_depth_alt,
-             uint8_t alt_proper_pair_depth
-             ) noexcept;
+             uint8_t alt_proper_pair_depth) noexcept;
 
   // If R is the number of alleles, then phred should be of size R * (R + 1) / 2 and coverage of size R.
   std::vector<uint8_t> phred; // GT and PL

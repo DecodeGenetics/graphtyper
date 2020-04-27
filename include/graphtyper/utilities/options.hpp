@@ -32,6 +32,7 @@ public:
   bool is_all_biallelic{false};
   bool is_only_cigar_discovery{false};
   bool is_discovery_only_for_paired_reads{false};
+  bool is_sam_merging_allowed{false};
   long ploidy{2};
 
   /****

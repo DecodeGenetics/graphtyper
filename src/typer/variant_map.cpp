@@ -472,6 +472,15 @@ VariantMap::filter_varmap_for_all()
 }
 
 
+void
+VariantMap::clear()
+{
+  samples.clear();
+  pool_varmap.clear();
+  varmaps.clear();
+}
+
+
 #ifndef NDEBUG
 void
 VariantMap::write_stats(std::string const & prefix)
