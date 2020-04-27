@@ -280,8 +280,7 @@ read_reference_seq(std::vector<char> & reference_sequence,
                     fasta_index,
                     chrom_idx,
                     begin,
-                    begin + length
-                    );
+                    begin + length);
 
   std::move(seqan::begin(ref_seq), seqan::end(ref_seq), std::back_inserter(reference_sequence));
 }
@@ -290,8 +289,7 @@ read_reference_seq(std::vector<char> & reference_sequence,
 void
 read_reference_genome(std::vector<char> & reference_sequence,
                       seqan::FaiIndex const & fasta_index,
-                      gyper::GenomicRegion const & genomic_region
-                      )
+                      gyper::GenomicRegion const & genomic_region)
 {
   unsigned chrom_idx = get_chrom_idx(fasta_index, genomic_region.chr);
   read_reference_seq(reference_sequence,
@@ -308,8 +306,7 @@ read_reference_genome_ends(seqan::FaiIndex const & fasta_index,
                            unsigned const chrom_idx,
                            uint32_t const begin,
                            uint32_t const end,
-                           uint32_t const length
-                           )
+                           uint32_t const length)
 {
   // Read the ends of the reference sequence
   std::vector<char> ref;
@@ -1121,7 +1118,7 @@ split_multi_allelic(seqan::VcfRecord && vcf_record)
   // Parse the INFO field
   seqan::StringSet<seqan::CharString> alts;
   seqan::strSplit(alts, vcf_record.alt, seqan::EqualsChar<','>());
-  assert(NUM_ALT_ALLELES == (long)length(alts));
+  assert(NUM_ALT_ALLELES == static_cast<long>(length(alts)));
 
   for (long i = 0; i < NUM_ALT_ALLELES; ++i)
   {
@@ -1145,7 +1142,7 @@ transform_sv_records(seqan::VcfRecord & vcf_record,
                      seqan::FaiIndex const & fasta_index,
                      GenomicRegion const & genomic_region)
 {
-  if (seqan::length(vcf_record.alt) == 0ul)
+  if (seqan::length(vcf_record.alt) == 0)
   {
     BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Ignoring VCF record with empty alt. allele sequence at position "
                                << (vcf_record.beginPos + 1);
@@ -1603,10 +1600,9 @@ construct_graph(std::string const & reference_filename,
   graph = Graph(use_absolute_positions);
   graph.is_sv_graph = is_sv_graph;
 
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Constructing graph for region " << region;
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Constructing graph for region " << region;
   GenomicRegion genomic_region(region);
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Reading FASTA file located at " <<
-    reference_filename;
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Reading FASTA file located at " << reference_filename;
 
   // Load the reference genome
   seqan::FaiIndex fasta_index;
@@ -1616,6 +1612,25 @@ construct_graph(std::string const & reference_filename,
   // Read the reference sequence
   std::vector<char> reference_sequence;
   read_reference_genome(reference_sequence, fasta_index, genomic_region);
+
+  if (reference_sequence.size() == 0)
+  {
+    BOOST_LOG_TRIVIAL(error) << __HERE__ << " Failed reading input FASTA file " << reference_filename;
+    std::exit(1);
+  }
+
+  // Check reference sequence for problems
+  bool is_bad_base = std::any_of(reference_sequence.begin(), reference_sequence.end(), [](char c){
+      return c < 'A' || c > 'Z';
+    });
+
+  if (is_bad_base)
+  {
+    BOOST_LOG_TRIVIAL(error) << __HERE__ << " Found a non-uppercase character in input FASTA reference."
+                             << "Make sure the file is not compressed and "
+                             << "all bases are uppercase.";
+    std::exit(1);
+  }
 
   // Read variant records
   std::vector<VarRecord> var_records;
@@ -1641,8 +1656,7 @@ construct_graph(std::string const & reference_filename,
       {
         if (vcf_record.beginPos >= static_cast<long>(genomic_region.begin) &&
             static_cast<long>(vcf_record.beginPos + seqan::length(vcf_record.ref)) <=
-            static_cast<long>(genomic_region.end)
-            )
+            static_cast<long>(genomic_region.end))
         {
           std::vector<seqan::VcfRecord> records = split_multi_allelic(std::move(vcf_record));
 

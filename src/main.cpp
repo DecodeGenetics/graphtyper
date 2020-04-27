@@ -108,7 +108,17 @@ get_sams(std::string const & opts_sam, std::string const & opts_sams_file)
   std::vector<std::string> sams;
 
   if (opts_sam.size() > 0)
+  {
+    std::ifstream sam_in(opts_sam);
+
+    if (!sam_in.is_open())
+    {
+      BOOST_LOG_TRIVIAL(error) << "Could not open sam file '" << opts_sam << "'";
+      std::exit(1);
+    }
+
     sams.push_back(opts_sam);
+  }
 
   if (opts_sams_file.size() > 0)
   {
@@ -116,14 +126,23 @@ get_sams(std::string const & opts_sam, std::string const & opts_sams_file)
 
     if (!file_in.is_open())
     {
-      BOOST_LOG_TRIVIAL(error) << "Could not open sams file '" << opts_sams_file << "'";
+      BOOST_LOG_TRIVIAL(error) << "Could not open file with SAM/BAM/CRAM paths '" << opts_sams_file << "'";
       std::exit(1);
     }
 
     std::string line;
 
     while (std::getline(file_in, line))
+    {
+      if (std::find(line.cbegin(), line.cend(), '\0') != line.cend())
+      {
+        BOOST_LOG_TRIVIAL(error) << "Unexpectedly found NULL in input file with SAM/BAM/CRAM paths --sams="
+                                 << opts_sams_file << ". The file should be uncompressed and contain only file paths.";
+        std::exit(1);
+      }
+
       sams.push_back(line);
+    }
   }
 
   if (sams.size() == 0)
@@ -507,6 +526,11 @@ subcmd_genotype(paw::Parser & parser)
 
     parser.parse_option(opts.is_all_biallelic, ' ', "is_all_biallelic",
                         "(advanced) Set to force all output variants to be biallelic in the VCF output.");
+
+    parser.parse_option(opts.is_sam_merging_allowed,
+                        ' ',
+                        "is_sam_merging_allowed",
+                        "(advanced) Set to allow SAM files to be merged interally in graphtyper. For this to be possible you must make sure they all have read groups and their name is never duplicates.");
 
     parser.parse_option(no_filter_on_proper_pairs,
                         ' ',

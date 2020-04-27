@@ -1,8 +1,11 @@
+#include <algorithm> // std::generate_n
+#include <cassert> // assert
 #include <cstring>
-#include <string>
-#include <sstream>
 #include <iomanip>
 #include <iostream>
+#include <random>
+#include <string> // std::string
+#include <sstream>
 #include <utility>
 #include <vector>
 
@@ -22,6 +25,34 @@ get_env_var(std::string const & key, std::string const & _default = "")
 {
   char * val = getenv(key.c_str());
   return val ? val : _default;
+}
+
+
+std::string
+get_random_string(long length)
+{
+  // from https://stackoverflow.com/questions/440133/how-do-i-create-a-random-alpha-numeric-string-in-c
+  char const charset[] = "0123456789"
+                         "ABCDEFGHIJ"
+                         "KLMNOPQRST"
+                         "UVWXYZ"
+                         "abcdefghijklmnopqrstuvwxyz";
+
+  std::vector<char> char_vec;
+  char_vec.reserve(sizeof(charset) - 1); // skip the last NULL
+  std::copy(charset, charset + sizeof(charset) - 1, std::back_inserter(char_vec));
+  assert(char_vec.size() > 0);
+
+  std::default_random_engine rng(std::random_device{} ());
+  std::uniform_int_distribution<> dist(0, char_vec.size() - 1);
+
+  std::string str(length, 0);
+  std::generate_n(str.begin(), length, [&](){
+      return char_vec[dist(rng)];
+    });
+
+  assert(std::find(str.begin(), str.end(), '\0') == str.end()); // No NULLs in final string
+  return str;
 }
 
 
@@ -56,7 +87,8 @@ create_temp_dir(GenomicRegion const & region)
 {
   std::ostringstream ss;
   ss << get_env_var("TMPDIR", "/tmp") << "/graphtyper_" << current_sec() << "_"
-     << region.chr << "_" << std::setw(9) << std::setfill('0') << (region.begin + 1);
+     << region.chr << "_" << std::setw(9) << std::setfill('0') << (region.begin + 1)
+     << "." << get_random_string(200);
 
   std::string tmp = ss.str();
   create_dir(tmp, 0700);

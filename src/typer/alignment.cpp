@@ -342,10 +342,16 @@ further_update_paths_for_discovery(std::pair<GenotypePaths, GenotypePaths> & gen
                                    bam1_t * rec
                                    )
 {
+  assert(rec);
+
   auto const & core = rec->core;
   GenotypePaths & geno1 = geno_paths.first;
   GenotypePaths & geno2 = geno_paths.second;
 
+  assert(seqan::length(seq) > 0);
+  assert(static_cast<long>(seqan::length(seq)) == core.l_qseq);
+  assert(seqan::length(seq) == seqan::length(rseq));
+  assert(seqan::length(seq) == seqan::length(rseq));
   assert(seqan::length(seq) == geno1.read_length);
   assert(seqan::length(seq) == geno2.read_length);
 
@@ -363,8 +369,7 @@ further_update_paths_for_discovery(std::pair<GenotypePaths, GenotypePaths> & gen
 
 std::pair<GenotypePaths *, GenotypePaths *>
 get_better_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths1,
-                 std::pair<GenotypePaths, GenotypePaths> & geno_paths2
-                 )
+                 std::pair<GenotypePaths, GenotypePaths> & geno_paths2)
 {
   // contains first read w. forward strand and second read reverse strand
   std::pair<GenotypePaths *, GenotypePaths *> genos1;

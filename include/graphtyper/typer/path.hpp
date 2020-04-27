@@ -39,7 +39,7 @@ public:
   /*********************
    * PATH CONSTRUCTORS *
    *********************/
-  Path() noexcept = default;
+  Path() = default;
   Path(Graph const & graph,
        KmerLabel const & l,
        uint16_t read_start_index,
