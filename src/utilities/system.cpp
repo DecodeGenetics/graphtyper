@@ -88,7 +88,7 @@ create_temp_dir(GenomicRegion const & region)
   std::ostringstream ss;
   ss << get_env_var("TMPDIR", "/tmp") << "/graphtyper_" << current_sec() << "_"
      << region.chr << "_" << std::setw(9) << std::setfill('0') << (region.begin + 1)
-     << "." << get_random_string(200);
+     << "." << get_random_string(6);
 
   std::string tmp = ss.str();
   create_dir(tmp, 0700);
