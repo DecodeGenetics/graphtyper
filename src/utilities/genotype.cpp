@@ -29,11 +29,31 @@
 #include <vector>
 
 
+namespace
+{
+
+std::string
+get_basename_wo_ext(std::string const & sam)
+{
+// Get basename without extension
+  auto slash_it = std::find(sam.rbegin(), sam.rend(), '/');
+  auto dot_it = std::find(sam.rbegin(), sam.rend(), '.');
+  assert(dot_it != sam.rend());
+  assert(std::distance(dot_it, slash_it) > 1);
+  std::string reversed(dot_it + 1, slash_it);
+  return std::string(reversed.rbegin(), reversed.rend());
+}
+
+
+} // anon namespce
+
+
 namespace gyper
 {
 
 std::vector<std::string>
 run_bamshrink(std::vector<std::string> const & sams,
+              std::vector<std::string> const & sams_index,
               std::string const & ref_fn,
               GenomicRegion const & region,
               std::vector<double> const & avg_cov_by_readlen,
@@ -42,29 +62,20 @@ run_bamshrink(std::vector<std::string> const & sams,
   // Get SAM/BAM/CRAM files
   create_dir(tmp + "/bams");
   assert(sams.size() == avg_cov_by_readlen.size());
+  assert(sams.size() == sams_index.size());
   GenomicRegion bs_region(region); // bs = bamshrink
-  bs_region.pad(50);
+  bs_region.pad(100);
 
   paw::Station bamshrink_station(Options::const_instance()->threads);
   std::vector<std::string> output_paths;
   output_paths.reserve(sams.size());
 
-  auto get_basename_wo_ext =
-    [](std::string const & sam) -> std::string
-    {
-      // Get basename without extension
-      auto slash_it = std::find(sam.rbegin(), sam.rend(), '/');
-      auto dot_it = std::find(sam.rbegin(), sam.rend(), '.');
-      assert(dot_it != sam.rend());
-      assert(std::distance(dot_it, slash_it) > 1);
-      std::string reversed(dot_it + 1, slash_it);
-      return std::string(reversed.rbegin(), reversed.rend());
-    };
-
   for (long s = 0; s < static_cast<long>(sams.size()) - 1l; ++s)
   {
     auto const & sam = sams[s];
     auto const & avg_cov = avg_cov_by_readlen[s];
+    auto const & sam_index = sams_index[s];
+
     std::string basename = get_basename_wo_ext(sam);
     std::ostringstream ss;
     ss << tmp << "/bams/" << basename << ".bam";
@@ -75,6 +86,7 @@ run_bamshrink(std::vector<std::string> const & sams,
                                bs_region.begin,
                                bs_region.end,
                                sam,
+                               sam_index,
                                path_out,
                                avg_cov,
                                ref_fn);
@@ -85,6 +97,8 @@ run_bamshrink(std::vector<std::string> const & sams,
     long s = static_cast<long>(sams.size()) - 1l;
     auto const & sam = sams[s];
     auto const & avg_cov = avg_cov_by_readlen[s];
+    auto const & sam_index = sams_index[s];
+
     std::string basename = get_basename_wo_ext(sam);
     std::ostringstream ss;
     ss << tmp << "/bams/" << basename << ".bam";
@@ -97,23 +111,28 @@ run_bamshrink(std::vector<std::string> const & sams,
                                     bs_region.begin,
                                     bs_region.end,
                                     sam,
+                                    sam_index,
                                     path_out,
                                     avg_cov,
                                     ref_fn);
   }
 
-  std::string thread_info = bamshrink_station.join();
+  std::string const thread_info = bamshrink_station.join();
+
+  // DO NOT CHANGE THIS LOG LINE (we parse it externally)
   BOOST_LOG_TRIVIAL(info) << "Finished copying data. Thread work: " << thread_info;
+  // PLEEEASE
+
   return output_paths;
 }
 
 
 std::vector<std::string>
-run_bamshrink(std::vector<std::string> const & sams,
-              std::string const & ref_fn,
-              std::string const & interval_fn,
-              std::vector<double> const & avg_cov_by_readlen,
-              std::string const & tmp)
+run_bamshrink_multi(std::vector<std::string> const & sams,
+                    std::string const & ref_fn,
+                    std::string const & interval_fn,
+                    std::vector<double> const & avg_cov_by_readlen,
+                    std::string const & tmp)
 {
   // Get SAM/BAM/CRAM files
   create_dir(tmp + "/bams");
@@ -122,19 +141,6 @@ run_bamshrink(std::vector<std::string> const & sams,
   paw::Station bamshrink_station(Options::const_instance()->threads);
   std::vector<std::string> output_paths;
   output_paths.reserve(sams.size());
-
-  auto get_basename_wo_ext =
-    [](std::string const & sam) -> std::string
-    {
-      // Get basename without extension
-      auto slash_it = std::find(sam.rbegin(), sam.rend(), '/');
-      auto dot_it = std::find(sam.rbegin(), sam.rend(), '.');
-      assert(slash_it != sam.rend());
-      assert(dot_it != sam.rend());
-      assert(std::distance(dot_it, slash_it) > 1);
-      std::string reversed(dot_it + 1, slash_it);
-      return std::string(reversed.rbegin(), reversed.rend());
-    };
 
   for (long s = 0; s < static_cast<long>(sams.size()) - 1l; ++s)
   {
@@ -292,19 +298,24 @@ genotype_only_with_a_vcf(std::string const & ref_path,
   save_graph(out_dir + "/graph");
 #endif // NDEBUG
 
-  PHIndex ph_index = index_graph(gyper::graph);
-  std::vector<std::string> paths = gyper::call(shrinked_sams,
-                                               "", // graph_path
-                                               ph_index,
-                                               out_dir,
-                                               "", // reference
-                                               ".", // region
-                                               primers,
-                                               5, //minimum_variant_support,
-                                               0.25, //minimum_variant_support_ratio,
-                                               is_writing_calls_vcf,
-                                               is_discovery,
-                                               is_writing_hap);
+  std::vector<std::string> paths;
+
+  {
+    PHIndex ph_index = index_graph(gyper::graph);
+
+    paths = gyper::call(shrinked_sams,
+                        "",                          // graph_path
+                        ph_index,
+                        out_dir,
+                        "",                          // reference
+                        ".",                          // region
+                        primers,
+                        5,                          //minimum_variant_support,
+                        0.25,                          //minimum_variant_support_ratio,
+                        is_writing_calls_vcf,
+                        is_discovery,
+                        is_writing_hap);
+  }
 
   BOOST_LOG_TRIVIAL(info) << "Merging output VCFs.";
 
@@ -323,6 +334,7 @@ genotype_only_with_a_vcf(std::string const & ref_path,
 void
 genotype(std::string ref_path,
          std::vector<std::string> const & sams,
+         std::vector<std::string> const & sams_index,
          GenomicRegion const & region,
          std::string const & output_path,
          std::vector<double> const & avg_cov_by_readlen,
@@ -402,7 +414,7 @@ genotype(std::string ref_path,
     if (copts.force_use_input_ref_for_cram_reading)
       bamshrink_ref_path = ref_path;
 
-    shrinked_sams = run_bamshrink(sams, bamshrink_ref_path, region, avg_cov_by_readlen, tmp);
+    shrinked_sams = run_bamshrink(sams, sams_index, bamshrink_ref_path, region, avg_cov_by_readlen, tmp);
     std::sort(shrinked_sams.begin(), shrinked_sams.end()); // Sort by input filename
     run_samtools_merge(shrinked_sams, tmp);
   }
@@ -507,24 +519,28 @@ genotype(std::string ref_path,
       // Save graph in debug mode
       save_graph(out_dir + "/graph");
 #endif // NDEBUG
-      PHIndex ph_index = index_graph(gyper::graph);
 
-      minimum_variant_support = copts.genotype_dis_min_support;
-      minimum_variant_support_ratio = copts.genotype_dis_min_support_ratio;
+      std::vector<std::string> paths;
 
-      std::vector<std::string> paths =
-        gyper::call(shrinked_sams,
-                    "", // graph_path
-                    ph_index,
-                    out_dir,
-                    "", // reference
-                    ".",       // region
-                    nullptr,//primers.get(),
-                    minimum_variant_support,
-                    minimum_variant_support_ratio,
-                    is_writing_calls_vcf,
-                    is_discovery,
-                    is_writing_hap);
+      {
+        PHIndex ph_index = index_graph(gyper::graph);
+
+        minimum_variant_support = copts.genotype_dis_min_support;
+        minimum_variant_support_ratio = copts.genotype_dis_min_support_ratio;
+
+        paths = gyper::call(shrinked_sams,
+                            "", // graph_path
+                            ph_index,
+                            out_dir,
+                            "", // reference
+                            ".", // region
+                            nullptr,//primers.get(),
+                            minimum_variant_support,
+                            minimum_variant_support_ratio,
+                            is_writing_calls_vcf,
+                            is_discovery,
+                            is_writing_hap);
+      }
 
       Vcf haps_vcf;
       extract_to_vcf(haps_vcf,
@@ -589,24 +605,28 @@ genotype(std::string ref_path,
       save_graph(out_dir + "/graph");
 #endif // NDEBUG
 
-      PHIndex ph_index = index_graph(gyper::graph);
-      paths = gyper::call(shrinked_sams,
-                          "", // graph_path
-                          ph_index,
-                          out_dir,
-                          "", // reference
-                          ".", // region
-                          primers.get(),
-                          minimum_variant_support,
-                          minimum_variant_support_ratio,
-                          is_writing_calls_vcf,
-                          is_discovery,
-                          is_writing_hap);
+      {
+        PHIndex ph_index = index_graph(gyper::graph);
+
+        paths = gyper::call(shrinked_sams,
+                            "", // graph_path
+                            ph_index,
+                            out_dir,
+                            "", // reference
+                            ".", // region
+                            primers.get(),
+                            minimum_variant_support,
+                            minimum_variant_support_ratio,
+                            is_writing_calls_vcf,
+                            is_discovery,
+                            is_writing_hap);
+      }
 
       if (i < LAST_ITERATION)
       {
         // Split variants unless its the next-to-last iteration
         bool const is_splitting_vars = (i + 1) < LAST_ITERATION;
+
         Vcf haps_vcf;
         extract_to_vcf(haps_vcf,
                        paths,
@@ -708,6 +728,7 @@ genotype(std::string ref_path,
 void
 genotype_regions(std::string const & ref_path,
                  std::vector<std::string> const & sams,
+                 std::vector<std::string> const & sams_index,
                  std::vector<GenomicRegion> const & regions,
                  std::string const & output_path,
                  std::vector<double> const & avg_cov_by_readlen,
@@ -770,6 +791,7 @@ genotype_regions(std::string const & ref_path,
   {
     genotype(ref_path,
              sams,
+             sams_index,
              region,
              output_path,
              avg_cov_by_readlen,

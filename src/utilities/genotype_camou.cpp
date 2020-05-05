@@ -124,7 +124,7 @@ genotype_camou(std::string const & interval_fn,
   }
   else
   {
-    shrinked_sams = run_bamshrink(sams, ref_fn, interval_fn, avg_cov_by_readlen, tmp_bams);
+    shrinked_sams = run_bamshrink_multi(sams, ref_fn, interval_fn, avg_cov_by_readlen, tmp_bams);
     std::sort(shrinked_sams.begin(), shrinked_sams.end()); // Sort by input filename
     run_samtools_merge(shrinked_sams, tmp_bams);
   }
@@ -170,33 +170,30 @@ genotype_camou(std::string const & interval_fn,
       save_graph(out_dir + "/graph");
 #endif // NDEBUG
 
-      PHIndex ph_index = index_graph(gyper::graph);
-      BOOST_LOG_TRIVIAL(info) << "Index construction complete.";
+      std::vector<std::string> paths;
 
-      long minimum_variant_support = 14;
-      double minimum_variant_support_ratio = 0.35 / static_cast<double>(num_intervals);
+      {
+        PHIndex ph_index = index_graph(gyper::graph);
+        BOOST_LOG_TRIVIAL(info) << "Index construction complete.";
 
-      std::vector<std::string> paths =
-        gyper::call(shrinked_sams,
-                    "", // graph_path
-                    ph_index,
-                    out_dir,
-                    "", // reference
-                    ".",       // region
-                    nullptr,
-                    minimum_variant_support,
-                    minimum_variant_support_ratio,
-                    is_writing_calls_vcf,
-                    is_discovery,
-                    is_writing_hap);
+        long minimum_variant_support = 14;
+        double minimum_variant_support_ratio = 0.35 / static_cast<double>(num_intervals);
+
+        paths = gyper::call(shrinked_sams,
+                            "", // graph_path
+                            ph_index,
+                            out_dir,
+                            "", // reference
+                            ".", // region
+                            nullptr,
+                            minimum_variant_support,
+                            minimum_variant_support_ratio,
+                            is_writing_calls_vcf,
+                            is_discovery,
+                            is_writing_hap);
+      }
 
       BOOST_LOG_TRIVIAL(info) << "Variant calling complete.";
-
-      //Vcf haps_vcf;
-      //extract_to_vcf(haps_vcf,
-      //               paths,
-      //               haps_output_vcf,
-      //               false); // is_splitting_vars
 
       // Append _variant_map
       for (auto & path : paths)
@@ -208,7 +205,6 @@ genotype_camou(std::string const & interval_fn,
 
       Vcf discovery_vcf;
       varmap.get_vcf(discovery_vcf, out_dir + "/final.vcf.gz");
-      //std::move(haps_vcf.variants.begin(), haps_vcf.variants.end(), std::back_inserter(discovery_vcf.variants));
       discovery_vcf.write();
 #ifndef NDEBUG
       discovery_vcf.write_tbi_index(); // Write index in debug mode
@@ -237,21 +233,24 @@ genotype_camou(std::string const & interval_fn,
       save_graph(out_dir + "/graph");
     #endif // NDEBUG
 
-      PHIndex ph_index = index_graph(gyper::graph);
+      std::vector<std::string> paths;
 
-      std::vector<std::string> paths =
-        gyper::call(shrinked_sams,
-                    "", // graph_path
-                    ph_index,
-                    out_dir,
-                    "", // reference
-                    ".",       // region
-                    nullptr,
-                    5, // minimum_variant_support - will be ignored
-                    0.25, // minimum_variant_support_ratio - will be ignored
-                    is_writing_calls_vcf,
-                    is_discovery,
-                    is_writing_hap);
+      {
+        PHIndex ph_index = index_graph(gyper::graph);
+
+        paths = gyper::call(shrinked_sams,
+                            "", // graph_path
+                            ph_index,
+                            out_dir,
+                            "", // reference
+                            ".", // region
+                            nullptr,
+                            5, // minimum_variant_support - will be ignored
+                            0.25, // minimum_variant_support_ratio - will be ignored
+                            is_writing_calls_vcf,
+                            is_discovery,
+                            is_writing_hap);
+      }
 
       for (auto & path : paths)
         path += "_calls.vcf.gz";

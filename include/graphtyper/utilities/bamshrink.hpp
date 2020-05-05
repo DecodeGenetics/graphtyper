@@ -33,20 +33,21 @@ namespace gyper
 {
 
 void
-bamshrink(std::string const & chrom,
+bamshrink(std::string const chrom,
           int begin,
           int end,
-          std::string const & path_in,
-          std::string const & path_out,
+          std::string const path_in,
+          std::string const sam_index_in,
+          std::string const path_out,
           double const avg_cov_by_readlen,
-          std::string const & ref_fn);
+          std::string const ref_fn);
 
 
 void
-bamshrink_multi(std::string const & interval_fn,
-                std::string const & path_in,
-                std::string const & path_out,
+bamshrink_multi(std::string const interval_fn,
+                std::string const path_in,
+                std::string const path_out,
                 double const avg_cov_by_readlen,
-                std::string const & ref_fn);
+                std::string const ref_fn);
 
 } // namespace gyper

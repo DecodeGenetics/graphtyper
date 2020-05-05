@@ -714,12 +714,11 @@ qualityFilterSlice2(Options const & opts,
     std::exit(1);
   }
 
+  // bamshrink regions are expanded by 100 which should be removed here
   if (!setRegion(bamFileIn,
                  toCString(chr_start_end.i1),
-                 chr_start_end.i2 - opts.maxFragLen,
-                 chr_start_end.i3 + opts.maxFragLen
-                 )
-      )
+                 chr_start_end.i2 - (opts.maxFragLen - 100),
+                 chr_start_end.i3 + (opts.maxFragLen - 100)))
   {
     BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not set region to "
                              << chr_start_end.i1 << ":"
@@ -1278,6 +1277,7 @@ namespace gyper
 void
 bamshrink(seqan::String<seqan::Triple<seqan::CharString, int, int> > const & intervals,
           std::string const & path_in,
+          std::string const & sam_index_in,
           std::string const & path_out,
           double const avg_cov_by_readlen,
           const char * reference_genome)
@@ -1293,11 +1293,7 @@ bamshrink(seqan::String<seqan::Triple<seqan::CharString, int, int> > const & int
   open(bamFileIn, path_in.c_str(), reference_genome);
 
   BamFileOut bamFileOut(path_out.c_str(), "wb");
-
-  if (path_in.size() > 5 && std::string(path_in.rbegin(), path_in.rbegin() + 5) == "marc.")
-    opts.bamIndex = path_in + ".crai";
-  else
-    opts.bamIndex = path_in + ".bai";
+  opts.bamIndex = sam_index_in;
 
   if (avg_cov_by_readlen > 0.0)
     opts.avgCovByReadLen = avg_cov_by_readlen;
@@ -1371,13 +1367,14 @@ bamshrink(seqan::String<seqan::Triple<seqan::CharString, int, int> > const & int
 
 
 void
-bamshrink(std::string const & chrom,
+bamshrink(std::string const chrom,
           int begin,
           int end,
-          std::string const & path_in,
-          std::string const & path_out,
+          std::string const path_in,
+          std::string const sam_index_in,
+          std::string const path_out,
           double const avg_cov_by_readlen,
-          std::string const & ref_fn)
+          std::string const ref_fn)
 {
   seqan::String<seqan::Triple<seqan::CharString, int, int> > intervals;
   seqan::Triple<seqan::CharString, int, int> interval;
@@ -1386,21 +1383,28 @@ bamshrink(std::string const & chrom,
   interval.i3 = end;
   seqan::appendValue(intervals, interval);
   BOOST_LOG_TRIVIAL(debug) << "Bamshrink is copying file " << path_in;
-  bamshrink(intervals, path_in, path_out, avg_cov_by_readlen, ref_fn.c_str());
+  bamshrink(intervals, path_in, sam_index_in, path_out, avg_cov_by_readlen, ref_fn.c_str());
 }
 
 
 void
-bamshrink_multi(std::string const & interval_fn,
-                std::string const & path_in,
-                std::string const & path_out,
+bamshrink_multi(std::string const interval_fn,
+                std::string const path_in,
+                std::string const path_out,
                 double const avg_cov_by_readlen,
-                std::string const & ref_fn)
+                std::string const ref_fn)
 {
   bamshrink::Options opts;
   opts.intervalFile = interval_fn;
   seqan::String<seqan::Triple<seqan::CharString, int, int> > intervals = readIntervals(opts);
-  bamshrink(intervals, path_in, path_out, avg_cov_by_readlen, ref_fn.c_str());
+  std::string sam_index;
+
+  if (path_in.size() > 5 && std::string(path_in.rbegin(), path_in.rbegin() + 5) == "marc.")
+    sam_index = path_in + ".crai";
+  else
+    sam_index = path_in + ".bai";
+
+  bamshrink(intervals, path_in, sam_index, path_out, avg_cov_by_readlen, ref_fn.c_str());
 }
 
 
