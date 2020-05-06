@@ -324,7 +324,8 @@ genotype_only_with_a_vcf(std::string const & ref_path,
   for (auto & path : paths)
     path += "_calls.vcf.gz";
 
-  vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", region.to_string(), true); //> FILTER_ZERO_QUAL
+  //> FILTER_ZERO_QUAL, force_no_variant_overlapping
+  vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", region.to_string(), true, false);
 
   // free memory
   graph = Graph();
@@ -652,7 +653,14 @@ genotype(std::string ref_path,
       for (auto & path : paths)
         path += "_calls.vcf.gz";
 
-      vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", region.to_string(), true); //> FILTER_ZERO_QUAL
+      //> FILTER_ZERO_QUAL, force_no_variant_overlapping
+      vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", region.to_string(), true, false);
+
+      if (copts.normal_and_no_variant_overlapping)
+      {
+        //> FILTER_ZERO_QUAL, force_no_variant_overlapping
+        vcf_merge_and_break(paths, tmp + "/graphtyper.no_variant_overlapping.vcf.gz", region.to_string(), true, true);
+      }
     }
 
 
@@ -679,16 +687,17 @@ genotype(std::string ref_path,
   }
 
   // Copy final VCFs
-  auto copy_vcf_to_system =
-    [&](std::string const & extension) -> void
+  auto copy_to_results =
+    [&](std::string const & basename_no_ext, std::string const & extension, std::string const & id)
     {
       std::ostringstream ss_cmd;
-      ss_cmd << "cp -p " << tmp << "/graphtyper.vcf.gz" << extension << " "
+      ss_cmd << "cp -p " << tmp << "/" << basename_no_ext << extension << " "
              << output_path << "/" << region.chr << "/"
              << std::setw(9) << std::setfill('0') << (region.begin + 1)
              << '-'
              << std::setw(9) << std::setfill('0') << region.end
-             << ".vcf.gz" << extension;
+             << id
+             << extension;
 
       int ret = system(ss_cmd.str().c_str());
 
@@ -699,10 +708,16 @@ genotype(std::string ref_path,
       }
     };
 
-  copy_vcf_to_system(""); // Copy final VCF
-  copy_vcf_to_system(".tbi"); // Copy tabix index for final VCF
+  copy_to_results("graphtyper", ".vcf.gz", ""); // Copy final VCF
+  copy_to_results("graphtyper", ".vcf.gz.tbi", ""); // Copy tabix index for final VCF
 
-  if (!Options::const_instance()->no_cleanup)
+  if (copts.normal_and_no_variant_overlapping)
+  {
+    copy_to_results("graphtyper.no_variant_overlapping", ".vcf.gz", ".no_variant_overlapping");
+    copy_to_results("graphtyper.no_variant_overlapping", ".vcf.gz.tbi", ".no_variant_overlapping");
+  }
+
+  if (!copts.no_cleanup)
   {
     BOOST_LOG_TRIVIAL(info) << "Cleaning up temporary files.";
     remove_file_tree(tmp.c_str());

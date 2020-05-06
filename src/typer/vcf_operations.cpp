@@ -289,7 +289,8 @@ void
 vcf_merge_and_break(std::vector<std::string> & vcfs,
                     std::string const & output,
                     std::string const & region,
-                    bool const FILTER_ZERO_QUAL)
+                    bool const FILTER_ZERO_QUAL,
+                    bool const force_no_variant_overlapping)
 {
   // Skip if the filename contains '*'
   vcfs.erase(std::remove_if(vcfs.begin(), vcfs.end(), [](std::string const & vcf){
@@ -306,8 +307,7 @@ vcf_merge_and_break(std::vector<std::string> & vcfs,
                                                                        );
 
   uint32_t const region_end = absolute_pos.get_absolute_position(genomic_region.chr,
-                                                                 genomic_region.end
-                                                                 );
+                                                                 genomic_region.end);
 
   gyper::Vcf vcf;
   vcf.open(READ_MODE, vcfs.at(0));
@@ -341,8 +341,8 @@ vcf_merge_and_break(std::vector<std::string> & vcfs,
     }
   }
 
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::vcf_merge_and_break] "
-                           << "Total number of samples read is "
+  BOOST_LOG_TRIVIAL(debug) << __HERE__
+                           << " Total number of samples read is "
                            << vcf.sample_names.size();
 
   vcf.write_header(); // Now that we know all the sample names we can write the header
@@ -362,8 +362,7 @@ vcf_merge_and_break(std::vector<std::string> & vcfs,
       }
     };
 
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::vcf_merge_and_break] Number of variants before breaking down: " <<
-    vcf.variants.size();
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Number of variants before breaking down: " << vcf.variants.size();
 
   // For each variant in the first VCF, add the calls from the other VCFs
   for (long v = 0; v < static_cast<long>(vcf.variants.size()); ++v)
@@ -545,8 +544,9 @@ vcf_merge_and_break(std::vector<std::string> & vcfs,
     }
 
     // break down the merged variants
-    //BOOST_LOG_TRIVIAL(debug) << "Breaking down variant " << v;
-    bool const is_no_variant_overlapping{Options::const_instance()->no_variant_overlapping};
+    bool const is_no_variant_overlapping{Options::const_instance()->no_variant_overlapping ||
+                                         force_no_variant_overlapping};
+
     bool const is_all_biallelic{Options::const_instance()->is_all_biallelic};
     std::vector<Variant> new_variants = break_down_variant(std::move(var),
                                                            reach,

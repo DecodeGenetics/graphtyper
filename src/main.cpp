@@ -616,6 +616,12 @@ subcmd_genotype(paw::Parser & parser)
                         "no_variant_overlapping",
                         "(advanced) Set to avoid that variants overlap in the VCF output");
 
+    parser.parse_option(opts.normal_and_no_variant_overlapping,
+                        ' ',
+                        "normal_and_no_variant_overlapping",
+                        "(advanced) Set to output two files for each region, both normal (overlapping)"
+                        " and non-overlapping variants.");
+
     parser.parse_option(opts.max_files_open,
                         ' ',
                         "max_files_open",

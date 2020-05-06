@@ -255,7 +255,8 @@ genotype_camou(std::string const & interval_fn,
       for (auto & path : paths)
         path += "_calls.vcf.gz";
 
-      vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", genomic_region.to_string(), false); //> FILTER_ZERO_QUAL
+      //> FILTER_ZERO_QUAL, force_no_variant_overlapping
+      vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", genomic_region.to_string(), false, false);
     }
 
     auto copy_camou_vcf_to_system =
