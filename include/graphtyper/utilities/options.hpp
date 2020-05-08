@@ -95,6 +95,8 @@ public:
   long genotype_dis_min_support{8};
   double genotype_dis_min_support_ratio{0.30};
 
+  // internal vcf options
+  long num_alleles_in_batch{500};
 
   /********************************
    * HAPLOTYPE EXTRACTION OPTIONS *

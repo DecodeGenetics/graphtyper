@@ -151,9 +151,9 @@ genotype_sv(std::string ref_path,
 
     // VCF merge
     {
-      // Append _calls.vcf.gz
-      for (auto & path : paths)
-        path += "_calls.vcf.gz";
+      //// Append _calls.vcf.gz
+      //for (auto & path : paths)
+      //  path += "_calls.vcf.gz";
 
       //> FILTER_ZERO_QUAL, force_no_variant_overlapping
       vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", genomic_region.to_string(), false, false);

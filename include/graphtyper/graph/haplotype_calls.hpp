@@ -1,4 +1,5 @@
 #pragma once
+
 #include <iostream>
 #include <vector>
 
@@ -6,6 +7,7 @@
 
 #include <graphtyper/graph/haplotype.hpp>
 #include <graphtyper/typer/vcf_writer.hpp>
+
 
 namespace gyper
 {
@@ -58,6 +60,6 @@ private:
 
 
 void save_calls(HaplotypeCalls & calls, std::string const & filename);
-std::vector<HaplotypeCall> load_calls(std::string filename);
+std::vector<HaplotypeCall> load_calls(std::string const & filename);
 
 }

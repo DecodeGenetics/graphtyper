@@ -321,8 +321,8 @@ genotype_only_with_a_vcf(std::string const & ref_path,
 
   // VCF merge and break_down
   // Append _calls.vcf.gz
-  for (auto & path : paths)
-    path += "_calls.vcf.gz";
+  //for (auto & path : paths)
+  //  path += "_calls.vcf.gz";
 
   //> FILTER_ZERO_QUAL, force_no_variant_overlapping
   vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", region.to_string(), true, false);
@@ -441,10 +441,7 @@ genotype(std::string ref_path,
   {
     minimum_variant_support = copts.genotype_aln_min_support;
     minimum_variant_support_ratio = copts.genotype_aln_min_support_ratio;
-
-#ifdef NDEBUG
     is_writing_calls_vcf = false; // Skip writing calls vcf in release mode in all iterations except the last one
-#endif // NDEBUG
 
     // Iteration 1
     {
@@ -650,8 +647,8 @@ genotype(std::string ref_path,
     // VCF merge and break_down
     {
       // Append _calls.vcf.gz
-      for (auto & path : paths)
-        path += "_calls.vcf.gz";
+      //for (auto & path : paths)
+      //  path += "_calls.vcf.gz";
 
       //> FILTER_ZERO_QUAL, force_no_variant_overlapping
       vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", region.to_string(), true, false);
@@ -701,10 +698,15 @@ genotype(std::string ref_path,
 
       int ret = system(ss_cmd.str().c_str());
 
-      if (ret != 0)
+      if (extension != ".vcf.gz.tbi" && ret != 0)
       {
-        BOOST_LOG_TRIVIAL(error) << "This command failed '" << ss_cmd.str() << "'";
+        BOOST_LOG_TRIVIAL(error) << __HERE__ << " This command failed '" << ss_cmd.str() << "'";
         std::exit(ret);
+      }
+      else if (ret != 0)
+      {
+        // Just a warning if tabix fails and there is no index
+        BOOST_LOG_TRIVIAL(warning) << __HERE__ << " This command failed '" << ss_cmd.str() << "'";
       }
     };
 

@@ -320,15 +320,25 @@ VarRecord::merge(VarRecord && prev_record, long const EXTRA_SUFFIX)
 std::vector<char>
 VarRecord::get_common_suffix()
 {
-  uint64_t suffix_size = 0;
+  if (ref.size() == 0 ||
+      std::any_of(alts.begin(), alts.end(), [](std::vector<char> const & alt){
+      return alt.size() == 0;
+    }))
+  {
+    std::vector<char> empty;
+    return empty;
+  }
+
+  long suffix_size = 0;
   auto ref_it = ref.rbegin();
 
-  while (ref_it != ref.rend() && suffix_size < ref.size() - 1 &&
+  while (ref_it != ref.rend() &&
+         suffix_size < (static_cast<long>(ref.size()) - 1l) &&
          std::all_of(alts.begin(),
                      alts.end(),
                      [&](std::vector<char> const & alt)
     {
-      return suffix_size < (alt.size() - 1) && *(alt.rbegin() + suffix_size) == *ref_it;
+      return suffix_size < (static_cast<long>(alt.size()) - 1l) && *(alt.rbegin() + suffix_size) == *ref_it;
     }
                      )
          )

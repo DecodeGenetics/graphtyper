@@ -351,7 +351,6 @@ subcmd_construct(paw::Parser & parser)
   gyper::Options & opts = *(gyper::Options::instance());
 
   std::string graph_fn;
-  bool is_skip_indexing{false};
   bool is_sv_graph{false};
   bool use_tabix{false};
   std::string ref_fn;
@@ -359,7 +358,6 @@ subcmd_construct(paw::Parser & parser)
   std::string vcf_fn;
 
   // Parse options
-  parser.parse_option(is_skip_indexing, ' ', "skip_indexing", "Set to skip indexing the graph.");
   parser.parse_option(is_sv_graph, ' ', "sv_graph", "Set to construct an SV graph.");
   parser.parse_option(opts.add_all_variants, ' ', "output_all_variants", "Set to create a graph with every possible "
                                                                          "haplotype on overlapping variants.");
@@ -380,10 +378,6 @@ subcmd_construct(paw::Parser & parser)
   gyper::check_file_exists_or_empty(vcf_fn);
 
   gyper::construct_graph(ref_fn, vcf_fn, region, is_sv_graph, true, use_tabix);
-
-  if (!is_skip_indexing)
-    gyper::index_graph(graph_fn + "_gti");
-
   gyper::save_graph(graph_fn);
   BOOST_LOG_TRIVIAL(info) << "Graph saved at " << graph_fn;
   return 0;
@@ -724,6 +718,11 @@ subcmd_genotype(paw::Parser & parser)
                         "sam_flag_filter",
                         "(advanced) ANY of these bits set in reads will be completely ignored by GraphTyper. Use with care.");
 
+    parser.parse_option(opts.num_alleles_in_batch,
+                        ' ',
+                        "num_alleles_in_batch",
+                        "(advanced) How many alleles each batch of internal VCFs has. Increasing this number inceases "
+                        "memory used, while slightly decreases compute time.");
 
 #ifndef NDEBUG
     parser.parse_option(opts.stats, ' ', "stats", "(advanced) Directory for statistics files.");

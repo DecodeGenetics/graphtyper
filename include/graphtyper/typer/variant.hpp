@@ -4,6 +4,8 @@
 #include <string> // std::string
 #include <vector> // std::vector
 
+#include <boost/serialization/access.hpp>
+
 #include <graphtyper/graph/genotype.hpp> // gyper::Genotype
 #include <graphtyper/graph/haplotype.hpp> // gyper::Haplotype
 #include <graphtyper/typer/sample_call.hpp> // gyper::SampleCall
@@ -16,6 +18,8 @@ class VariantCandidate;
 
 class Variant
 {
+  friend class boost::serialization::access;
+
 public:
   uint32_t abs_pos;
   std::vector<std::vector<char> > seqs;
@@ -71,6 +75,10 @@ public:
   bool operator==(Variant const & b) const;
   bool operator!=(Variant const & b) const;
   bool operator<(Variant const & b) const;
+
+private:
+  template <class Archive>
+  void serialize(Archive & ar, unsigned int version);
 };
 
 // Hash function for Variant

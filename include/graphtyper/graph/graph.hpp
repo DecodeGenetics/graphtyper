@@ -172,10 +172,9 @@ private:
   /**********************
    * GRAPH MODIFICATION *
    **********************/
-  void add_reference(unsigned end_pos,
+  bool add_reference(unsigned end_pos,
                      unsigned const & num_var,
-                     std::vector<char> const & reference_sequence
-                     );
+                     std::vector<char> const & reference_sequence);
 
   void add_variants(VarRecord && record);
 

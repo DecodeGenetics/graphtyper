@@ -6,6 +6,8 @@
 
 #include <boost/algorithm/string/predicate.hpp> // boost::algorithm::ends_with
 #include <boost/log/trivial.hpp>
+#include <boost/serialization/string.hpp>
+#include <boost/serialization/vector.hpp>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/absolute_position.hpp>
@@ -629,7 +631,6 @@ Vcf::write_header()
        "calls.\">\n"
       << "##INFO=<ID=NHomRef,Number=1,Type=Integer,Description=\"Number of homozygous reference genotype calls.\">\n"
       << "##INFO=<ID=NHomAlt,Number=1,Type=Integer,Description=\"Number of homozygous alternative genotype calls.\">\n"
-      << "##INFO=<ID=NRP,Number=0,Type=Flag,Description=\"Set if no Non-Reference has PASS.\">\n"
       << "##INFO=<ID=NUM_MERGED_SVS,Number=1,Type=Integer,Description=\"Number of SVs merged.\">\n"
       << "##INFO=<ID=OLD_VARIANT_ID,Number=1,Type=String,Description=\"Variant ID from a VCF (SVs only).\">\n"
       << "##INFO=<ID=ORSTART,Number=1,Type=Integer,Description=\"Start coordinate of sequence origin.\">\n"
@@ -644,13 +645,6 @@ Vcf::write_header()
       << "##INFO=<ID=PS,Number=1,Type=Integer,Description=\"Unique ID of the phase set this variant"
        "is a member of. If the calls are unphased, it is used to represent which haplotype set "
        "the variant is a member of.\">\n"
-//      << "##INFO=<ID=RACount,Number=R,Type=Integer,Description=\"Number of realigned reads which "
-//       "were uniquely aligned to this allele.\">\n"
-//      << "##INFO=<ID=RADist,Number=R,Type=Integer,Description=\"Total realignment distance of all "
-//       "reads per allele. Realignment distance = abs((Original aligned begin position) - "
-//       "(New aligned begin position)).\">\n"
-//      << "##INFO=<ID=RAMeanDist,Number=R,Type=Integer,Description=\"Mean realignment distance per "
-//       "allele.\">\n"
       << "##INFO=<ID=RefLen,Number=1,Type=Integer,Description=\"Length of the reference "
        "allele.\">\n"
       << "##INFO=<ID=RELATED_SV_ID,Number=1,Type=Integer,Description=\"GraphTyper ID of a related "
@@ -739,7 +733,7 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
   // Parse the position
   auto contig_pos = absolute_pos.get_contig_position(var.abs_pos, gyper::graph.contigs);
 
-  if (!Options::instance()->output_all_variants && var.calls.size() > 0 && var.seqs.size() > 200)
+  if (!Options::instance()->output_all_variants && var.calls.size() > 0 && var.seqs.size() > 100)
   {
     BOOST_LOG_TRIVIAL(info) << "Skipped outputting variant at position "
                             << contig_pos.first << ":" << contig_pos.second
@@ -1193,10 +1187,7 @@ Vcf::write_tbi_index() const
   int ret = tbx_index_build(filename.c_str(), 0, &tbx_conf_vcf);
 
   if (ret < 0)
-  {
-    BOOST_LOG_TRIVIAL(error) << "Could not build VCF index";
-    std::exit(ret);
-  }
+    BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Could not build VCF index";
 }
 
 
@@ -1569,6 +1560,142 @@ get_string_at_tab_index(std::string const & line,
     return line.substr(tabs[index], std::string::npos);
   else
     return line.substr(tabs[index], tabs[index + 1] - tabs[index] - 1);
+}
+
+
+template <typename Archive>
+void
+Vcf::serialize(Archive & ar, unsigned const int /*version*/)
+{
+  ar & sample_names;
+  ar & variants;
+}
+
+
+/***************************
+ * EXPLICIT INSTANTIATIONS *
+ ***************************/
+
+template void Vcf::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &,
+                                                              const unsigned int);
+template void Vcf::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &,
+                                                              const unsigned int);
+
+
+/*********************************
+ * FUNCTIONS TO MAKE LIFE EASIER *
+ *********************************/
+void
+save_vcf(Vcf const & vcf, std::string const & filename)
+{
+  long n_batch{0};
+  long v_begin{0};
+  long n_alleles{0}; // sqaured number of alleles. We use square because that better capture better the memory requirement
+  long const MAX_ALLELES = Options::const_instance()->num_alleles_in_batch; // max number of squared alleles in batch
+
+  for (long v{0}; v < static_cast<long>(vcf.variants.size()); ++v)
+  {
+    auto const & var = vcf.variants[v];
+    assert(var.seqs.size() > 1);
+    long const n_alts = static_cast<long>(var.seqs.size()) - 1l;
+    n_alleles += n_alts * n_alts;
+
+    if (n_alleles >= MAX_ALLELES)
+    {
+      // Enough data, lets serialize
+      Vcf new_vcf;
+
+      if (n_batch == 0)
+        new_vcf.sample_names = vcf.sample_names;
+
+      assert(v_begin < static_cast<long>(vcf.variants.size()));
+
+      // std::move okay, right?
+      std::move(vcf.variants.begin() + v_begin, vcf.variants.begin() + (v + 1), std::back_inserter(new_vcf.variants));
+
+      // save batch
+      std::string batch_filename = filename + "_" + std::to_string(n_batch);
+      std::ofstream ofs(batch_filename.c_str(), std::ios::binary);
+
+      if (!ofs.is_open())
+      {
+        BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not save VCF to location '"
+                                 << filename
+                                 << "'";
+        std::exit(1);
+      }
+
+      boost::archive::binary_oarchive oa(ofs);
+      oa << new_vcf; // done saving the batch
+
+      v_begin = v + 1;
+      ++n_batch;
+      n_alleles = 0;
+    }
+  }
+
+  // Write remaining variants
+  Vcf new_vcf;
+
+  if (n_batch == 0)
+    new_vcf.sample_names = vcf.sample_names;
+
+  assert(v_begin <= static_cast<long>(vcf.variants.size()));
+
+  // std::move okay, right?
+  std::move(vcf.variants.begin() + v_begin, vcf.variants.end(), std::back_inserter(new_vcf.variants));
+
+  // save batch
+  std::string batch_filename = filename + "_" + std::to_string(n_batch);
+  std::ofstream ofs(batch_filename.c_str(), std::ios::binary);
+
+  if (!ofs.is_open())
+  {
+    BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not save VCF to location '"
+                             << filename
+                             << "'";
+    std::exit(1);
+  }
+
+  boost::archive::binary_oarchive oa(ofs);
+  oa << new_vcf; // done saving the batch
+}
+
+
+void
+load_vcf(Vcf & vcf, std::string const & filename, long n_batch)
+{
+  std::string batch_filename = filename + "_" + std::to_string(n_batch);
+  std::ifstream ifs(batch_filename.c_str(), std::ios::binary);
+
+  if (!ifs.is_open())
+  {
+    BOOST_LOG_TRIVIAL(error) << "Could not open VCF file " << batch_filename;
+    std::exit(1);
+  }
+
+  boost::archive::binary_iarchive ia(ifs);
+  ia >> vcf;
+}
+
+
+bool
+append_vcf(Vcf & vcf, std::string const & filename, long n_batch)
+{
+  Vcf new_vcf;
+  std::string batch_filename = filename + "_" + std::to_string(n_batch);
+  std::ifstream ifs(batch_filename.c_str(), std::ios::binary);
+
+  if (!ifs.is_open())
+  {
+    // This batch does not exist
+    return false;
+  }
+
+  boost::archive::binary_iarchive ia(ifs);
+  ia >> new_vcf;
+  std::move(new_vcf.variants.begin(), new_vcf.variants.end(), std::back_inserter(vcf.variants));
+  return true;
 }
 
 

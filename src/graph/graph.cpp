@@ -157,7 +157,7 @@ Graph::add_genomic_region(std::vector<char> && reference_sequence,
   }
   else
   {
-    BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Constructing graph of "
+    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Constructing graph of "
                              << var_records.size()
                              << " variants.";
 
@@ -199,46 +199,6 @@ Graph::add_genomic_region(std::vector<char> && reference_sequence,
           continue;
         }
 
-        std::vector<char> suffix = var_records[i].get_common_suffix();
-
-        //if (var_records[i + 1].pos >= var_records[i].pos + var_records[i].ref.size() - suffix.size())
-        //{
-        //  long const suffix_to_remove = var_records[i].pos + var_records[i].ref.size() - var_records[i + 1].pos;
-        //
-        //  // Check if it is possible to remove enough suffix so we can safely join the two records
-        //  if (suffix_to_remove <= 0 || suffix_to_remove > static_cast<long>(suffix.size()))
-        //  {
-        //    var_records[i + 1].merge_one_path(std::move(var_records[i]));
-        //  }
-        //  else
-        //  {
-        //    // Erase from previous record so that it ends where the next record starts
-        //    assert(static_cast<long>(var_records[i].ref.size()) > suffix_to_remove);
-        //    var_records[i].ref.erase(var_records[i].ref.end() - suffix_to_remove, var_records[i].ref.end());
-        //
-        //    for (auto & alt : var_records[i].alts)
-        //    {
-        //      assert(static_cast<long>(alt.size()) > suffix_to_remove);
-        //      alt.erase(alt.end() - suffix_to_remove, alt.end());
-        //    }
-        //
-        //    assert(var_records[i + 1].pos == var_records[i].pos + var_records[i].ref.size());
-        //
-        //    // Merge the two records
-        //    long const suffix_to_add = suffix_to_remove - static_cast<long>(var_records[i + 1].ref.size());
-        //
-        //    var_records[i + 1].merge(std::move(var_records[i]));
-        //
-        //    if (suffix_to_add > 0)
-        //    {
-        //      var_records[i + 1].ref.insert(var_records[i + 1].ref.end(), suffix.end() - suffix_to_add, suffix.end());
-        //
-        //      for (auto & alt : var_records[i + 1].alts)
-        //        alt.insert(alt.end(), suffix.end() - suffix_to_add, suffix.end());
-        //    }
-        //  }
-        //}
-        //else
         {
           // In a few extreme scenarios we cannot merge only one path here.
           //BOOST_LOG_TRIVIAL(fatal) << "i    : " << var_records[i].to_string();
@@ -257,6 +217,10 @@ Graph::add_genomic_region(std::vector<char> && reference_sequence,
         ++i;
       } // while
     }
+
+    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Done merging overlapping variant records. Now I have "
+                             << var_records.size()
+                             << " variants.";
   }
 
   // Erase alternatives which are identical to the reference sequence
@@ -288,6 +252,7 @@ Graph::add_genomic_region(std::vector<char> && reference_sequence,
 
     if (suffix.size() > 0)
     {
+      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Removing commong suffix.";
       assert(suffix.size() < var_record.ref.size());
       var_record.ref.erase(var_record.ref.begin() + (var_record.ref.size() - suffix.size()), var_record.ref.end());
       assert(var_record.ref.size() > 0);
@@ -300,17 +265,23 @@ Graph::add_genomic_region(std::vector<char> && reference_sequence,
     }
   }
 
-  // Add reference and variants to the graph
-  for (unsigned i = 0; i < var_records.size(); ++i)
-  {
-    add_reference(var_records[i].pos,
-                  static_cast<unsigned>(var_records[i].alts.size()) + 1u,
-                  reference_sequence);
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Adding reference and variants to the graph.";
 
-    add_variants(std::move(var_records[i]));
+  for (long i = 0; i < static_cast<long>(var_records.size()); ++i)
+  {
+    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " i = " << i << ", pos = " << var_records[i].pos;
+    bool is_continue = add_reference(var_records[i].pos,
+                                     static_cast<unsigned>(var_records[i].alts.size()) + 1u,
+                                     reference_sequence);
+
+    if (is_continue)
+    {
+      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " adding variant";
+      add_variants(std::move(var_records[i]));
+    }
   }
 
-  // Add final reference sequence behind the last variant
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Adding final reference sequence behind the last variant.";
   add_reference(static_cast<uint32_t>(reference_sequence.size()) + genomic_region.begin, 0, reference_sequence);
 
   // If we chose to use absolute positions we need to change all labels
@@ -596,7 +567,7 @@ Graph::add_variants(VarRecord && record)
 }
 
 
-void
+bool
 Graph::add_reference(unsigned end_pos, unsigned const & num_var, std::vector<char> const & reference_sequence)
 {
   if (end_pos > reference_sequence.size() + genomic_region.begin)
@@ -613,23 +584,29 @@ Graph::add_reference(unsigned end_pos, unsigned const & num_var, std::vector<cha
   }
 
   // Make sure end_pos is larger or equal to start_pos
-  end_pos = std::max(start_pos, end_pos);
+  if (start_pos >= end_pos)
+    return false;
 
   assert(start_pos >= genomic_region.begin);
+
+  auto start_it = (start_pos - genomic_region.begin) < reference_sequence.size() ?
+                  reference_sequence.begin() + (start_pos - genomic_region.begin) :
+                  reference_sequence.end();
 
   auto end_it = (end_pos - genomic_region.begin) < reference_sequence.size() ?
                 reference_sequence.begin() + (end_pos - genomic_region.begin) :
                 reference_sequence.end();
 
-  std::vector<char> current_dna(reference_sequence.begin() + (start_pos - genomic_region.begin), end_it);
+  std::vector<char> current_dna(start_it, end_it);
 
   // Create a vector of indexes
   std::vector<TNodeIndex> var_indexes(num_var);
 
-  for (unsigned i = 0; i < num_var; ++i)
+  for (long i = 0; i < static_cast<long>(num_var); ++i)
     var_indexes[i] = i + var_nodes.size();
 
   ref_nodes.push_back(RefNode(Label(start_pos, std::move(current_dna), 0), std::move(var_indexes)));
+  return true;
 }
 
 
@@ -1180,9 +1157,9 @@ Graph::get_locations_of_a_position(uint32_t pos, Path const & path) const
   if (locs.size() == 0)
   {
     BOOST_LOG_TRIVIAL(warning) << "[graphtyper::graph] Found no location for position " << pos << " (start "
-			       << ref_nodes[0].get_label().order
-			       << ", end " 
-			       << ref_nodes.back().get_label().reach() << ")";
+                               << ref_nodes[0].get_label().order
+                               << ", end "
+                               << ref_nodes.back().get_label().reach() << ")";
   }
 #endif
 

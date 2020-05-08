@@ -131,7 +131,7 @@ save_calls(HaplotypeCalls & calls, std::string const & filename)
 
 
 std::vector<HaplotypeCall>
-load_calls(std::string filename)
+load_calls(std::string const & filename)
 {
   HaplotypeCalls calls{};
   std::ifstream ifs(filename.c_str(), std::ios::binary);
