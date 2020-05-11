@@ -266,13 +266,14 @@ Graph::add_genomic_region(std::vector<char> && reference_sequence,
   }
 
   BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Adding reference and variants to the graph.";
+  bool is_continue{true};
 
   for (long i = 0; i < static_cast<long>(var_records.size()); ++i)
   {
     BOOST_LOG_TRIVIAL(debug) << __HERE__ << " i = " << i << ", pos = " << var_records[i].pos;
-    bool is_continue = add_reference(var_records[i].pos,
-                                     static_cast<unsigned>(var_records[i].alts.size()) + 1u,
-                                     reference_sequence);
+    is_continue = add_reference(var_records[i].pos,
+                                static_cast<unsigned>(var_records[i].alts.size()) + 1u,
+                                reference_sequence);    // force in the first iteration
 
     if (is_continue)
     {
@@ -281,12 +282,16 @@ Graph::add_genomic_region(std::vector<char> && reference_sequence,
     }
   }
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Adding final reference sequence behind the last variant.";
-  add_reference(static_cast<uint32_t>(reference_sequence.size()) + genomic_region.begin, 0, reference_sequence);
+  if (is_continue)
+  {
+    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Adding final reference sequence behind the last variant.";
+    add_reference(static_cast<uint32_t>(reference_sequence.size()) + genomic_region.begin, 0, reference_sequence);
+  }
 
   // If we chose to use absolute positions we need to change all labels
   if (use_absolute_positions)
   {
+    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Updating labels.";
     uint32_t const offset = genomic_region.get_absolute_position(1);
     unsigned r = 0;
     assert(r < ref_nodes.size());
@@ -568,7 +573,9 @@ Graph::add_variants(VarRecord && record)
 
 
 bool
-Graph::add_reference(unsigned end_pos, unsigned const & num_var, std::vector<char> const & reference_sequence)
+Graph::add_reference(unsigned end_pos,
+                     unsigned const & num_var,
+                     std::vector<char> const & reference_sequence)
 {
   if (end_pos > reference_sequence.size() + genomic_region.begin)
   {
@@ -584,9 +591,7 @@ Graph::add_reference(unsigned end_pos, unsigned const & num_var, std::vector<cha
   }
 
   // Make sure end_pos is larger or equal to start_pos
-  if (start_pos >= end_pos)
-    return false;
-
+  bool is_continue = start_pos <= end_pos;
   assert(start_pos >= genomic_region.begin);
 
   auto start_it = (start_pos - genomic_region.begin) < reference_sequence.size() ?
@@ -606,7 +611,7 @@ Graph::add_reference(unsigned end_pos, unsigned const & num_var, std::vector<cha
     var_indexes[i] = i + var_nodes.size();
 
   ref_nodes.push_back(RefNode(Label(start_pos, std::move(current_dna), 0), std::move(var_indexes)));
-  return true;
+  return is_continue;
 }
 
 

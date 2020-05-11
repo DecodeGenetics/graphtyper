@@ -712,7 +712,7 @@ Haplotype::get_haplotype_calls(std::vector<double> & haplotype_impurity) const
           impurity += (0.5 - ab);
         else if (ab < 0.75)
           impurity += (ab - 0.5);
-        else if (ab < 1.0)
+        else if (ab <= 1.0)
           impurity += 1.0 - ab;
       }
     }

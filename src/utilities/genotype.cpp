@@ -801,7 +801,11 @@ genotype_regions(std::string const & ref_path,
     if (NUM_SAMPLES <= 20)
       opts.impurity_threshold = 0.30; // disabled for 1-20 samples
     else
-      opts.impurity_threshold = 0.20; // very lenient for 21-100 samples
+      opts.impurity_threshold = std::max(opts.impurity_threshold, 0.22); // very lenient for 21-100 samples
+  }
+  else
+  {
+    opts.impurity_threshold = std::max(opts.impurity_threshold, 0.20);
   }
 
   // Genotype regions serially
