@@ -293,7 +293,8 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
   if (vcfs.size() == 0)
     return;
 
-  long const ploidy = Options::const_instance()->ploidy;
+  auto const & copts = *(Options::const_instance());
+  long const ploidy = copts.ploidy;
   GenomicRegion genomic_region(region);
   uint32_t const region_begin = 1 + absolute_pos.get_absolute_position(genomic_region.chr,
                                                                        genomic_region.begin
@@ -312,7 +313,7 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
     ++n_batch;
 
   vcf.open(WRITE_MODE, output); // Change to write mode
-  vcf.open_for_writing();
+  vcf.open_for_writing(copts.threads);
   BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Read " << vcf.variants.size() << " variants.";
 
   std::vector<gyper::Vcf> next_vcfs(vcfs.size() - 1);
@@ -525,10 +526,10 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
     }
 
     // break down the merged variants
-    bool const is_no_variant_overlapping{Options::const_instance()->no_variant_overlapping ||
+    bool const is_no_variant_overlapping{copts.no_variant_overlapping ||
                                          force_no_variant_overlapping};
 
-    bool const is_all_biallelic{Options::const_instance()->is_all_biallelic};
+    bool const is_all_biallelic{copts.is_all_biallelic};
     std::vector<Variant> new_variants = break_down_variant(std::move(var),
                                                            reach,
                                                            is_no_variant_overlapping,

@@ -19,30 +19,27 @@ class BGZF_stream
 {
 private:
   BGZF * fp = nullptr;
-  std::ostringstream ss;
-
 
 public:
+  std::ostringstream ss;
+
   BGZF_stream() = default;
-  BGZF_stream(std::string const & filename, std::string const & filemode);
-  ~BGZF_stream();
+  ~BGZF_stream(); // custom
+  BGZF_stream(BGZF_stream const &) = delete;
+  BGZF_stream(BGZF_stream &&) = delete;
+  BGZF_stream & operator=(BGZF_stream const &) = delete;
+  BGZF_stream & operator=(BGZF_stream &&) = delete;
 
   template <class T>
   BGZF_stream & operator<<(T const & x);
+  void check_cache();
   void flush();
-  void open(std::string const & filename, std::string const & filemode);
+  void open(std::string const & filename, std::string const & filemode, long const n_threads);
   bool is_open() const;
   void close(); // Close BGZF file
 
-  long MAX_CACHE_SIZE = 10000000ll;
+  long MAX_CACHE_SIZE{1000000ll};
 };
-
-
-inline
-BGZF_stream::BGZF_stream(std::string const & filename, std::string const & filemode)
-{
-  open(filename, filemode);
-}
 
 
 template <class T>
@@ -52,12 +49,16 @@ BGZF_stream::operator<<(T const & x)
 {
   // Add to stringstream
   ss << x;
+  return *this;
+}
 
-  // Check if we should flush
+
+inline
+void
+BGZF_stream::check_cache()
+{
   if (static_cast<long>(ss.tellp()) > this->MAX_CACHE_SIZE)
     flush();
-
-  return *this;
 }
 
 
@@ -72,7 +73,7 @@ BGZF_stream::flush()
   }
   else
   {
-    std::string const & str = ss.str();
+    std::string str = ss.str();
     int ret = bgzf_write(fp, str.data(), str.size());
 
     if (ret < 0)
@@ -89,7 +90,7 @@ BGZF_stream::flush()
 
 inline
 void
-BGZF_stream::open(std::string const & filename, std::string const & filemode)
+BGZF_stream::open(std::string const & filename, std::string const & filemode, long const n_threads)
 {
   if (fp)
     close();
@@ -97,6 +98,9 @@ BGZF_stream::open(std::string const & filename, std::string const & filemode)
   if (filename.size() > 0 && filename != "-")
   {
     fp = bgzf_open(filename.c_str(), filemode.c_str());
+
+    if (n_threads > 1)
+      bgzf_mt(fp, n_threads, 256);
   }
 }
 

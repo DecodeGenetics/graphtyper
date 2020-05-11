@@ -476,7 +476,7 @@ genotype(std::string ref_path,
         std::move(prior_variants.begin(), prior_variants.end(), std::back_inserter(final_vcf.variants));
       }
 
-      final_vcf.write();
+      final_vcf.write(".", copts.threads);
 #ifndef NDEBUG
       final_vcf.write_tbi_index(); // Write index in debug mode
 #endif // NDEBUG
@@ -499,7 +499,7 @@ genotype(std::string ref_path,
     long LAST_ITERATION = 4;
 
     // Iteration 2
-    if (Options::const_instance()->is_only_cigar_discovery)
+    if (copts.is_only_cigar_discovery)
     {
       // Skip the graphtyper discovery iteration
       --FIRST_CALLONLY_ITERATION;
@@ -513,6 +513,7 @@ genotype(std::string ref_path,
       std::string const discovery_output_vcf = out_dir + "/discovery.vcf.gz";
       mkdir(out_dir.c_str(), 0755);
       construct_graph(ref_path, tmp + "/it1/final.vcf.gz", padded_region.to_string(), false, true, false);
+
 #ifndef NDEBUG
       // Save graph in debug mode
       save_graph(out_dir + "/graph");
@@ -557,7 +558,7 @@ genotype(std::string ref_path,
       Vcf discovery_vcf;
       varmap.get_vcf(discovery_vcf, out_dir + "/final.vcf.gz");
       std::move(haps_vcf.variants.begin(), haps_vcf.variants.end(), std::back_inserter(discovery_vcf.variants));
-      discovery_vcf.write();
+      discovery_vcf.write(".", copts.threads);
 
 #ifndef NDEBUG
       discovery_vcf.write_tbi_index(); // Write index in debug mode
@@ -631,7 +632,7 @@ genotype(std::string ref_path,
                        haps_output_vcf,
                        is_splitting_vars);
 
-        haps_vcf.write();
+        haps_vcf.write(".", copts.threads);
 #ifndef NDEBUG
         // Write index in debug mode
         haps_vcf.write_tbi_index();

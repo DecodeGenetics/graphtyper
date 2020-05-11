@@ -56,22 +56,21 @@ public:
   void read_samples();
   bool read_record(bool SITES_ONLY = false);
   void read(bool SITES_ONLY = false); /** \brief Reads the VCF file. */
-  void open_for_writing();
+  void open_for_writing(long const n_threads = 1);
   void write_header();
 
   void write_record(Variant const & var,
                     std::string const & suffix = "",
-                    const bool FILTER_ZERO_QUAL = false
-                    );
+                    const bool FILTER_ZERO_QUAL = false);
 
   void write_tbi_index() const;
   void write_segments();
-  void write(std::string const & region = "."); /** \brief Writes the VCF file. */
+  void write(std::string const & region = ".", long const n_threads = 1); /** \brief Writes the VCF file. */
+
   void write_records(uint32_t region_begin,
                      uint32_t region_end,
                      bool FILTER_ZERO_QUAL,
-                     std::vector<Variant> const & vars
-                     );
+                     std::vector<Variant> const & vars);
 
   void write_records(std::string const & region = ".", bool FILTER_ZERO_QUAL = false);
   void close_vcf_file();
