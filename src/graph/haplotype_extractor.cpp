@@ -428,7 +428,7 @@ post_process_hap_calls(std::vector<gyper::HaplotypeCall> & hap_calls)
     auto const & gts = hap_call.gts;
     assert(gts.size() > 0);
     assert(gts.size() == hap_call.read_strand.size());
-    uint32_t num = 1;
+    uint32_t num{1};
 
     for (auto gt_it = gts.cbegin(); gt_it != gts.cend(); ++gt_it)
       num *= gt_it->num;

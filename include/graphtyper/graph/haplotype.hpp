@@ -101,7 +101,7 @@ public:
   /*********************
    * CLASS INFORMATION *
    *********************/
-  std::vector<uint16_t> get_haplotype_calls(std::vector<double> & haplotype_impurity) const;
+  std::vector<uint16_t> get_haplotype_calls() const;
   uint32_t get_genotype_num() const;
   bool has_too_many_genotypes() const;
   std::vector<uint32_t> get_genotype_ids() const;
