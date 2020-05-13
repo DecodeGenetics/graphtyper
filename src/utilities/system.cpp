@@ -13,9 +13,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <graphtyper/constants.hpp>
 #include <graphtyper/utilities/system.hpp>
 
 #include <boost/log/trivial.hpp>
+
 
 namespace
 {
@@ -35,8 +37,9 @@ get_random_string(long length)
   char const charset[] = "0123456789"
                          "ABCDEFGHIJ"
                          "KLMNOPQRST"
-                         "UVWXYZ"
-                         "abcdefghijklmnopqrstuvwxyz";
+                         "UVWXYZabcd"
+                         "efghijklmn"
+                         "opqrstuvwxyz";
 
   std::vector<char> char_vec;
   char_vec.reserve(sizeof(charset) - 1); // skip the last NULL
@@ -117,7 +120,7 @@ remove_file_tree(std::string const & path)
   // if not possible to read the directory for this user
   if ((dir = opendir(path.c_str())) == NULL)
   {
-    BOOST_LOG_TRIVIAL(error) << "Can't open directory '" << path << "'";
+    BOOST_LOG_TRIVIAL(error) << __HERE__ << " Can't open directory '" << path << "'";
     std::exit(1);
   }
 
@@ -144,18 +147,18 @@ remove_file_tree(std::string const & path)
     // remove a file object
     if (unlink(full_path.c_str()) == 0)
     {
-      //printf("Removed a file: %s\n", full_path);
+      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Removed a file " << full_path;
     }
     else
     {
-      BOOST_LOG_TRIVIAL(warning) << "Can't remove a file '" << full_path << "'";
+      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Can't remove a file '" << full_path << "'";
     }
   }
 
   // remove the devastated directory and close the object of it
   if (rmdir(path.c_str()) == 0)
   {
-    //printf("Removed a directory: %s\n", path);
+    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Removed a directory " << full_path;
   }
   else
   {

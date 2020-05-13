@@ -1,4 +1,5 @@
 #pragma once
+
 #include <iostream>
 #include <vector>
 
@@ -6,6 +7,7 @@
 
 #include <graphtyper/graph/haplotype.hpp>
 #include <graphtyper/typer/vcf_writer.hpp>
+
 
 namespace gyper
 {
@@ -18,7 +20,6 @@ public:
   std::vector<uint16_t> calls;
   std::vector<Genotype> gts;
   std::vector<std::vector<ReadStrand> > read_strand;
-  std::vector<double> haplotype_impurity;
   long num_samples{0};
 
   HaplotypeCall() = default;
@@ -58,6 +59,6 @@ private:
 
 
 void save_calls(HaplotypeCalls & calls, std::string const & filename);
-std::vector<HaplotypeCall> load_calls(std::string filename);
+std::vector<HaplotypeCall> load_calls(std::string const & filename);
 
 }

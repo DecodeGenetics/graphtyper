@@ -17,10 +17,11 @@ void vcf_concatenate(std::vector<std::string> const & vcfs,
 
 void vcf_break_down(std::string const & vcf, std::string const & output, std::string const & region);
 
-void vcf_merge_and_break(std::vector<std::string> & vcfs,
+void vcf_merge_and_break(std::vector<std::string> const & vcfs,
                          std::string const & output,
                          std::string const & region,
-                         bool const FILTER_ZERO_QUAL);
+                         bool const FILTER_ZERO_QUAL,
+                         bool const force_no_variant_overlap);
 
 void vcf_update_info(std::string const & vcf, std::string const & output);
 

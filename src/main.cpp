@@ -166,7 +166,6 @@ get_avg_cov_by_readlen(std::string const & avg_cov_by_readlen_fn, long const exp
   }
   else
   {
-    std::string line;
     std::ifstream ifs(avg_cov_by_readlen_fn);
 
     if (!ifs.is_open())
@@ -174,6 +173,8 @@ get_avg_cov_by_readlen(std::string const & avg_cov_by_readlen_fn, long const exp
       BOOST_LOG_TRIVIAL(error) << "Could not open avgCovByReadlen file " << avg_cov_by_readlen_fn;
       std::exit(1);
     }
+
+    std::string line;
 
     while (std::getline(ifs, line))
     {
@@ -190,6 +191,52 @@ get_avg_cov_by_readlen(std::string const & avg_cov_by_readlen_fn, long const exp
   }
 
   return avg_cov_by_readlen;
+}
+
+
+std::vector<std::string>
+get_sam_index_paths(std::string const & sam_index_fn, std::vector<std::string> const & sams_fn)
+{
+  std::vector<std::string> sam_index_paths;
+
+  if (sam_index_fn.size() > 0)
+  {
+    // sam_index argument was given
+    std::ifstream sam_index_f(sam_index_fn);
+
+    if (!sam_index_f.is_open())
+    {
+      BOOST_LOG_TRIVIAL(error) << "Could not open sam_index_fn " << sam_index_fn;
+      std::exit(1);
+    }
+
+    std::string line;
+
+    while (std::getline(sam_index_f, line))
+      sam_index_paths.push_back(std::move(line));
+  }
+  else
+  {
+    // sam_index argument was not given
+    sam_index_paths.reserve(sams_fn.size());
+
+    for (auto const & path_in : sams_fn)
+    {
+      if (path_in.size() > 5 && std::string(path_in.rbegin(), path_in.rbegin() + 5) == "marc.")
+        sam_index_paths.push_back(path_in + ".crai");
+      else
+        sam_index_paths.push_back(path_in + ".bai");
+    }
+  }
+
+  if (sam_index_paths.size() != sams_fn.size())
+  {
+    BOOST_LOG_TRIVIAL(error) << "ERROR: Number if sam_index paths doesn't match the number of BAM/CRAMs "
+                             << sam_index_paths.size() << " vs. " << sams_fn.size();
+    std::exit(1);
+  }
+
+  return sam_index_paths;
 }
 
 
@@ -304,7 +351,6 @@ subcmd_construct(paw::Parser & parser)
   gyper::Options & opts = *(gyper::Options::instance());
 
   std::string graph_fn;
-  bool is_skip_indexing{false};
   bool is_sv_graph{false};
   bool use_tabix{false};
   std::string ref_fn;
@@ -312,7 +358,6 @@ subcmd_construct(paw::Parser & parser)
   std::string vcf_fn;
 
   // Parse options
-  parser.parse_option(is_skip_indexing, ' ', "skip_indexing", "Set to skip indexing the graph.");
   parser.parse_option(is_sv_graph, ' ', "sv_graph", "Set to construct an SV graph.");
   parser.parse_option(opts.add_all_variants, ' ', "output_all_variants", "Set to create a graph with every possible "
                                                                          "haplotype on overlapping variants.");
@@ -333,10 +378,6 @@ subcmd_construct(paw::Parser & parser)
   gyper::check_file_exists_or_empty(vcf_fn);
 
   gyper::construct_graph(ref_fn, vcf_fn, region, is_sv_graph, true, use_tabix);
-
-  if (!is_skip_indexing)
-    gyper::index_graph(graph_fn + "_gti");
-
   gyper::save_graph(graph_fn);
   BOOST_LOG_TRIVIAL(info) << "Graph saved at " << graph_fn;
   return 0;
@@ -363,8 +404,8 @@ subcmd_discover(paw::Parser & parser)
                       "minimum_variant_support_ratio", "Minimum variant support ratio for it to be considered.");
   parser.parse_option(opts.max_files_open, ' ', "max_files_open", "Max. number of files open at the same time.");
   parser.parse_option(output_dir, 'O', "output", "Output directory.");
-  parser.parse_option(sam, 's', "sam", "SAM/BAM/CRAM to analyze.");
-  parser.parse_option(sams, 'S', "sams", "File with SAM/BAM/CRAMs to analyze (one per line).");
+  parser.parse_option(sam, 's', "sam", "BAM/CRAM to analyze.");
+  parser.parse_option(sams, 'S', "sams", "File with BAM/CRAMs to analyze (one per line).");
   parser.parse_option(opts.threads, 't', "threads", "Max. number of threads to use.");
 
   parser.parse_positional_argument(graph_fn, "GRAPH", "Path to graph.");
@@ -380,7 +421,7 @@ subcmd_discover(paw::Parser & parser)
   region.erase(std::remove(region.begin(), region.end(), ','), region.end());
   BOOST_LOG_TRIVIAL(info) << "Starting to discover in region " << region;
 
-  // Parse SAM files
+  // Parse BAM/CRAM files
   std::vector<std::string> sams_fn = get_sams(sam, sams);
 
   if (!gyper::is_directory(output_dir))
@@ -433,6 +474,7 @@ subcmd_genotype(paw::Parser & parser)
   bool see_advanced_options = false;
 
   std::string avg_cov_by_readlen_fn;
+  std::string sam_index_fn;
   std::string output_dir = "results";
   std::string opts_region = "";
   std::string opts_region_file = "";
@@ -457,7 +499,7 @@ subcmd_genotype(paw::Parser & parser)
                       "avg_cov_by_readlen",
                       "File with average coverage by read length (one value per line). "
                       "The values are used for subsampling regions with extremely high coverage and should be in the same "
-                      "order as the SAM/BAM/CRAM list.");
+                      "order as the BAM/CRAM list.");
 
   parser.parse_option(opts.no_decompose,
                       ' ',
@@ -498,14 +540,20 @@ subcmd_genotype(paw::Parser & parser)
                       't',
                       "threads",
                       "Max. number of threads to use. Note that it is not possible to utilize more threads than input "
-                      "SAM/BAM/CRAMs.");
+                      "BAM/CRAMs.");
 
   parser.parse_option(sam,
                       's',
                       "sam",
-                      "Input SAM/BAM/CRAM to analyze. If you have more than one file then create a list and use --sams instead.");
+                      "Input BAM/CRAM to analyze. If you have more than one file then create a list and use --sams instead.");
 
-  parser.parse_option(sams, 'S', "sams", "File with SAM/BAM/CRAMs paths to analyze (one per line).");
+  parser.parse_option(sams, 'S', "sams", "File with BAM/CRAMs paths to analyze (one per line).");
+
+  parser.parse_option(sam_index_fn,
+                      'i',
+                      "sams_index",
+                      "File containing a list of BAM/CRAM indices to use when BAM/CRAM files are queried (one per line). "
+                      "The index files must be given in the same order as the BAMs/CRAMs.");
 
   parser.parse_option(opts.vcf,
                       ' ',
@@ -561,6 +609,12 @@ subcmd_genotype(paw::Parser & parser)
                         ' ',
                         "no_variant_overlapping",
                         "(advanced) Set to avoid that variants overlap in the VCF output");
+
+    parser.parse_option(opts.normal_and_no_variant_overlapping,
+                        ' ',
+                        "normal_and_no_variant_overlapping",
+                        "(advanced) Set to output two files for each region, both normal (overlapping)"
+                        " and non-overlapping variants.");
 
     parser.parse_option(opts.max_files_open,
                         ' ',
@@ -664,6 +718,11 @@ subcmd_genotype(paw::Parser & parser)
                         "sam_flag_filter",
                         "(advanced) ANY of these bits set in reads will be completely ignored by GraphTyper. Use with care.");
 
+    parser.parse_option(opts.num_alleles_in_batch,
+                        ' ',
+                        "num_alleles_in_batch",
+                        "(advanced) How many alleles each batch of internal VCFs has. Increasing this number inceases "
+                        "memory used, while slightly decreases compute time.");
 
 #ifndef NDEBUG
     parser.parse_option(opts.stats, ' ', "stats", "(advanced) Directory for statistics files.");
@@ -699,9 +758,11 @@ subcmd_genotype(paw::Parser & parser)
 
   // Get the avgCovByReadLen for each of the SAM/BAM/CRAM
   std::vector<double> avg_cov_by_readlen = get_avg_cov_by_readlen(avg_cov_by_readlen_fn, NUM_SAMPLES);
+  std::vector<std::string> sam_index_paths = get_sam_index_paths(sam_index_fn, sams_fn);
 
   gyper::genotype_regions(ref_fn,
                           sams_fn,
+                          sam_index_paths,
                           regions,
                           output_dir,
                           avg_cov_by_readlen,

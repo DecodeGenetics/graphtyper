@@ -6,6 +6,8 @@
 
 #include <boost/log/trivial.hpp>
 #include <boost/functional/hash.hpp> // boost::hash_range
+#include <boost/serialization/map.hpp>
+#include <boost/serialization/vector.hpp>
 
 #include <seqan/basic.h>
 #include <seqan/sequence.h>
@@ -54,9 +56,6 @@ update_strand_bias(std::size_t const num_seqs,
   assert(sbf2.size() == num_seqs);
   assert(sbr1.size() == num_seqs);
   assert(sbr2.size() == num_seqs);
-
-//  std::vector<uint32_t> ra_count = get_strand_bias(var.infos, "RACount");
-//  std::vector<uint32_t> ra_dist = get_strand_bias(var.infos, "RADist");
 
   if (sbf.size() > 0 && sbr.size() > 0)
   {
@@ -527,16 +526,6 @@ Variant::generate_infos()
   // Write PASS_AN
   infos["PASS_AN"] = std::to_string(pass_an);
 
-  // Write NRP
-  {
-    bool is_any_hq_alt = std::any_of(pass_ac.begin(), pass_ac.end(), [](long ac){
-        return ac > 0;
-      });
-
-    if (!is_any_hq_alt)
-      infos["NRP"] = "";
-  }
-
   double info_pass_ratio{0.0};
 
   // Write PASS_ratio
@@ -703,6 +692,19 @@ Variant::generate_infos()
 
       infos["ABHomMulti"] = ss_abhom.str();
     }
+  }
+  else
+  {
+    // Erase ABH[et|om]Multi if it is there
+    auto find_it = infos.find("ABHetMulti");
+
+    if (find_it != infos.end())
+      infos.erase(find_it);
+
+    find_it = infos.find("ABHomMulti");
+
+    if (find_it != infos.end())
+      infos.erase(find_it);
   }
 
   // Write VarType
@@ -1857,26 +1859,22 @@ Variant::operator<(Variant const & b) const
 }
 
 
-//Variant &
-//Variant::operator=(Variant const & var)
-//{
-//  abs_pos = var.abs_pos;
-//  seqs = var.seqs;
-//  calls = var.calls;
-//  infos = var.infos;
-//  return *this;
-//}
-//
-//
-//Variant &
-//Variant::operator=(Variant && var) noexcept
-//{
-//  abs_pos = var.abs_pos;
-//  seqs = std::move(var.seqs);
-//  calls = std::move(var.calls);
-//  infos = std::move(var.infos);
-//  return *this;
-//}
+template <typename Archive>
+void
+Variant::serialize(Archive & ar, unsigned const int /*version*/)
+{
+  ar & abs_pos;
+  ar & seqs;
+  ar & calls;
+  ar & infos;
+  ar & suffix_id;
+}
+
+
+template void Variant::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &,
+                                                                  const unsigned int);
+template void Variant::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &,
+                                                                  const unsigned int);
 
 
 std::size_t

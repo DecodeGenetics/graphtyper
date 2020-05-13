@@ -3,6 +3,9 @@
 #include <cstdint> // uint8_t, uint16_t
 #include <vector> // std::vector
 
+#include <boost/serialization/access.hpp>
+
+
 namespace gyper
 {
 
@@ -12,6 +15,8 @@ class ReferenceDepth;
 
 class SampleCall
 {
+  friend class boost::serialization::access;
+
 public:
   SampleCall() noexcept;
   SampleCall(std::vector<uint8_t> && phred,
@@ -36,6 +41,9 @@ public:
   uint8_t get_gq() const;
   int8_t check_filter(long gq) const;
 
+private:
+  template <class Archive>
+  void serialize(Archive & ar, unsigned int version);
 
 };
 

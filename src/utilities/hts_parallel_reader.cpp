@@ -43,7 +43,7 @@ check_if_maps_are_empty(std::vector<TMapGPaths> const & maps)
     if (map.size() > 0)
     {
       BOOST_LOG_TRIVIAL(warning)
-        << "[graphtyper::hts_parallel_reader] Found a non-empty read map for with size "
+        << __HERE__ << " Found a non-empty read map for with size "
         << map.size()
         << "! This likely means these reads have the BAM_FPAIRED flag set but have no mate read.";
 
@@ -277,8 +277,7 @@ genotype_only(HtsParallelReader const & hts_preader,
               HtsRecord const & hts_rec,
               seqan::IupacString & seq,
               seqan::IupacString & rseq,
-              bool update_prev_paths
-              )
+              bool update_prev_paths)
 {
   assert(hts_rec.record);
   assert(hts_rec.file_index >= 0);
@@ -345,7 +344,7 @@ genotype_only(HtsParallelReader const & hts_preader,
 
     if ((geno_paths.first.flags & IS_FIRST_IN_PAIR) == (find_it->second.first.flags & IS_FIRST_IN_PAIR))
     {
-      BOOST_LOG_TRIVIAL(error) << "Reads with name '" << read_name << "' both have IS_FIRST_IN_PAIR="
+      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Reads with name '" << read_name << "' both have IS_FIRST_IN_PAIR="
                                << ((geno_paths.first.flags & IS_FIRST_IN_PAIR) != 0);
       std::exit(1);
     }
@@ -522,7 +521,7 @@ parallel_reader_genotype_only(std::string * out_path,
 
   // Inititalize the HTS parallel reader
   HtsParallelReader hts_preader;
-  hts_preader.open(hts_paths, reference, region); // "" is reference, "." is the region
+  hts_preader.open(hts_paths, reference, region);
 
   // Set up VcfWriter
   VcfWriter writer(SPLIT_VAR_THRESHOLD - 1);
@@ -530,17 +529,21 @@ parallel_reader_genotype_only(std::string * out_path,
 
   if (writer.pns.size() == 0)
   {
-    BOOST_LOG_TRIVIAL(error) << "No samples were extracted.";
+    BOOST_LOG_TRIVIAL(error) << __HERE__ << " No samples were extracted.";
     std::exit(1);
   }
 
   std::string const & first_sample = writer.pns[0];
 
-  // Set up reference depth tracks if we are SV calling
+  // Set up reference depth tracks and bin counts if we are SV calling
   ReferenceDepth reference_depth;
+  //std::vector<std::vector<long> > bin_counts;
 
   if (graph.is_sv_graph)
+  {
     reference_depth.set_depth_sizes(writer.pns.size());
+    //  bin_counts.resize(writer.pns.size());
+  }
 
   std::vector<TMapGPaths> maps; // One map for each file. Each map relates read names to their graph alignments
   maps.resize(hts_preader.get_num_rg());
@@ -580,6 +583,7 @@ parallel_reader_genotype_only(std::string * out_path,
     seqan::IupacString rseq;
     genotype_only(hts_preader, writer, reference_depth, maps, prev_paths, ph_index, primers, prev, seq, rseq,
                   true /*update prev_geno_paths*/);
+
     HtsRecord curr;
 
     while (hts_preader.read_record(curr))
@@ -631,11 +635,10 @@ parallel_reader_genotype_only(std::string * out_path,
   {
     BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Writing calls to '"
                              << output_dir << "/"
-                             << first_sample << "_calls.vcf.gz'";
+                             << first_sample << "_*'";
 
     std::ostringstream vcf_calls_path;
-    vcf_calls_path << output_dir << "/" << first_sample << "_calls.vcf.gz";
-    Vcf vcf(WRITE_BGZF_MODE, vcf_calls_path.str());
+    Vcf vcf;
 
     // Set sample names
     vcf.sample_names = writer.pns;
@@ -652,15 +655,7 @@ parallel_reader_genotype_only(std::string * out_path,
 
     // If the graph is an SV graph, then reformat the SV record
     reformat_sv_vcf_records(vcf.variants, reference_depth);
-
-    // If there are samples then generate info fields
-    if (vcf.sample_names.size() > 0)
-    {
-      for (auto & var : vcf.variants)
-        var.generate_infos();
-    }
-
-    vcf.write();
+    save_vcf(vcf, output_dir + "/" + first_sample);
   }
 
   assert(out_path);
@@ -812,11 +807,10 @@ parallel_reader_with_discovery(std::string * out_path,
   {
     BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Writing calls to '"
                              << output_dir << "/"
-                             << writer.pns[0] << "_calls.vcf.gz'";
+                             << first_sample << "_*'";
 
     std::ostringstream vcf_calls_path;
-    vcf_calls_path << output_dir << "/" << first_sample << "_calls.vcf.gz";
-    Vcf vcf(WRITE_BGZF_MODE, vcf_calls_path.str());
+    Vcf vcf;
 
     // Set sample names
     vcf.sample_names = writer.pns;
@@ -833,15 +827,7 @@ parallel_reader_with_discovery(std::string * out_path,
 
     // If the graph is an SV graph, then reformat the SV record
     reformat_sv_vcf_records(vcf.variants, reference_depth);
-
-    // If there are samples then generate info fields
-    if (vcf.sample_names.size() > 0)
-    {
-      for (auto & var : vcf.variants)
-        var.generate_infos();
-    }
-
-    vcf.write();
+    save_vcf(vcf, output_dir + "/" + first_sample);
   }
 
   assert(out_path);

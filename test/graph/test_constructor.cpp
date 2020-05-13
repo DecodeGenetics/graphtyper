@@ -245,11 +245,17 @@ TEST_CASE("Construct test graph (chr8) in a region that fully overlaps only a se
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
+  {
+    REQUIRE(ref_nodes.size() == 2);
+    REQUIRE(var_nodes.size() == 2);
+  }
+
   // Nodes are correctly connected
   {
     REQUIRE(ref_nodes[0].out_degree() == 2);
     REQUIRE(ref_nodes[0].get_var_index(0) == 0);
     REQUIRE(ref_nodes[0].get_var_index(1) == 1);
+    REQUIRE(ref_nodes[1].out_degree() == 0);
 
     REQUIRE(var_nodes[0].get_out_ref_index() == 1);
     REQUIRE(var_nodes[1].get_out_ref_index() == 1);

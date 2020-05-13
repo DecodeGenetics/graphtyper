@@ -407,11 +407,13 @@ post_process_hap_calls(std::vector<gyper::HaplotypeCall> & hap_calls)
     std::unordered_set<uint16_t> bad_calls;
 
     // Check for high impurity if we have multiple samples
+    /*
     if (hap_call.num_samples >= 50 && copts.impurity_threshold < 0.25)
     {
       for (long i = 0; i < static_cast<long>(hap_call.haplotype_impurity.size()); ++i)
       {
-        double const impurity = hap_call.haplotype_impurity[i] / static_cast<double>(hap_call.num_samples);
+        double const impurity = static_cast<double>(hap_call.haplotype_impurity[i]) /
+                                static_cast<double>(hap_call.num_samples);
         assert(impurity > -0.001);
         assert(impurity < 0.251);
 
@@ -421,12 +423,12 @@ post_process_hap_calls(std::vector<gyper::HaplotypeCall> & hap_calls)
           bad_calls.insert(i + 1);
         }
       }
-    }
+    }*/
 
     auto const & gts = hap_call.gts;
     assert(gts.size() > 0);
     assert(gts.size() == hap_call.read_strand.size());
-    uint32_t num = 1;
+    uint32_t num{1};
 
     for (auto gt_it = gts.cbegin(); gt_it != gts.cend(); ++gt_it)
       num *= gt_it->num;

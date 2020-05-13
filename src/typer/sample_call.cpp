@@ -2,6 +2,8 @@
 #include <iostream>
 #include <numeric>
 
+#include <boost/serialization/vector.hpp>
+
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/haplotype.hpp> // AlleleCoverage
 #include <graphtyper/graph/reference_depth.hpp>
@@ -163,6 +165,25 @@ SampleCall::check_filter(long gq) const
 
   return filter;
 }
+
+
+template <typename Archive>
+void
+SampleCall::serialize(Archive & ar, unsigned const int /*version*/)
+{
+  ar & phred;
+  ar & coverage;
+  ar & ref_total_depth;
+  ar & alt_total_depth;
+  ar & ambiguous_depth;
+  ar & alt_proper_pair_depth;
+}
+
+
+template void SampleCall::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &,
+                                                                     const unsigned int);
+template void SampleCall::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &,
+                                                                     const unsigned int);
 
 
 SampleCall

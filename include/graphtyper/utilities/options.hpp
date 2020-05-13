@@ -29,6 +29,7 @@ public:
   bool no_decompose{false};
   bool no_bamshrink{false};
   bool no_variant_overlapping{false};
+  bool normal_and_no_variant_overlapping{false};
   bool is_all_biallelic{false};
   bool is_only_cigar_discovery{false};
   bool is_discovery_only_for_paired_reads{false};
@@ -94,6 +95,8 @@ public:
   long genotype_dis_min_support{8};
   double genotype_dis_min_support_ratio{0.30};
 
+  // internal vcf options
+  long num_alleles_in_batch{500};
 
   /********************************
    * HAPLOTYPE EXTRACTION OPTIONS *

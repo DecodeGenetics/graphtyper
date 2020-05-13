@@ -88,7 +88,10 @@ find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read,
 
   // Filter the bad stuff
   geno.remove_paths_with_too_many_mismatches();
-  geno.remove_fully_special_paths();
+
+  if (graph.is_sv_graph)
+    geno.remove_fully_special_paths();
+
   geno.remove_non_ref_paths_when_read_matches_ref(); // Should be the last check
 
   geno.update_longest_path_size();
@@ -96,10 +99,7 @@ find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read,
 
   if (graph.is_sv_graph)
     geno.remove_support_from_read_ends();
-  //else
-  //  geno.force_full_overlap();
 
-  // Can fail in new SV indel alignment :'(
 #ifndef NDEBUG
   /*
   if (!geno.check_no_variant_is_missing())

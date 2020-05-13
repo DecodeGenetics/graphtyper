@@ -6,6 +6,8 @@
 
 #include <boost/algorithm/string/predicate.hpp> // boost::algorithm::ends_with
 #include <boost/log/trivial.hpp>
+#include <boost/serialization/string.hpp>
+#include <boost/serialization/vector.hpp>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/absolute_position.hpp>
@@ -545,16 +547,16 @@ Vcf::read(bool const SITES_ONLY)
 
 
 void
-Vcf::open_for_writing()
+Vcf::open_for_writing(long const n_threads)
 {
   switch (filemode)
   {
   case WRITE_UNCOMPRESSED_MODE:
-    bgzf_stream.open("-", "w");
+    bgzf_stream.open("-", "w", 1); // Only single thread possible
     break;
 
   case WRITE_BGZF_MODE:
-    bgzf_stream.open(filename, "wb");
+    bgzf_stream.open(filename, "wb", n_threads);
     break;
 
   default:
@@ -568,25 +570,25 @@ void
 Vcf::write_header()
 {
   // Basic info
-  bgzf_stream << "##fileformat=VCFv4.2\n"
-              << "##fileDate=" << current_date() << "\n"
-              << "##source=Graphtyper\n"
-              << "##graphtyperVersion=" << graphtyper_VERSION_MAJOR << "." << graphtyper_VERSION_MINOR;
+  bgzf_stream.ss << "##fileformat=VCFv4.2\n"
+                 << "##fileDate=" << current_date() << "\n"
+                 << "##source=Graphtyper\n"
+                 << "##graphtyperVersion=" << graphtyper_VERSION_MAJOR << "." << graphtyper_VERSION_MINOR;
 
   if (std::string(GIT_NUM_DIRTY_LINES) != std::string("0"))
-    bgzf_stream << "-dirty";
+    bgzf_stream.ss << "-dirty";
 
-  bgzf_stream << "\n"
-              << "##graphtyperGitBranch=" << GIT_BRANCH << '\n'
-              << "##graphtyperSHA1=" << GIT_COMMIT_LONG_HASH << '\n';
+  bgzf_stream.ss << "\n"
+                 << "##graphtyperGitBranch=" << GIT_BRANCH << '\n'
+                 << "##graphtyperSHA1=" << GIT_COMMIT_LONG_HASH << '\n';
 
   // Definitions of contigs
   for (auto const & contig : graph.contigs)
-    bgzf_stream << "##contig=<ID=" << contig.name << ",length=" << contig.length << ">\n";
+    bgzf_stream.ss << "##contig=<ID=" << contig.name << ",length=" << contig.length << ">\n";
 
   // INFO definitions
   {
-    bgzf_stream
+    bgzf_stream.ss
       << "##INFO=<ID=ABHet,Number=1,Type=Float,Description=\"Allele Balance for heterozygous"
        "calls (read count of call2/(call1+call2)) where the called genotype is call1/call2. "
        "-1 if no heterozygous calls.\">\n"
@@ -629,7 +631,6 @@ Vcf::write_header()
        "calls.\">\n"
       << "##INFO=<ID=NHomRef,Number=1,Type=Integer,Description=\"Number of homozygous reference genotype calls.\">\n"
       << "##INFO=<ID=NHomAlt,Number=1,Type=Integer,Description=\"Number of homozygous alternative genotype calls.\">\n"
-      << "##INFO=<ID=NRP,Number=0,Type=Flag,Description=\"Set if no Non-Reference has PASS.\">\n"
       << "##INFO=<ID=NUM_MERGED_SVS,Number=1,Type=Integer,Description=\"Number of SVs merged.\">\n"
       << "##INFO=<ID=OLD_VARIANT_ID,Number=1,Type=String,Description=\"Variant ID from a VCF (SVs only).\">\n"
       << "##INFO=<ID=ORSTART,Number=1,Type=Integer,Description=\"Start coordinate of sequence origin.\">\n"
@@ -644,13 +645,6 @@ Vcf::write_header()
       << "##INFO=<ID=PS,Number=1,Type=Integer,Description=\"Unique ID of the phase set this variant"
        "is a member of. If the calls are unphased, it is used to represent which haplotype set "
        "the variant is a member of.\">\n"
-//      << "##INFO=<ID=RACount,Number=R,Type=Integer,Description=\"Number of realigned reads which "
-//       "were uniquely aligned to this allele.\">\n"
-//      << "##INFO=<ID=RADist,Number=R,Type=Integer,Description=\"Total realignment distance of all "
-//       "reads per allele. Realignment distance = abs((Original aligned begin position) - "
-//       "(New aligned begin position)).\">\n"
-//      << "##INFO=<ID=RAMeanDist,Number=R,Type=Integer,Description=\"Mean realignment distance per "
-//       "allele.\">\n"
       << "##INFO=<ID=RefLen,Number=1,Type=Integer,Description=\"Length of the reference "
        "allele.\">\n"
       << "##INFO=<ID=RELATED_SV_ID,Number=1,Type=Integer,Description=\"GraphTyper ID of a related "
@@ -690,7 +684,7 @@ Vcf::write_header()
 
   // FORMAT definitions
   {
-    bgzf_stream
+    bgzf_stream.ss
       << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"GenoType call. ./. is called if there is no "
        "coverage at the variant site.\">\n"
       << "##FORMAT=<ID=FT,Number=1,Type=String,Description=\"Filter. PASS or FAILN where N is a number.\">\n"
@@ -709,27 +703,27 @@ Vcf::write_header()
 
   // FILTER definitions
   {
-    bgzf_stream << "##FILTER=<ID=LowABHet,Description=\"Allele balance of heterozygous carriers is below 17.5%.\">\n"
-                << "##FILTER=<ID=LowABHom,Description=\"Allele balance of homozygous carriers is below 90%.\">\n"
-                << "##FILTER=<ID=LowQD,Description=\"QD (quality by depth) is below 9.0.\">\n"
-                << "##FILTER=<ID=LowQUAL,Description=\"QUAL score is less than 10.\">\n"
-                << "##FILTER=<ID=LowPratio,Description=\"Ratio of PASSed calls was too low.\">\n";
+    bgzf_stream.ss << "##FILTER=<ID=LowABHet,Description=\"Allele balance of heterozygous carriers is below 17.5%.\">\n"
+                   << "##FILTER=<ID=LowABHom,Description=\"Allele balance of homozygous carriers is below 90%.\">\n"
+                   << "##FILTER=<ID=LowQD,Description=\"QD (quality by depth) is below 9.0.\">\n"
+                   << "##FILTER=<ID=LowQUAL,Description=\"QUAL score is less than 10.\">\n"
+                   << "##FILTER=<ID=LowPratio,Description=\"Ratio of PASSed calls was too low.\">\n";
 
   }
 
   // Column names
-  bgzf_stream << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO";
+  bgzf_stream.ss << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO";
 
   if (sample_names.size() > 0)
   {
     // Only a "format" column if there are any samples
-    bgzf_stream << "\tFORMAT";
+    bgzf_stream.ss << "\tFORMAT";
 
     for (auto const & sample_name : sample_names)
-      bgzf_stream << "\t" << sample_name;
+      bgzf_stream.ss << "\t" << sample_name;
   }
 
-  bgzf_stream << "\n";
+  bgzf_stream.ss << "\n";
 }
 
 
@@ -739,7 +733,7 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
   // Parse the position
   auto contig_pos = absolute_pos.get_contig_position(var.abs_pos, gyper::graph.contigs);
 
-  if (!Options::instance()->output_all_variants && var.calls.size() > 0 && var.seqs.size() > 200)
+  if (!Options::instance()->output_all_variants && var.calls.size() > 0 && var.seqs.size() > 100)
   {
     BOOST_LOG_TRIVIAL(info) << "Skipped outputting variant at position "
                             << contig_pos.first << ":" << contig_pos.second
@@ -777,35 +771,35 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
     return;
   }
 
-  bgzf_stream << contig_pos.first << '\t';
-  bgzf_stream << contig_pos.second << '\t';
+  bgzf_stream.ss << contig_pos.first << '\t';
+  bgzf_stream.ss << contig_pos.second << '\t';
 
   // Write the ID field
-  bgzf_stream << contig_pos.first; // Keep the 'chr'
+  bgzf_stream.ss << contig_pos.first; // Keep the 'chr'
 
-  bgzf_stream << ':' << contig_pos.second << ':' << var.determine_variant_type();
+  bgzf_stream.ss << ':' << contig_pos.second << ':' << var.determine_variant_type();
 
   if (var.suffix_id.size() > 0)
-    bgzf_stream << "[" << var.suffix_id << "]";
+    bgzf_stream.ss << "[" << var.suffix_id << "]";
 
-  bgzf_stream << suffix;
+  bgzf_stream.ss << suffix;
 
   // Parse the sequences
   assert(var.seqs.size() >= 2);
-  bgzf_stream << '\t' << std::string(var.seqs[0].begin(), var.seqs[0].end()) << '\t'
-              << std::string(var.seqs[1].begin(), var.seqs[1].end());
+  bgzf_stream.ss << '\t' << std::string(var.seqs[0].begin(), var.seqs[0].end()) << '\t'
+                 << std::string(var.seqs[1].begin(), var.seqs[1].end());
 
   // Print other allele sequences if it is multi-allelic marker
   for (long a = 2; a < static_cast<long>(var.seqs.size()); ++a)
-    bgzf_stream << ',' << std::string(var.seqs[a].begin(), var.seqs[a].end());
+    bgzf_stream.ss << ',' << std::string(var.seqs[a].begin(), var.seqs[a].end());
 
   // Parse qual
-  bgzf_stream << "\t" << std::to_string(variant_qual) << "\t";
+  bgzf_stream.ss << "\t" << std::to_string(variant_qual) << "\t";
 
   // Parse filter
   if (sample_names.size() == 0 || Options::const_instance()->ploidy > 2)
   {
-    bgzf_stream << ".\t";
+    bgzf_stream.ss << ".\t";
   }
   else
   {
@@ -816,9 +810,9 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
         std::stod(var.infos.at("ABHet")) < 0.175)
     {
       if (!is_pass)
-        bgzf_stream << ";";
+        bgzf_stream.ss << ";";
 
-      bgzf_stream << "LowABHet";
+      bgzf_stream.ss << "LowABHet";
       is_pass = false;
     }
 
@@ -827,9 +821,9 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
         std::stod(var.infos.at("ABHom")) < 0.85)
     {
       if (!is_pass)
-        bgzf_stream << ";";
+        bgzf_stream.ss << ";";
 
-      bgzf_stream << "LowABHom";
+      bgzf_stream.ss << "LowABHom";
       is_pass = false;
     }
 
@@ -837,18 +831,18 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
         var.infos.count("QD") == 1 && std::stod(var.infos.at("QD")) < 9.0)
     {
       if (!is_pass)
-        bgzf_stream << ";";
+        bgzf_stream.ss << ";";
 
-      bgzf_stream << "LowQD";
+      bgzf_stream.ss << "LowQD";
       is_pass = false;
     }
 
     if (variant_qual < 10)
     {
       if (!is_pass)
-        bgzf_stream << ";";
+        bgzf_stream.ss << ";";
 
-      bgzf_stream << "LowQUAL";
+      bgzf_stream.ss << "LowQUAL";
       is_pass = false;
     }
 
@@ -858,39 +852,39 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
         )
     {
       if (!is_pass)
-        bgzf_stream << ";";
+        bgzf_stream.ss << ";";
 
-      bgzf_stream << "LowPratio";
+      bgzf_stream.ss << "LowPratio";
       is_pass = false;
     }
 
     if (is_pass)
-      bgzf_stream << "PASS";
+      bgzf_stream.ss << "PASS";
 
-    bgzf_stream << "\t";
+    bgzf_stream.ss << "\t";
   }
 
 
   // Parse info
   if (var.infos.empty())
   {
-    bgzf_stream << ".";
+    bgzf_stream.ss << ".";
   }
   else
   {
     auto write_info = [&](std::map<std::string, std::string>::const_iterator it)
                       {
-                        bgzf_stream << it->first;
+                        bgzf_stream.ss << it->first;
 
                         if (it->second.size() > 0)
-                          bgzf_stream << '=' << it->second;
+                          bgzf_stream.ss << '=' << it->second;
                       };
 
     write_info(var.infos.cbegin());
 
     for (auto map_it = std::next(var.infos.cbegin(), 1); map_it != var.infos.cend(); ++map_it)
     {
-      bgzf_stream << ';';
+      bgzf_stream.ss << ';';
       write_info(map_it);
     }
 
@@ -903,9 +897,9 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
   if (var.calls.size() > 0)
   {
     if (is_sv)
-      bgzf_stream << "\tGT:FT:AD:MD:DP:RA:PP:GQ:PL";
+      bgzf_stream.ss << "\tGT:FT:AD:MD:DP:RA:PP:GQ:PL";
     else
-      bgzf_stream << "\tGT:AD:MD:DP:GQ:PL";
+      bgzf_stream.ss << "\tGT:AD:MD:DP:GQ:PL";
   }
 
   for (long i = 0; i < static_cast<long>(var.calls.size()); ++i)
@@ -920,12 +914,12 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
 
     if (std::find_if(call.phred.begin(), call.phred.end(), pl_non_zero) == call.phred.end())
     {
-      bgzf_stream << "\t./.";
+      bgzf_stream.ss << "\t./.";
     }
     else
     {
       std::pair<uint16_t, uint16_t> const gt_call = call.get_gt_call();
-      bgzf_stream << "\t" << gt_call.first << "/" << gt_call.second;
+      bgzf_stream.ss << "\t" << gt_call.first << "/" << gt_call.second;
     }
 
     // Write FT
@@ -933,65 +927,66 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
 
     if (is_sv)
     {
-      bgzf_stream << ":";
+      bgzf_stream.ss << ":";
       long filter = call.check_filter(gq);
 
       if (filter == 0)
       {
-        bgzf_stream << "PASS";
+        bgzf_stream.ss << "PASS";
       }
       else
       {
         assert(filter > 0);
-        bgzf_stream << "FAIL" << filter;
+        bgzf_stream.ss << "FAIL" << filter;
       }
     }
 
     // Write AD
     assert(call.coverage.size() > 0);
-    bgzf_stream << ":" << call.coverage[0];
+    bgzf_stream.ss << ":" << call.coverage[0];
 
     for (auto ad_it = call.coverage.begin() + 1; ad_it != call.coverage.end(); ++ad_it)
-      bgzf_stream << "," << *ad_it;
+      bgzf_stream.ss << "," << *ad_it;
 
     // Write MD (Multi-depth)
-    bgzf_stream << ":" << static_cast<uint64_t>(call.ambiguous_depth);
+    bgzf_stream.ss << ":" << static_cast<uint64_t>(call.ambiguous_depth);
 
     // Write DP
-    bgzf_stream << ":" << call.get_depth();
+    bgzf_stream.ss << ":" << call.get_depth();
 
     // Write RA
     if (is_sv)
     {
-      bgzf_stream << ":" << call.ref_total_depth << "," << call.alt_total_depth;
+      bgzf_stream.ss << ":" << call.ref_total_depth << "," << call.alt_total_depth;
     }
 
     // Write PP
     if (is_sv)
     {
-      bgzf_stream << ':' << static_cast<std::size_t>(call.alt_proper_pair_depth);
+      bgzf_stream.ss << ':' << static_cast<std::size_t>(call.alt_proper_pair_depth);
     }
 
     // Write GQ
-    bgzf_stream << ':' << std::min(99l, gq);
+    bgzf_stream.ss << ':' << std::min(99l, gq);
 
     // Write PL
-    bgzf_stream << ':' << static_cast<uint16_t>(call.phred[0]);
+    bgzf_stream.ss << ':' << static_cast<uint16_t>(call.phred[0]);
     // This cast to uint16_t is needed! Otherwise uint8_t is represented as a char
 
     for (std::size_t p = 1; p < call.phred.size(); ++p)
-      bgzf_stream << ',' << static_cast<uint16_t>(call.phred[p]);
+      bgzf_stream.ss << ',' << static_cast<uint16_t>(call.phred[p]);
   }
 
   // Fin.
-  bgzf_stream << '\n';
+  bgzf_stream.ss << '\n';
+  bgzf_stream.check_cache();
 }
 
 
 void
-Vcf::write(std::string const & region)
+Vcf::write(std::string const & region, long const n_threads)
 {
-  this->open_for_writing();
+  this->open_for_writing(n_threads);
   this->write_header();
   this->write_records(region);
   this->close_vcf_file();
@@ -1134,10 +1129,10 @@ Vcf::write_segments()
     auto contig_pos = absolute_pos.get_contig_position(segment.id, gyper::graph.contigs);
 
     // Write CHROM and POS
-    bgzf_stream << contig_pos.first << "\t" << contig_pos.second;
+    bgzf_stream.ss << contig_pos.first << "\t" << contig_pos.second;
 
     // Write the ID
-    bgzf_stream << "\t" << contig_pos.first << ":" << contig_pos.second << ":" << segment.var_type;
+    bgzf_stream.ss << "\t" << contig_pos.first << ":" << contig_pos.second << ":" << segment.var_type;
 
     if (segment.segment_name.size() > 0)
       bgzf_stream << ":" << segment.segment_name;
@@ -1193,10 +1188,7 @@ Vcf::write_tbi_index() const
   int ret = tbx_index_build(filename.c_str(), 0, &tbx_conf_vcf);
 
   if (ret < 0)
-  {
-    BOOST_LOG_TRIVIAL(error) << "Could not build VCF index";
-    std::exit(ret);
-  }
+    BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Could not build VCF index";
 }
 
 
@@ -1569,6 +1561,142 @@ get_string_at_tab_index(std::string const & line,
     return line.substr(tabs[index], std::string::npos);
   else
     return line.substr(tabs[index], tabs[index + 1] - tabs[index] - 1);
+}
+
+
+template <typename Archive>
+void
+Vcf::serialize(Archive & ar, unsigned const int /*version*/)
+{
+  ar & sample_names;
+  ar & variants;
+}
+
+
+/***************************
+ * EXPLICIT INSTANTIATIONS *
+ ***************************/
+
+template void Vcf::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &,
+                                                              const unsigned int);
+template void Vcf::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &,
+                                                              const unsigned int);
+
+
+/*********************************
+ * FUNCTIONS TO MAKE LIFE EASIER *
+ *********************************/
+void
+save_vcf(Vcf const & vcf, std::string const & filename)
+{
+  long n_batch{0};
+  long v_begin{0};
+  long n_alleles{0}; // sqaured number of alleles. We use square because that better capture better the memory requirement
+  long const MAX_ALLELES = Options::const_instance()->num_alleles_in_batch; // max number of squared alleles in batch
+
+  for (long v{0}; v < static_cast<long>(vcf.variants.size()); ++v)
+  {
+    auto const & var = vcf.variants[v];
+    assert(var.seqs.size() > 1);
+    long const n_alts = static_cast<long>(var.seqs.size()) - 1l;
+    n_alleles += n_alts * n_alts;
+
+    if (n_alleles >= MAX_ALLELES)
+    {
+      // Enough data, lets serialize
+      Vcf new_vcf;
+
+      if (n_batch == 0)
+        new_vcf.sample_names = vcf.sample_names;
+
+      assert(v_begin < static_cast<long>(vcf.variants.size()));
+
+      // std::move okay, right?
+      std::move(vcf.variants.begin() + v_begin, vcf.variants.begin() + (v + 1), std::back_inserter(new_vcf.variants));
+
+      // save batch
+      std::string batch_filename = filename + "_" + std::to_string(n_batch);
+      std::ofstream ofs(batch_filename.c_str(), std::ios::binary);
+
+      if (!ofs.is_open())
+      {
+        BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not save VCF to location '"
+                                 << filename
+                                 << "'";
+        std::exit(1);
+      }
+
+      boost::archive::binary_oarchive oa(ofs);
+      oa << new_vcf; // done saving the batch
+
+      v_begin = v + 1;
+      ++n_batch;
+      n_alleles = 0;
+    }
+  }
+
+  // Write remaining variants
+  Vcf new_vcf;
+
+  if (n_batch == 0)
+    new_vcf.sample_names = vcf.sample_names;
+
+  assert(v_begin <= static_cast<long>(vcf.variants.size()));
+
+  // std::move okay, right?
+  std::move(vcf.variants.begin() + v_begin, vcf.variants.end(), std::back_inserter(new_vcf.variants));
+
+  // save batch
+  std::string batch_filename = filename + "_" + std::to_string(n_batch);
+  std::ofstream ofs(batch_filename.c_str(), std::ios::binary);
+
+  if (!ofs.is_open())
+  {
+    BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not save VCF to location '"
+                             << filename
+                             << "'";
+    std::exit(1);
+  }
+
+  boost::archive::binary_oarchive oa(ofs);
+  oa << new_vcf; // done saving the batch
+}
+
+
+void
+load_vcf(Vcf & vcf, std::string const & filename, long n_batch)
+{
+  std::string batch_filename = filename + "_" + std::to_string(n_batch);
+  std::ifstream ifs(batch_filename.c_str(), std::ios::binary);
+
+  if (!ifs.is_open())
+  {
+    BOOST_LOG_TRIVIAL(error) << "Could not open VCF file " << batch_filename;
+    std::exit(1);
+  }
+
+  boost::archive::binary_iarchive ia(ifs);
+  ia >> vcf;
+}
+
+
+bool
+append_vcf(Vcf & vcf, std::string const & filename, long n_batch)
+{
+  Vcf new_vcf;
+  std::string batch_filename = filename + "_" + std::to_string(n_batch);
+  std::ifstream ifs(batch_filename.c_str(), std::ios::binary);
+
+  if (!ifs.is_open())
+  {
+    // This batch does not exist
+    return false;
+  }
+
+  boost::archive::binary_iarchive ia(ifs);
+  ia >> new_vcf;
+  std::move(new_vcf.variants.begin(), new_vcf.variants.end(), std::back_inserter(vcf.variants));
+  return true;
 }
 
 
