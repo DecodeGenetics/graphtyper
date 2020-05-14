@@ -271,14 +271,19 @@ Graph::add_genomic_region(std::vector<char> && reference_sequence,
   for (long i = 0; i < static_cast<long>(var_records.size()); ++i)
   {
     BOOST_LOG_TRIVIAL(debug) << __HERE__ << " i = " << i << ", pos = " << var_records[i].pos;
+    unsigned const num_var = static_cast<unsigned>(var_records[i].alts.size()) + 1u;
     is_continue = add_reference(var_records[i].pos,
-                                static_cast<unsigned>(var_records[i].alts.size()) + 1u,
+                                num_var,
                                 reference_sequence);    // force in the first iteration
 
     if (is_continue)
     {
       BOOST_LOG_TRIVIAL(debug) << __HERE__ << " adding variant";
       add_variants(std::move(var_records[i]));
+    }
+    else
+    {
+      break;
     }
   }
 
@@ -586,7 +591,10 @@ Graph::add_reference(unsigned end_pos,
 
   if (var_nodes.size() > 0)
   {
-    Label const & previous_var_label = var_nodes.at(ref_nodes.back().get_var_index(0)).get_label();
+    assert(ref_nodes.size() > 0);
+    auto const v = ref_nodes[ref_nodes.size() - 1].get_var_index(0);
+    assert(v < var_nodes.size());
+    Label const & previous_var_label = var_nodes[v].get_label();
     start_pos = previous_var_label.order + previous_var_label.dna.size();
   }
 
