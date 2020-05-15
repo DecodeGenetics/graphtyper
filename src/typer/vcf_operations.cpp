@@ -323,6 +323,7 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
   for (long i = 1; i < static_cast<long>(vcfs.size()); ++i)
   {
     auto const & vcf_fn = vcfs[i];
+    assert((i - 1) < static_cast<long>(next_vcfs.size()));
     gyper::Vcf & next_vcf = next_vcfs[i - 1];
     load_vcf(next_vcf, vcf_fn, 0);
 
@@ -423,7 +424,7 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
     }
 
     // Trigger read next batch
-    if ((v - v_next) == static_cast<long>(next_vcfs[0].variants.size()))
+    if (next_vcfs.size() > 0 && (v - v_next) == static_cast<long>(next_vcfs[0].variants.size()))
     {
       BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Updating next_vcfs";
 
