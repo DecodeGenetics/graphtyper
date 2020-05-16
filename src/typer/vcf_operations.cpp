@@ -288,7 +288,8 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
                     std::string const & output,
                     std::string const & region,
                     bool const FILTER_ZERO_QUAL,
-                    bool const force_no_variant_overlapping)
+                    bool const force_no_variant_overlapping,
+                    bool const force_no_break_down)
 {
   if (vcfs.size() == 0)
     return;
@@ -531,10 +532,15 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
                                          force_no_variant_overlapping};
 
     bool const is_all_biallelic{copts.is_all_biallelic};
-    std::vector<Variant> new_variants = break_down_variant(std::move(var),
-                                                           reach,
-                                                           is_no_variant_overlapping,
-                                                           is_all_biallelic);
+    std::vector<Variant> new_variants;
+
+    if (force_no_break_down)
+      new_variants.push_back(std::move(var));
+    else
+      new_variants = break_down_variant(std::move(var),
+                                        reach,
+                                        is_no_variant_overlapping,
+                                        is_all_biallelic);
     assert(new_variants.size() > 0);
 
     for (auto & new_var : new_variants)

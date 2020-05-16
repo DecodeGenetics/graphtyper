@@ -1666,17 +1666,32 @@ save_vcf(Vcf const & vcf, std::string const & filename)
 void
 load_vcf(Vcf & vcf, std::string const & filename, long n_batch)
 {
-  std::string batch_filename = filename + "_" + std::to_string(n_batch);
-  std::ifstream ifs(batch_filename.c_str(), std::ios::binary);
+  std::string const VCF_GZ = ".vcf.gz";
 
-  if (!ifs.is_open())
+  if (filename.size() > VCF_GZ.size() &&
+      std::equal(filename.rbegin(),
+                 filename.rbegin() + VCF_GZ.size(),
+                 VCF_GZ.rbegin()))
+
   {
-    BOOST_LOG_TRIVIAL(error) << "Could not open VCF file " << batch_filename;
-    std::exit(1);
+    vcf.open(READ_MODE, filename);
+    vcf.read();
   }
+  else
+  {
+    std::string batch_filename = filename + "_" + std::to_string(n_batch);
+    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Loading variants from " << batch_filename;
+    std::ifstream ifs(batch_filename.c_str(), std::ios::binary);
 
-  boost::archive::binary_iarchive ia(ifs);
-  ia >> vcf;
+    if (!ifs.is_open())
+    {
+      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not open file " << batch_filename;
+      std::exit(1);
+    }
+
+    boost::archive::binary_iarchive ia(ifs);
+    ia >> vcf;
+  }
 }
 
 
@@ -1685,6 +1700,7 @@ append_vcf(Vcf & vcf, std::string const & filename, long n_batch)
 {
   Vcf new_vcf;
   std::string batch_filename = filename + "_" + std::to_string(n_batch);
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Appending variants from " << batch_filename;
   std::ifstream ifs(batch_filename.c_str(), std::ios::binary);
 
   if (!ifs.is_open())

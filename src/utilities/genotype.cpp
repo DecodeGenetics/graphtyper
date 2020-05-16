@@ -324,8 +324,8 @@ genotype_only_with_a_vcf(std::string const & ref_path,
   //for (auto & path : paths)
   //  path += "_calls.vcf.gz";
 
-  //> FILTER_ZERO_QUAL, force_no_variant_overlapping
-  vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", region.to_string(), true, false);
+  //> FILTER_ZERO_QUAL, force_no_variant_overlapping, force_no_break_down
+  vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", region.to_string(), true, false, false);
 
   // free memory
   graph = Graph();
@@ -652,12 +652,17 @@ genotype(std::string ref_path,
       //  path += "_calls.vcf.gz";
 
       //> FILTER_ZERO_QUAL, force_no_variant_overlapping
-      vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", region.to_string(), true, false);
+      vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", region.to_string(), true, false, false);
 
       if (copts.normal_and_no_variant_overlapping)
       {
         //> FILTER_ZERO_QUAL, force_no_variant_overlapping
-        vcf_merge_and_break(paths, tmp + "/graphtyper.no_variant_overlapping.vcf.gz", region.to_string(), true, true);
+        vcf_merge_and_break(paths,
+                            tmp + "/graphtyper.no_variant_overlapping.vcf.gz",
+                            region.to_string(),
+                            true,
+                            true,
+                            false);
       }
     }
 
