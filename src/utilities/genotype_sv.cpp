@@ -176,8 +176,17 @@ genotype_sv(std::string ref_path,
 
       if (ret != 0)
       {
-        BOOST_LOG_TRIVIAL(error) << "This command failed '" << ss_cmd.str() << "'";
-        std::exit(ret);
+        if (extension.size() == 0)
+        {
+          // Error if copying final VCF
+          BOOST_LOG_TRIVIAL(error) << "This command failed '" << ss_cmd.str() << "'";
+          std::exit(ret);
+        }
+        else
+        {
+          // Otherwise a warning
+          BOOST_LOG_TRIVIAL(warning) << "This command failed '" << ss_cmd.str() << "'";
+        }
       }
     };
 
