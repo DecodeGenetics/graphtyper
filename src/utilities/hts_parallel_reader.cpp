@@ -637,7 +637,6 @@ parallel_reader_genotype_only(std::string * out_path,
                              << output_dir << "/"
                              << first_sample << "_*'";
 
-    std::ostringstream vcf_calls_path;
     Vcf vcf;
 
     // Set sample names
@@ -651,10 +650,26 @@ parallel_reader_genotype_only(std::string * out_path,
     }
 
     for (auto & var : vcf.variants)
-      var.trim_sequences(false); // Don't keep one match
+      var.trim_sequences(false);   // Don't keep one match
 
-    // If the graph is an SV graph, then reformat the SV record
-    reformat_sv_vcf_records(vcf.variants, reference_depth);
+    if (graph.is_sv_graph)
+    {
+      reformat_sv_vcf_records(vcf.variants, reference_depth);
+
+      if (vcf.sample_names.size() > 0)
+      {
+        for (auto & var : vcf.variants)
+          var.generate_infos();
+      }
+
+      // Non-SVs are at the end from the reformat_sv_vcf_records function, so this is needed
+      std::sort(vcf.variants.begin(),
+                vcf.variants.end(),
+                [](Variant const & a, Variant const & b){
+          return a.abs_pos < b.abs_pos || (a.abs_pos == b.abs_pos && a.seqs < b.seqs);
+        });
+    }
+
     save_vcf(vcf, output_dir + "/" + first_sample);
   }
 
@@ -809,7 +824,7 @@ parallel_reader_with_discovery(std::string * out_path,
                              << output_dir << "/"
                              << first_sample << "_*'";
 
-    std::ostringstream vcf_calls_path;
+    // Handle SNP/indel graphs
     Vcf vcf;
 
     // Set sample names
@@ -823,10 +838,26 @@ parallel_reader_with_discovery(std::string * out_path,
     }
 
     for (auto & var : vcf.variants)
-      var.trim_sequences(false); // Don't keep one match
+      var.trim_sequences(false);   // Don't keep one match
 
-    // If the graph is an SV graph, then reformat the SV record
-    reformat_sv_vcf_records(vcf.variants, reference_depth);
+    if (graph.is_sv_graph)
+    {
+      reformat_sv_vcf_records(vcf.variants, reference_depth);
+
+      if (vcf.sample_names.size() > 0)
+      {
+        for (auto & var : vcf.variants)
+          var.generate_infos();
+      }
+
+      // Non-SVs are at the end from the reformat_sv_vcf_records function, so this is needed
+      std::sort(vcf.variants.begin(),
+                vcf.variants.end(),
+                [](Variant const & a, Variant const & b){
+          return a.abs_pos < b.abs_pos || (a.abs_pos == b.abs_pos && a.seqs < b.seqs);
+        });
+    }
+
     save_vcf(vcf, output_dir + "/" + first_sample);
   }
 
