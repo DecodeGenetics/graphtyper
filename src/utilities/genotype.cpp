@@ -689,6 +689,8 @@ genotype(std::string ref_path,
     }
   }
 
+  std::string const index_ext = copts.is_csi ? ".vcf.gz.csi" : ".vcf.gz.tbi";
+
   // Copy final VCFs
   auto copy_to_results =
     [&](std::string const & basename_no_ext, std::string const & extension, std::string const & id)
@@ -704,7 +706,7 @@ genotype(std::string ref_path,
 
       int ret = system(ss_cmd.str().c_str());
 
-      if (extension != ".vcf.gz.tbi" && ret != 0)
+      if (extension != index_ext && ret != 0)
       {
         BOOST_LOG_TRIVIAL(error) << __HERE__ << " This command failed '" << ss_cmd.str() << "'";
         std::exit(ret);
@@ -717,12 +719,12 @@ genotype(std::string ref_path,
     };
 
   copy_to_results("graphtyper", ".vcf.gz", ""); // Copy final VCF
-  copy_to_results("graphtyper", ".vcf.gz.tbi", ""); // Copy tabix index for final VCF
+  copy_to_results("graphtyper", index_ext, ""); // Copy tabix index for final VCF
 
   if (copts.normal_and_no_variant_overlapping)
   {
     copy_to_results("graphtyper.no_variant_overlapping", ".vcf.gz", ".no_variant_overlapping");
-    copy_to_results("graphtyper.no_variant_overlapping", ".vcf.gz.tbi", ".no_variant_overlapping");
+    copy_to_results("graphtyper.no_variant_overlapping", index_ext, ".no_variant_overlapping");
   }
 
   if (!copts.no_cleanup)

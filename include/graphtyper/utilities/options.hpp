@@ -80,6 +80,7 @@ public:
    * CALLING OPTIONS *
    *******************/
   bool hq_reads{false};
+  bool is_csi{false};
   int sam_flag_filter{3840};
   long max_files_open{1000}; // Maximum amount of SAM/BAM/CRAM files can be opened at the same time
   long soft_cap_of_variants_in_100_bp_window{22};

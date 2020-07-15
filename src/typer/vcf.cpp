@@ -1185,7 +1185,11 @@ Vcf::close_vcf_file()
 void
 Vcf::write_tbi_index() const
 {
-  int ret = tbx_index_build(filename.c_str(), 0, &tbx_conf_vcf);
+  bool const is_csi = Options::const_instance()->is_csi;
+
+  int ret = is_csi ?
+            tbx_index_build(filename.c_str(), 14, &tbx_conf_vcf) :
+            tbx_index_build(filename.c_str(), 0, &tbx_conf_vcf);
 
   if (ret < 0)
     BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Could not build VCF index";

@@ -34,21 +34,16 @@ genotype_sv(std::string ref_path,
 {
   // TODO: If the reference is only Ns then output an empty vcf with the sample names
   // TODO: Extract the reference sequence and use that to discover directly from BAM
-  bool constexpr is_writing_calls_vcf {
-    true
-  };
-  bool constexpr is_writing_hap {
-    false
-  };
-  bool constexpr is_discovery {
-    false
-  };
+  gyper::Options const & copts = *(Options::const_instance());
+  bool constexpr is_writing_calls_vcf{true};
+  bool constexpr is_writing_hap{false};
+  bool constexpr is_discovery{false};
 
   long const NUM_SAMPLES = sams.size();
 
   BOOST_LOG_TRIVIAL(info) << "SV genotyping region " << genomic_region.to_string();
   BOOST_LOG_TRIVIAL(info) << "Path to genome is '" << ref_path << "'";
-  BOOST_LOG_TRIVIAL(info) << "Running with up to " << Options::const_instance()->threads << " threads.";
+  BOOST_LOG_TRIVIAL(info) << "Running with up to " << copts.threads << " threads.";
   BOOST_LOG_TRIVIAL(info) << "Copying data from " << NUM_SAMPLES << " input SAM/BAM/CRAMs to local disk.";
   std::string tmp = create_temp_dir(genomic_region);
 
@@ -190,10 +185,12 @@ genotype_sv(std::string ref_path,
       }
     };
 
-  copy_vcf_to_system(""); // Copy final VCF
-  copy_vcf_to_system(".tbi"); // Copy tabix index for final VCF
+  std::string const index_ext = copts.is_csi ? ".csi" : ".tbi";
 
-  if (!Options::instance()->no_cleanup)
+  copy_vcf_to_system(""); // Copy final VCF
+  copy_vcf_to_system(index_ext); // Copy tabix index for final VCF
+
+  if (!copts.no_cleanup)
   {
     BOOST_LOG_TRIVIAL(info) << "Cleaning up temporary files.";
     remove_file_tree(tmp.c_str());

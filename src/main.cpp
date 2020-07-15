@@ -680,6 +680,11 @@ subcmd_genotype(paw::Parser & parser)
                         "genotype_dis_min_support_ratio",
                         "(advanced) Minimum graph discovery support ratio for a variant so it can be added to the graph.");
 
+    parser.parse_option(opts.is_csi,
+                        'C',
+                        "csi",
+                        "(advanced) If set, graphtyper will make csi indices instead of tbi.");
+
     parser.parse_option(opts.is_only_cigar_discovery,
                         ' ',
                         "is_only_cigar_discovery",
@@ -788,6 +793,11 @@ subcmd_genotype_sv(paw::Parser & parser)
   bool force_no_copy_reference{false};
 
   // Parse options
+  parser.parse_option(opts.is_csi,
+                      'C',
+                      "csi",
+                      "(advanced) If set, graphtyper will make csi indices instead of tbi.");
+
   parser.parse_option(opts.max_files_open,
                       ' ',
                       "max_files_open",
