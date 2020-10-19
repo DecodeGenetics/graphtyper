@@ -10,7 +10,7 @@
 namespace gyper
 {
 
-class Contig;
+struct Contig;
 
 class AbsolutePosition
 {

@@ -42,13 +42,13 @@ check_if_maps_are_empty(std::vector<TMapGPaths> const & maps)
 
     if (map.size() > 0)
     {
-      BOOST_LOG_TRIVIAL(warning)
+      BOOST_LOG_TRIVIAL(info)
         << __HERE__ << " Found a non-empty read map for with size "
         << map.size()
         << "! This likely means these reads have the BAM_FPAIRED flag set but have no mate read.";
 
-      for (auto it = map.begin(); it != map.end(); ++it)
-        BOOST_LOG_TRIVIAL(debug) << "Leftover read name: " << it->first;
+      //for (auto it = map.begin(); it != map.end(); ++it)
+      //  BOOST_LOG_TRIVIAL(debug) << "Leftover read name: " << it->first;
     }
   }
 }
@@ -76,11 +76,7 @@ HtsParallelReader::open(std::vector<std::string> const & hts_file_paths,
   for (auto const & bam : hts_file_paths)
   {
     HtsReader f(store);
-    f.open(bam, region);
-
-    if (!reference.empty())
-      f.set_reference(reference);
-
+    f.open(bam, region, reference);
     f.set_sample_index_offset(samples.size());
     std::copy(f.samples.begin(), f.samples.end(), std::back_inserter(samples));
     f.set_rg_index_offset(num_rg);
@@ -94,7 +90,7 @@ HtsParallelReader::open(std::vector<std::string> const & hts_file_paths,
   // Read the first record of each hts file
   for (long i = 0; i < n; ++i)
   {
-    bam1_t * hts_rec = hts_files[i].get_next_read();
+    bam1_t * hts_rec = hts_files[i].get_next_read_in_order();
 
     if (hts_rec)
     {
@@ -127,9 +123,9 @@ HtsParallelReader::read_record(HtsRecord & hts_record)
 
   // reuse an old bam1_t record if it is available
   if (old_record)
-    hts_rec = hts_files[i].get_next_read(old_record);
+    hts_rec = hts_files[i].get_next_read_in_order(old_record);
   else
-    hts_rec = hts_files[i].get_next_read();
+    hts_rec = hts_files[i].get_next_read_in_order();
 
   std::pop_heap(heap.begin(), heap.end(), Cmp_gt_pair_bam1_t_fun);
   assert(hts_record.record == heap.back().record);
@@ -283,8 +279,8 @@ genotype_only(HtsParallelReader const & hts_preader,
   assert(hts_rec.file_index >= 0);
   assert(hts_rec.file_index < static_cast<long>(maps.size()));
 
-  long rg_i = 0;
-  long sample_i = 0;
+  long rg_i{0};
+  long sample_i{0};
   hts_preader.get_sample_and_rg_index(sample_i, rg_i, hts_rec);
 
   assert(maps.size() > 0);
@@ -301,7 +297,6 @@ genotype_only(HtsParallelReader const & hts_preader,
   }
 
   std::pair<GenotypePaths, GenotypePaths> geno_paths(prev_paths);
-
   auto find_it = map_gpaths.find(read_name);
 
   if (find_it == map_gpaths.end())
@@ -309,17 +304,21 @@ genotype_only(HtsParallelReader const & hts_preader,
     if (hts_rec.record->core.flag & IS_PAIRED)
     {
       // Read is in a pair and we need to wait for its mate
-#ifndef NDEBUG
-      update_paths(geno_paths, seq, rseq, hts_rec.record);
-#else
+//#ifndef NDEBUG
+//      update_paths(geno_paths, seq, rseq, hts_rec.record);
+//#else
       update_paths(geno_paths, hts_rec.record);
-#endif
+//#endif
 
       map_gpaths[read_name] = std::move(geno_paths); // Did not find the read name
     }
     else
     {
+//#ifndef NDEBUG
+//      GenotypePaths * selected = update_unpaired_read_paths(geno_paths, seq, rseq, hts_rec.record);
+//#else
       GenotypePaths * selected = update_unpaired_read_paths(geno_paths, hts_rec.record);
+//#endif
 
       if (selected)
       {
@@ -336,11 +335,11 @@ genotype_only(HtsParallelReader const & hts_preader,
   else
   {
     // Do stuff with paired reads....
-#ifndef NDEBUG
-    update_paths(geno_paths, seq, rseq, hts_rec.record);
-#else
+//#ifndef NDEBUG
+//    update_paths(geno_paths, seq, rseq, hts_rec.record);
+//#else
     update_paths(geno_paths, hts_rec.record);
-#endif
+//#endif
 
     if ((geno_paths.first.flags & IS_FIRST_IN_PAIR) == (find_it->second.first.flags & IS_FIRST_IN_PAIR))
     {
@@ -355,6 +354,8 @@ genotype_only(HtsParallelReader const & hts_preader,
 
     if (better_paths.first)
     {
+      assert(better_paths.second);
+
       if (graph.is_sv_graph)
       {
         // Add reference depth
@@ -413,13 +414,9 @@ genotype_and_discover(HtsParallelReader const & hts_preader,
     if (hts_rec.record->core.flag & IS_PAIRED)
     {
       // Read is in a pair and we need to wait for its mate
-#ifndef NDEBUG
-      update_paths(geno_paths, seq, rseq, hts_rec.record);
-#else
       update_paths(geno_paths, hts_rec.record);
-#endif
 
-      further_update_paths_for_discovery(geno_paths, seq, rseq, hts_rec.record);
+      further_update_paths_for_discovery(geno_paths, hts_rec.record);
       map_gpaths[read_name] = std::move(geno_paths); // Did not find the read name
     }
     else
@@ -428,7 +425,7 @@ genotype_and_discover(HtsParallelReader const & hts_preader,
 
       if (selected)
       {
-        further_update_unpaired_read_paths_for_discovery(*selected, seq, rseq, hts_rec.record);
+        further_update_unpaired_read_paths_for_discovery(*selected, hts_rec.record);
 
         // Discover new variants
         {
@@ -449,11 +446,7 @@ genotype_and_discover(HtsParallelReader const & hts_preader,
   else
   {
     // Do stuff with paired reads....
-#ifndef NDEBUG
-    update_paths(geno_paths, seq, rseq, hts_rec.record);
-#else
     update_paths(geno_paths, hts_rec.record);
-#endif
 
     if ((geno_paths.first.flags & IS_FIRST_IN_PAIR) == (find_it->second.first.flags & IS_FIRST_IN_PAIR))
     {
@@ -462,7 +455,7 @@ genotype_and_discover(HtsParallelReader const & hts_preader,
       std::exit(1);
     }
 
-    further_update_paths_for_discovery(geno_paths, seq, rseq, hts_rec.record);
+    further_update_paths_for_discovery(geno_paths, hts_rec.record);
 
     // Find the better pair of geno paths
     std::pair<GenotypePaths *, GenotypePaths *> better_paths =
@@ -499,6 +492,7 @@ genotype_and_discover(HtsParallelReader const & hts_preader,
 void
 parallel_reader_genotype_only(std::string * out_path,
                               std::vector<std::string> const * hts_paths_ptr,
+                              std::vector<double> const * avg_cov_ptr,
                               std::string const * output_dir_ptr,
                               std::string const * reference_fn_ptr,
                               std::string const * region_ptr,
@@ -508,12 +502,14 @@ parallel_reader_genotype_only(std::string * out_path,
                               bool const is_writing_hap)
 {
   assert(hts_paths_ptr);
+  assert(avg_cov_ptr);
   assert(ph_index_ptr);
   assert(output_dir_ptr);
   assert(reference_fn_ptr);
   assert(region_ptr);
 
   auto const & hts_paths = *hts_paths_ptr;
+  auto const & avg_cov_by_readlen = *avg_cov_ptr;
   auto const & ph_index = *ph_index_ptr;
   auto const & output_dir = *output_dir_ptr;
   auto const & reference = *reference_fn_ptr;
@@ -537,13 +533,9 @@ parallel_reader_genotype_only(std::string * out_path,
 
   // Set up reference depth tracks and bin counts if we are SV calling
   ReferenceDepth reference_depth;
-  //std::vector<std::vector<long> > bin_counts;
 
   if (graph.is_sv_graph)
-  {
     reference_depth.set_depth_sizes(writer.pns.size());
-    //  bin_counts.resize(writer.pns.size());
-  }
 
   std::vector<TMapGPaths> maps; // One map for each file. Each map relates read names to their graph alignments
   maps.resize(hts_preader.get_num_rg());
@@ -562,11 +554,58 @@ parallel_reader_genotype_only(std::string * out_path,
   std::pair<GenotypePaths, GenotypePaths> prev_paths;
   HtsRecord prev;
 
+  auto is_good_read =
+    [](bam1_t * record) -> bool
+    {
+      auto const & core = record->core;
+
+      if ((core.flag & IS_UNMAPPED) != 0u)
+        return false;
+
+      std::array<char, 16> static constexpr CIGAR_MAP = {{
+        'M', 'I', 'D', 'N', 'S', 'H', 'P', '=', 'X', 'B', '*', '*', '*', '*', '*', '*'
+      }};
+
+      auto cigar_it = record->data + core.l_qname;
+      long const N_CIGAR = core.n_cigar;
+
+      // Check if both ends are clipped
+      if (N_CIGAR >= 2)
+      {
+        uint32_t opAndCnt;
+        memcpy(&opAndCnt, cigar_it, sizeof(uint32_t));
+        char cigar_operation_front = CIGAR_MAP[opAndCnt & 15];
+        uint32_t count_front = opAndCnt >> 4;
+
+        cigar_it += sizeof(uint32_t) * (N_CIGAR - 1);
+        memcpy(&opAndCnt, cigar_it, sizeof(uint32_t));
+        char cigar_operation_back = CIGAR_MAP[opAndCnt & 15];
+        uint32_t count_back = opAndCnt >> 4;
+
+        bool const is_one_clipped = (cigar_operation_front == 'S' && count_front >= 12) ||
+                                    (cigar_operation_back == 'S' && count_back >= 12);
+
+        bool const is_mate_far_away = core.tid != core.mtid || std::abs(core.pos - core.mpos) > 200000;
+
+        if ((cigar_operation_front == 'S' && cigar_operation_back == 'S') ||
+            (is_mate_far_away && is_one_clipped) ||
+            (core.qual <= 15 && is_one_clipped) ||
+            (core.qual <= 15 && is_mate_far_away))
+        {
+          return false;
+        }
+      }
+
+      return true;
+    };
+
   // Read the first record
   bool is_done = !hts_preader.read_record(prev);
   assert(is_done || prev.record);
+  bool const IS_SV_CALLING{graph.is_sv_graph};
 
-  while (!is_done && (prev.record->core.flag & Options::const_instance()->sam_flag_filter) != 0u)
+  while (!is_done && ((prev.record->core.flag & Options::const_instance()->sam_flag_filter) != 0u ||
+                      (IS_SV_CALLING && !is_good_read(prev.record))))
   {
     BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Reread first record";
     is_done = !hts_preader.read_record(prev);
@@ -578,6 +617,54 @@ parallel_reader_genotype_only(std::string * out_path,
   }
   else
   {
+    // bin counts for the (extreme) coverage filter
+    long const first_pos{prev.record->core.pos};
+
+    std::vector<std::vector<uint16_t> > bin_counts;
+    bool const IS_COVERAGE_FILTER{IS_SV_CALLING && !Options::const_instance()->no_filter_on_coverage};
+
+    if (IS_COVERAGE_FILTER)
+      bin_counts.resize(hts_preader.get_samples().size());
+
+    // Lambda function to update bin counts for the first record. Returns false when there are too many reads in bin
+    auto update_bin_count =
+      [&](HtsRecord const & hts_rec) -> bool
+      {
+        if (!IS_COVERAGE_FILTER)
+          return true;
+
+        long sample_i{0};
+        long rg_i{0};
+        hts_preader.get_sample_and_rg_index(sample_i, rg_i, hts_rec);
+
+        if (sample_i >= static_cast<long>(avg_cov_by_readlen.size()) || avg_cov_by_readlen[sample_i] <= 0.0)
+          return true;
+
+        uint16_t max_bin_count = std::min(static_cast<long>(std::numeric_limits<uint16_t>::max()),
+                                          static_cast<long>(avg_cov_by_readlen[sample_i] * 50.0 * 3.0 + 0.5));
+
+        assert(sample_i < static_cast<long>(bin_counts.size()));
+        auto & sample_bin_counts = bin_counts[sample_i];
+        long const bin = (hts_rec.record->core.pos - first_pos) / 50l;
+
+        if (bin >= static_cast<long>(sample_bin_counts.size()))
+        {
+          sample_bin_counts.resize(bin + 1, 0u);
+          ++sample_bin_counts[bin]; // increment read count in new bin
+          return true;
+        }
+        else if (sample_bin_counts[bin] > max_bin_count)
+        {
+          return false;
+        }
+        else
+        {
+          ++sample_bin_counts[bin]; // increment read count in bin
+          return true;
+        }
+      };
+
+    update_bin_count(prev);
     ++num_records;
     seqan::IupacString seq;
     seqan::IupacString rseq;
@@ -589,20 +676,30 @@ parallel_reader_genotype_only(std::string * out_path,
     while (hts_preader.read_record(curr))
     {
       // Ignore reads with the following bits set
-      if ((curr.record->core.flag & Options::const_instance()->sam_flag_filter) != 0u)
+      if ((curr.record->core.flag & Options::const_instance()->sam_flag_filter) != 0u ||
+          (IS_SV_CALLING && !is_good_read(curr.record)))
+      {
         continue;
+      }
 
       ++num_records;
 
       if (equal_pos_seq(prev.record, curr.record))
       {
         // The two records are equal
+        update_bin_count(curr);
         ++num_duplicated_records;
         genotype_only(hts_preader, writer, reference_depth, maps, prev_paths, ph_index, primers, curr, seq, rseq,
                       false /*update prev_geno_paths*/);
       }
       else
       {
+        if (!update_bin_count(curr))
+        {
+          --num_records; // Skip record
+          continue;
+        }
+
         genotype_only(hts_preader, writer, reference_depth, maps, prev_paths, ph_index, primers, curr, seq, rseq,
                       true /*update prev_geno_paths*/);
         hts_preader.move_record(prev, curr); // move curr to prev

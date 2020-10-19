@@ -273,17 +273,28 @@ Haplotype::add_coverage(uint32_t const i, uint16_t const c)
 
 
 void
-Haplotype::clipped_reads_to_stats(bool const fully_aligned)
+Haplotype::clipped_reads_to_stats(int const clipped_bp, int const read_length)
 {
-  if (!fully_aligned)
-  {
-    assert(var_stats.size() == gts.size());
-    assert(var_stats.size() == coverage.size());
+  if (clipped_bp == 0)
+    return;
 
-    for (long i = 0; i < static_cast<long>(var_stats.size()); ++i)
+  assert(var_stats.size() == gts.size());
+  assert(var_stats.size() == coverage.size());
+  long const num_allele = var_stats.size();
+  long const scaled_clipped_bp = (clipped_bp * 1000l) / read_length;
+
+  for (long i = 0; i < num_allele; ++i)
+  {
+    auto & var_stat = var_stats[i];
+    auto const & cov = coverage[i];
+
+    if (cov != NO_COVERAGE)
+      ++var_stats[i].clipped_reads;
+
+    if (cov < MULTI_REF_COVERAGE) // true when the coverage is unique to a particular allele
     {
-      if (coverage[i] != NO_COVERAGE)
-        ++var_stats[i].clipped_reads;
+      assert(cov < var_stat.per_allele.size());
+      var_stat.per_allele[cov].clipped_bp += scaled_clipped_bp;
     }
   }
 }
@@ -292,13 +303,27 @@ Haplotype::clipped_reads_to_stats(bool const fully_aligned)
 void
 Haplotype::mapq_to_stats(uint8_t const new_mapq)
 {
+  if (new_mapq == 255)
+    return; // means that MQ is unavailable
+
   assert(var_stats.size() == gts.size());
   assert(var_stats.size() == coverage.size());
+  uint64_t const mapq_squared = static_cast<uint64_t>(new_mapq) * static_cast<uint64_t>(new_mapq);
+  long const num_allele = var_stats.size();
 
-  for (long i = 0; i < static_cast<long>(var_stats.size()); ++i)
+  for (long i = 0; i < num_allele; ++i)
   {
-    if (coverage[i] != NO_COVERAGE)
-      var_stats[i].add_mapq(new_mapq);
+    auto & var_stat = var_stats[i];
+    auto const & cov = coverage[i];
+
+    if (cov != NO_COVERAGE)
+      var_stat.mapq_squared += mapq_squared;
+
+    if (cov < MULTI_REF_COVERAGE) // true when the coverage is unique to a particular allele
+    {
+      assert(cov < var_stat.per_allele.size());
+      var_stat.per_allele[cov].mapq_squared += mapq_squared;
+    }
   }
 }
 
@@ -310,13 +335,14 @@ Haplotype::strand_to_stats(uint16_t const flags)
   bool const is_first_in_pair = (flags & IS_FIRST_IN_PAIR) != 0;
   assert(var_stats.size() == gts.size());
   assert(var_stats.size() == coverage.size());
+  long const num_allele = var_stats.size();
 
-  for (long i = 0; i < static_cast<long>(var_stats.size()); ++i)
+  for (long i = 0; i < num_allele; ++i)
   {
     auto & var_stat = var_stats[i];
     auto const & cov = coverage[i];
 
-    if (coverage[i] < MULTI_REF_COVERAGE) // true when the coverage is unique to a particular allele
+    if (cov < MULTI_REF_COVERAGE) // true when the coverage is unique to a particular allele
     {
       assert(cov < var_stat.read_strand.size());
 
@@ -334,6 +360,51 @@ Haplotype::strand_to_stats(uint16_t const flags)
         else
           ++var_stat.read_strand[cov].r2_reverse;
       }
+    }
+  }
+}
+
+
+void
+Haplotype::mismatches_to_stats(uint8_t const mismatches, int const read_length)
+{
+  if (mismatches == 0)
+    return;
+
+  long const scaled_mismatches = (mismatches * 1000l) / read_length;
+  long const num_allele = var_stats.size();
+
+  for (long i = 0; i < num_allele; ++i)
+  {
+    auto & var_stat = var_stats[i];
+    auto const & cov = coverage[i];
+
+    if (cov < MULTI_REF_COVERAGE) // true when the coverage is unique to a particular allele
+    {
+      assert(cov < var_stat.per_allele.size());
+      var_stat.per_allele[cov].mismatches += scaled_mismatches;
+    }
+  }
+}
+
+
+void
+Haplotype::score_diff_to_stats(uint8_t const score_diff)
+{
+  if (score_diff == 0)
+    return;
+
+  long const num_allele = var_stats.size();
+
+  for (long i = 0; i < num_allele; ++i)
+  {
+    auto & var_stat = var_stats[i];
+    auto const & cov = coverage[i];
+
+    if (cov < MULTI_REF_COVERAGE) // true when the coverage is unique to a particular allele
+    {
+      assert(cov < var_stat.per_allele.size());
+      var_stat.per_allele[cov].score_diff += score_diff;
     }
   }
 }

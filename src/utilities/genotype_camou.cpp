@@ -129,18 +129,12 @@ genotype_camou(std::string const & interval_fn,
     run_samtools_merge(shrinked_sams, tmp_bams);
   }
 
-  bool constexpr is_writing_hap {
-    false
-  };
+  bool constexpr is_writing_hap{false};
 
   for (auto const & interval : intervals)
   {
-    bool is_writing_calls_vcf {
-      false
-    };
-    bool is_discovery {
-      true
-    };
+    bool is_writing_calls_vcf{false};
+    bool is_discovery{true};
 
     BOOST_LOG_TRIVIAL(info) << "Genotyping interval " << interval;
     GenomicRegion genomic_region(interval);
@@ -180,6 +174,7 @@ genotype_camou(std::string const & interval_fn,
         double minimum_variant_support_ratio = 0.35 / static_cast<double>(num_intervals);
 
         paths = gyper::call(shrinked_sams,
+                            avg_cov_by_readlen,
                             "", // graph_path
                             ph_index,
                             out_dir,
@@ -239,6 +234,7 @@ genotype_camou(std::string const & interval_fn,
         PHIndex ph_index = index_graph(gyper::graph);
 
         paths = gyper::call(shrinked_sams,
+                            avg_cov_by_readlen,
                             "", // graph_path
                             ph_index,
                             out_dir,

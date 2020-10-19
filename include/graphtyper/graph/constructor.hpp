@@ -19,6 +19,11 @@ void construct_graph(std::string const & reference_filename,
                      bool use_absolute_positions = true,
                      bool check_index = true);
 
+void
+open_and_read_reference_genome(std::vector<char> & reference_sequence,
+                               std::string const & reference_fn,
+                               GenomicRegion const & genomic_region);
+
 std::vector<Variant>
 get_variants_using_tabix(std::string const & vcf, GenomicRegion const & genomic_region);
 

@@ -83,14 +83,17 @@ is_one_end_clipped(seqan::String<seqan::CigarElement<> > const & cigar, long con
 bool
 process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_tags, bamshrink::Options const & opts)
 {
-  unsigned i = 0;
-  int64_t as = -1;
-  int64_t xs = -1;
+  unsigned i{0};
+  int64_t as{-1};
+  int64_t xs{-1};
+  auto const tags_length = seqan::length(record.tags);
 
-  while (i < seqan::length(record.tags))
+  while (i < tags_length)
   {
     //std::string curr_tag(2, record.tags[i]);
     //curr_tag[1] = record.tags[i+1];
+    auto begin_it = begin(record.tags) + i;
+    auto end_it = begin_it;
     i += 3;
     char type = record.tags[i - 1];
     bool is_as = false;
@@ -120,16 +123,14 @@ process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_tags, b
       // Check for RG
       if (record.tags[i - 3] == 'R' && record.tags[i - 2] == 'G')
       {
-        auto begin_it = begin(record.tags) + i - 3;
-
         while (record.tags[i] != '\0' && record.tags[i] != '\n')
           ++i;
 
         ++i;
-        auto end_it = begin(record.tags) + i;
-        //unsigned const old_length = length(new_tags);
-        resize(new_tags, std::distance(begin_it, end_it), seqan::Exact());
-        seqan::arrayCopyForward(begin_it, end_it, begin(new_tags));
+        end_it = begin(record.tags) + i;
+        unsigned const old_length = length(new_tags);
+        resize(new_tags, old_length + std::distance(begin_it, end_it), seqan::Exact());
+        seqan::arrayCopyForward(begin_it, end_it, begin(new_tags) + old_length);
       }
       else
       {
@@ -158,6 +159,7 @@ process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_tags, b
       }
 
       i += sizeof(int8_t);
+      end_it = begin(record.tags) + i;
       break;
     }
 
@@ -177,6 +179,7 @@ process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_tags, b
       }
 
       i += sizeof(uint8_t);
+      end_it = begin(record.tags) + i;
       break;
     }
 
@@ -196,6 +199,7 @@ process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_tags, b
       }
 
       i += sizeof(int16_t);
+      end_it = begin(record.tags) + i;
       break;
     }
 
@@ -215,6 +219,7 @@ process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_tags, b
       }
 
       i += sizeof(uint16_t);
+      end_it = begin(record.tags) + i;
       break;
     }
 
@@ -234,6 +239,7 @@ process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_tags, b
       }
 
       i += sizeof(int32_t);
+      end_it = begin(record.tags) + i;
       break;
     }
 
@@ -253,20 +259,29 @@ process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_tags, b
       }
 
       i += sizeof(uint32_t);
+      end_it = begin(record.tags) + i;
       break;
     }
 
     case 'f':
     {
       i += sizeof(float);
+      end_it = begin(record.tags) + i;
       break;
     }
 
     default:
     {
-      i = length(record.tags);       // Unkown tag, stop
+      i = tags_length;       // Unkown tag, stop
       break;
     }
+    }
+
+    if (is_as || is_xs)
+    {
+      unsigned const old_length = length(new_tags);
+      resize(new_tags, old_length + std::distance(begin_it, end_it), seqan::Exact());
+      seqan::arrayCopyForward(begin_it, end_it, begin(new_tags) + old_length);
     }
   }
 
@@ -818,7 +833,9 @@ qualityFilterSlice2(Options const & opts,
       if (!removeNsAtEnds(rec, opts))
         return;
 
+      // replace tags
       rec.tags = std::move(new_tags);
+
       long const bin = (rec.beginPos - first_pos) / 50l;
 
       if (bin >= static_cast<long>(bin_counts.size()))

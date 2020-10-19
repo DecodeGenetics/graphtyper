@@ -25,8 +25,8 @@ private:
   std::vector<HtsReader> hts_files;
   std::vector<HtsRecord> heap;
   HtsStore store;
-  std::vector<std::string> samples;
-  long num_rg = 0; // Number of read groups
+  std::vector<std::string> samples; // List of sample names
+  long num_rg{0}; // Number of read groups
 
 public:
   HtsParallelReader() = default;
@@ -68,6 +68,7 @@ public:
 void
 parallel_reader_genotype_only(std::string * out_path,
                               std::vector<std::string> const * hts_paths_ptr,
+                              std::vector<double> const * avg_cov_ptr,
                               std::string const * output_dir_ptr,
                               std::string const * reference_fn_ptr,
                               std::string const * region_ptr,

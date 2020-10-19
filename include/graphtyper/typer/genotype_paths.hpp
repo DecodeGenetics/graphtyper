@@ -22,7 +22,6 @@ struct GenotypePathsDetails
 {
   std::string query_name;
   std::string read_group;
-  uint32_t score_diff = 0u;
 };
 
 
@@ -32,12 +31,14 @@ public:
   std::vector<char> read2;
   std::vector<char> qual2;
   std::vector<Path> paths;
-  uint16_t read_length = 0;
-  uint16_t flags = 0;
-  uint32_t longest_path_length = 0;
-  uint32_t original_pos = 0; // 0-based position from global alignment
-  uint8_t mapq = 255;
-  int32_t ml_insert_size = INSERT_SIZE_WHEN_NOT_PROPER_PAIR;
+  uint16_t read_length{0};
+  uint16_t flags{0};
+  uint32_t longest_path_length{0};
+  uint32_t original_pos{0}; // 0-based position from global alignment
+  uint8_t score_diff{0}; // AS-XS from bwa
+//  uint8_t original_clipped_bp{0};
+  uint8_t mapq{255};
+  int32_t ml_insert_size{INSERT_SIZE_WHEN_NOT_PROPER_PAIR};
 
 #ifndef NDEBUG
   std::unique_ptr<GenotypePathsDetails> details; // Only used when statistics are kept
@@ -60,14 +61,12 @@ public:
   void add_next_kmer_labels(std::vector<KmerLabel> const & ll,
                             uint32_t start_index,
                             uint32_t read_end_index,
-                            int mismatches = 0
-                            );
+                            int mismatches = 0);
 
   void add_prev_kmer_labels(std::vector<KmerLabel> const & ll,
                             uint32_t const read_start_index,
                             uint32_t const read_end_index,
-                            int const mismatches = 0
-                            );
+                            int const mismatches = 0);
 
   void clear_paths();
 

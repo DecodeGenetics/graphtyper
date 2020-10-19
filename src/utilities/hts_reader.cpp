@@ -19,20 +19,21 @@ HtsReader::HtsReader(HtsStore & _store)
 
 
 void
-HtsReader::open(std::string const & path, std::string const & region)
+HtsReader::open(std::string const & path, std::string const & region, std::string const & reference)
 {
   fp = hts_open(path.c_str(), "r");
 
   if (!fp)
   {
-    std::cerr << "ERROR: Could not open BAM file  " << path << std::endl;
+    BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not open BAM/CRAM file " << path;
     std::exit(1);
   }
 
+  set_reference(reference);
   fp->bam_header = sam_hdr_read(fp);
 
   // Read sample from header
-  if (!Options::instance()->get_sample_names_from_filename)
+  if (!Options::const_instance()->get_sample_names_from_filename)
   {
     std::string const header_text(fp->bam_header->text, fp->bam_header->l_text);
     std::vector<std::string> header_lines;
@@ -49,8 +50,7 @@ HtsReader::open(std::string const & path, std::string const & region)
 
         if (pos_samp == std::string::npos || pos_id == std::string::npos)
         {
-          std::cerr << "[graphtyper::utilities::hts_reader] ERROR: Could not parse RG and sample from header line:"
-                    << line_it << std::endl;
+          BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not parse RG and sample from header line: " << line_it;
           std::exit(1);
         }
 
@@ -68,10 +68,7 @@ HtsReader::open(std::string const & path, std::string const & region)
 
         std::string new_id = line_it.substr(pos_id + 4, pos_id_ends - pos_id - 4);
         std::string new_sample = line_it.substr(pos_samp + 4, pos_samp_ends - pos_samp - 4);
-
-        BOOST_LOG_TRIVIAL(debug) << "[graphtyper::utilities::hts_reader] Added RG: '"
-                                 << new_id << "' => '" << new_sample << "'";
-
+        BOOST_LOG_TRIVIAL(debug) << __HERE__ << "Added RG: '" << new_id << "' => '" << new_sample << "'";
         rg2index[new_id] = rg2sample_i.size();
         auto find_it = std::find(samples.begin(), samples.end(), new_sample);
 
@@ -98,15 +95,11 @@ HtsReader::open(std::string const & path, std::string const & region)
       sample = sample.substr(0, sample.find('.'));
 
     samples.push_back(std::move(sample));
-
-    // No read group
-    //rg2sample_i.push_back(0);
-    //rg2index[""] = 0;
   }
 
   rec = store.get();
 
-  if (region == ".")
+  if (region.size() <= 1)
   {
     ret = sam_read1(fp, fp->bam_header, rec);
   }
@@ -142,19 +135,19 @@ HtsReader::close()
 }
 
 
-int
+void
 HtsReader::set_reference(std::string const & reference_path)
 {
+  if ((reference_path.size() == 0) || (reference_path.size() == 1 && reference_path[0] == '.'))
+    return;
+
   int ret2 = hts_set_fai_filename(fp, reference_path.c_str());
 
-  if (ret2 < 0)
+  if (ret2 != 0)
   {
-    BOOST_LOG_TRIVIAL(error) << "[graphtyper::utilities::hts_reader] ERROR: "
-                             << "Could not open reference FASTA file with filename " << reference_path;
+    BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not open reference FASTA file with filename " << reference_path;
     std::exit(1);
   }
-
-  return ret2;
 }
 
 
@@ -173,7 +166,7 @@ HtsReader::set_rg_index_offset(int new_rg_index_offset)
 
 
 bam1_t *
-HtsReader::get_next_read(bam1_t * old_record)
+HtsReader::get_next_read_in_order(bam1_t * old_record)
 {
   assert(old_record);
 
@@ -189,6 +182,12 @@ HtsReader::get_next_read(bam1_t * old_record)
   // We do not have any records ready and we have reached the end of the file, stop now
   if (ret < 0)
   {
+    if (ret < -1)
+    {
+      BOOST_LOG_TRIVIAL(error) << __HERE__ << " htslib failed BAM/CRAM reading and returned " << ret;
+      std::exit(1);
+    }
+
     // Deallocate memory when we reach the end of the file
     if (rec)
       store.push(rec);
@@ -240,7 +239,7 @@ HtsReader::get_next_read(bam1_t * old_record)
 
 
 bam1_t *
-HtsReader::get_next_read()
+HtsReader::get_next_read_in_order()
 {
   // If we have some records ready in the vector, return those first
   if (records.size() > 0)
@@ -253,6 +252,12 @@ HtsReader::get_next_read()
   // We do not have any records ready and we have reached the end of the file, stop now
   if (ret < 0)
   {
+    if (ret < -1)
+    {
+      BOOST_LOG_TRIVIAL(error) << __HERE__ << " htslib failed BAM/CRAM reading and returned " << ret;
+      std::exit(1);
+    }
+
     // Deallocate memory when we reach the end of the file
     if (rec)
       store.push(rec);
@@ -304,17 +309,53 @@ HtsReader::get_next_read()
 
 
 bam1_t *
-HtsReader::get_next_pos()
+HtsReader::get_next_read()
 {
   if (ret < 0)
   {
+    if (ret < -1)
+    {
+      BOOST_LOG_TRIVIAL(error) << __HERE__ << " htslib failed BAM/CRAM reading and returned " << ret;
+      std::exit(1);
+    }
+
     // Deallocate memory when we reach the end of the file
-    bam_destroy1(rec);
+    if (rec)
+      store.push(rec);
+
     return nullptr;
   }
 
   bam1_t * record = rec;
   rec = store.get();
+  ret = hts_iter ? sam_itr_next(fp, hts_iter, rec) : sam_read1(fp, fp->bam_header, rec);
+  return record;
+}
+
+
+bam1_t *
+HtsReader::get_next_read(bam1_t * old_record)
+{
+  assert(old_record);
+
+  if (ret < 0)
+  {
+    if (ret < -1)
+    {
+      BOOST_LOG_TRIVIAL(error) << __HERE__ << " htslib failed BAM/CRAM reading and returned " << ret;
+      std::exit(1);
+    }
+
+    // Deallocate memory when we reach the end of the file
+    if (rec)
+      store.push(rec);
+
+    store.push(old_record);
+    return nullptr;
+  }
+
+  bam1_t * record = rec;
+  rec = old_record;
   ret = hts_iter ? sam_itr_next(fp, hts_iter, rec) : sam_read1(fp, fp->bam_header, rec);
   return record;
 }
@@ -337,7 +378,7 @@ HtsReader::get_sample_and_rg_index(long & sample_i, long & rg_i, bam1_t * rec) c
 
     if (!rg_tag)
     {
-      std::cerr << "[graphtyper::utilities::hts_reader] ERROR: Unable to find RG tag in read." << std::endl;
+      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Unable to find RG tag in read.";
       std::exit(1);
     }
 
@@ -346,7 +387,7 @@ HtsReader::get_sample_and_rg_index(long & sample_i, long & rg_i, bam1_t * rec) c
 
     if (find_rg_it == rg2index.end())
     {
-      std::cerr << "[graphtyper::utilities::hts_reader] ERROR: Unable to find read group. " << read_group << std::endl;
+      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Unable to find read group. " << read_group;
       std::exit(1);
     }
 

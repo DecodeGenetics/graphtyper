@@ -173,6 +173,7 @@ reformat_sv_vcf_records(std::vector<Variant> & variants, ReferenceDepth const & 
         continue; // Nothing to do, there are no SVs here
     }
 
+    /*
     auto merge_alt_info_lambda =
       [](Variant & new_var, std::string const & id, long const aa)
       {
@@ -190,6 +191,7 @@ reformat_sv_vcf_records(std::vector<Variant> & variants, ReferenceDepth const & 
         values.resize(2);
         new_var.infos[id] = join_strand_bias(values);
       };
+    */
 
     auto make_new_sv_var =
       [&](Variant const & old_var, long const aa) -> Variant
@@ -200,15 +202,16 @@ reformat_sv_vcf_records(std::vector<Variant> & variants, ReferenceDepth const & 
         new_var.seqs.push_back(old_var.seqs[0]);
         new_var.seqs.push_back(old_var.seqs[aa + 1]);
         new_var.infos = old_var.infos;
+        new_var.stats = old_var.stats;
 
-        merge_alt_info_lambda(new_var, "SBF", aa);
-        merge_alt_info_lambda(new_var, "SBR", aa);
-        merge_alt_info_lambda(new_var, "SBF1", aa);
-        merge_alt_info_lambda(new_var, "SBR1", aa);
-        merge_alt_info_lambda(new_var, "SBF2", aa);
-        merge_alt_info_lambda(new_var, "SBR2", aa);
-        //merge_alt_info_lambda(new_var, "RACount", aa);
-        //merge_alt_info_lambda(new_var, "RADist", aa);
+        // Set value at index 1 to the alternative allele stats and then shrink the vector with .resize()
+        new_var.stats.per_allele[1] = old_var.stats.per_allele[aa + 1];
+        new_var.stats.read_strand[1] = old_var.stats.read_strand[aa + 1];
+
+        new_var.stats.per_allele.resize(2);
+        new_var.stats.read_strand.resize(2);
+
+        assert(new_var.stats.per_allele.size() == new_var.seqs.size());
 
         new_var.calls.reserve(old_var.calls.size());
 
@@ -413,6 +416,8 @@ reformat_sv_vcf_records(std::vector<Variant> & variants, ReferenceDepth const & 
         // Put first SV allele in new VCF records
         Variant new_sv_var = make_new_sv_var(var, aa);
         assert(new_sv_var.seqs.size() == 2);
+        assert(new_sv_var.stats.per_allele.size() == 2);
+        assert(new_sv_var.stats.read_strand.size() == 2);
         SV const & sv = graph.SVs[sv_ids[aa]];
 
         if (sv.type != BND)
@@ -431,8 +436,7 @@ reformat_sv_vcf_records(std::vector<Variant> & variants, ReferenceDepth const & 
 
         // Fix genotype likelihood for duplication
         if (sv.type == DUP &&
-            (sv.model == "BREAKPOINT1" || sv.model == "BREAKPOINT2")
-            )
+            (sv.model == "BREAKPOINT1" || sv.model == "BREAKPOINT2"))
         {
           for (auto & call : new_sv_var.calls)
           {
@@ -445,8 +449,7 @@ reformat_sv_vcf_records(std::vector<Variant> & variants, ReferenceDepth const & 
                                                    minus_10log10_one_third *
                                                    static_cast<double>(call.coverage[1]) +
                                                    minus_10log10_two_third *
-                                                   static_cast<double>(call.coverage[0])
-                                                   );
+                                                   static_cast<double>(call.coverage[0]));
 
             uint64_t gt_11 = 3ul * (call.coverage[0] + static_cast<uint64_t>(call.coverage[1]));
             uint64_t min_gt = std::min(gt_00, std::min(gt_01, gt_11));
@@ -464,12 +467,13 @@ reformat_sv_vcf_records(std::vector<Variant> & variants, ReferenceDepth const & 
         // If the new variant is an insertion and this is the second breakpoint, make a combined
         // variant. Also do the same if it is a duplication and we have coverage turned off
         if ((sv.type == INS && related_svs_map.count(sv_ids[aa]) == 1) ||
-            (sv.type == INV && related_svs_map.count(sv_ids[aa]) == 1)
-            )
+            (sv.type == INV && related_svs_map.count(sv_ids[aa]) == 1))
         {
           assert(new_vars.size() > 0);
           Variant const & var_bp1 = new_vars[related_svs_map.at(sv_ids[aa])];
+          assert(var_bp1.seqs.size() == var_bp1.stats.per_allele.size());
           Variant combined_var = make_variant_with_combined_calls(new_sv_var, var_bp1);
+          assert(combined_var.seqs.size() == combined_var.stats.per_allele.size());
           add_sv_to_new_vars_vector(std::move(combined_var), sv, "AGGREGATED");
         }
 
@@ -479,14 +483,18 @@ reformat_sv_vcf_records(std::vector<Variant> & variants, ReferenceDepth const & 
           if ((sv.type == DEL || sv.type == DEL_ALU))
           {
             Variant cov_var(new_sv_var);
-            assert(cov_var.seqs.size() == 2ul);
+            assert(cov_var.seqs.size() == 2);
+            assert(cov_var.stats.per_allele.size() == 2);
+            assert(cov_var.stats.read_strand.size() == 2);
 
             for (long pn_index = 0; pn_index < static_cast<long>(cov_var.calls.size()); ++pn_index)
               cov_var.calls[pn_index] = make_call_based_on_coverage(pn_index, sv, reference_depth);
 
             // Make a combined variant with both breakpoint and coverage
             Variant combined_var = make_variant_with_combined_calls(new_sv_var, cov_var);
-            assert(combined_var.seqs.size() >= 2);
+            assert(combined_var.seqs.size() == 2);
+            assert(combined_var.stats.per_allele.size() == 2);
+            assert(combined_var.stats.read_strand.size() == 2);
             add_sv_to_new_vars_vector(std::move(combined_var), sv, "AGGREGATED");
             assert(cov_var.seqs.size() >= 2);
             add_sv_to_new_vars_vector(std::move(cov_var), sv, "COVERAGE");
@@ -496,6 +504,7 @@ reformat_sv_vcf_records(std::vector<Variant> & variants, ReferenceDepth const & 
             // Second breakpoint of a duplication
             Variant cov_var(new_sv_var);
             assert(cov_var.seqs.size() == 2ul);
+            assert(cov_var.seqs.size() == cov_var.stats.per_allele.size());
 
             for (long pn_index = 0; pn_index < static_cast<long>(cov_var.calls.size()); ++pn_index)
               cov_var.calls[pn_index] = make_call_based_on_coverage(pn_index, sv, reference_depth);
@@ -544,6 +553,7 @@ reformat_sv_vcf_records(std::vector<Variant> & variants, ReferenceDepth const & 
         continue; // Not SV
       }
 
+      assert(var.seqs.size() == var.stats.per_allele.size());
       add_sv_variant(var, aa, related_svs);
     }
 

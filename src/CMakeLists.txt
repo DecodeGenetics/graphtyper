@@ -22,10 +22,13 @@ set(graphtyper_SOURCE_FILES
   index/kmer_label.cpp
   index/ph_index.cpp
   typer/alignment.cpp
+  typer/bucket.cpp
   typer/caller.cpp
+  typer/event.cpp
   typer/genotype_paths.cpp
   typer/path.cpp
   typer/primers.cpp
+  typer/read.cpp
   typer/sample_call.cpp
   typer/segment.cpp
   typer/var_stats.cpp

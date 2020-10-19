@@ -88,6 +88,8 @@ GenotypePaths::GenotypePaths()
   , flags(0)
   , longest_path_length(0)
   , original_pos(0)
+  , score_diff(0)
+//  , original_clipped_bp(0)
   , mapq(255)
   , ml_insert_size(INSERT_SIZE_WHEN_NOT_PROPER_PAIR)
 {
@@ -108,6 +110,8 @@ GenotypePaths::GenotypePaths(GenotypePaths const & b)
   , flags(b.flags)
   , longest_path_length(b.longest_path_length)
   , original_pos(b.original_pos)
+  , score_diff(b.score_diff)
+//  , original_clipped_bp(b.original_clipped_bp)
   , mapq(b.mapq)
   , ml_insert_size(b.ml_insert_size)
 {
@@ -130,6 +134,8 @@ GenotypePaths::GenotypePaths(GenotypePaths && b)
   , flags(b.flags)
   , longest_path_length(b.longest_path_length)
   , original_pos(b.original_pos)
+  , score_diff(b.score_diff)
+//  , original_clipped_bp(b.original_clipped_bp)
   , mapq(b.mapq)
   , ml_insert_size(b.ml_insert_size)
 {
@@ -152,6 +158,8 @@ GenotypePaths::operator=(GenotypePaths const & b)
   flags = b.flags;
   longest_path_length = b.longest_path_length;
   original_pos = b.original_pos;
+  score_diff = b.score_diff;
+//  original_clipped_bp = b.original_clipped_bp;
   mapq = b.mapq;
   ml_insert_size = b.ml_insert_size;
 
@@ -185,6 +193,8 @@ GenotypePaths::operator=(GenotypePaths && b)
   flags = b.flags;
   longest_path_length = b.longest_path_length;
   original_pos = b.original_pos;
+  score_diff = b.score_diff;
+//  original_clipped_bp = b.original_clipped_bp;
   mapq = b.mapq;
   ml_insert_size = b.ml_insert_size;
 
@@ -207,6 +217,8 @@ GenotypePaths::GenotypePaths(int16_t _flags, std::size_t _read_length)
   , flags(_flags)
   , longest_path_length(0)
   , original_pos(0)
+  , score_diff(0)
+//  , original_clipped_bp(0)
   , mapq(255)
   , ml_insert_size(INSERT_SIZE_WHEN_NOT_PROPER_PAIR)
 {
@@ -700,13 +712,13 @@ GenotypePaths::find_new_variants() const
     assert(reference.size() == read2.size());
 
     {
-      int matches = -1; // -1 means we have not found a mismatch yet
+      int matches{-1}; // -1 means we have not found a mismatch yet
       std::vector<char> ref;
       std::vector<char> alt;
-      int64_t const MIN_VAR_THRESHOLD = 5;
-      uint32_t var_pos = 0;
+      int64_t constexpr MIN_VAR_THRESHOLD{5};
+      uint32_t var_pos{0};
 
-      for (unsigned i = 0; i < reference.size(); ++i)
+      for (unsigned i{0}; i < reference.size(); ++i)
       {
         assert(i < read2.size());
         assert(i < qual2.size());

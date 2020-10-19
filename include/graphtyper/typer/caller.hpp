@@ -7,11 +7,13 @@
 namespace gyper
 {
 
+class Vcf;
 class Primers;
 
 // returns the prefix to the output files
 std::vector<std::string>
 call(std::vector<std::string> const & hts_path,
+     std::vector<double> const & avg_cov_by_readlen,
      std::string const & graph_path,
      PHIndex const & ph_index,
      std::string const & output_dir,
@@ -33,5 +35,12 @@ discover_directly_from_bam(std::string const & graph_path,
                            std::string const & output_dir,
                            long minimum_variant_support,
                            double minimum_variant_support_ratio);
+
+void
+streamlined_discovery(std::vector<std::string> const & hts_paths,
+                      std::string const & reference_fn,
+                      std::string const & region_str,
+                      std::string const & output_dir,
+                      gyper::Vcf & vcf);
 
 } // namespace gyper

@@ -115,11 +115,13 @@ public:
                         bool is_low_qual,
                         std::size_t mismatches);
 
-  void clipped_reads_to_stats(bool fully_aligned);
+  void clipped_reads_to_stats(int clipped_bp, int read_length);
   void mapq_to_stats(uint8_t mapq);
 //  void realignment_to_stats(uint32_t original_pos, uint32_t new_pos);
 
   void strand_to_stats(uint16_t const flags);
+  void mismatches_to_stats(uint8_t mismatches, int read_length);
+  void score_diff_to_stats(uint8_t score_diff);
   void coverage_to_gts(std::size_t pn_index, bool is_proper_pair);
   std::bitset<MAX_NUMBER_OF_HAPLOTYPES> explain_to_path_explain();
 

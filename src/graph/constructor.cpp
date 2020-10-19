@@ -15,6 +15,7 @@
 #include <graphtyper/typer/variant.hpp>
 #include <graphtyper/utilities/options.hpp>
 #include <graphtyper/utilities/gzstream.hpp>
+#include <graphtyper/utilities/system.hpp>
 
 #include <seqan/basic.h>
 #include <seqan/sequence.h>
@@ -178,11 +179,11 @@ append_sv_tag_to_node(std::vector<char> & alt)
 
 void
 open_tabix(seqan::Tabix & tabix_file,
-           std::string const & tabix_filename,
-           gyper::GenomicRegion const & genomic_region
-           )
+           std::string const & vcf_filename,
+           gyper::GenomicRegion const & genomic_region)
 {
-  seqan::open(tabix_file, tabix_filename.c_str());
+  std::string const ext = gyper::is_file(vcf_filename + ".csi") ? ".csi" : ".tbi";
+  seqan::open(tabix_file, vcf_filename.c_str(), "r", ext.c_str());
   seqan::String<char> header;
   seqan::getHeader(header, tabix_file);
 
@@ -215,6 +216,8 @@ open_reference_genome(seqan::FaiIndex & fasta_index, std::string const & fasta_f
       ss >> new_contig.length;
       gyper::graph.contigs.push_back(std::move(new_contig));
     }
+
+    f.close();
   }
 
   // Check if the total length of contigs is too large
@@ -239,7 +242,8 @@ open_reference_genome(seqan::FaiIndex & fasta_index, std::string const & fasta_f
       BOOST_LOG_TRIVIAL(error) << "[" << __HERE__ << "] FASTA index could not be loaded or built.";
       std::exit(31);
     }
-    else if (!seqan::save(fasta_index))
+
+    if (!seqan::save(fasta_index))
     {
       BOOST_LOG_TRIVIAL(error) << "[" << __HERE__ << "] FASTA index could not be saved to disk.";
       std::exit(32);
@@ -271,8 +275,7 @@ read_reference_seq(std::vector<char> & reference_sequence,
                    seqan::FaiIndex const & fasta_index,
                    unsigned const chrom_idx,
                    uint32_t const begin,
-                   uint32_t const length
-                   )
+                   uint32_t const length)
 {
   seqan::Dna5String ref_seq;
 
@@ -296,8 +299,7 @@ read_reference_genome(std::vector<char> & reference_sequence,
                      fasta_index,
                      chrom_idx,
                      genomic_region.begin,
-                     genomic_region.end - genomic_region.begin
-                     );
+                     genomic_region.end - genomic_region.begin);
 }
 
 
@@ -332,13 +334,35 @@ namespace gyper
 {
 
 void
+open_and_read_reference_genome(std::vector<char> & reference_sequence,
+                               std::string const & reference_fn,
+                               GenomicRegion const & genomic_region)
+{
+  // Load the reference genome
+  seqan::FaiIndex fai_index;
+
+  if (!seqan::open(fai_index, reference_fn.c_str()))
+  {
+    BOOST_LOG_TRIVIAL(error) << "[" << __HERE__ << "] FASTA index could not be loaded for "
+                             << reference_fn;
+    std::exit(31);
+  }
+
+  // Read the reference sequence
+  read_reference_genome(reference_sequence, fai_index, genomic_region);
+
+  // Close the file
+  seqan::clear(fai_index);
+}
+
+
+void
 add_sv_breakend(SV & sv,
                 VarRecord & var,
                 seqan::VcfRecord const & vcf_record,
                 seqan::FaiIndex const & fasta_index,
                 unsigned const chrom_idx,
-                uint32_t const EXTRA_SEQUENCE_LENGTH
-                )
+                uint32_t const EXTRA_SEQUENCE_LENGTH)
 {
   // Read the first matching reference base
   read_reference_seq(var.ref, fasta_index, chrom_idx, var.pos, 1);
@@ -358,7 +382,16 @@ add_sv_breakend(SV & sv,
   auto parse_chromosome_name = [&](std::vector<char> const & seq, char const c) -> std::string
                                {
                                  auto find_it = std::find(seq.begin(), seq.end(), c);
-                                 auto find_colon_it = std::find(find_it + 1, seq.end(), ':');
+                                 auto find_last_colon_it = std::find(seq.rbegin(), seq.rend(), ':');
+
+                                 if (find_last_colon_it == seq.rend())
+                                   invalid_bnd_alt();
+
+                                 long const colon_pos = seq.size() -
+                                                        std::distance(seq.rbegin(), find_last_colon_it) - 1;
+                                 assert(colon_pos < static_cast<long>(seq.size()));
+                                 assert(colon_pos >= 0);
+                                 auto find_colon_it = seq.begin() + colon_pos;
 
                                  if (find_colon_it == seq.end())
                                    invalid_bnd_alt();
@@ -368,13 +401,23 @@ add_sv_breakend(SV & sv,
 
   auto parse_position = [&](std::vector<char> const & seq, char const c) -> long
                         {
-                          auto find_colon_it = std::find(seq.begin() + 1, seq.end(), ':');
+                          auto find_last_colon_it = std::find(seq.rbegin(), seq.rend(), ':');
+
+                          if (find_last_colon_it == seq.rend())
+                            invalid_bnd_alt();
+
+                          long const colon_pos = seq.size() -
+                                                 std::distance(seq.rbegin(), find_last_colon_it) - 1;
+                          assert(colon_pos < static_cast<long>(seq.size()));
+                          assert(colon_pos >= 0);
+                          auto find_colon_it = seq.begin() + colon_pos;
+
                           auto find_end_it = std::find(find_colon_it + 1, seq.end(), c);
 
                           if (find_end_it == seq.end())
                             invalid_bnd_alt();
 
-                          long pos = 0;
+                          long pos{0};
                           std::istringstream ss {
                             std::string(find_colon_it + 1, find_end_it)
                           };
@@ -419,9 +462,9 @@ add_sv_breakend(SV & sv,
       if (find2_it == alt.end())
         invalid_bnd_alt();
 
-      auto const len = EXTRA_SEQUENCE_LENGTH - std::distance(find2_it, alt.end()) - 1;
+      auto const len = EXTRA_SEQUENCE_LENGTH - std::distance(find2_it, alt.end());
       std::vector<char> seq;
-      read_reference_seq(seq, fasta_index, chrom_idx_2, pos, len);
+      read_reference_seq(seq, fasta_index, chrom_idx_2, pos - 1, len);
 
       // Complement the sequence
       std::transform(seq.begin(), seq.end(), seq.begin(), complement);
@@ -453,7 +496,7 @@ add_sv_breakend(SV & sv,
         invalid_bnd_alt();
 
       auto const len = EXTRA_SEQUENCE_LENGTH - std::distance(find2_it, alt.end()) - 1;
-      read_reference_seq(bnd, fasta_index, chrom_idx_2, pos - len - 1, len);
+      read_reference_seq(bnd, fasta_index, chrom_idx_2, pos - len, len);
       std::copy(find2_it + 1, alt.end(), std::back_inserter(bnd));
     }
     else
@@ -465,7 +508,7 @@ add_sv_breakend(SV & sv,
       std::copy(alt.begin() + 1, find_it, std::back_inserter(bnd)); // Extra insertion
       auto const len = EXTRA_SEQUENCE_LENGTH - bnd.size() + 1;
       std::vector<char> seq;
-      read_reference_seq(seq, fasta_index, chrom_idx_2, pos - len - 1, len);
+      read_reference_seq(seq, fasta_index, chrom_idx_2, pos - len, len);
 
       // Copy the reverse complement
       std::transform(seq.begin(), seq.end(), seq.begin(), complement);
@@ -487,8 +530,7 @@ add_sv_deletion(SV & sv,
                 VarRecord & var,
                 seqan::FaiIndex const & fasta_index,
                 unsigned const chrom_idx,
-                uint32_t const EXTRA_SEQUENCE_LENGTH
-                )
+                uint32_t const EXTRA_SEQUENCE_LENGTH)
 {
   // Read the first matching reference base
   read_reference_seq(var.ref, fasta_index, chrom_idx, var.pos, 1);
@@ -529,8 +571,7 @@ add_sv_insertion(SV & sv,
                  seqan::VcfRecord const & vcf_record,
                  seqan::FaiIndex const & fasta_index,
                  unsigned const chrom_idx,
-                 uint32_t const EXTRA_SEQUENCE_LENGTH
-                 )
+                 uint32_t const EXTRA_SEQUENCE_LENGTH)
 {
   assert(seqan::length(vcf_record.ref) >= 1);
 
@@ -557,8 +598,7 @@ add_sv_insertion(SV & sv,
     {
       std::copy(sv.seq.begin(),
                 sv.seq.begin() + EXTRA_SEQUENCE_LENGTH,
-                std::back_inserter(alt1)
-                );
+                std::back_inserter(alt1));
 
       append_sv_tag_to_node(alt1);
       sv.related_sv = static_cast<int>(graph.SVs.size()) + 1; // Next SV is related
@@ -568,8 +608,7 @@ add_sv_insertion(SV & sv,
 
       std::copy(sv.seq.end() - EXTRA_SEQUENCE_LENGTH,
                 sv.seq.end(),
-                std::back_inserter(alt2)
-                );
+                std::back_inserter(alt2));
 
       sv.related_sv = static_cast<int>(graph.SVs.size()) - 1;  // Previous SV is related
       sv.model = "BREAKPOINT2";
@@ -1398,13 +1437,13 @@ add_var_record(std::vector<VarRecord> & var_records,
           sv.length = (int)sv.ins_seq.size();
       }
 
-      // If length is less than 50 then it is not an SV
-      if (sv.length < 50 && ((int)sv.ins_seq_left.size() + (int)sv.ins_seq_right.size()) < 20)
-      {
-        BOOST_LOG_TRIVIAL(warning) << "[" << __HERE__ << "] Ignored SV at " << var.pos
-                                   << " because it was less than 50 bp.";
-        return;
-      }
+      //// If length is less than 50 then it is not an SV
+      //if (sv.length < 50 && ((int)sv.ins_seq_left.size() + (int)sv.ins_seq_right.size()) < 20)
+      //{
+      //  BOOST_LOG_TRIVIAL(warning) << "[" << __HERE__ << "] Ignored SV at " << var.pos
+      //                             << " because it was less than 50 bp.";
+      //  return;
+      //}
     }
 
     // Make sure sv.size is set
@@ -1744,8 +1783,7 @@ construct_graph(std::string const & reference_filename,
     for (auto & var_record : var_records)
     {
       genomic_region.add_reference_to_record_if_they_have_a_matching_prefix(var_record,
-                                                                            reference_sequence
-                                                                            );
+                                                                            reference_sequence);
     }
 
 #ifndef NDEBUG
@@ -1765,8 +1803,7 @@ construct_graph(std::string const & reference_filename,
 
   graph.add_genomic_region(std::move(reference_sequence),
                            std::move(var_records),
-                           std::move(genomic_region)
-                           );
+                           std::move(genomic_region));
 
 #ifndef NDEBUG
   if (!graph.check())

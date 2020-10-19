@@ -22,8 +22,8 @@ public:
   hts_idx_t * hts_index{nullptr};
   hts_itr_t * hts_iter{nullptr};
   std::vector<std::string> samples;
-  int sample_index_offset = 0;
-  int rg_index_offset = 0;
+  int sample_index_offset{0};
+  int rg_index_offset{0};
 
 private:
   int ret{0}; // return value of the most recently read record
@@ -34,19 +34,23 @@ private:
   std::unordered_map<std::string, long> rg2index; // associates read groups with indices of that rg
   std::vector<int> rg2sample_i; // uses the rg index to determine the sample index
 
+  void set_reference(std::string const & reference_path);
+
 
 public:
   HtsReader(HtsStore & _store);
 
-  void open(std::string const & path, std::string const & region);
+  void open(std::string const & path, std::string const & region, std::string const & reference);
   void close();
-  int set_reference(std::string const & reference_path);
   void set_sample_index_offset(int new_sample_index_offset);
   void set_rg_index_offset(int new_rg_index_offset);
 
-  bam1_t * get_next_read(bam1_t * old_record);
+  // Get the read when reading a HTS file in order. It is probably never a good idea to call both get_next_read_in_order
+  //  and get_next_read().
+  bam1_t * get_next_read_in_order(bam1_t * old_record);
+  bam1_t * get_next_read_in_order();
   bam1_t * get_next_read();
-  bam1_t * get_next_pos();
+  bam1_t * get_next_read(bam1_t * old_record);
 
   void get_sample_and_rg_index(long & sample_i, long & rg_i, bam1_t * rec) const;
   long get_num_rg() const;

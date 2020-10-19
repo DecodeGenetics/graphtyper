@@ -9,6 +9,9 @@
 #include <vector> // std::vector
 
 #include <boost/algorithm/string/split.hpp> // boost::split
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/serialization/vector.hpp>
 
 #include <graphtyper/graph/absolute_position.hpp> // gyper::absolute_pos
 #include <graphtyper/typer/var_stats.hpp> // gyper::VarStats
@@ -19,14 +22,11 @@
 namespace gyper
 {
 
-VarStats::VarStats(uint16_t allele_count) noexcept
+VarStats::VarStats(std::size_t const allele_count) noexcept
 //  : realignment_distance(allele_count)
 //  , realignment_count(allele_count)
-  : read_strand(allele_count)
-//  , r1_strand_forward(allele_count)
-//  , r1_strand_reverse(allele_count)
-//  , r2_strand_forward(allele_count)
-//  , r2_strand_reverse(allele_count)
+  : per_allele(allele_count)
+  , read_strand(allele_count)
 {}
 
 
@@ -53,122 +53,126 @@ VarStats::add_realignment_distance(uint8_t const allele_id,
  * CLASS INFORMATION
  */
 
-//std::string
-//VarStats::get_realignment_count() const
-//{
-//  return join_strand_bias(realignment_count); // TODO: Rename join_strand_bias()
-//}
-//
-//
-//std::string
-//VarStats::get_realignment_distance() const
-//{
-//  return join_strand_bias(realignment_distance); // TODO: Rename join_strand_bias()
-//}
-
-
-std::string
-VarStats::get_forward_strand_bias() const
+void
+VarStats::write_stats(std::map<std::string, std::string> & infos) const
 {
-  if (read_strand.size() == 0)
-    return ".";
+  assert(per_allele.size() == read_strand.size());
+  long const num_allele = per_allele.size();
 
-  std::stringstream ss;
-  ss << (read_strand[0].r1_forward + read_strand[0].r2_forward);
+  if (num_allele <= 1)
+    return;
 
-  for (long i = 1; i < static_cast<long>(read_strand.size()); ++i)
-    ss << ',' << (read_strand[i].r1_forward + read_strand[i].r2_forward);
-
-  return ss.str();
-}
-
-
-std::string
-VarStats::get_reverse_strand_bias() const
-{
-  if (read_strand.size() == 0)
-    return ".";
-
-  std::stringstream ss;
-  ss << (read_strand[0].r1_reverse + read_strand[0].r2_reverse);
-
-  for (long i = 1; i < static_cast<long>(read_strand.size()); ++i)
-    ss << ',' << (read_strand[i].r1_reverse + read_strand[i].r2_reverse);
-
-  return ss.str();
-}
-
-
-std::string
-VarStats::get_r1_forward_strand_bias() const
-{
-  if (read_strand.size() == 0)
-    return ".";
-
-  std::stringstream ss;
-  ss << read_strand[0].r1_forward;
-
-  for (long i = 1; i < static_cast<long>(read_strand.size()); ++i)
-    ss << ',' << read_strand[i].r1_forward;
-
-  return ss.str();
-}
-
-
-std::string
-VarStats::get_r2_forward_strand_bias() const
-{
-  if (read_strand.size() == 0)
-    return ".";
-
-  std::stringstream ss;
-  ss << read_strand[0].r2_forward;
-
-  for (long i = 1; i < static_cast<long>(read_strand.size()); ++i)
-    ss << ',' << read_strand[i].r2_forward;
-
-  return ss.str();
-}
-
-
-std::string
-VarStats::get_r1_reverse_strand_bias() const
-{
-  if (read_strand.size() == 0)
-    return ".";
-
-  std::stringstream ss;
-  ss << read_strand[0].r1_reverse;
-
-  for (long i = 1; i < static_cast<long>(read_strand.size()); ++i)
-    ss << ',' << read_strand[i].r1_reverse;
-
-  return ss.str();
-}
-
-
-std::string
-VarStats::get_r2_reverse_strand_bias() const
-{
-  if (read_strand.size() == 0)
-    return ".";
-
-  std::stringstream ss;
-  ss << read_strand[0].r2_reverse;
-
-  for (long i = 1; i < static_cast<long>(read_strand.size()); ++i)
-    ss << ',' << read_strand[i].r2_reverse;
-
-  return ss.str();
+  infos["CR"] = std::to_string(clipped_reads);
+  infos["MQsquared"] = std::to_string(mapq_squared);
+  write_read_strand_stats(infos);
+  write_per_allele_stats(infos);
 }
 
 
 void
-VarStats::add_mapq(uint8_t const new_mapq)
+VarStats::write_per_allele_stats(std::map<std::string, std::string> & infos) const
 {
-  // Ignore MapQ == 255, that means MapQ is unavailable
-  if (new_mapq < 255u)
-    mapq_squared += static_cast<uint64_t>(new_mapq) * static_cast<uint64_t>(new_mapq);
+  long const num_allele = per_allele.size();
+  assert(num_allele > 1);
+
+  std::ostringstream cr_ss;
+  std::ostringstream mq_ss;
+  std::ostringstream sd_ss;
+  std::ostringstream mm_ss;
+
+  {
+    VarStatsPerAllele const & stats_per_al = per_allele[0];
+    cr_ss << stats_per_al.clipped_bp;
+    mq_ss << stats_per_al.mapq_squared;
+    sd_ss << stats_per_al.score_diff;
+    mm_ss << stats_per_al.mismatches;
+  }
+
+  for (long i{1}; i < num_allele; ++i)
+  {
+    VarStatsPerAllele const & stats_per_al = per_allele[i];
+    cr_ss << ',' << stats_per_al.clipped_bp;
+    mq_ss << ',' << stats_per_al.mapq_squared;
+    sd_ss << ',' << stats_per_al.score_diff;
+    mm_ss << ',' << stats_per_al.mismatches;
+  }
+
+  infos["CRal"] = cr_ss.str();
+  infos["MQSal"] = mq_ss.str();
+  infos["SDal"] = sd_ss.str();
+  infos["MMal"] = mm_ss.str();
+}
+
+
+void
+VarStats::write_read_strand_stats(std::map<std::string, std::string> & infos) const
+{
+  long const num_allele = read_strand.size();
+  assert(num_allele > 1);
+
+  std::ostringstream f_ss;
+  std::ostringstream r_ss;
+  std::ostringstream f1_ss;
+  std::ostringstream f2_ss;
+  std::ostringstream r1_ss;
+  std::ostringstream r2_ss;
+
+  {
+    auto const & stats = read_strand[0];
+    f_ss << (stats.r1_forward + stats.r2_forward);
+    r_ss << (stats.r1_reverse + stats.r2_reverse);
+    f1_ss << stats.r1_forward;
+    f2_ss << stats.r2_forward;
+    r1_ss << stats.r1_reverse;
+    r2_ss << stats.r2_reverse;
+  }
+
+  for (long i{1}; i < num_allele; ++i)
+  {
+    auto const & stats = read_strand[i];
+    f_ss << ',' << (stats.r1_forward + stats.r2_forward);
+    r_ss << ',' << (stats.r1_reverse + stats.r2_reverse);
+    f1_ss << ',' << stats.r1_forward;
+    f2_ss << ',' << stats.r2_forward;
+    r1_ss << ',' << stats.r1_reverse;
+    r2_ss << ',' << stats.r2_reverse;
+  }
+
+  infos["SBF"] = f_ss.str();
+  infos["SBR"] = r_ss.str();
+  infos["SBF1"] = f1_ss.str();
+  infos["SBF2"] = f2_ss.str();
+  infos["SBR1"] = r1_ss.str();
+  infos["SBR2"] = r2_ss.str();
+}
+
+
+void
+VarStats::add_stats(VarStats const & stats)
+{
+  assert(per_allele.size() == stats.per_allele.size());
+  assert(read_strand.size() == stats.read_strand.size());
+
+  clipped_reads += stats.clipped_reads;
+  mapq_squared += stats.mapq_squared;
+
+  for (long i{0}; i < static_cast<long>(per_allele.size()); ++i)
+  {
+    auto & new_a = per_allele[i];
+    auto & old_a = stats.per_allele[i];
+    auto & new_rs = read_strand[i];
+    auto & old_rs = stats.read_strand[i];
+
+    new_a.clipped_bp += old_a.clipped_bp;
+    new_a.mapq_squared += old_a.mapq_squared;
+    new_a.score_diff += old_a.score_diff;
+    new_a.mismatches += old_a.mismatches;
+
+    new_rs.r1_forward += old_rs.r1_forward;
+    new_rs.r1_reverse += old_rs.r1_reverse;
+    new_rs.r2_forward += old_rs.r2_forward;
+    new_rs.r2_reverse += old_rs.r2_reverse;
+  }
 }
 
 
@@ -183,7 +187,7 @@ join_strand_bias(std::vector<T> const & bias)
   std::stringstream ss;
   ss << bias[0];
 
-  for (std::size_t i = 1; i < bias.size(); ++i)
+  for (long i = 1; i < static_cast<long>(bias.size()); ++i)
     ss << ',' << bias[i];
 
   return ss.str();
@@ -294,6 +298,23 @@ get_list_of_uncalled_alleles(std::string const & ac)
 
   return uncalled_alleles;
 }
+
+
+template <typename Archive>
+void
+VarStats::serialize(Archive & ar, unsigned const int /*version*/)
+{
+  ar & per_allele;
+  ar & read_strand;
+  ar & clipped_reads;
+  ar & mapq_squared;
+}
+
+
+template void VarStats::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &,
+                                                                   const unsigned int);
+template void VarStats::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &,
+                                                                   const unsigned int);
 
 
 } // namespace gyper

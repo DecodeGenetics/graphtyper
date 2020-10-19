@@ -77,8 +77,7 @@ SampleCall::SampleCall(std::vector<uint8_t> && _phred,
 
   alt_total_depth = static_cast<uint16_t>(
     std::min(static_cast<uint32_t>(0xFFFFu),
-             static_cast<uint32_t>(alt_depth)
-             )
+             static_cast<uint32_t>(alt_depth))
     );
 
   assert(alt_total_depth >= ambiguous_depth);
@@ -97,6 +96,13 @@ uint32_t
 SampleCall::get_unique_depth() const
 {
   return std::accumulate(coverage.begin(), coverage.end(), static_cast<uint32_t>(0));
+}
+
+
+uint32_t
+SampleCall::get_alt_depth() const
+{
+  return std::accumulate(coverage.begin() + 1, coverage.end(), static_cast<uint32_t>(ambiguous_depth));
 }
 
 
@@ -145,6 +151,34 @@ SampleCall::get_gq() const
   }
 
   return next_lowest_phred;
+}
+
+
+uint8_t
+SampleCall::get_lowest_phred_not_with(uint16_t allele) const
+{
+  long i{0};
+  uint8_t min_phred{255};
+
+  for (long y{0}; y < static_cast<long>(coverage.size()); ++y)
+  {
+    if (y == allele)
+    {
+      i += y + 1;
+      continue;
+    }
+
+    for (long x = 0; x <= y; ++x, ++i)
+    {
+      if (x == allele)
+        continue;
+
+      if (phred[i] < min_phred)
+        min_phred = phred[i];
+    }
+  }
+
+  return min_phred;
 }
 
 

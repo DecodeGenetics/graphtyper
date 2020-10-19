@@ -208,60 +208,7 @@ Graph::add_genomic_region(std::vector<char> && reference_sequence,
           continue;
         }
 
-        std::vector<char> suffix = var_records[i].get_common_suffix();
-
-        //if (var_records[i + 1].pos >= var_records[i].pos + var_records[i].ref.size() - suffix.size())
-        //{
-        //  long const suffix_to_remove = var_records[i].pos + var_records[i].ref.size() - var_records[i + 1].pos;
-        //
-        //  // Check if it is possible to remove enough suffix so we can safely join the two records
-        //  if (suffix_to_remove <= 0 || suffix_to_remove > static_cast<long>(suffix.size()))
-        //  {
-        //    var_records[i + 1].merge_one_path(std::move(var_records[i]));
-        //  }
-        //  else
-        //  {
-        //    // Erase from previous record so that it ends where the next record starts
-        //    assert(static_cast<long>(var_records[i].ref.size()) > suffix_to_remove);
-        //    var_records[i].ref.erase(var_records[i].ref.end() - suffix_to_remove, var_records[i].ref.end());
-        //
-        //    for (auto & alt : var_records[i].alts)
-        //    {
-        //      assert(static_cast<long>(alt.size()) > suffix_to_remove);
-        //      alt.erase(alt.end() - suffix_to_remove, alt.end());
-        //    }
-        //
-        //    assert(var_records[i + 1].pos == var_records[i].pos + var_records[i].ref.size());
-        //
-        //    // Merge the two records
-        //    long const suffix_to_add = suffix_to_remove - static_cast<long>(var_records[i + 1].ref.size());
-        //
-        //    var_records[i + 1].merge(std::move(var_records[i]));
-        //
-        //    if (suffix_to_add > 0)
-        //    {
-        //      var_records[i + 1].ref.insert(var_records[i + 1].ref.end(), suffix.end() - suffix_to_add, suffix.end());
-        //
-        //      for (auto & alt : var_records[i + 1].alts)
-        //        alt.insert(alt.end(), suffix.end() - suffix_to_add, suffix.end());
-        //    }
-        //  }
-        //}
-        //else
-        {
-          // In a few extreme scenarios we cannot merge only one path here.
-          //BOOST_LOG_TRIVIAL(fatal) << "i    : " << var_records[i].to_string();
-          //BOOST_LOG_TRIVIAL(fatal) << "i+1  : " << var_records[i + 1].to_string();
-          var_records[i + 1].merge(std::move(var_records[i]), 4); // last parameter is EXTRA_SUFFIX
-          //BOOST_LOG_TRIVIAL(fatal) << "after: " << var_records[i + 1].to_string();
-        }
-
-        if (var_records[i + 1].alts.size() >= (MAX_NUMBER_OF_HAPLOTYPES - 1))
-        {
-          BOOST_LOG_TRIVIAL(warning) << "[" << __HERE__ << "] Found a variant with too many alleles.";
-          var_records[i + 1].alts.resize(MAX_NUMBER_OF_HAPLOTYPES - 2);
-        }
-
+        var_records[i + 1].merge(std::move(var_records[i]), 4);
         var_records[i].clear(); // Clear variants that have been merged into others
         ++i;
       } // while
@@ -289,6 +236,16 @@ Graph::add_genomic_region(std::vector<char> && reference_sequence,
       return rec.alts.size() == 0;
     }
                                    ), var_records.end());
+
+  // Remove var_records with too many alternatives
+  for (auto & var_record : var_records)
+  {
+    if (var_record.alts.size() >= (MAX_NUMBER_OF_HAPLOTYPES - 1))
+    {
+      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Found a variant with too many alleles.";
+      var_record.alts.resize(MAX_NUMBER_OF_HAPLOTYPES - 2);
+    }
+  }
 
   // Remove common suffix
   for (auto & var_record : var_records)
@@ -1013,12 +970,12 @@ Graph::get_locations_of_an_actual_position(uint32_t pos, Path const & path, bool
           // Only add this node if the path has it
           auto find_it = std::find(path.var_order.cbegin(),
                                    path.var_order.cend(),
-                                   var_nodes[v].get_label().order
-                                   );
+                                   var_nodes[v].get_label().order);
 
           long const j = std::distance(path.var_order.cbegin(), find_it);
           assert(j >= 0);
           assert(i == this->get_variant_num(v));
+          assert(i < static_cast<int>(MAX_NUMBER_OF_HAPLOTYPES));
 
           if (path.is_empty() || (j < static_cast<long>(path.nums.size()) && path.nums[j].test(i)))
           {

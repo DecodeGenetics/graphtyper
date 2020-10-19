@@ -73,82 +73,8 @@ vcf_merge(std::vector<std::string> & vcfs, std::string const & output)
   // For each variant in the first VCF, add the calls from the other VCFs
   for (auto & var : vcf.variants)
   {
-    // Only output variant if it is in the genotyping region
-    // CR
-    uint32_t number_of_clipped_reads = 0;
-
-    {
-      auto find_it = var.infos.find("CR");
-
-      if (find_it != var.infos.end())
-        number_of_clipped_reads = std::strtoull(find_it->second.c_str(), NULL, 10);
-    }
-
-    // MQ. Keep track of the total mapping quality rooted/squared
-    uint64_t mapq_squared = 0;
-
-    {
-      auto find_it = var.infos.find("MQsquared");
-
-      if (find_it != var.infos.end())
-        mapq_squared = std::strtoull(find_it->second.c_str(), NULL, 10);
-    }
-
-    // SBF and SBR
-    std::vector<uint32_t> strand_forward;
-    std::vector<uint32_t> strand_reverse;
-
-    std::vector<uint32_t> r1_strand_forward;
-    std::vector<uint32_t> r1_strand_reverse;
-    std::vector<uint32_t> r2_strand_forward;
-    std::vector<uint32_t> r2_strand_reverse;
-
-//    std::vector<uint32_t> realignment_distance;
-//    std::vector<uint32_t> realignment_count;
-
-    {
-      auto find_it = var.infos.find("SBF");
-
-      if (find_it != var.infos.end())
-        strand_forward = split_bias_to_numbers(find_it->second);
-
-      find_it = var.infos.find("SBR");
-
-      if (find_it != var.infos.end())
-        strand_reverse = split_bias_to_numbers(find_it->second);
-
-      // Read specific strand bias
-      find_it = var.infos.find("SBF1");
-
-      if (find_it != var.infos.end())
-        r1_strand_forward = split_bias_to_numbers(find_it->second);
-
-      find_it = var.infos.find("SBF2");
-
-      if (find_it != var.infos.end())
-        r2_strand_forward = split_bias_to_numbers(find_it->second);
-
-      find_it = var.infos.find("SBR1");
-
-      if (find_it != var.infos.end())
-        r1_strand_reverse = split_bias_to_numbers(find_it->second);
-
-      find_it = var.infos.find("SBR2");
-
-      if (find_it != var.infos.end())
-        r2_strand_reverse = split_bias_to_numbers(find_it->second);
-
-//      // Realignment count and distance
-//      find_it = var.infos.find("RACount");
-//
-//      if (find_it != var.infos.end())
-//        realignment_count = split_bias_to_numbers(find_it->second);
-//
-//      find_it = var.infos.find("RADist");
-//
-//      if (find_it != var.infos.end())
-//        realignment_distance = split_bias_to_numbers(find_it->second);
-    }
+    //VarStats stats(var.seqs.size());
+    //stats.read_stats(var.infos);
 
     for (auto & next_vcf : next_vcfs)
     {
@@ -166,54 +92,7 @@ vcf_merge(std::vector<std::string> & vcfs, std::string const & output)
       }
 
       assert(next_vcf.variants.size() == 1);
-
-      // Get CR
-      {
-        auto find_it = next_vcf.variants[0].infos.find("CR");
-
-        if (find_it != next_vcf.variants[0].infos.end())
-          number_of_clipped_reads += std::strtoull(find_it->second.c_str(), NULL, 10);
-      }
-
-      // Get MQ
-      {
-        auto find_it = next_vcf.variants[0].infos.find("MQsquared");
-
-        if (find_it != next_vcf.variants[0].infos.end())
-          mapq_squared += std::strtoull(find_it->second.c_str(), NULL, 10);
-      }
-
-
-      // Get SBF and SBR
-      {
-        auto add_to_bias_lambda = [&](std::string id, std::vector<uint32_t> & bias)
-                                  {
-                                    auto find_it = next_vcf.variants[0].infos.find(id);
-
-                                    if (find_it != next_vcf.variants[0].infos.end())
-                                    {
-                                      std::vector<uint32_t> split_nums =
-                                        split_bias_to_numbers(find_it->second);
-
-                                      for (std::size_t i = 0; i < split_nums.size(); ++i)
-                                      {
-                                        if (i < strand_forward.size())
-                                          bias[i] += split_nums[i];
-                                        else
-                                          bias.push_back(split_nums[i]);
-                                      }
-                                    }
-                                  };
-
-        add_to_bias_lambda("SBF", strand_forward);
-        add_to_bias_lambda("SBR", strand_reverse);
-        add_to_bias_lambda("SBF1", r1_strand_forward);
-        add_to_bias_lambda("SBF2", r2_strand_forward);
-        add_to_bias_lambda("SBR1", r1_strand_reverse);
-        add_to_bias_lambda("SBR2", r2_strand_reverse);
-//        add_to_bias_lambda("RACount", realignment_count);
-//        add_to_bias_lambda("RADist", realignment_distance);
-      }
+      var.stats.add_stats(next_vcf.variants[0].stats);
 
       std::move(next_vcf.variants[0].calls.begin(),
                 next_vcf.variants[0].calls.end(),
@@ -222,23 +101,7 @@ vcf_merge(std::vector<std::string> & vcfs, std::string const & output)
       next_vcf.variants.clear();
     }
 
-    // Add strand bias, this must happend before the INFO is generated
-    var.infos["SBF"] = join_strand_bias(strand_forward);
-    var.infos["SBR"] = join_strand_bias(strand_reverse);
-
-    var.infos["SBF1"] = join_strand_bias(r1_strand_forward);
-    var.infos["SBF2"] = join_strand_bias(r2_strand_forward);
-    var.infos["SBR1"] = join_strand_bias(r1_strand_reverse);
-    var.infos["SBR2"] = join_strand_bias(r2_strand_reverse);
-
-//    var.infos["RACount"] = join_strand_bias(realignment_count);
-//    var.infos["RADist"] = join_strand_bias(realignment_distance);
-
-    // Add MQsquared
-    var.infos["MQsquared"] = std::to_string(mapq_squared);
-
-    // Add CR
-    var.infos["CR"] = std::to_string(number_of_clipped_reads);
+    //stats.add_stats(var.infos);
 
     // generate the rest of the INFOs
     var.generate_infos();
@@ -298,8 +161,7 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
   long const ploidy = copts.ploidy;
   GenomicRegion genomic_region(region);
   uint32_t const region_begin = 1 + absolute_pos.get_absolute_position(genomic_region.chr,
-                                                                       genomic_region.begin
-                                                                       );
+                                                                       genomic_region.begin);
 
   uint32_t const region_end = absolute_pos.get_absolute_position(genomic_region.chr,
                                                                  genomic_region.end);
@@ -334,8 +196,19 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
     vcf.sample_names.insert(vcf.sample_names.end(),
                             next_vcf.sample_names.begin(),
                             next_vcf.sample_names.end());
+  }
 
+  // Check whether the sample names are unique
+  {
+    std::vector<std::string> sample_names_cp(vcf.sample_names);
+    std::sort(sample_names_cp.begin(), sample_names_cp.end());
+    auto uniq_it = std::unique(sample_names_cp.begin(), sample_names_cp.end());
 
+    if (uniq_it != sample_names_cp.end())
+    {
+      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Sample names are not unique. "
+                                 << "The output VCF file will contain duplicated sample names.";
+    }
   }
 
   // We have all the samples, write the header now
@@ -361,68 +234,8 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
   for (long v = 0; v < static_cast<long>(vcf.variants.size()); ++v)
   {
     auto & var = vcf.variants[v];
-
-    // CR
-    uint32_t number_of_clipped_reads = 0;
-
-    {
-      auto find_it = var.infos.find("CR");
-
-      if (find_it != var.infos.end())
-        number_of_clipped_reads = std::strtoull(find_it->second.c_str(), NULL, 10);
-    }
-
-    // MQ. Keep track of the total mapping quality rooted/squared
-    uint64_t mapq_squared = 0;
-
-    {
-      auto find_it = var.infos.find("MQsquared");
-
-      if (find_it != var.infos.end())
-        mapq_squared = std::strtoull(find_it->second.c_str(), NULL, 10);
-    }
-
-    // SBF and SBR
-    std::vector<uint32_t> strand_forward;
-    std::vector<uint32_t> strand_reverse;
-
-    std::vector<uint32_t> r1_strand_forward;
-    std::vector<uint32_t> r1_strand_reverse;
-    std::vector<uint32_t> r2_strand_forward;
-    std::vector<uint32_t> r2_strand_reverse;
-
-    {
-      auto find_it = var.infos.find("SBF");
-
-      if (find_it != var.infos.end())
-        strand_forward = split_bias_to_numbers(find_it->second);
-
-      find_it = var.infos.find("SBR");
-
-      if (find_it != var.infos.end())
-        strand_reverse = split_bias_to_numbers(find_it->second);
-
-      // Read specific strand bias
-      find_it = var.infos.find("SBF1");
-
-      if (find_it != var.infos.end())
-        r1_strand_forward = split_bias_to_numbers(find_it->second);
-
-      find_it = var.infos.find("SBF2");
-
-      if (find_it != var.infos.end())
-        r2_strand_forward = split_bias_to_numbers(find_it->second);
-
-      find_it = var.infos.find("SBR1");
-
-      if (find_it != var.infos.end())
-        r1_strand_reverse = split_bias_to_numbers(find_it->second);
-
-      find_it = var.infos.find("SBR2");
-
-      if (find_it != var.infos.end())
-        r2_strand_reverse = split_bias_to_numbers(find_it->second);
-    }
+    var.is_info_generated = false;
+    //VarStats & stats = var.stats;
 
     // Trigger read next batch
     if (next_vcfs.size() > 0 && (v - v_next) == static_cast<long>(next_vcfs[0].variants.size()))
@@ -453,52 +266,7 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
       assert((v - v_next) >= 0);
       assert((v - v_next) < static_cast<long>(next_vcf.variants.size()));
       auto & next_vcf_var = next_vcf.variants[v - v_next];
-
-      // Get CR
-      {
-        auto find_it = next_vcf_var.infos.find("CR");
-
-        if (find_it != next_vcf_var.infos.end())
-          number_of_clipped_reads += std::strtoull(find_it->second.c_str(), NULL, 10);
-      }
-
-      // Get MQ
-      {
-        auto find_it = next_vcf_var.infos.find("MQsquared");
-
-        if (find_it != next_vcf_var.infos.end())
-          mapq_squared += std::strtoull(find_it->second.c_str(), NULL, 10);
-      }
-
-
-      // Get SBF and SBR
-      {
-        auto add_to_bias_lambda =
-          [&](std::string id, std::vector<uint32_t> & bias)
-          {
-            auto find_it = next_vcf_var.infos.find(id);
-
-            if (find_it != next_vcf_var.infos.end())
-            {
-              std::vector<uint32_t> split_nums = split_bias_to_numbers(find_it->second);
-
-              for (long i = 0; i < static_cast<long>(split_nums.size()); ++i)
-              {
-                if (i < static_cast<long>(strand_forward.size()))
-                  bias[i] += split_nums[i];
-                else
-                  bias.push_back(split_nums[i]);
-              }
-            }
-          };
-
-        add_to_bias_lambda("SBF", strand_forward);
-        add_to_bias_lambda("SBR", strand_reverse);
-        add_to_bias_lambda("SBF1", r1_strand_forward);
-        add_to_bias_lambda("SBF2", r2_strand_forward);
-        add_to_bias_lambda("SBR1", r1_strand_reverse);
-        add_to_bias_lambda("SBR2", r2_strand_reverse);
-      }
+      var.stats.add_stats(next_vcf_var.stats);
 
       std::move(next_vcf_var.calls.begin(),
                 next_vcf_var.calls.end(),
@@ -506,19 +274,7 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
     }
 
     // Add strand bias, this must happend before the INFO is generated
-    var.infos["SBF"] = join_strand_bias(strand_forward);
-    var.infos["SBR"] = join_strand_bias(strand_reverse);
-
-    var.infos["SBF1"] = join_strand_bias(r1_strand_forward);
-    var.infos["SBF2"] = join_strand_bias(r2_strand_forward);
-    var.infos["SBR1"] = join_strand_bias(r1_strand_reverse);
-    var.infos["SBR2"] = join_strand_bias(r2_strand_reverse);
-
-    // Add MQsquared
-    var.infos["MQsquared"] = std::to_string(mapq_squared);
-
-    // Add CR
-    var.infos["CR"] = std::to_string(number_of_clipped_reads);
+    //stats.add_stats(var.infos);
 
     if (var.calls.size() != vcf.sample_names.size())
     {
@@ -526,6 +282,9 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
                                << var.calls.size() << " vs. " << vcf.sample_names.size();
       std::exit(1);
     }
+
+    //assert(var.infos.count("SBF1") == 1);
+    assert(var.stats.per_allele.size() == var.seqs.size());
 
     // break down the merged variants
     bool const is_no_variant_overlapping{copts.no_variant_overlapping ||
@@ -546,7 +305,7 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
     for (auto & new_var : new_variants)
     {
       // If we have not processed this variant before, do so now
-      if (!new_var.is_info_generated)
+      //if (!new_var.is_info_generated)
       {
         new_var.normalize();
 
@@ -555,38 +314,58 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
 
         new_var.generate_infos();
 
-        // Remove MQsquared
-        new_var.infos.erase("MQsquared");
-        new_var.infos.erase("PS");
+        // Remove uneeded infos
+        //new_var.infos.erase("CRal");
+        //new_var.infos.erase("MMal");
+        //new_var.infos.erase("MQal");
+        //new_var.infos.erase("MQsquared");
+        //new_var.infos.erase("MQSal");
+        //new_var.infos.erase("SDal");
       }
     }
 
     update_reach(new_variants);
     std::move(new_variants.begin(), new_variants.end(), std::back_inserter(broken_vars));
 
-    long constexpr W = 500; // Print variants that are more than W bp before the newest one
+    long constexpr W{700}; // Print variants that are more than W bp before the newest one
 
-    if ((broken_vars[0].abs_pos + 2 * W) < broken_vars[broken_vars.size() - 1].abs_pos)
+    auto min_max_it_pair =
+      std::minmax_element(broken_vars.begin(),
+                          broken_vars.end(),
+                          [](Variant const & a, Variant const & b)
+      {
+        return a.abs_pos < b.abs_pos;
+      });
+
+    assert(min_max_it_pair.first != broken_vars.end());
+    assert(min_max_it_pair.second != broken_vars.end());
+    long const min_abs_pos = min_max_it_pair.first->abs_pos;
+    long const max_abs_pos = min_max_it_pair.second->abs_pos;
+
+    if ((min_abs_pos + 2l * W) < max_abs_pos)
     {
       // Make sure we do no print outside of the region
-      uint32_t const reg_end =
-        std::min(region_end, static_cast<uint32_t>(broken_vars[broken_vars.size() - 1].abs_pos - W));
+      long const reg_end =
+        std::min(static_cast<long>(region_end), max_abs_pos - static_cast<long>(W));
 
-      vcf.write_records(region_begin,
-                        reg_end,
-                        FILTER_ZERO_QUAL,
-                        broken_vars);
+      if (reg_end >= static_cast<long>(region_begin))
+      {
+        vcf.write_records(region_begin,
+                          static_cast<uint32_t>(reg_end),
+                          FILTER_ZERO_QUAL,
+                          broken_vars);
 
-      // Remove variants that were written (or before the region, since they will never be printed)
-      broken_vars.erase(
-        std::remove_if(broken_vars.begin(),
-                       broken_vars.end(),
-                       [&](Variant const & v)
-        {
-          return v.abs_pos <= reg_end || v.abs_pos < region_begin;
-        }),
-        broken_vars.end()
-        );
+        // Remove variants that were written (or before the region, since they will never be printed)
+        broken_vars.erase(
+          std::remove_if(broken_vars.begin(),
+                         broken_vars.end(),
+                         [&](Variant const & v)
+          {
+            return static_cast<long>(v.abs_pos) <= reg_end;
+          }),
+          broken_vars.end()
+          );
+      }
     }
 
     var = Variant(); // Free memory
@@ -608,6 +387,7 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
                 std::string const & output,
                 bool const SKIP_SORT,
                 bool const SITES_ONLY,
+                bool const WRITE_TBI,
                 std::string const & region)
 {
   gyper::Vcf vcf;
@@ -701,10 +481,9 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
     if (SITES_ONLY)
       vcf.sample_names.clear();
 
-    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::vcf_operations] Total number of samples read is "
-                             << vcf.sample_names.size();
+    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Total number of samples read is " << vcf.sample_names.size();
 
-    for (std::size_t i = 0; i < vcfs.size(); ++i)
+    for (long i{0}; i < static_cast<long>(vcfs.size()); ++i)
     {
       // Skip if the filename contains '*'
       if (std::count(vcfs[i].begin(), vcfs[i].end(), '*') > 0)
@@ -730,9 +509,9 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
       // Merge with the other VCF
       if (next_vcf.sample_names.size() != vcf.sample_names.size())
       {
-        BOOST_LOG_TRIVIAL(error) << "[graphtyper::vcf_operations] The VCF file "
+        BOOST_LOG_TRIVIAL(error) << __HERE__ << " The VCF file "
                                  << vcfs[i]
-                                 << " has different amount of samples! ("
+                                 << " has unexpected number of sample names! ("
                                  << next_vcf.sample_names.size()
                                  << " but not " << vcf.sample_names.size() << ")";
         std::exit(1);
@@ -753,6 +532,9 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
 
     vcf.write(region);
   }
+
+  if (WRITE_TBI)
+    vcf.write_tbi_index();
 }
 
 
@@ -771,33 +553,27 @@ vcf_break_down(std::string const & vcf, std::string const & output, std::string 
 
   // Read the sample names and add them
   vcf_in.read_samples();
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::vcf_break_down] "
-                           << "Total number of samples read is "
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Total number of samples read is "
                            << vcf_in.sample_names.size();
 
   // Copy sample names
   std::copy(vcf_in.sample_names.begin(),
             vcf_in.sample_names.end(),
-            std::back_inserter(vcf_out.sample_names)
-            );
+            std::back_inserter(vcf_out.sample_names));
 
   GenomicRegion genomic_region(region);
   uint32_t const region_begin = 1 + absolute_pos.get_absolute_position(genomic_region.chr,
-                                                                       genomic_region.begin
-                                                                       );
+                                                                       genomic_region.begin);
 
   uint32_t const region_end = absolute_pos.get_absolute_position(genomic_region.chr,
-                                                                 genomic_region.end
-                                                                 );
+                                                                 genomic_region.end);
 
   // Read first record
   bool not_at_end = vcf_in.read_record();
 
   // Write header to output
   vcf_out.write_header();
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::vcf_break_down] VCF header written";
-
-  long reach = -1; // Indicates how long the previous variants reached
+  long reach{-1}; // Indicates how long the previous variants reached
 
   auto update_reach =
     [&reach](std::vector<Variant> const & new_variants)
@@ -820,8 +596,8 @@ vcf_break_down(std::string const & vcf, std::string const & output, std::string 
     // Make sure the number of calls matches the number of samples
     if (vcf_in.variants[0].calls.size() != vcf_in.sample_names.size())
     {
-      BOOST_LOG_TRIVIAL(error) << "[graphtyper::vcf_operations::vcf_break_down]"
-                               << "The number of calls, "
+      BOOST_LOG_TRIVIAL(error) << __HERE__
+                               << " The number of calls, "
                                << vcf_in.variants[0].calls.size()
                                << " did not match the number of samples, "
                                << vcf_in.sample_names.size();
@@ -831,6 +607,7 @@ vcf_break_down(std::string const & vcf, std::string const & output, std::string 
 
     bool const is_no_variant_overlapping{Options::const_instance()->no_variant_overlapping};
     bool const is_all_biallelic{Options::const_instance()->is_all_biallelic};
+    assert(vcf_in.variants[0].infos.count("SBF1") == 1);
     std::vector<Variant> new_variants = break_down_variant(std::move(vcf_in.variants[0]),
                                                            reach,
                                                            is_no_variant_overlapping,

@@ -73,11 +73,8 @@ namespace gyper
 VcfWriter::VcfWriter(uint32_t variant_distance)
 {
   haplotypes = gyper::graph.get_all_haplotypes(variant_distance);
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::vcf_writer] Number of variant nodes in graph "
-                           << graph.var_nodes.size();
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::vcf_writer] Got "
-                           << haplotypes.size()
-                           << " haplotypes.";
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Number of variant nodes in graph " << graph.var_nodes.size();
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Got " << haplotypes.size() << " haplotypes.";
 }
 
 
@@ -107,20 +104,25 @@ VcfWriter::set_samples(std::vector<std::string> const & samples)
 void
 VcfWriter::update_haplotype_scores_geno(GenotypePaths & geno, long const pn_index, Primers const * primers)
 {
+#ifndef NDEBUG
+  if (Options::instance()->stats.size() > 0)
+    update_statistics(geno, pn_index);
+#endif
+
   if (are_genotype_paths_good(geno))
   {
     if (primers)
       primers->check(geno);
 
     push_to_haplotype_scores(geno, pn_index);
-
-#ifndef NDEBUG
-    if (Options::instance()->stats.size() > 0)
-      update_statistics(geno, pn_index);
   }
-#else
-  }
-#endif //NDEBUG
+//#ifndef NDEBUG
+//    if (Options::instance()->stats.size() > 0)
+//      update_statistics(geno, pn_index);
+//  }
+//#else
+//  }
+//#endif //NDEBUG
 }
 
 
@@ -156,7 +158,6 @@ VcfWriter::print_variant_group_details() const
     }
   }
 
-  //std::lock_guard<std::mutex> lock(io_mutex);
   write_gzipped_to_file(hap_file, hap_stats_fn);
 }
 
@@ -209,7 +210,6 @@ VcfWriter::print_variant_details() const
     variant_file << '\n';
   }
 
-  //std::lock_guard<std::mutex> lock(io_mutex);
   write_gzipped_to_file(variant_file, variant_details_fn);
 }
 
@@ -411,10 +411,14 @@ VcfWriter::push_to_haplotype_scores(GenotypePaths & geno, long const pn_index)
   assert(are_genotype_paths_good(geno));
 
   // Quality metrics
-  bool const fully_aligned = geno.all_paths_fully_aligned();
+  assert(geno.longest_path_length <= geno.read_length);
+  int const clipped_bp = geno.read_length - geno.longest_path_length;
+  bool const fully_aligned = clipped_bp == 0;
+  assert(fully_aligned == geno.all_paths_fully_aligned());
+
   bool const non_unique_paths = !geno.all_paths_unique();
   std::size_t const mismatches = geno.paths[0].mismatches;
-  bool has_low_quality_snp = false;
+  bool has_low_quality_snp{false};
 
   std::unordered_map<uint32_t, bool> recent_ids; // maps to is_overlapping
 
@@ -434,7 +438,7 @@ VcfWriter::push_to_haplotype_scores(GenotypePaths & geno, long const pn_index)
       auto & hap = haplotypes[type_ids.first];
       auto & num = p_it->nums[i];
 
-      long constexpr MIN_OFFSET = 3;
+      long constexpr MIN_OFFSET{3};
       bool is_overlapping = (p_it->start_ref_reach_pos() + MIN_OFFSET) <= p_it->var_order[i] &&
                             (p_it->end_ref_reach_pos() - MIN_OFFSET) > p_it->var_order[i];
       recent_ids[type_ids.first] |= is_overlapping;
@@ -487,9 +491,12 @@ VcfWriter::push_to_haplotype_scores(GenotypePaths & geno, long const pn_index)
 
     // Move INFO to variant statistics.
     // This needs to called before 'coverage_to_gts', because it uses the coverage of each variant.
-    haplotype.clipped_reads_to_stats(fully_aligned);
+    haplotype.clipped_reads_to_stats(clipped_bp, geno.read_length);
     haplotype.mapq_to_stats(geno.mapq);
     haplotype.strand_to_stats(geno.flags);
+    haplotype.mismatches_to_stats(mismatches, geno.read_length);
+    haplotype.score_diff_to_stats(geno.score_diff);
+    // TODO display these new stats
 
     // Update the likelihood scores
     haplotype.explain_to_score(pn_index,

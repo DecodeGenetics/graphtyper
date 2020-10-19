@@ -25,6 +25,7 @@
 
 #include "tbx.h"
 
+
 namespace
 {
 
@@ -293,19 +294,17 @@ Vcf::read_record(bool const SITES_ONLY)
 
       std::unordered_set<std::string> const keys_to_parse(
         {
-//          "AC",
-          "CR",
+          "CR", "CRal", "CRalt",
           "END",
           "HOMSEQ"
 //          "INV3", "INV5",
           "LEFT_SVINSSEQ",
           "NCLUSTERS", "NUM_MERGED_SVS",
-          "MQsquared",
+          "MMal", "MMalt", "MQ", "MQSal", "MQsquared", "MQal",
           "OLD_VARIANT_ID", "OREND", "ORSTART",
-          "PS",
           "RELATED_SV_ID", "RIGHT_SVINSSEQ",
           "SBF", "SBF1", "SBF2",
-          "SBR", "SBR1", "SBR2",
+          "SBR", "SBR1", "SBR2", "SDal", "SDalt",
           "SVLEN", "SVTYPE", "SVSIZE", "SVMODEL", "SEQ", "SVINSSEQ", "SV_ID"
         }
         );
@@ -589,23 +588,26 @@ Vcf::write_header()
   // INFO definitions
   {
     bgzf_stream.ss
+      << "##INFO=<ID=AAScore,Number=A,Type=Float,Description=\"Alternative allele confidence score in range [0.0,1.0]."
+       " The score is determined by a logistic regression model which was trained on GIAB truth data using other INFOs"
+       " metrics as covariates.\">\n"
       << "##INFO=<ID=ABHet,Number=1,Type=Float,Description=\"Allele Balance for heterozygous"
        "calls (read count of call2/(call1+call2)) where the called genotype is call1/call2. "
        "-1 if no heterozygous calls.\">\n"
       << "##INFO=<ID=ABHom,Number=1,Type=Float,Description=\"Allele Balance for homozygous calls"
        "(read count of A/(A+O)) where A is the called allele and O is anything else. -1 if no "
        "homozygous calls.\">\n"
-      << "##INFO=<ID=ABHetMulti,Number=A,Type=Float,Description=\"List of Allele Balance values for"
-       "multiallelic heterozygous calls (alt/(ref+alt)). Each value corresponds to an alt in the "
-       "same order as they appear. -1 if not available.\">\n"
+      << "##INFO=<ID=ABHetMulti,Number=R,Type=Float,Description=\"List of Allele Balance values for"
+       " heterozygous calls (alt/(ref+alt)). -1 if not available.\">\n"
       << "##INFO=<ID=ABHomMulti,Number=R,Type=Float,Description=\"List of Allele Balance values for"
-       "multiallelic homozygous calls (A/(A+0)) where A is the called allele and O is anything "
-       "else. Each value corresponds to a ref or alt in the same order as they appear. -1 if not "
-       "available.\">\n"
+       " homozygous calls (A/(A+0)) where A is the called allele and O is anything "
+       "else. -1 if not available.\">\n"
       << "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Number of alternate alleles in called genotypes.\">\n"
       << "##INFO=<ID=AF,Number=A,Type=Float,Description=\"Allele frequency.\">\n"
       << "##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Number of alleles in called genotypes.\">\n"
-      << "##INFO=<ID=CR,Number=1,Type=Integer,Description=\"Number of clipped reads by Graphtyper.\">\n"
+      << "##INFO=<ID=CR,Number=1,Type=Integer,Description=\"Number of clipped reads in the graph alignment.\">\n"
+      << "##INFO=<ID=CRal,Number=.,Type=String,Description=\"Number of clipped reads per allele.\">\n"
+      << "##INFO=<ID=CRalt,Number=A,Type=Float,Description=\"Percent of clipped reads per allele.\">\n"
       << "##INFO=<ID=END,Number=1,Type=Integer,Description=\"End position of an SV.\">\n"
       << "##INFO=<ID=HOMSEQ,Number=.,Type=String,Description=\"Sequence of base pair identical "
        "homology at event breakpoints.\">\n"
@@ -620,11 +622,16 @@ Vcf::write_header()
        "ratio per alt. allele.\">\n"
       << "##INFO=<ID=MaxAltPP,Number=1,Type=Integer,Description=\"Maximum number of proper pairs "
        "support the alternative allele.\">\n"
+      << "##INFO=<ID=MMal,Number=.,Type=String,Description=\"Scaled mismatch count per allele.\">\n"
+      << "##INFO=<ID=MMalt,Number=A,Type=Float,Description=\"Mismatch percent per alternative allele.\">\n"
       << "##INFO=<ID=MQ,Number=1,Type=Integer,Description=\"Root-mean-square mapping quality.\">\n"
-      << "##INFO=<ID=MQsquared,Number=1,Type=Integer,Description=\"Sum of squared mapping qualities. "
+      << "##INFO=<ID=MQalt,Number=A,Type=Integer,Description=\"Mapping qualities per alternative allele.\">\n"
+      << "##INFO=<ID=MQSal,Number=.,Type=String,Description=\"Sum of squared mapping qualities per allele.\">\n"
+
+      << "##INFO=<ID=MQsquared,Number=.,Type=String,Description=\"Sum of squared mapping qualities. "
        "Used to calculate MQ.\">\n"
       << "##INFO=<ID=NCLUSTERS,Number=1,Type=Integer,Description=\"Number of SV candidates in "
-       "cluster, as reported by popSVar.\">\n"
+       "cluster.\">\n"
       << "##INFO=<ID=NGT,Number=3,Type=Integer,Description=\"Number of REF/REF, REF/ALT and ALT/ALT"
        "genotypes, respectively.\">\n"
       << "##INFO=<ID=NHet,Number=1,Type=Integer,Description=\"Number of heterozygous genotype "
@@ -636,15 +643,17 @@ Vcf::write_header()
       << "##INFO=<ID=ORSTART,Number=1,Type=Integer,Description=\"Start coordinate of sequence origin.\">\n"
       << "##INFO=<ID=OREND,Number=1,Type=Integer,Description=\"End coordinate of sequence origin.\">\n"
       << "##INFO=<ID=QD,Number=1,Type=Float,Description=\"QUAL divided by NonReferenceSeqDepth.\">\n"
+      << "##INFO=<ID=QDalt,Number=A,Type=Float,Description=\"Simplified QD calculated separately for each "
+       "allele against all other alleles.\">\n"
       << "##INFO=<ID=PASS_AC,Number=A,Type=Integer,Description=\"Number of alternate alleles in "
        "called genotyped that have FT = PASS.\">\n"
       << "##INFO=<ID=PASS_AN,Number=1,Type=Integer,Description=\"Number of genotype calls that have"
        "FT = PASS.\">\n"
       << "##INFO=<ID=PASS_ratio,Number=1,Type=Float,Description=\"Ratio of genotype calls that have"
        "FT = PASS.\">\n"
-      << "##INFO=<ID=PS,Number=1,Type=Integer,Description=\"Unique ID of the phase set this variant"
-       "is a member of. If the calls are unphased, it is used to represent which haplotype set "
-       "the variant is a member of.\">\n"
+//      << "##INFO=<ID=PS,Number=1,Type=Integer,Description=\"Unique ID of the phase set this variant"
+//       "is a member of. If the calls are unphased, it is used to represent which haplotype set "
+//       "the variant is a member of.\">\n"
       << "##INFO=<ID=RefLen,Number=1,Type=Integer,Description=\"Length of the reference "
        "allele.\">\n"
       << "##INFO=<ID=RELATED_SV_ID,Number=1,Type=Integer,Description=\"GraphTyper ID of a related "
@@ -667,11 +676,14 @@ Vcf::write_header()
        "reads per allele.\">\n"
       << "##INFO=<ID=SBR2,Number=R,Type=Integer,Description=\"Number of second reverse stranded "
        "reads per allele.\">\n"
+      << "##INFO=<ID=SDal,Number=.,Type=String,Description=\"Score difference of AS and XS tags per allele.\">\n"
+      << "##INFO=<ID=SDalt,Number=A,Type=Float,Description=\"Avergae score difference of AS and XS "
+       "tags per alternative allele.\">\n"
       << "##INFO=<ID=SEQ,Number=1,Type=String,Description=\"Inserted sequence at variant site.\">\n"
       << "##INFO=<ID=SeqDepth,Number=1,Type=Integer,Description=\"Total accumulated sequencing "
        "depth over all the samples.\">\n"
-      << "##INFO=<ID=SV_ID,Number=1,Type=Integer,Description=\"GraphTyper's ID on SV\">\n"
-      << "##INFO=<ID=SVINSSEQ,Number=.,Type=String,Description=\"Sequence of insertion\">\n"
+      << "##INFO=<ID=SV_ID,Number=1,Type=Integer,Description=\"GraphTyper's ID on SV.\">\n"
+      << "##INFO=<ID=SVINSSEQ,Number=.,Type=String,Description=\"Sequence of insertion.\">\n"
       << "##INFO=<ID=SVLEN,Number=1,Type=Integer,Description=\"Length of structural variant in bp."
        " Negative lengths indicate a deletion.\">\n"
       << "##INFO=<ID=SVMODEL,Number=1,Type=String,Description=\"Model used for SV genotyping.\">\n"
@@ -1185,7 +1197,11 @@ Vcf::close_vcf_file()
 void
 Vcf::write_tbi_index() const
 {
-  int ret = tbx_index_build(filename.c_str(), 0, &tbx_conf_vcf);
+  bool const is_csi = Options::const_instance()->is_csi;
+
+  int ret = is_csi ?
+            tbx_index_build(filename.c_str(), 14, &tbx_conf_vcf) :
+            tbx_index_build(filename.c_str(), 0, &tbx_conf_vcf);
 
   if (ret < 0)
     BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Could not build VCF index";
@@ -1219,7 +1235,7 @@ Vcf::add_segment(Segment && segment)
 
 
 void
-Vcf::add_haplotype(Haplotype & haplotype, bool const clear_haplotypes, uint32_t const phase_set)
+Vcf::add_haplotype(Haplotype & haplotype, bool const clear_haplotypes, uint32_t const /*phase_set*/)
 {
   assert(haplotype.gts.size() > 0);
 
@@ -1236,18 +1252,12 @@ Vcf::add_haplotype(Haplotype & haplotype, bool const clear_haplotypes, uint32_t 
   // Add variant stats
   for (long i = 0; i < static_cast<long>(new_vars.size()); ++i)
   {
-    auto const & stat = haplotype.var_stats[i];
+    VarStats const & stats = haplotype.var_stats[i];
     auto & new_var = new_vars[i];
 
-    new_var.infos["CR"] = std::to_string(stat.clipped_reads);
-    new_var.infos["PS"] = std::to_string(phase_set);
-    new_var.infos["MQsquared"] = std::to_string(stat.mapq_squared);
-    new_var.infos["SBF"] = stat.get_forward_strand_bias();
-    new_var.infos["SBR"] = stat.get_reverse_strand_bias();
-    new_var.infos["SBF1"] = stat.get_r1_forward_strand_bias();
-    new_var.infos["SBF2"] = stat.get_r2_forward_strand_bias();
-    new_var.infos["SBR1"] = stat.get_r1_reverse_strand_bias();
-    new_var.infos["SBR2"] = stat.get_r2_reverse_strand_bias();
+    //new_var.infos["PS"] = std::to_string(phase_set);
+    //stats.add_stats(new_var.infos);
+    new_var.stats = stats;
   }
 
   //long const ploidy = Options::const_instance()->ploidy;
@@ -1653,8 +1663,7 @@ save_vcf(Vcf const & vcf, std::string const & filename)
   if (!ofs.is_open())
   {
     BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not save VCF to location '"
-                             << filename
-                             << "'";
+                             << filename << "'";
     std::exit(1);
   }
 

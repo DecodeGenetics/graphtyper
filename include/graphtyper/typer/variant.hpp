@@ -9,6 +9,7 @@
 #include <graphtyper/graph/genotype.hpp> // gyper::Genotype
 #include <graphtyper/graph/haplotype.hpp> // gyper::Haplotype
 #include <graphtyper/typer/sample_call.hpp> // gyper::SampleCall
+#include <graphtyper/typer/var_stats.hpp>
 #include <graphtyper/utilities/options.hpp>
 
 namespace gyper
@@ -24,9 +25,11 @@ public:
   uint32_t abs_pos;
   std::vector<std::vector<char> > seqs;
   std::vector<SampleCall> calls;
+  VarStats stats;
   std::map<std::string, std::string> infos;
   std::string suffix_id;
   bool is_info_generated{false};
+  char type{'.'};
 
   Variant() noexcept;
 
@@ -67,7 +70,7 @@ public:
   std::vector<uint64_t> get_seq_depth_of_all_alleles() const;
   uint64_t get_qual() const; // Gets quality of a record
   double get_qual_by_depth() const; // Gets total quality by depth (QD) of a record
-
+  std::vector<double> get_qual_by_depth_per_alt_allele() const;
 
   /*********************
    * OPERATOR OVERLOAD *

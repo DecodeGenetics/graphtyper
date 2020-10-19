@@ -44,6 +44,13 @@ uint32_t constexpr MAX_NUM_LOCATIONS_PER_PATH = 256;
 uint16_t constexpr EPSILON_0_EXPONENT = 12;
 int32_t constexpr INSERT_SIZE_WHEN_NOT_PROPER_PAIR = 0x7FFFFFFFl;
 
+// alignments scores and penalties
+uint8_t constexpr SCORE_MATCH = 1;
+uint8_t constexpr SCORE_MISMATCH = 4;
+uint8_t constexpr SCORE_GAP_OPEN = 7;
+uint8_t constexpr SCORE_GAP_EXTEND = 1;
+uint8_t constexpr SCORE_CLIP = 5;
+
 
 /**
  * Flags

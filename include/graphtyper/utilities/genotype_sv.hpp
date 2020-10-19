@@ -13,14 +13,15 @@ void
 genotype_sv(std::string const & interval_fn,
             std::string const & ref_path,
             std::vector<std::string> const & sams,
+            std::vector<double> const & avg_cov_by_readlen,
             gyper::GenomicRegion const & genomic_region,
-            std::string const & output_path,
-            std::vector<double> const & avg_cov_by_readlen);
+            std::string const & output_path);
 
 void
 genotype_sv_regions(std::string ref_path,
                     std::string const & sv_vcf,
                     std::vector<std::string> const & sams,
+                    std::vector<double> const & avg_cov_by_readlen,
                     std::vector<GenomicRegion> const & regions,
                     std::string const & output_path,
                     bool const is_copy_reference);

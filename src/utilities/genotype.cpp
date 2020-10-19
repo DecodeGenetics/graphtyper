@@ -28,6 +28,7 @@
 #include <utility>
 #include <vector>
 
+//#define GT_DEV 1
 
 namespace
 {
@@ -276,7 +277,9 @@ genotype_only_with_a_vcf(std::string const & ref_path,
   BOOST_LOG_TRIVIAL(info) << "Genotyping using an input VCF.";
   std::string const output_vcf = tmp + "/it1/final.vcf.gz";
   std::string const out_dir = tmp + "/it1";
+  gyper::Options const & copts = *(Options::const_instance());
   mkdir(out_dir.c_str(), 0755);
+
   bool const is_sv_graph{false};
   bool const use_absolute_positions{true};
   bool const check_index{true};
@@ -285,7 +288,7 @@ genotype_only_with_a_vcf(std::string const & ref_path,
   bool const is_writing_hap{false};
 
   gyper::construct_graph(ref_path,
-                         Options::const_instance()->vcf,
+                         copts.vcf,
                          padded_region.to_string(),
                          is_sv_graph,
                          use_absolute_positions,
@@ -302,16 +305,18 @@ genotype_only_with_a_vcf(std::string const & ref_path,
 
   {
     PHIndex ph_index = index_graph(gyper::graph);
+    std::vector<double> avg_cov_by_readlen(shrinked_sams.size(), -1.0);
 
     paths = gyper::call(shrinked_sams,
-                        "",                          // graph_path
+                        avg_cov_by_readlen,
+                        "", // graph_path
                         ph_index,
                         out_dir,
-                        "",                          // reference
-                        ".",                          // region
+                        "", // reference
+                        ".", // region
                         primers,
-                        5,                          //minimum_variant_support,
-                        0.25,                          //minimum_variant_support_ratio,
+                        5, // minimum_variant_support,
+                        0.25, // minimum_variant_support_ratio,
                         is_writing_calls_vcf,
                         is_discovery,
                         is_writing_hap);
@@ -323,9 +328,21 @@ genotype_only_with_a_vcf(std::string const & ref_path,
   // Append _calls.vcf.gz
   //for (auto & path : paths)
   //  path += "_calls.vcf.gz";
+  bool constexpr is_filter_zero_qual{false};
 
   //> FILTER_ZERO_QUAL, force_no_variant_overlapping, force_no_break_down
-  vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", region.to_string(), true, false, false);
+  vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", region.to_string(), is_filter_zero_qual, false, false);
+
+  if (copts.normal_and_no_variant_overlapping)
+  {
+    //> FILTER_ZERO_QUAL, force_no_variant_overlapping
+    vcf_merge_and_break(paths,
+                        tmp + "/graphtyper.no_variant_overlapping.vcf.gz",
+                        region.to_string(),
+                        is_filter_zero_qual,
+                        true,
+                        false);
+  }
 
   // free memory
   graph = Graph();
@@ -442,6 +459,7 @@ genotype(std::string ref_path,
     minimum_variant_support = copts.genotype_aln_min_support;
     minimum_variant_support_ratio = copts.genotype_aln_min_support_ratio;
     is_writing_calls_vcf = false; // Skip writing calls vcf in release mode in all iterations except the last one
+    std::vector<double> avg_cov_by_readlen(shrinked_sams.size(), -1.0);
 
     // Iteration 1
     {
@@ -449,11 +467,88 @@ genotype(std::string ref_path,
       std::string const output_vcf = tmp + "/it1/final.vcf.gz";
       std::string const out_dir = tmp + "/it1";
       mkdir(out_dir.c_str(), 0755);
+
+#ifdef GT_DEV
       gyper::construct_graph(ref_path, "", padded_region.to_string(), false, true, false);
+
+
+      Vcf indel_sites;
+      gyper::streamlined_discovery(shrinked_sams,
+                                   ref_path,
+                                   padded_region.to_string(),
+                                   tmp,
+                                   indel_sites);
+#endif // GT_DEV
+
+#ifndef NDEBUG
+      /*
+      BOOST_LOG_TRIVIAL(info) << __HERE__ << " WIP Third pass starting.";
+
+      // THIRD PASS
+      {
+        bool const is_sv_graph{false};
+        bool const use_absolute_positions{true};
+        bool const check_index{false};
+        bool const is_writing_calls_vcf{true};
+        bool const is_discovery{false};
+        bool const is_writing_hap{false};
+
+        gyper::construct_graph(ref_path,
+                               tmp + "/indel_sites.vcf.gz",
+                               padded_region.to_string(),
+                               is_sv_graph,
+                               use_absolute_positions,
+                               check_index);
+
+        absolute_pos.calculate_offsets(gyper::graph.contigs);
+
+//#ifndef NDEBUG
+        // Save graph in debug mode
+        save_graph(tmp + "/graph_indels");
+//#endif // NDEBUG
+
+        std::vector<std::string> paths;
+
+        {
+          PHIndex ph_index = index_graph(gyper::graph);
+          std::vector<double> avg_cov_by_readlen(shrinked_sams.size(), -1.0);
+
+          paths = gyper::call(shrinked_sams,
+                              avg_cov_by_readlen,
+                              "", // graph_path
+                              ph_index,
+                              tmp,
+                              "", // reference
+                              ".", // region
+                              primers.get(),
+                              5, // minimum_variant_support,
+                              0.25, // minimum_variant_support_ratio,
+                              is_writing_calls_vcf,
+                              is_discovery,
+                              is_writing_hap);
+        }
+
+        vcf_merge_and_break(paths,
+                            tmp + "/graphtyper.test.vcf.gz",
+                            region.to_string(),
+                            true,
+                            false,
+                            false);
+
+        graph = Graph(); // free memory reserved for graph
+        Options::instance()->stats.clear();
+      }
+      //*/
+      ///// WIP ends
+#endif // NDEBUG
+
+      gyper::construct_graph(ref_path, "", padded_region.to_string(), false, true, false);
+
 #ifndef NDEBUG
       // Save graph in debug mode
       save_graph(out_dir + "/graph");
-#endif // NDEBUG
+#endif
+
       absolute_pos.calculate_offsets(gyper::graph.contigs);
       auto output_paths = gyper::discover_directly_from_bam("",
                                                             shrinked_sams,
@@ -466,6 +561,11 @@ genotype(std::string ref_path,
       varmap.filter_varmap_for_all();
       Vcf final_vcf;
       varmap.get_vcf(final_vcf, output_vcf);
+
+#ifdef GT_DEV
+      // Add indel sites
+      std::move(indel_sites.variants.begin(), indel_sites.variants.end(), std::back_inserter(final_vcf.variants));
+#endif // GT_DEV
 
       if (copts.prior_vcf.size() > 0)
       {
@@ -495,8 +595,11 @@ genotype(std::string ref_path,
     }
 #endif // NDEBUG
 
-    long FIRST_CALLONLY_ITERATION = 3;
-    long LAST_ITERATION = 4;
+    long FIRST_CALLONLY_ITERATION{3};
+    long LAST_ITERATION{4};
+
+    if (copts.is_extra_call_only_iteration)
+      ++LAST_ITERATION;
 
     // Iteration 2
     if (copts.is_only_cigar_discovery)
@@ -528,6 +631,7 @@ genotype(std::string ref_path,
         minimum_variant_support_ratio = copts.genotype_dis_min_support_ratio;
 
         paths = gyper::call(shrinked_sams,
+                            avg_cov_by_readlen,
                             "", // graph_path
                             ph_index,
                             out_dir,
@@ -608,6 +712,7 @@ genotype(std::string ref_path,
         PHIndex ph_index = index_graph(gyper::graph);
 
         paths = gyper::call(shrinked_sams,
+                            avg_cov_by_readlen,
                             "", // graph_path
                             ph_index,
                             out_dir,
@@ -672,7 +777,7 @@ genotype(std::string ref_path,
     // Copy sites to system
     {
       std::ostringstream ss_cmd;
-      ss_cmd << "cp -p " << tmp << "/it" << (LAST_ITERATION - 1) << "/final.vcf.gz" << " " // Change to (LAST_ITERATION - 1)
+      ss_cmd << "cp -p " << tmp << "/it" << (LAST_ITERATION - 1) << "/final.vcf.gz" << " "
              << output_path << "/input_sites/" << region.chr << "/"
              << std::setw(9) << std::setfill('0') << (region.begin + 1)
              << '-'
@@ -689,6 +794,8 @@ genotype(std::string ref_path,
     }
   }
 
+  std::string const index_ext = copts.is_csi ? ".vcf.gz.csi" : ".vcf.gz.tbi";
+
   // Copy final VCFs
   auto copy_to_results =
     [&](std::string const & basename_no_ext, std::string const & extension, std::string const & id)
@@ -704,7 +811,7 @@ genotype(std::string ref_path,
 
       int ret = system(ss_cmd.str().c_str());
 
-      if (extension != ".vcf.gz.tbi" && ret != 0)
+      if (extension != index_ext && ret != 0)
       {
         BOOST_LOG_TRIVIAL(error) << __HERE__ << " This command failed '" << ss_cmd.str() << "'";
         std::exit(ret);
@@ -716,14 +823,45 @@ genotype(std::string ref_path,
       }
     };
 
-  copy_to_results("graphtyper", ".vcf.gz", ""); // Copy final VCF
-  copy_to_results("graphtyper", ".vcf.gz.tbi", ""); // Copy tabix index for final VCF
+  std::string basename_no_ext{"graphtyper"};
+
+  // Check if tabix file exists
+  if (!is_file(tmp + "/graphtyper.vcf.gz.tbi") && !is_file(tmp + "/graphtyper.vcf.gz.csi"))
+  {
+    BOOST_LOG_TRIVIAL(warning) << "Tabix creation appears to have failed, "
+                               << "I will retry sorting the VCF by reading it in whole.";
+
+    bool const no_sort{false};
+    bool const sites_only{false};
+    bool const write_tbi{true};
+
+    std::string region{"."}; // already extracted region
+
+    vcf_concatenate({tmp + "/graphtyper.vcf.gz"},
+                    tmp + "/graphtyper.sorted.vcf.gz",
+                    no_sort,
+                    sites_only,
+                    write_tbi,
+                    region);
+
+    basename_no_ext = "graphtyper.sorted";
+  }
+
+  copy_to_results(basename_no_ext, ".vcf.gz", ""); // Copy final VCF
+  copy_to_results(basename_no_ext, index_ext, ""); // Copy tabix index for final VCF
 
   if (copts.normal_and_no_variant_overlapping)
   {
     copy_to_results("graphtyper.no_variant_overlapping", ".vcf.gz", ".no_variant_overlapping");
-    copy_to_results("graphtyper.no_variant_overlapping", ".vcf.gz.tbi", ".no_variant_overlapping");
+    copy_to_results("graphtyper.no_variant_overlapping", index_ext, ".no_variant_overlapping");
   }
+
+#ifndef NDEBUG
+  /*copy_to_results("indel_sites", ".vcf.gz", ".indel_sites");*/
+  //copy_to_results("indel_sites", index_ext, ".indel_sites");
+  //copy_to_results("graphtyper.test", ".vcf.gz", ".test");
+  //copy_to_results("graphtyper.test", index_ext, ".test");
+#endif // NDEBUG
 
   if (!copts.no_cleanup)
   {

@@ -28,27 +28,23 @@ void
 genotype_sv(std::string ref_path,
             std::string const & sv_vcf,
             std::vector<std::string> const & sams,
+            std::vector<double> const & avg_cov_by_readlen,
             GenomicRegion const & genomic_region,
             std::string const & output_path,
             bool const is_copy_reference)
 {
   // TODO: If the reference is only Ns then output an empty vcf with the sample names
   // TODO: Extract the reference sequence and use that to discover directly from BAM
-  bool constexpr is_writing_calls_vcf {
-    true
-  };
-  bool constexpr is_writing_hap {
-    false
-  };
-  bool constexpr is_discovery {
-    false
-  };
+  gyper::Options const & copts = *(Options::const_instance());
+  bool constexpr is_writing_calls_vcf{true};
+  bool constexpr is_writing_hap{false};
+  bool constexpr is_discovery{false};
 
   long const NUM_SAMPLES = sams.size();
 
   BOOST_LOG_TRIVIAL(info) << "SV genotyping region " << genomic_region.to_string();
   BOOST_LOG_TRIVIAL(info) << "Path to genome is '" << ref_path << "'";
-  BOOST_LOG_TRIVIAL(info) << "Running with up to " << Options::const_instance()->threads << " threads.";
+  BOOST_LOG_TRIVIAL(info) << "Running with up to " << copts.threads << " threads.";
   BOOST_LOG_TRIVIAL(info) << "Copying data from " << NUM_SAMPLES << " input SAM/BAM/CRAMs to local disk.";
   std::string tmp = create_temp_dir(genomic_region);
 
@@ -132,13 +128,18 @@ genotype_sv(std::string ref_path,
 #endif // NDEBUG
 
     PHIndex ph_index = index_graph(gyper::graph);
+    std::string reference_fn{}; // empty by default
+
+    if (Options::const_instance()->force_use_input_ref_for_cram_reading)
+      reference_fn = ref_path;
 
     std::vector<std::string> paths =
       gyper::call(sams,
+                  avg_cov_by_readlen,
                   "",   // graph_path
                   ph_index,
                   out_dir,
-                  "", // reference
+                  reference_fn, // reference
                   unpadded_region.to_string(), // region
                   nullptr,
                   5,//minimum_variant_support,
@@ -190,10 +191,12 @@ genotype_sv(std::string ref_path,
       }
     };
 
-  copy_vcf_to_system(""); // Copy final VCF
-  copy_vcf_to_system(".tbi"); // Copy tabix index for final VCF
+  std::string const index_ext = copts.is_csi ? ".csi" : ".tbi";
 
-  if (!Options::instance()->no_cleanup)
+  copy_vcf_to_system(""); // Copy final VCF
+  copy_vcf_to_system(index_ext); // Copy tabix index for final VCF
+
+  if (!copts.no_cleanup)
   {
     BOOST_LOG_TRIVIAL(info) << "Cleaning up temporary files.";
     remove_file_tree(tmp.c_str());
@@ -224,13 +227,14 @@ void
 genotype_sv_regions(std::string ref_path,
                     std::string const & sv_vcf,
                     std::vector<std::string> const & sams,
+                    std::vector<double> const & avg_cov_by_readlen,
                     std::vector<gyper::GenomicRegion> const & regions,
                     std::string const & output_path,
                     bool const is_copy_reference)
 {
   for (auto const & region : regions)
   {
-    genotype_sv(ref_path, sv_vcf, sams, region, output_path, is_copy_reference);
+    genotype_sv(ref_path, sv_vcf, sams, avg_cov_by_readlen, region, output_path, is_copy_reference);
   }
 }
 

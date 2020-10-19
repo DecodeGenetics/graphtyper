@@ -27,8 +27,7 @@ void
 find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read,
                                             gyper::GenotypePaths & geno,
                                             gyper::PHIndex const & ph_index,
-                                            gyper::Graph const & graph = gyper::graph
-                                            )
+                                            gyper::Graph const & graph = gyper::graph)
 {
   using namespace gyper;
 
@@ -54,7 +53,7 @@ find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read,
   }
 
   {
-    uint32_t read_start_index = 0;
+    uint32_t read_start_index{0};
 
     {
       assert(r_hamming0.size() == r_hamming1.size());
@@ -64,14 +63,12 @@ find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read,
         geno.add_next_kmer_labels(r_hamming0[i],
                                   read_start_index,
                                   read_start_index + (K - 1),
-                                  0 /*mismatches*/
-                                  );
+                                  0 /*mismatches*/);
 
         geno.add_next_kmer_labels(r_hamming1[i],
                                   read_start_index,
                                   read_start_index + (K - 1),
-                                  1 /*mismatches*/
-                                  );
+                                  1 /*mismatches*/);
 
         read_start_index += (K - 1);
       }
@@ -93,12 +90,17 @@ find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read,
     geno.remove_fully_special_paths();
 
   geno.remove_non_ref_paths_when_read_matches_ref(); // Should be the last check
-
   geno.update_longest_path_size();
   geno.remove_short_paths();
 
   if (graph.is_sv_graph)
     geno.remove_support_from_read_ends();
+
+  // store read sequence
+  geno.read2 = std::vector<char>(seqan::begin(read), seqan::end(read));
+
+  // store score diff
+
 
 #ifndef NDEBUG
   /*
@@ -112,6 +114,7 @@ find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read,
 }
 
 
+/*
 bool
 is_clipped(bam1_t const & b)
 {
@@ -141,6 +144,233 @@ is_clipped(bam1_t const & b)
 
   return false;
 }
+*/
+
+long
+clipped_count(bam1_t const & b)
+{
+  long count{0};
+
+  if (b.core.n_cigar > 0)
+  {
+    auto it = b.data + b.core.l_qname;
+
+    // Check first
+    uint32_t opAndCnt;
+    memcpy(&opAndCnt, it, sizeof(uint32_t));
+
+    if ((opAndCnt & 15) == 4)
+    {
+      uint32_t const cigar_count = opAndCnt >> 4;
+      count += cigar_count;
+      //std::cerr << "MIDNSHP=X*******"[opAndCnt & 15] << " first ";
+      return true;
+    }
+
+    // Check last
+    memcpy(&opAndCnt, it + sizeof(uint32_t) * (b.core.n_cigar - 1), sizeof(uint32_t));
+
+    if ((opAndCnt & 15) == 4)
+    {
+      //std::cerr << "MIDNSHP=X*******"[opAndCnt & 15] << " last ";
+      uint32_t const cigar_count = opAndCnt >> 4;
+      count += cigar_count;
+      return true;
+    }
+  }
+
+  return count;
+}
+
+
+uint8_t
+get_score_diff(bam1_t * rec)
+{
+  uint8_t * it = bam_get_aux(rec);
+  auto const l_aux = bam_get_l_aux(rec);
+  unsigned i{0};
+  int64_t as{-1};
+  int64_t xs{-1};
+
+  while (i < l_aux)
+  {
+    i += 3;
+    char type = *(it + i - 1);
+    bool is_as = false;
+    bool is_xs = false;
+
+    // Check for AS and XS
+    if (*(it + i - 2) == 'S')
+    {
+      if (*(it + i - 3) == 'A')
+        is_as = true;
+      else if (*(it + i - 3) == 'X')
+        is_xs = true;
+    }
+
+    switch (type)
+    {
+    case 'A':
+    {
+      // A printable character
+      ++i;
+      break;
+    }
+
+    case 'Z':
+    {
+      // A string! Let's loop it until qNULL
+      // Check for RG
+      while (*(it + i) != '\0' && *(it + i) != '\n')
+        ++i;
+
+      ++i;
+      break;
+    }
+
+    case 'c':
+    {
+      if (is_as)
+      {
+        int8_t num;
+        memcpy(&num, it + i, sizeof(int8_t));
+        as = num;
+      }
+      else if (is_xs)
+      {
+        int8_t num;
+        memcpy(&num, it + i, sizeof(int8_t));
+        xs = num;
+      }
+
+      i += sizeof(int8_t);
+      break;
+    }
+
+    case 'C':
+    {
+      if (is_as)
+      {
+        uint8_t num;
+        memcpy(&num, it + i, sizeof(uint8_t));
+        as = num;
+      }
+      else if (is_xs)
+      {
+        uint8_t num;
+        memcpy(&num, it + i, sizeof(uint8_t));
+        xs = num;
+      }
+
+      i += sizeof(uint8_t);
+      break;
+    }
+
+    case 's':
+    {
+      if (is_as)
+      {
+        int16_t num;
+        memcpy(&num, it + i, sizeof(int16_t));
+        as = num;
+      }
+      else if (is_xs)
+      {
+        int16_t num;
+        memcpy(&num, it + i, sizeof(int16_t));
+        xs = num;
+      }
+
+      i += sizeof(int16_t);
+      break;
+    }
+
+    case 'S':
+    {
+      if (is_as)
+      {
+        uint16_t num;
+        memcpy(&num, it + i, sizeof(uint16_t));
+        as = num;
+      }
+      else if (is_xs)
+      {
+        uint16_t num;
+        memcpy(&num, it + i, sizeof(uint16_t));
+        xs = num;
+      }
+
+      i += sizeof(uint16_t);
+      break;
+    }
+
+    case 'i':
+    {
+      if (is_as)
+      {
+        int32_t num;
+        memcpy(&num, it + i, sizeof(int32_t));
+        as = num;
+      }
+      else if (is_xs)
+      {
+        int32_t num;
+        memcpy(&num, it + i, sizeof(int32_t));
+        xs = num;
+      }
+
+      i += sizeof(int32_t);
+      break;
+    }
+
+    case 'I':
+    {
+      if (is_as)
+      {
+        uint32_t num;
+        memcpy(&num, it + i, sizeof(uint32_t));
+        as = num;
+      }
+      else if (is_xs)
+      {
+        uint32_t num;
+        memcpy(&num, it + i, sizeof(uint32_t));
+        xs = num;
+      }
+
+      i += sizeof(uint32_t);
+      break;
+    }
+
+    case 'f':
+    {
+      i += sizeof(float);
+      break;
+    }
+
+    default:
+    {
+      i = l_aux;       // Unkown tag, stop
+      break;
+    }
+    }
+  }
+
+
+  if (as == -1 || as < xs)
+  {
+    return 0;
+  }
+  else
+  {
+    if (xs == -1)
+      xs = 0;
+
+    // check for overflow
+    long const diff = as - xs;
+    return diff < std::numeric_limits<uint8_t>::max() ? diff : std::numeric_limits<uint8_t>::max();
+  }
+}
 
 
 } // anon namespace
@@ -164,12 +394,14 @@ align_read(bam1_t * rec,
       GenotypePaths(core.flag, core.l_qseq));
 
   // Hard restriction on read length is 63 bp (2*32 - 1)
-  if (seqan::length(seq) >= (2 * K - 1))
-  {
-    find_genotype_paths_of_one_of_the_sequences(seq, geno_paths.first, ph_index);
-    find_genotype_paths_of_one_of_the_sequences(rseq, geno_paths.second, ph_index);
-  }
+  if (seqan::length(seq) < (2 * K - 1))
+    return geno_paths;
 
+  find_genotype_paths_of_one_of_the_sequences(seq, geno_paths.first, ph_index);
+  find_genotype_paths_of_one_of_the_sequences(rseq, geno_paths.second, ph_index);
+  //uint8_t const score_diff = get_score_diff(rec);
+  //geno_paths.first.score_diff = score_diff;
+  //geno_paths.second.score_diff = score_diff;
   return geno_paths;
 }
 
@@ -178,55 +410,80 @@ GenotypePaths *
 update_unpaired_read_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths, bam1_t * rec)
 {
   assert(rec);
-
   auto const & core = rec->core;
 
   switch (compare_pair_of_genotype_paths(geno_paths.first, geno_paths.second))
   {
   case 1:
   {
-    GenotypePaths * geno = &geno_paths.first;
-    geno->flags = core.flag & ~IS_PROPER_PAIR; // clear proper pair bit
-    geno->mapq = core.qual;
+    GenotypePaths & geno = geno_paths.first;
+    geno.flags = core.flag & ~IS_PROPER_PAIR; // clear proper pair bit
+    geno.mapq = core.qual;
 
     if (!(core.flag & IS_UNMAPPED)) // True if read was mapped
-      geno->original_pos = core.pos;
+      geno.original_pos = core.pos;
 
     if (core.qual < 25) // True if MQ is below 25
-      set_bit(geno->flags, IS_MAPQ_BAD);
+      set_bit(geno.flags, IS_MAPQ_BAD);
 
-    if (is_clipped(*rec))
-      set_bit(geno->flags, IS_CLIPPED);
+    {
+      long const clipped_count_bp = clipped_count(*rec);
+
+      if (clipped_count_bp > 3)
+        set_bit(geno.flags, IS_CLIPPED);
+    }
+
+    geno.score_diff = get_score_diff(rec);
 
 #ifndef NDEBUG
     if (Options::instance()->stats.size() > 0)
-      geno->details->query_name = std::string(reinterpret_cast<char *>(rec->data));
+    {
+      geno.details->query_name = std::string(reinterpret_cast<char *>(rec->data));
+      geno.qual2.resize(core.l_qseq);
+      auto it = bam_get_qual(rec);
+
+      for (int i = 0; i < core.l_qseq; ++it, ++i)
+        geno.qual2[i] = static_cast<char>(*it + 33);
+    }
 #endif // NDEBUG
 
-    return geno;
+    return &geno;
   }
 
   case 2:
   {
-    GenotypePaths * geno = &geno_paths.second;
-    geno->flags = (core.flag ^ IS_SEQ_REVERSED) & ~IS_PROPER_PAIR; // clear proper pair bit
-    geno->mapq = core.qual;
+    GenotypePaths & geno = geno_paths.second;
+    geno.flags = (core.flag ^ IS_SEQ_REVERSED) & ~IS_PROPER_PAIR; // clear proper pair bit
+    geno.mapq = core.qual;
 
     if (!(core.flag & IS_UNMAPPED)) // True if read was mapped
-      geno->original_pos = core.pos;
+      geno.original_pos = core.pos;
 
     if (core.qual < 25) // True if MQ is below 25
-      set_bit(geno->flags, IS_MAPQ_BAD);
+      set_bit(geno.flags, IS_MAPQ_BAD);
 
-    if (is_clipped(*rec))
-      set_bit(geno->flags, IS_CLIPPED);
+    {
+      long const clipped_count_bp = clipped_count(*rec);
+
+      if (clipped_count_bp > 3)
+        set_bit(geno.flags, IS_CLIPPED);
+    }
+
+    geno.score_diff = get_score_diff(rec);
 
 #ifndef NDEBUG
     if (Options::instance()->stats.size() > 0)
-      geno->details->query_name = std::string(reinterpret_cast<char *>(rec->data));
+    {
+      geno.details->query_name = std::string(reinterpret_cast<char *>(rec->data));
+      geno.qual2.resize(core.l_qseq);
+      auto it = bam_get_qual(rec);
+
+      for (int i = (core.l_qseq - 1); i >= 0; ++it, --i)
+        geno.qual2[i] = static_cast<char>(*it + 33);
+    }
 #endif // NDEBUG
 
-    return geno;
+    return &geno;
   }
 
   default: break;
@@ -237,11 +494,7 @@ update_unpaired_read_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths,
 
 
 void
-further_update_unpaired_read_paths_for_discovery(GenotypePaths & geno,
-                                                 seqan::IupacString const & seq,
-                                                 seqan::IupacString const & rseq,
-                                                 bam1_t * rec
-                                                 )
+further_update_unpaired_read_paths_for_discovery(GenotypePaths & geno, bam1_t * rec)
 {
   assert(rec);
   auto const & core = rec->core;
@@ -249,7 +502,6 @@ further_update_unpaired_read_paths_for_discovery(GenotypePaths & geno,
   if ((geno.flags & IS_SEQ_REVERSED) == (core.flag & IS_SEQ_REVERSED))
   {
     // seq reversed bit has not been flipped
-    geno.read2 = std::vector<char>(seqan::begin(seq), seqan::end(seq));
     geno.qual2.resize(core.l_qseq);
     auto it = bam_get_qual(rec);
 
@@ -261,7 +513,6 @@ further_update_unpaired_read_paths_for_discovery(GenotypePaths & geno,
   }
   else
   {
-    geno.read2 = std::vector<char>(seqan::begin(rseq), seqan::end(rseq));
     geno.qual2.resize(core.l_qseq);
     auto it = bam_get_qual(rec);
 
@@ -275,16 +526,8 @@ further_update_unpaired_read_paths_for_discovery(GenotypePaths & geno,
 }
 
 
-#ifndef NDEBUG
-void
-update_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths,
-             seqan::IupacString const & seq,
-             seqan::IupacString const & rseq,
-             bam1_t * rec)
-#else
 void
 update_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths, bam1_t * rec)
-#endif
 {
   assert(rec);
   auto const & core = rec->core;
@@ -305,10 +548,20 @@ update_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths, bam1_t * rec)
   if (core.qual < 25)
     set_bit(geno1.flags, IS_MAPQ_BAD);
 
-  if (is_clipped(*rec))
   {
-    set_bit(geno1.flags, IS_CLIPPED);
-    set_bit(geno2.flags, IS_CLIPPED);
+    long const clipped_count_bp = clipped_count(*rec);
+
+    if (clipped_count_bp > 3)
+    {
+      set_bit(geno1.flags, IS_CLIPPED);
+      set_bit(geno2.flags, IS_CLIPPED);
+    }
+  }
+
+  {
+    auto const score_diff = get_score_diff(rec);
+    geno1.score_diff = score_diff;
+    geno2.score_diff = score_diff;
   }
 
   geno2.flags = (core.flag ^ IS_SEQ_REVERSED) & ~IS_PROPER_PAIR;
@@ -321,14 +574,12 @@ update_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths, bam1_t * rec)
     geno1.details->query_name = std::string(reinterpret_cast<char *>(rec->data));
     geno2.details->query_name = geno1.details->query_name;
 
-    geno1.read2 = std::vector<char>(seqan::begin(seq), seqan::end(seq));
     geno1.qual2.resize(core.l_qseq);
     auto it = bam_get_qual(rec);
 
     for (int i = 0; i < core.l_qseq; ++it, ++i)
       geno1.qual2[i] = static_cast<char>(*it + 33);
 
-    geno2.read2 = std::vector<char>(seqan::begin(rseq), seqan::end(rseq));
     geno2.qual2 = std::vector<char>(geno1.qual2.rbegin(), geno1.qual2.rend());
   }
 #endif // NDEBUG
@@ -336,11 +587,7 @@ update_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths, bam1_t * rec)
 
 
 void
-further_update_paths_for_discovery(std::pair<GenotypePaths, GenotypePaths> & geno_paths,
-                                   seqan::IupacString const & seq,
-                                   seqan::IupacString const & rseq,
-                                   bam1_t * rec
-                                   )
+further_update_paths_for_discovery(std::pair<GenotypePaths, GenotypePaths> & geno_paths, bam1_t * rec)
 {
   assert(rec);
 
@@ -348,21 +595,12 @@ further_update_paths_for_discovery(std::pair<GenotypePaths, GenotypePaths> & gen
   GenotypePaths & geno1 = geno_paths.first;
   GenotypePaths & geno2 = geno_paths.second;
 
-  assert(seqan::length(seq) > 0);
-  assert(static_cast<long>(seqan::length(seq)) == core.l_qseq);
-  assert(seqan::length(seq) == seqan::length(rseq));
-  assert(seqan::length(seq) == seqan::length(rseq));
-  assert(seqan::length(seq) == geno1.read_length);
-  assert(seqan::length(seq) == geno2.read_length);
-
-  geno1.read2 = std::vector<char>(seqan::begin(seq), seqan::end(seq));
   geno1.qual2.resize(core.l_qseq);
   auto it = bam_get_qual(rec);
 
   for (int i = 0; i < core.l_qseq; ++it, ++i)
     geno1.qual2[i] = static_cast<char>(*it + 33);
 
-  geno2.read2 = std::vector<char>(seqan::begin(rseq), seqan::end(rseq));
   geno2.qual2 = std::vector<char>(geno1.qual2.rbegin(), geno1.qual2.rend());
 }
 

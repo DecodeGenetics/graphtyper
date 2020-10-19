@@ -6,6 +6,7 @@
 namespace
 {
 
+// logf
 double constexpr LOGF_INTERCEPT{-29.28908};
 double constexpr LOGF_ABHom{23.12909};
 double constexpr LOGF_CRBySeqDepth{-10.22658};
@@ -46,7 +47,7 @@ namespace gyper
 {
 
 inline double
-get_logf(double ab_hom,
+get_logf(double abhom,
          double cr_by_seqdepth,
          double mq,
          double pass_ratio,
@@ -63,11 +64,76 @@ get_logf(double ab_hom,
   //BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << ab_hom << " " << cr_by_seqdepth << " " << mq << " " << pass_ratio
   //                        << " " << gt_yield << " " << qd << " " << ab_het_bin << " " << sbalt_bin;
 
-  double const pwr = LOGF_INTERCEPT + ab_hom * LOGF_ABHom + cr_by_seqdepth * LOGF_CRBySeqDepth +
+  double const pwr = LOGF_INTERCEPT + abhom * LOGF_ABHom + cr_by_seqdepth * LOGF_CRBySeqDepth +
                      mq * LOGF_MQ + pass_ratio * LOGF_PASS_ratio + gt_yield * LOGF_GTYield + qd * LOGF_QD +
                      LOGF_ABHet[ab_het_bin] + LOGF_SBAlt[sbalt_bin];
   //BOOST_LOG_TRIVIAL(info) << __HERE__ << " log model pwr = " << pwr;
-  return 1.0 / (1.0 + std::exp(-pwr));
+  double const _exp = std::max(0.0, std::exp(-pwr));
+  return 1.0 / (1.0 + _exp);
+}
+
+
+// aa score
+double constexpr AA_INTERCEPT{-6.347426707};
+double constexpr AA_SB{-0.252334000};
+double constexpr AA_MM{-0.013766577 * 3.0};
+double constexpr AA_SD{0.014572295};
+double constexpr AA_QD{0.065221319};
+double constexpr AA_CR{-0.006449446 * 3.0};
+double constexpr AA_MQ{0.055973424};
+
+std::array<double, 5l> constexpr AA_ABHom{{0.0,
+  1.304140117,
+  1.681221065,
+  2.214801195,
+  3.930106559}};
+
+inline double
+get_aa_score(double abhom, double sb, double mm, long sd, double qd, double cr, long mq)
+{
+  long abhom_bin{0};
+
+  if (abhom <= 0.85)
+    abhom_bin = 0;
+  else if (abhom <= 0.94)
+    abhom_bin = 1;
+  else if (abhom <= 0.98)
+    abhom_bin = 2;
+  else if (abhom <= 0.99)
+    abhom_bin = 3;
+  else
+    abhom_bin = 4;
+
+  if (mq > 60)
+    mq = 60;
+
+  double const pwr = AA_INTERCEPT +
+                     AA_ABHom[abhom_bin] +
+                     sb * AA_SB +
+                     mm * AA_MM +
+                     sd * AA_SD +
+                     qd * AA_QD +
+                     cr * AA_CR +
+                     mq * AA_MQ;
+
+  double const _exp = std::max(0.0, std::exp(-pwr));
+
+  //if (sb > 0.8)
+  //{
+  //  BOOST_LOG_TRIVIAL(info) << __HERE__
+  //                          << " abhom_bin=" << abhom_bin
+  //                          << " abhom=" << AA_ABHom[abhom_bin]
+  //                          << " sb=" << sb
+  //                          << " mm=" << mm
+  //                          << " sd=" << sd
+  //                          << " qd=" << qd
+  //                          << " cr=" << cr
+  //                          << " mq=" << mq
+  //                          << " pwr=" << pwr
+  //                          << " val=" << (1.0 / (1.0 + _exp));
+  //}
+
+  return 1.0 / (1.0 + _exp);
 }
 
 

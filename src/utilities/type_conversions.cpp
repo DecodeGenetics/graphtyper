@@ -91,22 +91,31 @@ to_uint64(std::string const & s, int i)
 }
 
 
+/** WIP
 uint16_t
 to_uint16(char const c)
 {
   switch (c)
   {
+  case 'a':
   case 'A':
     return 0u;
 
+  case 'c':
   case 'C':
     return 1u;
 
+  case 'g':
   case 'G':
     return 2u;
 
+  case 't':
+  case 'T':
+    return 3u;
+
   default:
-    return 3u;   // 'T' or anything else
+    BOOST_LOG_TRIVIAL(warning) << "[graphtyper::type_conversions] Invalid character " << c;
+    return 4ul;
   }
 }
 
@@ -125,6 +134,83 @@ to_uint16(std::vector<char> const & s, std::size_t i)
 
   return d;
 }
+
+
+
+int32_t
+to_uint16_with_check(std::vector<char> const & s, long i)
+{
+  assert(static_cast<long>(s.size()) >= 8 + i);
+  int32_t d{0};
+
+  for (long const j = i + 8; i < j; ++i)
+  {
+    d <<= 2;
+    uint16_t ret = to_uint16(s[i]);
+
+    if (ret == 4)
+      return -1;
+    else
+      d += ret;
+  }
+
+  return d;
+}
+
+
+std::vector<uint16_t>
+to_uint16_vec(std::string const & s)
+{
+  assert(s.size() >= 8); // Otherwise its impossible to read 8 bases from read!
+  uint16_t current{0u}
+  std::vector<uint16_t> uints;
+  long const sequence_size = s.size();
+  long const max_8mers{sequence_size - 7};
+  uints.reserve(max_8mers);
+  int bp_since_N{0};
+
+  for (long i = 0; i < max_8mers; ++i)
+  {
+    char const c = s[i];
+    ++bp_since_N;
+
+    switch (c)
+    {
+    case 'a':
+    case 'A':
+      current *= 4;
+      //current += 0;
+      break;
+
+    case 'c':
+    case 'C':
+      current *= 4;
+      current += 1;
+
+    case 'g':
+    case 'G':
+      current *= 4;
+      current += 2;
+      break;
+
+    case 't':
+    case 'T':
+      current *= 4;
+      current += 3;
+      break;
+
+    default:
+      bp_since_N = 0;
+      break;
+    }
+
+    if (bp_since_N >= 8)
+      uints.push_back(current);
+  }
+
+  return uints;
+}
+*/
 
 
 template <typename TSeq>
@@ -190,60 +276,9 @@ to_uint64_vec(TSeq const & s, std::size_t i)
 }
 
 
-template <>
-std::vector<uint64_t>
-to_uint64_vec(std::string const & s, std::size_t i)
-{
-  assert(s.size() >= 32 + i); // Otherwise its impossible to read 32 bases from read!
-  std::vector<uint64_t> uints(1, 0u);
-
-  for (unsigned const j = i + 32; i < j; ++i)
-  {
-    long const origin_size = uints.size();
-
-    if (origin_size > 97)
-      return std::vector<uint64_t>();
-
-    char const c = s[i];
-
-    for (long u = 0; u < origin_size; ++u)
-    {
-      switch (c)
-      {
-      case 'A':
-        uints[u] += 4 + 0;
-        break;
-
-      case 'C':
-        uints[u] += 4 + 1;
-        break;
-
-      case 'G':
-        uints[u] += 4 + 2;
-        break;
-
-      case 'T':
-        uints[u] += 4 + 3;
-        break;
-
-      default:
-        uints.push_back(uints[u] * 4 + 0);  // A
-        uints.push_back(uints[u] * 4 + 1);  // C
-        uints.push_back(uints[u] * 4 + 2);  // G
-        uints[u] <<= 2; uints[u] += 3;      // T
-        break;
-      }
-    }
-  }
-
-  return uints;
-}
-
-
 // Explicit instantation
 template std::vector<uint64_t> to_uint64_vec<seqan::Dna5String>(seqan::Dna5String const & s, std::size_t i);
 template std::vector<uint64_t> to_uint64_vec<seqan::IupacString>(seqan::IupacString const & s, std::size_t i);
-template std::vector<uint64_t> to_uint64_vec<std::string>(std::string const & s, std::size_t i);
 
 
 std::array<uint64_t, 96>

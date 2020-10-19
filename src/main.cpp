@@ -680,6 +680,11 @@ subcmd_genotype(paw::Parser & parser)
                         "genotype_dis_min_support_ratio",
                         "(advanced) Minimum graph discovery support ratio for a variant so it can be added to the graph.");
 
+    parser.parse_option(opts.is_csi,
+                        'C',
+                        "csi",
+                        "(advanced) If set, graphtyper will make csi indices instead of tbi.");
+
     parser.parse_option(opts.is_only_cigar_discovery,
                         ' ',
                         "is_only_cigar_discovery",
@@ -723,6 +728,11 @@ subcmd_genotype(paw::Parser & parser)
                         "num_alleles_in_batch",
                         "(advanced) How many alleles each batch of internal VCFs has. Increasing this number inceases "
                         "memory used, while slightly decreases compute time.");
+
+    parser.parse_option(opts.is_extra_call_only_iteration,
+                        ' ',
+                        "is_extra_call_only_iteration",
+                        "(advanced) Set to add an extra call only iteration.");
 
 #ifndef NDEBUG
     parser.parse_option(opts.stats, ' ', "stats", "(advanced) Directory for statistics files.");
@@ -777,7 +787,7 @@ subcmd_genotype_sv(paw::Parser & parser)
   gyper::Options & opts = *(gyper::Options::instance());
 
   std::string avg_cov_by_readlen_fn;
-  std::string output_dir = "sv_results";
+  std::string output_dir{"sv_results"};
   std::string opts_region{};
   std::string opts_region_file{};
   std::string ref_fn{};
@@ -787,17 +797,33 @@ subcmd_genotype_sv(paw::Parser & parser)
   bool force_copy_reference{false};
   bool force_no_copy_reference{false};
 
+  // Change the default values
+  opts.max_files_open = 128;
+
   // Parse options
+  parser.parse_option(avg_cov_by_readlen_fn,
+                      ' ',
+                      "avg_cov_by_readlen",
+                      "File with average coverage by read length (one value per line). "
+                      "The values are used for subsampling regions with extremely high coverage and should be in the same "
+                      "order as the BAM/CRAM list.");
+  parser.parse_option(force_copy_reference, ' ', "force_copy_reference",
+                      "Force copy of the reference FASTA to temporary folder.");
+  parser.parse_option(force_no_copy_reference, ' ', "force_no_copy_reference",
+                      "Force that the reference FASTA is NOT copied to temporary folder.");
+  parser.parse_option(opts.force_use_input_ref_for_cram_reading, ' ', "force_use_input_ref_for_cram_reading",
+                      "Force using the input reference FASTA file when reading CRAMs.");
+  parser.parse_option(opts.is_csi,
+                      'C',
+                      "csi",
+                      "(advanced) If set, graphtyper will make csi indices instead of tbi.");
+
   parser.parse_option(opts.max_files_open,
                       ' ',
                       "max_files_open",
                       "Select how many files can be open at the same time.");
   parser.parse_option(opts.no_cleanup, ' ', "no_cleanup",
                       "Set to skip removing temporary files. Useful for debugging.");
-  parser.parse_option(force_copy_reference, ' ', "force_copy_reference",
-                      "Force copy of the reference FASTA to temporary folder.");
-  parser.parse_option(force_no_copy_reference, ' ', "force_no_copy_reference",
-                      "Force that the reference FASTA is NOT copied to temporary folder.");
   parser.parse_option(output_dir, 'O', "output", "Output directory.");
   parser.parse_option(opts_region, 'r', "region", "Genomic region to genotype.");
   parser.parse_option(opts_region_file, 'R', "region_file", "File with genomic regions to genotype.");
@@ -807,6 +833,10 @@ subcmd_genotype_sv(paw::Parser & parser)
 #ifndef NDEBUG
   parser.parse_option(opts.stats, ' ', "stats", "Directory for statistics files.");
 #endif // NDEBUG
+  parser.parse_option(opts.no_filter_on_coverage,
+                      ' ',
+                      "no_filter_on_coverage",
+                      "(advanced) Set to disable filter on coverage.");
   //parser.parse_option(opts.vcf, ' ', "vcf", "Input VCF file with SNP/indel variant sites.");
 
   parser.parse_positional_argument(ref_fn, "REF.FA", "Reference genome in FASTA format.");
@@ -826,8 +856,9 @@ subcmd_genotype_sv(paw::Parser & parser)
   // Get the genomic regions to process from the --region and --region_file options
   std::vector<gyper::GenomicRegion> regions = get_regions(ref_fn, opts_region, opts_region_file, 1000000);
 
-  // Get the SAM/BAM/CRAM file names
+  // Get the BAM/CRAM file names
   std::vector<std::string> sams_fn = get_sams(sam, sams);
+  std::vector<double> avg_cov_by_readlen = get_avg_cov_by_readlen(avg_cov_by_readlen_fn, sams_fn.size());
 
   // If neither force copy reference or force no copy reference we determine it from number of SAMs
   bool is_copy_reference = force_copy_reference || (!force_no_copy_reference && sams_fn.size() >= 100);
@@ -835,9 +866,11 @@ subcmd_genotype_sv(paw::Parser & parser)
   gyper::genotype_sv_regions(ref_fn,
                              sv_vcf,
                              sams_fn,
+                             avg_cov_by_readlen,
                              regions,
                              output_dir,
                              is_copy_reference);
+
   return 0;
 }
 
@@ -965,18 +998,20 @@ subcmd_vcf_concatenate(paw::Parser & parser)
   std::string output_fn = "-";
   bool sites_only{false};
   std::string region;
+  bool write_tbi{false};
 
   parser.parse_option(no_sort, ' ', "no_sort", "Set to skip sorting the variants.");
   parser.parse_option(output_fn, 'o', "output", "Output VCF file name.");
   parser.parse_option(sites_only, ' ', "sites_only", "Set to write only variant site information.");
   parser.parse_option(region, 'r', "region", "Region to print variant in.");
+  parser.parse_option(write_tbi, 't', "write_tbi", "Set to write TBI index.");
 
   parser.parse_remaining_positional_arguments(vcfs, "vcfs...", "VCFs to concatenate");
 
   parser.finalize();
   setup_logger();
 
-  gyper::vcf_concatenate(vcfs, output_fn, no_sort, sites_only, region);
+  gyper::vcf_concatenate(vcfs, output_fn, no_sort, sites_only, write_tbi, region);
   return 0;
 }
 
