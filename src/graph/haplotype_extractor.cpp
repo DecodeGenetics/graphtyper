@@ -225,8 +225,7 @@ std::vector<VariantCandidate>
 find_variants_in_alignment(uint32_t const pos,
                            std::vector<char> const & ref,
                            std::vector<char> const & seq,
-                           std::vector<char> const & qual
-                           )
+                           std::vector<char> const & qual)
 {
   std::vector<VariantCandidate> new_var_candidates;
 
@@ -254,7 +253,11 @@ find_variants_in_alignment(uint32_t const pos,
   std::string & gapped_alt = gapped_strings.first;
 
   long ref_to_seq_offset = 0;
-  Variant var = make_variant_of_gapped_strings(gapped_ref, gapped_alt, pos, ref_to_seq_offset);
+  Variant var =
+    make_variant_of_gapped_strings(gapped_ref,
+                                   gapped_alt,
+                                   graph.genomic_region.get_absolute_position(pos),
+                                   ref_to_seq_offset);
 
   if (var.abs_pos == 0)
     return new_var_candidates;
@@ -291,7 +294,8 @@ find_variants_in_alignment(uint32_t const pos,
     // its a sign of a problem if the new variant candidate is not normalized, most likely this means the 50bp where not enough
     if (!new_var.is_normalized())
     {
-      BOOST_LOG_TRIVIAL(debug) << "Removed variant candidate since it was not in normalized form " << new_var.print();
+      BOOST_LOG_TRIVIAL(debug) << "Removed variant candidate since it was not in normalized form "
+                               << new_var.to_string();
       continue;
     }
 

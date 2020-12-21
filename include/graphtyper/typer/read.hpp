@@ -60,8 +60,8 @@ public:
 
   bool has_indel_event(Tindel_events::iterator) const;
   bool is_clipped() const;
-  void add_indel_event(int32_t pos, Tindel_events::iterator indel_it);
-  void replace_indel_events(std::vector<ReadIndelEvent> && new_indel_events);
+  void add_indel_event(int32_t pos, uint16_t flags, uint8_t mapq, Tindel_events::iterator indel_it);
+  void replace_indel_events(uint16_t flags, uint8_t mapq, std::vector<ReadIndelEvent> && new_indel_events);
 };
 
 

@@ -57,11 +57,12 @@ public:
   bool read_record(bool SITES_ONLY = false);
   void read(bool SITES_ONLY = false); /** \brief Reads the VCF file. */
   void open_for_writing(long const n_threads = 1);
-  void write_header();
+  void write_header(bool const is_dropping_genotypes = false);
 
   void write_record(Variant const & var,
                     std::string const & suffix = "",
-                    const bool FILTER_ZERO_QUAL = false);
+                    bool const FILTER_ZERO_QUAL = false,
+                    bool const is_dropping_genotypes = false);
 
   void write_tbi_index() const;
   void write_segments();
@@ -70,9 +71,13 @@ public:
   void write_records(uint32_t region_begin,
                      uint32_t region_end,
                      bool FILTER_ZERO_QUAL,
+                     bool is_dropping_genotypes,
                      std::vector<Variant> const & vars);
 
-  void write_records(std::string const & region = ".", bool FILTER_ZERO_QUAL = false);
+  void write_records(std::string const & region = ".",
+                     bool FILTER_ZERO_QUAL = false,
+                     bool const is_dropping_genotypes = false);
+
   void close_vcf_file();
 
   /** Common */
@@ -80,9 +85,7 @@ public:
 
   // Adding data
   void add_segment(Segment && segment);
-  void add_haplotype(Haplotype & haplotype,
-                     bool clear_haplotypes,
-                     uint32_t phase_set = 0);
+  void add_haplotype(Haplotype & haplotype, int32_t phase_set = -1);
 
   void add_haplotypes_for_extraction(std::vector<HaplotypeCall> const & hap_calls, bool const is_splitting_vars);
 

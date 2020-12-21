@@ -74,6 +74,8 @@ parallel_reader_genotype_only(std::string * out_path,
                               std::string const * region_ptr,
                               PHIndex const * ph_index_ptr,
                               Primers const * primers,
+                              std::map<std::pair<uint16_t, uint16_t>,
+                                       std::map<std::pair<uint16_t, uint16_t>, int8_t> > * ph_ptr,
                               bool const is_writing_calls_vcf,
                               bool const is_writing_hap);
 

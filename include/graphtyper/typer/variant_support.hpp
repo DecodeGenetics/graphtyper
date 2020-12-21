@@ -3,8 +3,7 @@
 #include <cstdint> // uint32_t
 #include <set> // std::set<T>
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
+#include <boost/serialization/access.hpp>
 
 
 namespace gyper

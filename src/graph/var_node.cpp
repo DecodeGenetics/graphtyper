@@ -1,6 +1,12 @@
+#include <unordered_set>
+#include <iostream>
+
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 
+#include <boost/serialization/unordered_set.hpp>
+
+#include <graphtyper/constants.hpp>
 #include <graphtyper/graph/node.hpp>
 
 
@@ -11,15 +17,37 @@ namespace gyper
  * PUBLIC *
  **********/
 
-VarNode::VarNode(Label && l, TNodeIndex && ori) noexcept
-  : label(std::move(l))
-  , out_ref_id(std::move(ori))
+//VarNode::VarNode(Label && l, TNodeIndex && ori, std::unordered_set<long> && events) noexcept
+//  : label(std::forward<Label>(l))
+//  , out_ref_id(ori)
+//  , events(std::forward<std::unordered_set<long> >(events))
+//{}
+
+VarNode::VarNode(Label && l,
+                 TNodeIndex && ori,
+                 std::unordered_set<long> && events,
+                 std::unordered_set<long> && anti_events) noexcept
+  : label(std::forward<Label>(l))
+  , out_ref_id(ori)
+  , events(std::forward<std::unordered_set<long> >(events))
+  , anti_events(std::forward<std::unordered_set<long> >(anti_events))
 {}
 
 VarNode::VarNode(VarNode const & vn) noexcept
   : label(vn.label)
   , out_ref_id(vn.out_ref_id)
+  , events(vn.events)
+  , anti_events(vn.anti_events)
 {}
+
+
+VarNode::VarNode(VarNode && o) noexcept
+  : label(std::move(o.label))
+  , out_ref_id(std::move(o.out_ref_id))
+  , events(std::move(o.events))
+  , anti_events(std::move(o.anti_events))
+{}
+
 
 Label const &
 VarNode::get_label() const
@@ -35,17 +63,6 @@ VarNode::get_out_ref_index() const
 }
 
 
-void
-VarNode::change_label_order(uint32_t change)
-{
-  // Make sure we do not overflow
-  assert(change + label.order >= change);
-  assert(change + label.order >= label.order);
-
-  label.order += change;
-}
-
-
 std::size_t
 VarNode::out_degree() const
 {
@@ -56,22 +73,23 @@ VarNode::out_degree() const
 /***********
  * PRIVATE *
  ***********/
-VarNode::VarNode()
-  : label(), out_ref_id(0) {}
-
 template <typename Archive>
 void
-VarNode::serialize(Archive & ar, const unsigned int)
+VarNode::serialize(Archive & ar, unsigned int const)
 {
   ar & label;
   ar & out_ref_id;
+  ar & events;
+  ar & anti_events;
 }
 
 
 /***************************
  * EXPLICIT INSTANTIATIONS *
  ***************************/
-template void VarNode::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &, const unsigned int);
-template void VarNode::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &, const unsigned int);
+template void VarNode::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &,
+                                                                  const unsigned int);
+template void VarNode::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &,
+                                                                  const unsigned int);
 
 } // namespace gyper

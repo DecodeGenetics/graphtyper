@@ -81,7 +81,7 @@ VcfWriter::VcfWriter(uint32_t variant_distance)
 void
 VcfWriter::set_samples(std::vector<std::string> const & samples)
 {
-  pns = std::vector<std::string>(samples);
+  pns = samples;
   long const NUM_SAMPLES = pns.size();
   assert(NUM_SAMPLES > 0);
 
@@ -114,15 +114,238 @@ VcfWriter::update_haplotype_scores_geno(GenotypePaths & geno, long const pn_inde
     if (primers)
       primers->check(geno);
 
+#ifdef GT_DEV
+    std::map<std::pair<uint16_t, uint16_t>, std::vector<std::pair<uint16_t, uint16_t> > > merged_connections;
+    auto con1 = push_to_haplotype_scores(geno, pn_index);
+
+    // add to merged connections
+    for (auto it1 = con1.begin(); it1 != con1.end(); ++it1)
+    {
+      auto find_it = merged_connections.find(it1->first);
+
+      if (find_it == merged_connections.end())
+      {
+        std::vector<std::pair<uint16_t, uint16_t> > new_support;
+        std::copy_if(it1->second.begin(),
+                     it1->second.end(),
+                     std::back_inserter(new_support),
+                     [it1](std::pair<uint16_t, uint16_t> const & o)
+          {
+            return o.first > it1->first.first;
+          });
+
+        auto insert_it = merged_connections.insert({it1->first, std::move(new_support)});
+        find_it = insert_it.first;
+      }
+
+      assert(find_it != merged_connections.end());
+    }
+
+    // add new connections to hap_samples
+    for (auto const & hap_cov_id1_2 : merged_connections)
+    {
+      auto const & hap_cov_id1 = hap_cov_id1_2.first;
+      assert(hap_cov_id1.first < static_cast<long>(haplotypes.size()));
+      Haplotype & hap1 = haplotypes[hap_cov_id1.first];
+      assert(pn_index < static_cast<long>(hap1.hap_samples.size()));
+      assert(hap_cov_id1.second < haplotypes[hap_cov_id1.first].hap_samples[pn_index].connections.size());
+      auto & conn = hap1.hap_samples[pn_index].connections[hap_cov_id1.second];
+
+      for (auto const & hap_cov_id2 : hap_cov_id1_2.second)
+      {
+        assert(hap_cov_id2.first > hap_cov_id1.first);
+        Haplotype const & hap2 = haplotypes[hap_cov_id2.first];
+        assert(hap_cov_id2.second < hap2.gts[0].num);
+
+        auto find_it = conn.find(hap_cov_id2.first);
+
+        if (find_it == conn.end())
+        {
+          auto insert_it = conn.insert({hap_cov_id2.first,
+                                        std::vector<uint16_t>(hap2.gts[0].num)});
+
+          find_it = insert_it.first;
+        }
+
+        assert(hap_cov_id2.second < find_it->second.size());
+        ++find_it->second[hap_cov_id2.second];
+      }
+    }
+
+    //// add new connections to hap_samples
+    //for (auto const & hap_cov_id1 : new_connections)
+    //{
+    //  for (auto const & hap_cov_id2 : hap_cov_id1.second)
+    //  {
+    //    assert(hap_cov_id1.first.first < static_cast<long>(haplotypes.size()));
+    //    assert(pn_index < static_cast<long>(haplotypes[hap_cov_id1.first.first].hap_samples.size()));
+    //    auto & hap_sample = haplotypes[hap_cov_id1.first.first].hap_samples[pn_index];
+    //    assert(hap_cov_id1.first.second < hap_sample.connections.size());
+    //    hap_sample.connections[hap_cov_id1.first.second][hap_cov_id2]++;
+    //  }
+    //}
+#else
     push_to_haplotype_scores(geno, pn_index);
+#endif // GT_DEV
   }
-//#ifndef NDEBUG
-//    if (Options::instance()->stats.size() > 0)
-//      update_statistics(geno, pn_index);
-//  }
-//#else
-//  }
-//#endif //NDEBUG
+}
+
+
+void
+VcfWriter::update_haplotype_scores_geno(std::pair<GenotypePaths *, GenotypePaths *> & geno_paths,
+                                        long const pn_index,
+                                        Primers const * primers)
+{
+  assert(geno_paths.first);
+  assert(geno_paths.second);
+
+  auto & geno1 = *geno_paths.first;
+  auto & geno2 = *geno_paths.second;
+
+#ifndef NDEBUG
+  if (Options::instance()->stats.size() > 0)
+  {
+    update_statistics(geno1, pn_index);
+    update_statistics(geno2, pn_index);
+  }
+#endif
+
+#ifdef GT_DEV
+  std::map<std::pair<uint16_t, uint16_t>, std::vector<std::pair<uint16_t, uint16_t> > > con1;
+  std::map<std::pair<uint16_t, uint16_t>, std::vector<std::pair<uint16_t, uint16_t> > > con2;
+#endif
+
+  if (are_genotype_paths_good(geno1))
+  {
+    if (primers)
+      primers->check(geno1);
+
+#ifdef GT_DEV
+    con1 = push_to_haplotype_scores(geno1, pn_index);
+#else
+    push_to_haplotype_scores(geno1, pn_index);
+#endif // GT_DEV
+  }
+
+  if (are_genotype_paths_good(geno2))
+  {
+    if (primers)
+      primers->check(geno2);
+
+#ifdef GT_DEV
+    con2 = push_to_haplotype_scores(geno2, pn_index);
+#else
+    push_to_haplotype_scores(geno2, pn_index);
+#endif // GT_DEV
+  }
+
+#ifdef GT_DEV
+  std::map<std::pair<uint16_t, uint16_t>, std::vector<std::pair<uint16_t, uint16_t> > > merged_connections;
+
+  //if (con1.size() > 0 && con2.size() == 0)
+  //{
+  //  merged_connections = std::move(con1);
+  //}
+  //else if (con2.size() > 0 && con1.size() == 0)
+  //{
+  //  merged_connections = std::move(con2);
+  //}
+  if (con1.size() > 0 || con2.size() > 0)
+  {
+    //BOOST_LOG_TRIVIAL(info) << __HERE__ << " merging the connections for ph";
+    //merge the connections
+
+    // start with connections1
+    for (auto it1 = con1.begin(); it1 != con1.end(); ++it1)
+    {
+      auto find_it = merged_connections.find(it1->first);
+
+      if (find_it == merged_connections.end())
+      {
+        std::vector<std::pair<uint16_t, uint16_t> > new_support;
+        std::copy_if(it1->second.begin(),
+                     it1->second.end(),
+                     std::back_inserter(new_support),
+                     [it1](std::pair<uint16_t, uint16_t> const & o)
+          {
+            return o.first > it1->first.first;
+          });
+
+        auto insert_it = merged_connections.insert({it1->first, std::move(new_support)});
+        find_it = insert_it.first;
+      }
+
+      assert(find_it != merged_connections.end());
+
+      for (auto it2 = con2.begin(); it2 != con2.end(); ++it2)
+      {
+        if (it2->first.first > it1->first.first)
+          find_it->second.push_back(it2->first);
+      }
+    }
+
+    // moving on to connections2
+    for (auto it2 = con2.begin(); it2 != con2.end(); ++it2)
+    {
+      auto find_it = merged_connections.find(it2->first);
+
+      if (find_it == merged_connections.end())
+      {
+        std::vector<std::pair<uint16_t, uint16_t> > new_support;
+
+        std::copy_if(it2->second.begin(),
+                     it2->second.end(),
+                     std::back_inserter(new_support),
+                     [it2](std::pair<uint16_t, uint16_t> const & o)
+          {
+            return o.first > it2->first.first;
+          });
+
+        auto insert_it = merged_connections.insert({it2->first, std::move(new_support)});
+        find_it = insert_it.first;
+      }
+
+      assert(find_it != merged_connections.end());
+
+      for (auto it1 = con1.begin(); it1 != con1.end(); ++it1)
+      {
+        if (it1->first.first > it2->first.first)
+          find_it->second.push_back(it1->first);
+      }
+    }
+  } // else do nothing, merged_connections will be empty as well
+
+  // add new connections to hap_samples
+  for (auto const & hap_cov_id1_2 : merged_connections)
+  {
+    auto const & hap_cov_id1 = hap_cov_id1_2.first;
+    assert(hap_cov_id1.first < static_cast<long>(haplotypes.size()));
+    Haplotype & hap1 = haplotypes[hap_cov_id1.first];
+    assert(pn_index < static_cast<long>(hap1.hap_samples.size()));
+    assert(hap_cov_id1.second < haplotypes[hap_cov_id1.first].hap_samples[pn_index].connections.size());
+    auto & conn = hap1.hap_samples[pn_index].connections[hap_cov_id1.second];
+
+    for (auto const & hap_cov_id2 : hap_cov_id1_2.second)
+    {
+      assert(hap_cov_id2.first > hap_cov_id1.first);
+      Haplotype const & hap2 = haplotypes[hap_cov_id2.first];
+      assert(hap_cov_id2.second < hap2.gts[0].num);
+
+      auto find_it = conn.find(hap_cov_id2.first);
+
+      if (find_it == conn.end())
+      {
+        auto insert_it = conn.insert({hap_cov_id2.first,
+                                      std::vector<uint16_t>(hap2.gts[0].num)});
+
+        find_it = insert_it.first;
+      }
+
+      assert(hap_cov_id2.second < find_it->second.size());
+      ++find_it->second[hap_cov_id2.second];
+    }
+  }
+#endif // GT_DEV
 }
 
 
@@ -132,13 +355,13 @@ VcfWriter::print_variant_group_details() const
 {
   assert(pns.size() > 0);
   std::string const hap_stats_fn = Options::instance()->stats + "/" + pns[0] + "_variant_group_details.tsv.gz";
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::vcf_writer] Generating variant group info statistics to " << hap_stats_fn;
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Generating variant group info statistics to " << hap_stats_fn;
   std::stringstream hap_file;
 
   // Write header file
   hap_file << "groupID\talleleID\tcontig\tposition\tsequence\n";
 
-  for (unsigned ps = 0; ps < haplotypes.size(); ++ps)
+  for (long ps{0}; ps < static_cast<long>(haplotypes.size()); ++ps)
   {
     auto const & hap = haplotypes[ps];
     uint32_t const cnum = hap.get_genotype_num();
@@ -247,8 +470,7 @@ void
 VcfWriter::print_geno_statistics(std::stringstream & read_ss,
                                  std::stringstream & path_ss,
                                  GenotypePaths const & geno,
-                                 long pn_index
-                                 )
+                                 long pn_index)
 {
   std::stringstream id;
   assert(geno.details);
@@ -377,8 +599,7 @@ VcfWriter::update_statistics(std::vector<GenotypePaths> & genos, long const pn_i
 
 void
 VcfWriter::update_statistics(std::vector<std::pair<GenotypePaths, GenotypePaths> > & genos,
-                             long pn_index
-                             )
+                             long pn_index)
 {
   // Get filenames
   std::string const read_details_fn =
@@ -405,7 +626,12 @@ VcfWriter::update_statistics(std::vector<std::pair<GenotypePaths, GenotypePaths>
 
 #endif // NDEBUG
 
+#ifdef GT_DEV
+std::map<std::pair<uint16_t, uint16_t>, std::vector<std::pair<uint16_t, uint16_t> > >
+#else // GT_DEV
 void
+#endif
+// GT_DEV
 VcfWriter::push_to_haplotype_scores(GenotypePaths & geno, long const pn_index)
 {
   assert(are_genotype_paths_good(geno));
@@ -420,7 +646,12 @@ VcfWriter::push_to_haplotype_scores(GenotypePaths & geno, long const pn_index)
   std::size_t const mismatches = geno.paths[0].mismatches;
   bool has_low_quality_snp{false};
 
+#ifdef GT_DEV
+  std::map<uint32_t, bool> recent_ids; // maps to is_overlapping
+  std::map<std::pair<uint16_t, uint16_t>, std::vector<std::pair<uint16_t, uint16_t> > > new_connections;
+#else
   std::unordered_map<uint32_t, bool> recent_ids; // maps to is_overlapping
+#endif // GT_DEV
 
   for (auto p_it = geno.paths.begin(); p_it != geno.paths.end(); ++p_it)
   {
@@ -428,7 +659,19 @@ VcfWriter::push_to_haplotype_scores(GenotypePaths & geno, long const pn_index)
 
     for (long i = 0; i < static_cast<long>(p_it->var_order.size()); ++i)
     {
+#ifndef NDEBUG
+      if (id2hap.count(p_it->var_order[i]) == 0)
+      {
+        BOOST_LOG_TRIVIAL(error) << __HERE__ << " Did not find var order=" << p_it->var_order[i];
+
+        for (auto id_hap : id2hap)
+        {
+          BOOST_LOG_TRIVIAL(info) << id_hap.first << " " << id_hap.second.first << " " << id_hap.second.second;
+        }
+      }
+
       assert(id2hap.count(p_it->var_order[i]) == 1);
+#endif // NDEBUG
       std::pair<uint32_t, uint32_t> const type_ids = id2hap[p_it->var_order[i]]; // hap_id = first, gen_id = second
 
       assert(type_ids.first < haplotypes.size());
@@ -480,6 +723,47 @@ VcfWriter::push_to_haplotype_scores(GenotypePaths & geno, long const pn_index)
     }
   }
 
+#ifdef GT_DEV
+  // check connections
+  for (auto it = recent_ids.begin(); it != recent_ids.end(); ++it)
+  {
+    auto & haplotype1 = haplotypes[it->first];
+    assert(haplotype1.gts.size() == 1);
+    assert(haplotype1.coverage.size() == 1);
+    auto & cov1 = haplotype1.coverage[0];
+
+    if (cov1 >= Haplotype::MULTI_REF_COVERAGE)
+      continue; // not unique
+
+    // add yourself
+    auto find_it = new_connections.find({it->first, cov1});
+
+    if (find_it == new_connections.end())
+    {
+      auto insert_it = new_connections.insert({{it->first, cov1}, std::vector<std::pair<uint16_t, uint16_t> >(0)});
+      find_it = insert_it.first;
+    }
+
+    auto & conn = find_it->second;
+    conn.push_back({it->first, cov1});
+
+    for (auto it2 = std::next(it); it2 != recent_ids.end(); ++it2)
+    {
+      auto & haplotype2 = haplotypes[it2->first];
+      assert(haplotype2.gts.size() == 1);
+      assert(haplotype2.coverage.size() == 1);
+      auto & cov2 = haplotype2.coverage[0];
+
+      if (cov2 >= Haplotype::MULTI_REF_COVERAGE)
+        continue; // not unique
+
+      // 2 unique supports, add the connection
+      assert(it->first < it2->first);
+      conn.push_back({it2->first, cov2});
+    }
+  }
+#endif // GT_DEV
+
   // After each read, move the "explain" to the score vector.
   for (auto it = recent_ids.begin(); it != recent_ids.end(); ++it)
   {
@@ -509,7 +793,15 @@ VcfWriter::push_to_haplotype_scores(GenotypePaths & geno, long const pn_index)
 
     // Update the coverage values
     haplotype.coverage_to_gts(pn_index, geno.is_proper_pair());
+
+    // Reset coverage
+    haplotype.coverage.assign(haplotype.gts.size(), Haplotype::NO_COVERAGE);
   }
+
+#ifdef GT_DEV
+  return new_connections;
+
+#endif // GT_DEV
 }
 
 

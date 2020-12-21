@@ -10,7 +10,7 @@ namespace gyper
 
 
 void inline
-remove_common_prefix(uint32_t & pos,
+remove_common_prefix(long & pos,
                      std::vector<char> & ref,
                      std::vector<std::vector<char> > & alts,
                      bool keep_one_match = false)
@@ -39,7 +39,7 @@ remove_common_prefix(uint32_t & pos,
 
 
 void inline
-remove_common_prefix(uint32_t & pos, std::vector<std::vector<char> > & seqs, bool keep_one_match = false)
+remove_common_prefix(long & pos, std::vector<std::vector<char> > & seqs, bool keep_one_match = false)
 {
   if (seqs.size() <= 1 || seqs[0].size() <= 1)
     return;

@@ -31,6 +31,7 @@ public:
   void put(uint64_t const key, KmerLabel && label);
   void put(uint64_t const key, std::vector<KmerLabel> && labels);
 
+  void print() const;
   bool check() const;
   std::vector<KmerLabel> get(uint64_t const key) const;
   std::vector<KmerLabel> get(std::vector<uint64_t> const & keys) const;

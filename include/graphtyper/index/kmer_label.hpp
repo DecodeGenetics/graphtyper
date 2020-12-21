@@ -3,8 +3,7 @@
 #include <cstdint>
 #include <vector>
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
+#include <boost/serialization/access.hpp>
 
 #include <graphtyper/constants.hpp>
 
@@ -25,37 +24,23 @@ public:
   uint32_t variant_id{INVALID_ID};  /** \brief The variant id, i.e. the index of the variant on the graph. */
 
 
-  KmerLabel() noexcept = default;
-
-  KmerLabel(uint32_t const s, uint32_t const e) noexcept
-    : start_index(s)
-    , end_index(e)
-    , variant_id(INVALID_ID)
-  {}
+  KmerLabel() = default;
+  KmerLabel(uint32_t const s, uint32_t const e) noexcept;
 
   // Used when add a KmerLabel to the index.
-  KmerLabel(uint32_t const s, uint32_t const e, uint32_t const i) noexcept
-    : start_index(s)
-    , end_index(e)
-    , variant_id(i)
-  {}
+  KmerLabel(uint32_t const s, uint32_t const e, uint32_t const i) noexcept;
 
   // Comparison operators
   bool operator==(KmerLabel const & c2) const;
   bool operator!=(KmerLabel const & c2) const;
 
+  std::string to_string() const;
+
 
 private:
   template <class Archive>
   void
-  serialize(Archive & ar, const unsigned int)
-  {
-    ar & start_index;
-    ar & end_index;
-    ar & variant_id;
-  }
-
-
+  serialize(Archive & ar, const unsigned int);
 };
 
 // Type aliases

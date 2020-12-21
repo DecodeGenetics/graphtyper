@@ -21,8 +21,8 @@ class GenomicRegion
 
 public:
   std::string chr;
-  uint32_t begin{0};
-  uint32_t end{0};
+  long begin{0};
+  long end{0};
 
   /****************
    * CONSTRUCTORS *
@@ -34,11 +34,11 @@ public:
   void clear();
   void pad(long N_bases); // pad region by N_bases
   void pad_end(long N_bases); // pad end of region by N_bases
-  uint32_t get_absolute_begin_position() const;
-  uint32_t get_absolute_end_position() const;
-  uint32_t get_absolute_position(std::string const & chromosome, uint32_t contig_position) const;
-  uint32_t get_absolute_position(uint32_t contig_position) const;
-  std::pair<std::string, uint32_t> get_contig_position(uint32_t absolute_position, Graph const & graph) const;
+  long get_absolute_begin_position() const;
+  long get_absolute_end_position() const;
+  long get_absolute_position(std::string const & chromosome, long contig_position) const;
+  long get_absolute_position(long contig_position) const;
+  std::pair<std::string, long> get_contig_position(long absolute_position, Graph const & graph) const;
   std::string to_string() const;
 
   void check_if_var_records_match_reference_genome(std::vector<VarRecord> const & var_records,

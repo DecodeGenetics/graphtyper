@@ -4,11 +4,6 @@
 #include <thread>
 #include <vector>
 
-#include <boost/log/core.hpp>
-#include <boost/log/trivial.hpp>
-#include <boost/log/sinks/text_file_backend.hpp>
-#include <boost/log/utility/setup/file.hpp>
-
 #include <graphtyper/constants.hpp>
 
 
@@ -28,6 +23,7 @@ public:
   bool no_asterisks{false};
   bool no_decompose{false};
   bool no_bamshrink{false};
+  bool no_sample_name_reordering{false};
   bool no_variant_overlapping{false};
   bool normal_and_no_variant_overlapping{false};
   bool is_all_biallelic{false};
@@ -35,6 +31,7 @@ public:
   bool is_discovery_only_for_paired_reads{false};
   bool is_sam_merging_allowed{false};
   long ploidy{2};
+  bool is_dropping_genotypes{false};
 
   /****
    * FILTERING OPTIONS
@@ -81,12 +78,15 @@ public:
    *******************/
   bool hq_reads{false};
   bool is_csi{false};
+  bool force_align_both_orientations{false};
   int sam_flag_filter{3840};
   long max_files_open{512}; // Maximum amount of SAM/BAM/CRAM files can be opened at the same time
   long soft_cap_of_variants_in_100_bp_window{22};
   bool get_sample_names_from_filename{false};
   bool output_all_variants{false};
   bool is_one_genotype_per_haplotype{false};
+  bool force_no_filter_bad_alts{false};
+  bool force_no_filter_zero_qual{false};
   std::string variant_suffix_id{};
   std::string primer_bedpe{};
   bool is_extra_call_only_iteration{false};
@@ -111,7 +111,7 @@ public:
   /*******************
    * LOGGING OPTIONS *
    *******************/
-  boost::shared_ptr<boost::log::sinks::synchronous_sink<boost::log::sinks::text_file_backend> > sink;
+//  boost::shared_ptr<boost::log::sinks::synchronous_sink<boost::log::sinks::text_file_backend> > sink;
 
   /***********
    * METHODS *
@@ -130,3 +130,5 @@ private:
 };
 
 } // namespace gyper
+
+//#define GT_DEV 1

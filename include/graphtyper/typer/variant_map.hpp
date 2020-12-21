@@ -8,8 +8,7 @@
 #include <graphtyper/typer/variant_candidate.hpp>
 #include <graphtyper/typer/variant_support.hpp>
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
+#include <boost/serialization/access.hpp>
 
 
 namespace gyper

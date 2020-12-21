@@ -22,16 +22,16 @@ class Variant
   friend class boost::serialization::access;
 
 public:
-  uint32_t abs_pos;
+  long abs_pos{0};
   std::vector<std::vector<char> > seqs;
   std::vector<SampleCall> calls;
   VarStats stats;
   std::map<std::string, std::string> infos;
   std::string suffix_id;
-  bool is_info_generated{false};
+  int32_t hap_id{-1};
   char type{'.'};
 
-  Variant() noexcept;
+  Variant() = default;
 
   // The rule of 5
   Variant(Variant const & var) noexcept;
@@ -48,18 +48,18 @@ public:
    * CLASS MODIFERS *
    ******************/
   void update_camou_phred(long const ploidy);
-  void generate_infos();
+  std::vector<int8_t> generate_infos();
   bool add_base_in_back(bool const add_N = false);
   bool add_base_in_front(bool const add_N = false);
   void expanded_normalized();
-  void normalize(); /** \brief Defined here: http://genome.sph.umich.edu/wiki/Variant_Normalization */
+  long normalize(); /** \brief Defined here: http://genome.sph.umich.edu/wiki/Variant_Normalization */
   void remove_common_prefix(bool const keep_one_match = false);
   void trim_sequences(bool const keep_one_match = false);
 
   /*********************
    * CLASS INFORMATION *
    ********************/
-  std::string print() const;  // for debugging
+  std::string to_string(bool is_skipping_calls = false) const; // for debugging
   std::string determine_variant_type() const;
   bool is_normalized() const;
   bool is_snp_or_snps() const;

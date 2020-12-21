@@ -7,6 +7,7 @@
 namespace gyper
 {
 
+class PHIndex;
 class Vcf;
 class Primers;
 
@@ -20,6 +21,7 @@ call(std::vector<std::string> const & hts_path,
      std::string const & reference,
      std::string const & region,
      Primers const * primers,
+     std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > & ph,
      long const minimum_variant_support,
      double const minimum_variant_support_ratio,
      bool const is_writing_calls_vcf,
@@ -40,7 +42,6 @@ void
 streamlined_discovery(std::vector<std::string> const & hts_paths,
                       std::string const & reference_fn,
                       std::string const & region_str,
-                      std::string const & output_dir,
                       gyper::Vcf & vcf);
 
 } // namespace gyper

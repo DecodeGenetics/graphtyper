@@ -1,12 +1,12 @@
 #pragma once
 
+#include <cstdint>
 #include <string> // std::string
 #include <vector> // std::vector
 
 #include <graphtyper/typer/variant.hpp>
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
+#include <boost/serialization/access.hpp>
 
 
 namespace gyper

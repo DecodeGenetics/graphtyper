@@ -54,6 +54,7 @@ public:
   /**
    * CONSTRUCTORS
    */
+  VarStats() = default;
   VarStats(std::size_t allele_count) noexcept;
 
   /**
@@ -68,7 +69,7 @@ public:
    * CLASS MODIFIERS
    */
   void add_stats(VarStats const & stats);
-  //void read_stats(std::map<std::string, std::string> const & infos);
+  void read_stats(std::map<std::string, std::string> const & infos);
 
 private:
   template <class Archive>

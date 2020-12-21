@@ -47,7 +47,6 @@ class Graph
   friend class boost::serialization::access; // boost is my friend, allow him to see my privates
 
 public:
-  bool use_absolute_positions{true};
   bool is_sv_graph{false};
   GenomicRegion genomic_region;
   std::vector<char> reference;
@@ -61,8 +60,7 @@ public:
   /****************
    * CONSTRUCTORS *
    ****************/
-  explicit
-  Graph(bool _use_absolute_positions = true);
+  Graph() = default;
 
   void clear();
   void add_genomic_region(std::vector<char> && reference_sequence,

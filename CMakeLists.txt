@@ -6,7 +6,7 @@ include(ExternalProject)
 # The version number
 set (graphtyper_VERSION_MAJOR 2)
 set (graphtyper_VERSION_MINOR 6)
-set (graphtyper_VERSION_PATCH 0)
+set (graphtyper_VERSION_PATCH 1)
 set(STATIC_DIR "" CACHE STRING "If set, GraphTyper will be built as a static binary using libraries from the given STATIC_DIR.")
 
 # Get the current working branch
@@ -58,6 +58,8 @@ else()
   set (CMAKE_CXX_FLAGS "-O3 -DNDEBUG ${CMAKE_CXX_FLAGS}")
 endif()
 
+set (CMAKE_CXX_FLAGS_RELEASE "")
+set (CMAKE_CXX_FLAGS_DEBUG "")
 message(STATUS "CXX flags are: ${CMAKE_CXX_FLAGS}")
 
 # configure a header file to pass some of the CMake settings to the source code
@@ -77,14 +79,37 @@ message (STATUS "Boost include directory: ${Boost_INCLUDE_DIR}")
 include_directories(SYSTEM ${Boost_INCLUDE_DIR})
 set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I ${Boost_INCLUDE_DIR}")
 
+## libdeflate
+ExternalProject_Add(
+  project_libdeflate
+  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libdeflate
+  BUILD_IN_SOURCE 1
+  PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/libdeflate
+  CONFIGURE_COMMAND ""
+  BUILD_COMMAND $(MAKE) -C ${CMAKE_CURRENT_SOURCE_DIR}/libdeflate "CFLAGS=-fPIC -O3" libdeflate.a
+  INSTALL_COMMAND ""
+)
+
+ExternalProject_Get_Property(project_libdeflate install_dir)
+add_library(libdeflate STATIC IMPORTED)
+
+#include_directories(SYSTEM ${install_dir})
+
+set(libdeflate_location ${install_dir}/libdeflate.a)
+message(STATUS "libdeflate target location is ${libdeflate_location}")
+set_property(TARGET libdeflate PROPERTY IMPORTED_LOCATION ${libdeflate_location})
+add_dependencies(libdeflate project_libdeflate)
+
 ## htslib
 ExternalProject_Add(
   project_htslib
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/htslib
   BUILD_IN_SOURCE 1
   PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/htslib
-  CONFIGURE_COMMAND autoheader COMMAND autoconf COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/htslib/configure --disable-libcurl
-  BUILD_COMMAND $(MAKE) -C ${CMAKE_CURRENT_SOURCE_DIR}/htslib "CFLAGS=-g -Wall -O3" libhts.a
+  CONFIGURE_COMMAND autoheader COMMAND autoconf COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/htslib/configure --disable-libcurl --disable-gcs --with-libdeflate
+  "CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/libdeflate"
+  "LDFLAGS=-L${CMAKE_CURRENT_SOURCE_DIR}/libdeflate"
+  BUILD_COMMAND $(MAKE) -C ${CMAKE_CURRENT_SOURCE_DIR}/htslib "CFLAGS=-g -Wall -O3 -I${CMAKE_CURRENT_SOURCE_DIR}/libdeflate" libhts.a
   INSTALL_COMMAND ""
 )
 
@@ -99,6 +124,7 @@ set(htslib_location ${install_dir}/libhts.a)
 message(STATUS "htslib target location is ${htslib_location}")
 set_property(TARGET htslib PROPERTY IMPORTED_LOCATION ${htslib_location})
 add_dependencies(htslib project_htslib)
+add_dependencies(project_htslib libdeflate)
 
 ## paw
 ExternalProject_Add(
@@ -153,6 +179,7 @@ if(STATIC_DIR STREQUAL "")
   set(graphtyper_all_libraries
     htslib
     paw
+    libdeflate
     ${Boost_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
     ${ZLIB_LIBRARIES}
@@ -179,6 +206,7 @@ else(STATIC_DIR STREQUAL "")
   set(graphtyper_all_libraries
     htslib
     paw
+    libdeflate
     ${STATIC_DIR}/libboost_system.a
     ${STATIC_DIR}/libboost_iostreams.a
     ${STATIC_DIR}/libboost_log_setup.a
@@ -194,6 +222,7 @@ else(STATIC_DIR STREQUAL "")
     ${STATIC_DIR}/libz.a
     ${STATIC_DIR}/libbz2.a
     ${STATIC_DIR}/liblzma.a
+    ${STATIC_DIR}/librt.a
 )
 endif(STATIC_DIR STREQUAL "")
 

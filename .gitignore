@@ -5,6 +5,7 @@
 /*debug*/
 /*-build/
 /profiling/
+/compilation_database/
 example_test.vcf
 *.log
 .nfs*
@@ -19,11 +20,6 @@ example_test.vcf
 # Ignore data files
 test/data/graphs
 /data
-trash
-
-## Ignore htslib build files
-htslib/src
-htslib/tmp
 
 # Ignore simulated data
 test/simulated_data/fasta

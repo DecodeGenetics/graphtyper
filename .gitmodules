@@ -19,3 +19,7 @@
 	path = parallel-hashmap
 	url = https://github.com/greg7mdp/parallel-hashmap.git
   ignore = dirty
+[submodule "libdeflate"]
+	path = libdeflate
+	url = https://github.com/ebiggers/libdeflate.git
+	ignore = dirty

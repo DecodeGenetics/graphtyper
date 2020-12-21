@@ -68,7 +68,7 @@ HtsReader::open(std::string const & path, std::string const & region, std::strin
 
         std::string new_id = line_it.substr(pos_id + 4, pos_id_ends - pos_id - 4);
         std::string new_sample = line_it.substr(pos_samp + 4, pos_samp_ends - pos_samp - 4);
-        BOOST_LOG_TRIVIAL(debug) << __HERE__ << "Added RG: '" << new_id << "' => '" << new_sample << "'";
+        BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Added RG: '" << new_id << "' => '" << new_sample << "'";
         rg2index[new_id] = rg2sample_i.size();
         auto find_it = std::find(samples.begin(), samples.end(), new_sample);
 

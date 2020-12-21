@@ -73,7 +73,7 @@ TEST_CASE("Get the reference sequence of a graph")
     records.push_back(record);
   }
 
-  graph = gyper::Graph(false); // use_absolute_positions
+  graph = gyper::Graph(); // use_absolute_positions
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion());
 
   // Get the entire reference
@@ -84,16 +84,16 @@ TEST_CASE("Get the reference sequence of a graph")
 
   // Get the partial reference
   {
-    REQUIRE(graph.get_ref(0, 2) == gyper::to_vec("SG"));
-    REQUIRE(graph.get_ref(1, 2) == gyper::to_vec("G"));
-    REQUIRE(graph.get_ref(1, 9999) == gyper::to_vec("GTACGEEF"));
-    REQUIRE(graph.get_ref(4, 7) == gyper::to_vec("CGE"));
-    REQUIRE(graph.get_ref(8, 12) == gyper::to_vec("F"));
+    REQUIRE(graph.get_ref(1, 3) == gyper::to_vec("SG"));
+    REQUIRE(graph.get_ref(2, 3) == gyper::to_vec("G"));
+    REQUIRE(graph.get_ref(2, 9999) == gyper::to_vec("GTACGEEF"));
+    REQUIRE(graph.get_ref(5, 8) == gyper::to_vec("CGE"));
+    REQUIRE(graph.get_ref(9, 13) == gyper::to_vec("F"));
   }
 
   // Out of bounds reference
   {
-    REQUIRE(graph.get_ref(9, 12) == gyper::to_vec(""));
+    REQUIRE(graph.get_ref(10, 13) == gyper::to_vec(""));
     REQUIRE(graph.get_ref(9999, 1999992) == gyper::to_vec(""));
   }
 
@@ -114,7 +114,7 @@ TEST_CASE("Graph with a reference only.")
   char testdata[] = "ACCGGGAAAA";
   reference_sequence.insert(reference_sequence.end(), testdata, testdata + 10);
 
-  graph = gyper::Graph(false);
+  graph = gyper::Graph();
   graph.add_genomic_region(std::move(reference_sequence), std::vector<gyper::VarRecord>(0), gyper::GenomicRegion());
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
@@ -128,7 +128,7 @@ TEST_CASE("Graph with a reference only.")
   // The only node has the correct order and dna
   {
     REQUIRE(ref_nodes[0].out_degree() == 0);
-    REQUIRE(ref_nodes[0].get_label().order == 0);
+    REQUIRE(ref_nodes[0].get_label().order == 1);
     REQUIRE(ref_nodes[0].get_label().dna.size() == 10);
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("ACCGGGAAAA"));
   }
@@ -166,7 +166,7 @@ TEST_CASE("Graph with two variant records.")
     records.push_back(record);
   }
 
-  graph = gyper::Graph(false);
+  graph = gyper::Graph();
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion());
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
@@ -209,14 +209,14 @@ TEST_CASE("Graph with two variant records.")
 
   // The nodes should have the correct order
   {
-    REQUIRE(ref_nodes[0].get_label().order == 0);
-    REQUIRE(var_nodes[0].get_label().order == 3);
-    REQUIRE(var_nodes[1].get_label().order == 3);
-    REQUIRE(ref_nodes[1].get_label().order == 4);
-    REQUIRE(var_nodes[2].get_label().order == 6);
-    REQUIRE(var_nodes[3].get_label().order == 6);
-    REQUIRE(var_nodes[4].get_label().order == 6);
-    REQUIRE(ref_nodes[2].get_label().order == 7);
+    REQUIRE(ref_nodes[0].get_label().order == 0 + 1);
+    REQUIRE(var_nodes[0].get_label().order == 3 + 1);
+    REQUIRE(var_nodes[1].get_label().order == 3 + 1);
+    REQUIRE(ref_nodes[1].get_label().order == 4 + 1);
+    REQUIRE(var_nodes[2].get_label().order == 6 + 1);
+    REQUIRE(var_nodes[3].get_label().order == 6 + 1);
+    REQUIRE(var_nodes[4].get_label().order == 6 + 1);
+    REQUIRE(ref_nodes[2].get_label().order == 7 + 1);
   }
 
   // The nodes should have a label with the correct DNA bases
@@ -256,7 +256,7 @@ TEST_CASE("Graph can start with a variant record.")
     records.push_back(record);
   }
 
-  graph = gyper::Graph(false);
+  graph = gyper::Graph();
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion());
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
@@ -282,14 +282,14 @@ TEST_CASE("Graph can start with a variant record.")
 
   // The nodes should have the correct order
   {
-    REQUIRE(ref_nodes[0].get_label().order == 0);
-    REQUIRE(var_nodes[0].get_label().order == 0);
-    REQUIRE(var_nodes[1].get_label().order == 0);
-    REQUIRE(ref_nodes[1].get_label().order == 1);
-    REQUIRE(var_nodes[2].get_label().order == 6);
-    REQUIRE(var_nodes[3].get_label().order == 6);
-    REQUIRE(var_nodes[4].get_label().order == 6);
-    REQUIRE(ref_nodes[2].get_label().order == 7);
+    REQUIRE(ref_nodes[0].get_label().order == 0 + 1);
+    REQUIRE(var_nodes[0].get_label().order == 0 + 1);
+    REQUIRE(var_nodes[1].get_label().order == 0 + 1);
+    REQUIRE(ref_nodes[1].get_label().order == 1 + 1);
+    REQUIRE(var_nodes[2].get_label().order == 6 + 1);
+    REQUIRE(var_nodes[3].get_label().order == 6 + 1);
+    REQUIRE(var_nodes[4].get_label().order == 6 + 1);
+    REQUIRE(ref_nodes[2].get_label().order == 7 + 1);
   }
 
   // The nodes should have a label with the correct DNA bases
@@ -333,7 +333,7 @@ TEST_CASE("The reference can contain Ns. Note however that variants cannot overl
     records.push_back(record);
   }
 
-  graph = gyper::Graph(false);
+  graph = gyper::Graph();
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion());
 
   REQUIRE(graph.ref_nodes.size() == 3);
@@ -374,14 +374,14 @@ TEST_CASE("The reference can contain Ns. Note however that variants cannot overl
 
   // The nodes should have the correct order
   {
-    REQUIRE(ref_nodes[0].get_label().order == 0);
-    REQUIRE(var_nodes[0].get_label().order == 3);
-    REQUIRE(var_nodes[1].get_label().order == 3);
-    REQUIRE(ref_nodes[1].get_label().order == 4);
-    REQUIRE(var_nodes[2].get_label().order == 6);
-    REQUIRE(var_nodes[3].get_label().order == 6);
-    REQUIRE(var_nodes[4].get_label().order == 6);
-    REQUIRE(ref_nodes[2].get_label().order == 7);
+    REQUIRE(ref_nodes[0].get_label().order == 1);
+    REQUIRE(var_nodes[0].get_label().order == 4);
+    REQUIRE(var_nodes[1].get_label().order == 4);
+    REQUIRE(ref_nodes[1].get_label().order == 5);
+    REQUIRE(var_nodes[2].get_label().order == 7);
+    REQUIRE(var_nodes[3].get_label().order == 7);
+    REQUIRE(var_nodes[4].get_label().order == 7);
+    REQUIRE(ref_nodes[2].get_label().order == 8);
 
   }
 
@@ -426,7 +426,7 @@ TEST_CASE("The reference can start with Ns.")
     records.push_back(record);
   }
 
-  graph = gyper::Graph(false);
+  graph = gyper::Graph();
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion());
 
   REQUIRE(graph.ref_nodes.size() == 3);
@@ -454,14 +454,14 @@ TEST_CASE("The reference can start with Ns.")
 
   // The nodes should have the correct order
   {
-    REQUIRE(ref_nodes[0].get_label().order == 0);
-    REQUIRE(var_nodes[0].get_label().order == 3);
-    REQUIRE(var_nodes[1].get_label().order == 3);
-    REQUIRE(ref_nodes[1].get_label().order == 4);
-    REQUIRE(var_nodes[2].get_label().order == 6);
-    REQUIRE(var_nodes[3].get_label().order == 6);
-    REQUIRE(var_nodes[4].get_label().order == 6);
-    REQUIRE(ref_nodes[2].get_label().order == 7);
+    REQUIRE(ref_nodes[0].get_label().order == 1);
+    REQUIRE(var_nodes[0].get_label().order == 4);
+    REQUIRE(var_nodes[1].get_label().order == 4);
+    REQUIRE(ref_nodes[1].get_label().order == 5);
+    REQUIRE(var_nodes[2].get_label().order == 7);
+    REQUIRE(var_nodes[3].get_label().order == 7);
+    REQUIRE(var_nodes[4].get_label().order == 7);
+    REQUIRE(ref_nodes[2].get_label().order == 8);
   }
 
   // The nodes should have a label with the correct DNA bases
@@ -503,7 +503,7 @@ TEST_CASE("We can start at any location of the reference.")
     records.push_back(record);
   }
 
-  graph = gyper::Graph(false);
+  graph = gyper::Graph();
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion("chr1:2"));
 
   REQUIRE(graph.ref_nodes.size() == 3);
@@ -538,13 +538,13 @@ TEST_CASE("We can start at any location of the reference.")
 
   // The nodes should have the correct order
   {
-    REQUIRE(ref_nodes[0].get_label().order == 1);
-    REQUIRE(var_nodes[0].get_label().order == 3);
-    REQUIRE(var_nodes[1].get_label().order == 3);
-    REQUIRE(ref_nodes[1].get_label().order == 5);
-    REQUIRE(var_nodes[2].get_label().order == 6);
-    REQUIRE(var_nodes[3].get_label().order == 6);
-    REQUIRE(ref_nodes[2].get_label().order == 7);
+    REQUIRE(ref_nodes[0].get_label().order == 2);
+    REQUIRE(var_nodes[0].get_label().order == 4);
+    REQUIRE(var_nodes[1].get_label().order == 4);
+    REQUIRE(ref_nodes[1].get_label().order == 6);
+    REQUIRE(var_nodes[2].get_label().order == 7);
+    REQUIRE(var_nodes[3].get_label().order == 7);
+    REQUIRE(ref_nodes[2].get_label().order == 8);
   }
 
   // The nodes should have a label with the correct DNA bases
@@ -563,7 +563,7 @@ TEST_CASE("Variants can overlap", "[graph]")
 {
   using namespace gyper;
 
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST CASE: Variants can overlap.";
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: Variants can overlap.";
   std::vector<char> reference_sequence;
   char testdata[] = "ACGGTAA";
   reference_sequence.insert(reference_sequence.end(), testdata, testdata + 7);
@@ -587,7 +587,7 @@ TEST_CASE("Variants can overlap", "[graph]")
     records.push_back(record);
   }
 
-  graph = gyper::Graph(false);
+  graph = gyper::Graph();
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion());
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
@@ -618,11 +618,11 @@ TEST_CASE("Variants can overlap", "[graph]")
 
   // The nodes should have the correct order
   {
-    REQUIRE(ref_nodes[0].get_label().order == 0);
-    REQUIRE(var_nodes[0].get_label().order == 2);
-    REQUIRE(var_nodes[1].get_label().order == 2);
-    REQUIRE(var_nodes[2].get_label().order == 2);
-    REQUIRE(ref_nodes[1].get_label().order == 5);
+    REQUIRE(ref_nodes[0].get_label().order == 1);
+    REQUIRE(var_nodes[0].get_label().order == 3);
+    REQUIRE(var_nodes[1].get_label().order == 3);
+    REQUIRE(var_nodes[2].get_label().order == 3);
+    REQUIRE(ref_nodes[1].get_label().order == 6);
   }
 
   // The nodes should have a label with the correct DNA bases
@@ -666,7 +666,7 @@ TEST_CASE("Variants can overlap. Case where the second variant reaches further."
     records.push_back(record);
   }
 
-  graph = gyper::Graph(false);
+  graph = gyper::Graph();
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion());
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
@@ -697,11 +697,11 @@ TEST_CASE("Variants can overlap. Case where the second variant reaches further."
 
   // "The nodes should have the correct order"
   {
-    REQUIRE(ref_nodes[0].get_label().order == 0);
-    REQUIRE(var_nodes[0].get_label().order == 2);
-    REQUIRE(var_nodes[1].get_label().order == 2);
-    REQUIRE(var_nodes[2].get_label().order == 2);
-    REQUIRE(ref_nodes[1].get_label().order == 6);
+    REQUIRE(ref_nodes[0].get_label().order == 1);
+    REQUIRE(var_nodes[0].get_label().order == 3);
+    REQUIRE(var_nodes[1].get_label().order == 3);
+    REQUIRE(var_nodes[2].get_label().order == 3);
+    REQUIRE(ref_nodes[1].get_label().order == 7);
   }
 
   // "The nodes should have a label with the correct DNA bases"
@@ -718,6 +718,7 @@ TEST_CASE("Variants can overlap. Case where the second variant reaches further."
 }
 
 
+/*
 TEST_CASE("Two variants next to each other won't overlap")
 {
   using namespace gyper;
@@ -746,15 +747,15 @@ TEST_CASE("Two variants next to each other won't overlap")
     records.push_back(record);
   }
 
-  graph = gyper::Graph(false);
+  graph = gyper::Graph();
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion());
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
   // "The graph should have the correct size"
   {
-    REQUIRE(ref_nodes.size() == 3);
-    REQUIRE(var_nodes.size() == 5);
+    REQUIRE(ref_nodes.size() == 2);
+    REQUIRE(var_nodes.size() == 6);
     REQUIRE(graph.size() == 8);
   }
 
@@ -783,14 +784,14 @@ TEST_CASE("Two variants next to each other won't overlap")
 
   // "The nodes should have the correct order"
   {
-    REQUIRE(ref_nodes[0].get_label().order == 0);
-    REQUIRE(var_nodes[0].get_label().order == 2);
-    REQUIRE(var_nodes[1].get_label().order == 2);
-    REQUIRE(ref_nodes[1].get_label().order == 3);
-    REQUIRE(var_nodes[2].get_label().order == 3);
-    REQUIRE(var_nodes[3].get_label().order == 3);
-    REQUIRE(var_nodes[4].get_label().order == 3);
-    REQUIRE(ref_nodes[2].get_label().order == 4);
+    REQUIRE(ref_nodes[0].get_label().order == 1);
+    REQUIRE(var_nodes[0].get_label().order == 3);
+    REQUIRE(var_nodes[1].get_label().order == 3);
+    REQUIRE(ref_nodes[1].get_label().order == 4);
+    REQUIRE(var_nodes[2].get_label().order == 4);
+    REQUIRE(var_nodes[3].get_label().order == 4);
+    REQUIRE(var_nodes[4].get_label().order == 4);
+    REQUIRE(ref_nodes[2].get_label().order == 5);
 
   }
 
@@ -812,6 +813,67 @@ TEST_CASE("Two variants next to each other won't overlap")
 
   Options::instance()->add_all_variants = false;
 }
+*/
+
+/*
+TEST_CASE("Two variants with 3 bp between them")
+{
+  using namespace gyper;
+  Options::instance()->add_all_variants = true;
+  std::vector<char> reference_sequence;
+  char testdata[] = "ACGCTAA";
+  reference_sequence.insert(reference_sequence.end(), testdata, testdata + 7);
+  std::vector<gyper::VarRecord> records;
+
+  {
+    // ACGCTAA
+    // ACTCTAA
+    // ACGGTAA
+    // ACGTTAA
+    gyper::VarRecord record;
+    record.pos = 1;
+    record.ref = {'C'};
+    record.alts = {{'T'}};
+
+    records.push_back(record);
+
+    record.pos = 4;
+    record.ref = {'T'};
+    record.alts = {{'G'}, {'A'}};
+
+    records.push_back(record);
+  }
+
+  graph = gyper::Graph();
+  graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion());
+  std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
+  std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
+
+  // "The graph should have the correct size"
+  {
+    REQUIRE(ref_nodes.size() == 2);
+    REQUIRE(var_nodes.size() == 6);
+    REQUIRE(graph.size() == 8);
+  }
+
+  {
+    std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
+
+    REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("A"));
+
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("CGCT")) != var_dna.end());
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("CGCG")) != var_dna.end());
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("CGCA")) != var_dna.end());
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("TGCG")) != var_dna.end());
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("TGCA")) != var_dna.end());
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("TGCT")) != var_dna.end());
+
+    REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec("AA"));
+  }
+
+  Options::instance()->add_all_variants = false;
+}
+*/
 
 
 TEST_CASE(
@@ -820,7 +882,7 @@ TEST_CASE(
 {
   using namespace gyper;
 
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST CASE: "
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: "
                            << "When merging a deletion covering multiple short variants, all "
                            << "combinations of the variants need to be added.";
 
@@ -858,7 +920,7 @@ TEST_CASE(
     records.push_back(record);
   }
 
-  graph = gyper::Graph(false);
+  graph = gyper::Graph();
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion());
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
@@ -900,25 +962,30 @@ TEST_CASE(
 
   // "The nodes should have the correct order"
   {
-    REQUIRE(ref_nodes[0].get_label().order == 0);
+    REQUIRE(ref_nodes[0].get_label().order == 1);
 
-    REQUIRE(var_nodes[0].get_label().order == 2);
-    REQUIRE(var_nodes[1].get_label().order == 2);
-    REQUIRE(var_nodes[2].get_label().order == 2);
-    REQUIRE(var_nodes[3].get_label().order == 2);
-    REQUIRE(var_nodes[4].get_label().order == 2);
-    REQUIRE(var_nodes[5].get_label().order == 2);
-    REQUIRE(var_nodes[6].get_label().order == 2);
-    REQUIRE(var_nodes[7].get_label().order == 2);
-    REQUIRE(var_nodes[8].get_label().order == 2);
-    REQUIRE(var_nodes[9].get_label().order == 2);
+    REQUIRE(var_nodes[0].get_label().order == 3);
+    REQUIRE(var_nodes[1].get_label().order == 3);
+    REQUIRE(var_nodes[2].get_label().order == 3);
+    REQUIRE(var_nodes[3].get_label().order == 3);
+    REQUIRE(var_nodes[4].get_label().order == 3);
+    REQUIRE(var_nodes[5].get_label().order == 3);
+    REQUIRE(var_nodes[6].get_label().order == 3);
+    REQUIRE(var_nodes[7].get_label().order == 3);
+    REQUIRE(var_nodes[8].get_label().order == 3);
+    REQUIRE(var_nodes[9].get_label().order == 3);
 
-    REQUIRE(ref_nodes[1].get_label().order == 7);
+    REQUIRE(ref_nodes[1].get_label().order == 8);
   }
 
   // "The nodes should have a label with the correct DNA bases"
   {
     std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
+
+    //for (auto const & var_node_seq : var_dna)
+    //{
+    //  BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << std::string(var_node_seq.begin(), var_node_seq.end());
+    //}
 
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("SS"));
 
@@ -935,6 +1002,8 @@ TEST_CASE(
 
     REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec(""));
   }
+
+  Options::instance()->add_all_variants = false;
 }
 
 
@@ -970,7 +1039,7 @@ TEST_CASE("Same as above but with bases in between the variants.", "[test2]")
     records.push_back(record);
   }
 
-  graph = gyper::Graph(false);
+  graph = gyper::Graph();
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion());
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
@@ -1032,20 +1101,20 @@ TEST_CASE("Same as above but with bases in between the variants.", "[test2]")
 
   // "The nodes should have the correct order"
   {
-    REQUIRE(ref_nodes[0].get_label().order == 0);
+    REQUIRE(ref_nodes[0].get_label().order == 1);
 
-    REQUIRE(var_nodes[0].get_label().order == 0);
-    REQUIRE(var_nodes[1].get_label().order == 0);
-    REQUIRE(var_nodes[2].get_label().order == 0);
-    REQUIRE(var_nodes[3].get_label().order == 0);
-    REQUIRE(var_nodes[4].get_label().order == 0);
-    REQUIRE(var_nodes[5].get_label().order == 0);
-    REQUIRE(var_nodes[6].get_label().order == 0);
-    REQUIRE(var_nodes[7].get_label().order == 0);
-    REQUIRE(var_nodes[8].get_label().order == 0);
-    REQUIRE(var_nodes[9].get_label().order == 0);
+    REQUIRE(var_nodes[0].get_label().order == 1);
+    REQUIRE(var_nodes[1].get_label().order == 1);
+    REQUIRE(var_nodes[2].get_label().order == 1);
+    REQUIRE(var_nodes[3].get_label().order == 1);
+    REQUIRE(var_nodes[4].get_label().order == 1);
+    REQUIRE(var_nodes[5].get_label().order == 1);
+    REQUIRE(var_nodes[6].get_label().order == 1);
+    REQUIRE(var_nodes[7].get_label().order == 1);
+    REQUIRE(var_nodes[8].get_label().order == 1);
+    REQUIRE(var_nodes[9].get_label().order == 1);
 
-    REQUIRE(ref_nodes[1].get_label().order == 4);
+    REQUIRE(ref_nodes[1].get_label().order == 5);
   }
 
   Options::instance()->add_all_variants = false;
@@ -1088,7 +1157,7 @@ TEST_CASE("Four variants joined", "[test2]")
     records.push_back(record);
   }
 
-  graph = gyper::Graph(false);
+  graph = gyper::Graph();
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion());
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
@@ -1160,12 +1229,12 @@ TEST_CASE("Four variants joined", "[test2]")
 
   // The nodes should have the correct order
   {
-    REQUIRE(ref_nodes[0].get_label().order == 0);
+    REQUIRE(ref_nodes[0].get_label().order == 1);
 
     for (auto const & v : var_nodes)
-      REQUIRE(v.get_label().order == 1);
+      REQUIRE(v.get_label().order == 2);
 
-    REQUIRE(ref_nodes[1].get_label().order == 6);
+    REQUIRE(ref_nodes[1].get_label().order == 7);
   }
 
   Options::instance()->add_all_variants = false;
@@ -1176,8 +1245,7 @@ TEST_CASE("Variants of any number can be joined, here 3 are tested.", "[test]")
 {
   using namespace gyper;
 
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__
-                           << "] TEST CASE: Variants of any number can be joined, here 3 are tested.";
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: Variants of any number can be joined, here 3 are tested.";
 
   Options::instance()->add_all_variants = true;
   std::vector<char> reference_sequence;
@@ -1214,7 +1282,7 @@ TEST_CASE("Variants of any number can be joined, here 3 are tested.", "[test]")
     records.push_back(record);
   }
 
-  graph = gyper::Graph(false);
+  graph = gyper::Graph();
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion());
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
@@ -1283,94 +1351,94 @@ TEST_CASE("Variants of any number can be joined, here 3 are tested.", "[test]")
 // chr6  29890513  . GGGGA AGGGG . PASS  .
 // chr6  29890517  146_H ATGTTGGGGGGGAACAGTGG  GTGTTGGGGGGGAACAGTGG,GTGTTGGGGGGGAACAGTG  0 . .
 
-TEST_CASE("Check if the above creates the graph correctly")
-{
-  using namespace gyper;
-
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST CASE: Check if the above creates the graph correctly";
-
-  Options::instance()->add_all_variants = true;
-  std::vector<char> reference_sequence;
-  char testdata[] = "CG1xGAaTGTTGGGGGGGAACAGT";
-  reference_sequence.insert(reference_sequence.end(), testdata, testdata + 24);
-
-  std::vector<gyper::VarRecord> records_step1;
-  std::vector<gyper::VarRecord> records_step2;
-
-  {
-    gyper::VarRecord record;
-    record.pos = 1;
-    record.ref = gyper::to_vec("G1");
-    record.alts = {gyper::to_vec("A2"), gyper::to_vec("G3")};
-    records_step1.push_back(record);
-    records_step2.push_back(record);
-
-    record.pos = 2;
-    record.ref = gyper::to_vec("1xGA");
-    record.alts = {gyper::to_vec("3yAG")};
-    records_step1.push_back(record);
-    records_step2.push_back(record);
-
-    record.pos = 4;
-    record.ref = gyper::to_vec("GA");
-    record.alts = {gyper::to_vec("AG")};
-    records_step2.push_back(record);
-  }
-
-  // Step 1: Simpler graph
-  {
-    graph = gyper::Graph(false);
-    graph.add_genomic_region(std::vector<char>(reference_sequence),
-                             std::move(records_step1),
-                             gyper::GenomicRegion());
-
-    std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
-    std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
-
-    REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("C"));
-
-    REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("G1xGA"));
-    REQUIRE(var_nodes[1].get_label().dna == gyper::to_vec("A2xGA"));
-    //REQUIRE(var_nodes[2].get_label().dna == gyper::to_vec("A3yAG"));
-    REQUIRE(var_nodes[2].get_label().dna == gyper::to_vec("G3xGA"));
-    REQUIRE(var_nodes[3].get_label().dna == gyper::to_vec("G3yAG"));
-
-    REQUIRE(var_nodes.size() == 4);
-  }
-
-  // Step 2: Simpler graph
-  {
-    graph = gyper::Graph(false);
-    graph.add_genomic_region(std::vector<char>(reference_sequence),
-                             std::move(records_step2),
-                             gyper::GenomicRegion());
-
-    std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
-    std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
-
-    std::vector<std::vector<char> > var_dna;
-
-    for (auto const & v : var_nodes)
-    {
-      var_dna.push_back(v.get_label().dna);
-    }
-
-    REQUIRE(ref_nodes[0].get_label().dna ==   gyper::to_vec("C"));
-
-    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("G1xGA")) != var_dna.end());
-    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("G1xAG")) != var_dna.end());
-    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("G3yAG")) != var_dna.end());
-    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("A2xGA")) != var_dna.end());
-    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("A2xAG")) != var_dna.end());
-    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("G3xGA")) != var_dna.end());
-    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("G3xAG")) != var_dna.end());
-    //REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("A3yAG")) != var_dna.end());
-
-    REQUIRE(var_nodes.size() == 7);
-  }
-
-  Options::instance()->add_all_variants = false;
-}
+//TEST_CASE("Check if the above creates the graph correctly")
+//{
+//  using namespace gyper;
+//
+//  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST CASE: Check if the above creates the graph correctly";
+//
+//  Options::instance()->add_all_variants = true;
+//  std::vector<char> reference_sequence;
+//  char testdata[] = "CG1xGAaTGTTGGGGGGGAACAGT";
+//  reference_sequence.insert(reference_sequence.end(), testdata, testdata + 24);
+//
+//  std::vector<gyper::VarRecord> records_step1;
+//  std::vector<gyper::VarRecord> records_step2;
+//
+//  {
+//    gyper::VarRecord record;
+//    record.pos = 1;
+//    record.ref = gyper::to_vec("G1");
+//    record.alts = {gyper::to_vec("A2"), gyper::to_vec("G3")};
+//    records_step1.push_back(record);
+//    records_step2.push_back(record);
+//
+//    record.pos = 2;
+//    record.ref = gyper::to_vec("1xGA");
+//    record.alts = {gyper::to_vec("3yAG")};
+//    records_step1.push_back(record);
+//    records_step2.push_back(record);
+//
+//    record.pos = 4;
+//    record.ref = gyper::to_vec("GA");
+//    record.alts = {gyper::to_vec("AG")};
+//    records_step2.push_back(record);
+//  }
+//
+//  // Step 1: Simpler graph
+//  {
+//    graph = gyper::Graph();
+//    graph.add_genomic_region(std::vector<char>(reference_sequence),
+//                             std::move(records_step1),
+//                             gyper::GenomicRegion());
+//
+//    std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
+//    std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
+//
+//    REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("C"));
+//
+//    REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("G1xGA"));
+//    REQUIRE(var_nodes[1].get_label().dna == gyper::to_vec("A2xGA"));
+//    REQUIRE(var_nodes[2].get_label().dna == gyper::to_vec("A3yAG"));
+//    REQUIRE(var_nodes[2].get_label().dna == gyper::to_vec("G3xGA"));
+//    REQUIRE(var_nodes[3].get_label().dna == gyper::to_vec("G3yAG"));
+//
+//    REQUIRE(var_nodes.size() == 4);
+//  }
+//
+//  // Step 2: Simpler graph
+//  {
+//    graph = gyper::Graph();
+//    graph.add_genomic_region(std::vector<char>(reference_sequence),
+//                             std::move(records_step2),
+//                             gyper::GenomicRegion());
+//
+//    std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
+//    std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
+//
+//    std::vector<std::vector<char> > var_dna;
+//
+//    for (auto const & v : var_nodes)
+//    {
+//      var_dna.push_back(v.get_label().dna);
+//    }
+//
+//    REQUIRE(ref_nodes[0].get_label().dna ==   gyper::to_vec("C"));
+//
+//    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("G1xGA")) != var_dna.end());
+//    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("G1xAG")) != var_dna.end());
+//    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("G3yAG")) != var_dna.end());
+//    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("A2xGA")) != var_dna.end());
+//    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("A2xAG")) != var_dna.end());
+//    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("G3xGA")) != var_dna.end());
+//    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("G3xAG")) != var_dna.end());
+//    //REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("A3yAG")) != var_dna.end());
+//
+//    REQUIRE(var_nodes.size() == 7);
+//  }
+//
+//  Options::instance()->add_all_variants = false;
+//}
 
 
 TEST_CASE("Variant overlapping a N on the reference genome")
@@ -1381,19 +1449,19 @@ TEST_CASE("Variant overlapping a N on the reference genome")
   char testdata[] = "GCTGCGGCGGGCGTCGCGGCCGCCCCCGGGGAGCCCGGCGGGCGCCGGCGCGNCCCCCCCCCCACCCCACGTCTCGTCGCGCGCGC";
   reference_sequence.insert(reference_sequence.end(), testdata, testdata + 86);
 
-  // The reference allele has a N
   {
+    BOOST_LOG_TRIVIAL(info) << __HERE__ << " The reference allele has an N.";
     std::vector<gyper::VarRecord> records;
 
     {
       gyper::VarRecord record;
-      record.pos = 52;
+      record.pos = 51;
       record.ref = gyper::to_vec("GN");
       record.alts = {gyper::to_vec("GA")};
       records.push_back(record);
     }
 
-    graph = gyper::Graph(false);
+    graph = gyper::Graph();
     graph.add_genomic_region(std::vector<char>(reference_sequence), std::move(records), gyper::GenomicRegion());
 
     // Here, we assume that nothing is added
@@ -1405,19 +1473,20 @@ TEST_CASE("Variant overlapping a N on the reference genome")
     REQUIRE(var_nodes.size() == 0);
   }
 
-  // If an alternative allele has a N, we remove it
   {
+    BOOST_LOG_TRIVIAL(info) << __HERE__ << " An alternative allele has an N.";
+
     std::vector<gyper::VarRecord> records;
 
     {
       gyper::VarRecord record;
-      record.pos = 52;
+      record.pos = 51;
       record.ref = gyper::to_vec("G");
       record.alts = {gyper::to_vec("GN"), gyper::to_vec("GA")};
       records.push_back(record);
     }
 
-    graph = gyper::Graph(false);
+    graph = gyper::Graph();
     graph.add_genomic_region(std::vector<char>(reference_sequence), std::move(records), gyper::GenomicRegion());
 
     std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
@@ -1436,13 +1505,13 @@ TEST_CASE("Variant overlapping a N on the reference genome")
 
     {
       gyper::VarRecord record;
-      record.pos = 52;
+      record.pos = 51;
       record.ref = gyper::to_vec("G");
       record.alts = {gyper::to_vec("GN"), gyper::to_vec("GNN")};
       records.push_back(record);
     }
 
-    graph = gyper::Graph(false);
+    graph = gyper::Graph();
     graph.add_genomic_region(std::vector<char>(reference_sequence), std::move(records), gyper::GenomicRegion());
 
     // Here, we assume that nothing is added
@@ -1481,7 +1550,7 @@ TEST_CASE("Prior test for the next")
     records.push_back(record);
   }
 
-  graph = gyper::Graph(false);
+  graph = gyper::Graph();
   graph.add_genomic_region(std::vector<char>(reference_sequence), std::move(records), gyper::GenomicRegion());
 
   // Here, we assume that nothing is added
@@ -1536,7 +1605,7 @@ TEST_CASE("Merge one path should check if we can remove the suffix of a variant 
     records.push_back(record);
   }
 
-  graph = gyper::Graph(false);
+  graph = gyper::Graph();
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion());
 
   // Here, we assume that nothing is added
@@ -1554,10 +1623,14 @@ TEST_CASE("Merge one path should check if we can remove the suffix of a variant 
 
   // We have the correct labels on the variant nodes
   {
-    REQUIRE(var_nodes[0].get_label().dna == gyper::to_vec("TAAAAAA"));
-    REQUIRE(var_nodes[1].get_label().dna == gyper::to_vec("TAAAAA"));
-    REQUIRE(var_nodes[2].get_label().dna == gyper::to_vec("TAAAAAT"));
-    REQUIRE(var_nodes[3].get_label().dna == gyper::to_vec("TAAAAT"));
+    std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
+
+    REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("S"));
+
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("TAAAAAA")) != var_dna.end());
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("TAAAAA")) != var_dna.end());
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("TAAAAAT")) != var_dna.end());
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("TAAAAT")) != var_dna.end());
   }
 }
 
@@ -1585,7 +1658,7 @@ TEST_CASE("Merge one path works with connected indel+SNP")
     records.push_back(record);
   }
 
-  graph = gyper::Graph(false);
+  graph = gyper::Graph();
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion());
 
   // Here, we assume that nothing is added
@@ -1641,7 +1714,7 @@ TEST_CASE("Merge path works with 3 pairs of connected SNPs")
     records.push_back(record);
   }
 
-  graph = gyper::Graph(false);
+  graph = gyper::Graph();
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion());
 
   // Here, we assume that nothing is added
@@ -1697,7 +1770,7 @@ TEST_CASE("Two overlapping indels")
     records.push_back(record);
   }
 
-  graph = gyper::Graph(false);
+  graph = gyper::Graph();
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion());
 
   // Here, we assume that nothing is added
@@ -1728,6 +1801,7 @@ TEST_CASE("Two overlapping indels")
 TEST_CASE("Two deletions and one of them overlaps SNPs")
 {
   using namespace gyper;
+
   Options::instance()->add_all_variants = false;
   std::vector<char> reference_sequence;
   std::string testdata = "SGTATATAGCTGCCGCCGTTTTTATTACCGGGGGTAGTAGTAGTAGCGCAGAGGTTTTAGAGGGCF";
@@ -1757,7 +1831,7 @@ TEST_CASE("Two deletions and one of them overlaps SNPs")
     records.push_back(record);
   }
 
-  graph = gyper::Graph(true);
+  graph = gyper::Graph();
 
   {
     Contig new_contig;
@@ -1864,7 +1938,7 @@ TEST_CASE("Two deletions and one of them overlaps SNPs and an insertion")
     records.push_back(record);
   }
 
-  graph = gyper::Graph(true);
+  graph = gyper::Graph();
 
   {
     Contig new_contig;
@@ -1883,8 +1957,8 @@ TEST_CASE("Two deletions and one of them overlaps SNPs and an insertion")
   {
     //graph.print();
     REQUIRE(ref_nodes.size() == 2);
-    REQUIRE(var_nodes.size() == 15);
-    REQUIRE(graph.size() == 17);
+    REQUIRE(var_nodes.size() == 19);
+    REQUIRE(graph.size() == 21);
   }
 
   // The nodes should have the correct order
@@ -1918,4 +1992,465 @@ TEST_CASE("Two deletions and one of them overlaps SNPs and an insertion")
 
     REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec("TTATTACCGGGGGTAGTAGTAGTAGCGCAGAGGTTTTAGAGGGCF"));
   }
+}
+
+
+TEST_CASE("We cant have two events that sum up to the reference")
+{
+  using namespace gyper;
+  Options::instance()->add_all_variants = true;
+  std::vector<char> reference_sequence;
+  std::string testdata = "TTACTTTTTTAA";
+  reference_sequence.insert(reference_sequence.end(), testdata.begin(), testdata.end());
+  std::vector<gyper::VarRecord> records;
+
+  {
+    gyper::VarRecord record;
+    record.pos = 3;
+    record.ref = {'C'};
+    record.alts = {{'C', 'T'}};
+    records.push_back(record);
+
+    record.pos = 7;
+    record.ref = {'T', 'T'};
+    record.alts = {{'T'}};
+    records.push_back(record);
+  }
+
+  graph = gyper::Graph();
+
+  {
+    Contig new_contig;
+    new_contig.name = "chr1";
+    new_contig.length = 100000;
+    graph.contigs.push_back(std::move(new_contig));
+
+    absolute_pos.calculate_offsets(graph.contigs);
+  }
+
+  gyper::GenomicRegion genomic_region("chr1");
+  genomic_region.check_if_var_records_match_reference_genome(records, reference_sequence);
+
+  for (auto & var_record : records)
+  {
+    genomic_region.add_reference_to_record_if_they_have_a_matching_prefix(var_record,
+                                                                          reference_sequence);
+    //BOOST_LOG_TRIVIAL(debug) << __HERE__ << var_record.to_string();
+  }
+
+
+  graph.add_genomic_region(std::move(reference_sequence), std::move(records), std::move(genomic_region));
+  std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
+  std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
+
+  // The nodes should have a label with the correct DNA bases
+  {
+    std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
+
+    for (auto const & var_node_seq : var_dna)
+    {
+      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " " << std::string(var_node_seq.begin(), var_node_seq.end());
+    }
+
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("CT")) != var_dna.end());
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("C")) != var_dna.end());
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("CTT")) != var_dna.end());
+  }
+
+  // The graph should have the correct size
+  {
+    REQUIRE(ref_nodes.size() == 2);
+    REQUIRE(var_nodes.size() == 3);
+  }
+
+  Options::instance()->add_all_variants = false;
+}
+
+
+TEST_CASE("anti events test case")
+{
+  using namespace gyper;
+  Options::instance()->add_all_variants = true;
+  std::vector<char> reference_sequence;
+  std::string testdata = "TTACTTTATAAATTACTCAGTCTCGGGTATGTCC";
+  reference_sequence.insert(reference_sequence.end(), testdata.begin(), testdata.end());
+  std::vector<gyper::VarRecord> records;
+
+  {
+    gyper::VarRecord record;
+    record.pos = 18;
+    record.ref = {'A', 'G', 'T', 'C'};
+    record.alts = {{'A', 'G'}};
+    record.alts[0].anti_events.emplace(2);
+    record.alts[0].anti_events.emplace(3);
+    records.push_back(record);
+
+    record.pos = 20;
+    record.ref = {'T'};
+    record.alts = {{'A'}};
+    record.alts[0].events.emplace(2);
+    record.alts[0].anti_events.emplace(3);
+    records.push_back(record);
+
+    record.pos = 21;
+    record.ref = {'C'};
+    record.alts = {{'T'}};
+    record.alts[0].events.emplace(3);
+    records.push_back(record);
+  }
+
+  graph = gyper::Graph();
+
+  {
+    Contig new_contig;
+    new_contig.name = "chr1";
+    new_contig.length = 100000;
+    graph.contigs.push_back(std::move(new_contig));
+
+    absolute_pos.calculate_offsets(graph.contigs);
+  }
+
+  graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion("chr1"));
+  std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
+  std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
+
+  // The nodes should have a label with the correct DNA bases
+  {
+    std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
+
+    for (auto const & var_node_seq : var_dna)
+    {
+      BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << std::string(var_node_seq.begin(), var_node_seq.end());
+    }
+
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("AG")) != var_dna.end());
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("AGTC")) != var_dna.end());
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("AGAC")) != var_dna.end());
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("AGTT")) != var_dna.end());
+  }
+
+  // The graph should have the correct size
+  {
+    REQUIRE(ref_nodes.size() == 2);
+    REQUIRE(var_nodes.size() == 4);
+  }
+
+  Options::instance()->add_all_variants = false;
+}
+
+
+TEST_CASE("anti events test case 2 - more complex test")
+{
+  using namespace gyper;
+  Options::instance()->add_all_variants = true;
+  std::vector<char> reference_sequence;
+  std::string testdata = "TCTATTTTTTTTTTTTTTTTTTTTTTGA";
+  reference_sequence.insert(reference_sequence.end(), testdata.begin(), testdata.end());
+  std::vector<gyper::VarRecord> records;
+
+  {
+    gyper::VarRecord record;
+
+    record.pos = 3;
+    record.ref = {'A'};
+    record.alts = {{'A', 'T', 'T', 'T'}};
+    record.alts[0].events.emplace(3);
+    record.alts[0].anti_events.emplace(4);
+    record.alts[0].anti_events.emplace(5);
+    record.alts[0].anti_events.emplace(6);
+    record.alts[0].anti_events.emplace(7);
+    record.alts[0].anti_events.emplace(8);
+    records.push_back(record);
+
+    record.pos = 11;
+    record.ref = {'T'};
+    record.alts = {{'T', 'A'}};
+    record.alts[0].events.emplace(4);
+    record.alts[0].anti_events.emplace(5);
+    record.alts[0].anti_events.emplace(6);
+    record.alts[0].anti_events.emplace(7);
+    record.alts[0].anti_events.emplace(8);
+    records.push_back(record);
+
+    record.pos = 15;
+    record.ref = {'T'};
+    record.alts = {{'C'}};
+    record.alts[0].events.emplace(5);
+    record.alts[0].anti_events.emplace(6);
+    record.alts[0].anti_events.emplace(7);
+    record.alts[0].anti_events.emplace(8);
+    records.push_back(record);
+
+    record.pos = 24;
+    record.ref = {'T'};
+    record.alts = {{'T', 'T', 'G'}};
+    record.alts[0].events.emplace(6);
+    record.alts[0].anti_events.emplace(7);
+    record.alts[0].anti_events.emplace(8);
+    records.push_back(record);
+
+    record.pos = 25;
+    record.ref = {'T'};
+    record.alts = {{'T', 'T', 'T', 'G'}};
+    record.alts[0].events.emplace(7);
+    record.alts[0].anti_events.emplace(8);
+    records.push_back(record);
+
+    record.pos = 26;
+    record.ref = {'G'};
+    record.alts = {{'T'}};
+    record.alts[0].events.emplace(8);
+    records.push_back(record);
+  }
+
+  graph = gyper::Graph();
+
+  {
+    Contig new_contig;
+    new_contig.name = "chr1";
+    new_contig.length = 100000;
+    graph.contigs.push_back(std::move(new_contig));
+
+    absolute_pos.calculate_offsets(graph.contigs);
+  }
+
+  gyper::GenomicRegion genomic_region("chr1");
+
+  // This is needed to prohibit a combination of alt. alleles being able to be equal to the reference
+  for (auto & var_record : records)
+  {
+    genomic_region.add_reference_to_record_if_they_have_a_matching_prefix(var_record,
+                                                                          reference_sequence);
+  }
+
+
+  graph.add_genomic_region(std::move(reference_sequence), std::move(records), std::move(genomic_region));
+  std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
+  std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
+
+  // The nodes should have a label with the correct DNA bases
+  {
+    std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
+
+    for (auto const & var_node_seq : var_dna)
+    {
+      BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << std::string(var_node_seq.begin(), var_node_seq.end());
+    }
+
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("ATTTTTTTTTTTTTTTTTTTTTTG")) != var_dna.end());
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("ATTTTTTTTTTTTTTTTTTTTTTT")) != var_dna.end());
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("ATTTTTTTTTTTTTTTTTTTTTTTTGG")) != var_dna.end());
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("ATTTTTTTTTTTTTTTTTTTTTTGTG")) != var_dna.end());
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("ATTTTTTTTTTTCTTTTTTTTTTG")) != var_dna.end());
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("ATTTTTTTTATTTTTTTTTTTTTTG")) != var_dna.end());
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("ATTTTTTTTTTTTTTTTTTTTTTTTTG")) != var_dna.end());
+  }
+
+  // The graph should have the correct size
+  {
+    REQUIRE(ref_nodes.size() == 2);
+    REQUIRE(var_nodes.size() == 7);
+  }
+
+  Options::instance()->add_all_variants = false;
+}
+
+
+TEST_CASE("parity events test case")
+{
+  using namespace gyper;
+  Options::instance()->add_all_variants = true;
+  std::vector<char> reference_sequence;
+  std::string testdata = "TCTATTTTTTTTTTTTTTTTTTTTTTGA";
+  reference_sequence.insert(reference_sequence.end(), testdata.begin(), testdata.end());
+  std::vector<gyper::VarRecord> records;
+
+  {
+    gyper::VarRecord record;
+
+
+    record.pos = 3;
+    record.ref = {'A'};
+    record.alts = {{'A', 'T', 'T'}};
+    record.ref.events = {-2};
+    record.ref.anti_events = {4};
+    record.alts[0].events = {2};
+    record.alts[0].anti_events = {3, -4};
+    records.push_back(record);
+    record.clear();
+
+    record.pos = 3;
+    record.ref = {'A'};
+    record.alts = {{'A', 'T', 'T', 'T'}};
+    record.ref.events = {-3};
+    record.ref.anti_events = {};
+    record.alts[0].events = {3};
+    record.alts[0].anti_events = {4};
+    records.push_back(record);
+    record.clear();
+
+    record.pos = 11;
+    record.ref = {'T'};
+    record.alts = {{'T', 'A'}};
+    record.ref.events = {-4};
+    record.alts[0].events = {4};
+    records.push_back(record);
+    record.clear();
+  }
+
+  graph = gyper::Graph();
+
+  {
+    Contig new_contig;
+    new_contig.name = "chr1";
+    new_contig.length = 100000;
+    graph.contigs.push_back(std::move(new_contig));
+
+    absolute_pos.calculate_offsets(graph.contigs);
+  }
+
+  gyper::GenomicRegion genomic_region("chr1");
+
+  // This is needed to prohibit a combination of alt. alleles being able to be equal to the reference
+  for (auto & var_record : records)
+  {
+    genomic_region.add_reference_to_record_if_they_have_a_matching_prefix(var_record,
+                                                                          reference_sequence);
+  }
+
+
+  graph.add_genomic_region(std::move(reference_sequence), std::move(records), std::move(genomic_region));
+  std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
+  std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
+
+  // The nodes should have a label with the correct DNA bases
+  {
+    std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
+
+    for (auto const & var_node_seq : var_dna)
+    {
+      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " " << std::string(var_node_seq.begin(), var_node_seq.end());
+    }
+
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("ATTTTTTTT")) != var_dna.end());
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("ATTTTTTTT")) == var_dna.begin()); // ref
+
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("ATTTTTTTTTTT")) != var_dna.end());
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("ATTTTTTTTA")) != var_dna.end());
+    REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("ATTTTTTTTTTA")) != var_dna.end());
+  }
+
+  // The graph should have the correct size
+  {
+    REQUIRE(ref_nodes.size() == 2);
+    REQUIRE(var_nodes.size() == 4);
+  }
+
+  Options::instance()->add_all_variants = false;
+}
+
+
+TEST_CASE("parity events test case 2 - snps next to each other")
+{
+  using namespace gyper;
+  Options::instance()->add_all_variants = true;
+  std::vector<char> reference_sequence;
+  std::string testdata = "TCTCAGA";
+  reference_sequence.insert(reference_sequence.end(), testdata.begin(), testdata.end());
+  std::vector<gyper::VarRecord> records;
+
+  {
+    gyper::VarRecord record;
+
+    record.pos = 3;
+    record.ref = {'C'};
+    record.alts = {{'T'}};
+    record.ref.events.emplace(-1);
+    record.ref.anti_events.emplace(2);
+    record.ref.anti_events.emplace(3);
+    record.alts[0].events.emplace(1);
+    record.alts[0].anti_events.emplace(-2);
+    record.alts[0].anti_events.emplace(-3);
+    records.push_back(record);
+    record.clear();
+
+    record.pos = 4;
+    record.ref = {'A'};
+    record.alts = {{'G'}};
+    record.ref.events.emplace(-2);
+    record.ref.anti_events.emplace(3);
+    record.alts[0].events.emplace(2);
+    record.alts[0].anti_events.emplace(-3);
+    records.push_back(record);
+    record.clear();
+
+    record.pos = 5;
+    record.ref = {'G'};
+    record.alts = {{'A'}};
+    record.ref.events.emplace(-3);
+    record.alts[0].events.emplace(3);
+    records.push_back(record);
+    record.clear();
+  }
+
+  graph = gyper::Graph();
+
+  {
+    Contig new_contig;
+    new_contig.name = "chr1";
+    new_contig.length = 100000;
+    graph.contigs.push_back(std::move(new_contig));
+
+    absolute_pos.calculate_offsets(graph.contigs);
+  }
+
+  gyper::GenomicRegion genomic_region("chr1");
+
+  // This is needed to prohibit a combination of alt. alleles being able to be equal to the reference
+  for (auto & var_record : records)
+  {
+    genomic_region.add_reference_to_record_if_they_have_a_matching_prefix(var_record,
+                                                                          reference_sequence);
+  }
+
+
+  graph.add_genomic_region(std::move(reference_sequence), std::move(records), std::move(genomic_region));
+  std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
+  std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
+
+  //graph.print();
+
+  // The graph should have the correct size
+  {
+    REQUIRE(ref_nodes.size() == 2);
+    REQUIRE(var_nodes.size() == 2);
+  }
+
+  {
+    {
+      VarNode const & ref_var_node = var_nodes[0];
+      REQUIRE(ref_var_node.get_label().dna == gyper::to_vec("CAG"));
+      REQUIRE(ref_var_node.events.count(-1));
+      REQUIRE(ref_var_node.events.count(-2));
+      REQUIRE(ref_var_node.events.count(-3));
+      REQUIRE(ref_var_node.events.size() == 3);
+      REQUIRE(ref_var_node.anti_events.size() == 2);
+      REQUIRE(ref_var_node.anti_events.count(2));
+      REQUIRE(ref_var_node.anti_events.count(3));
+    }
+
+    {
+      VarNode const & var_node = var_nodes[1];
+      REQUIRE(var_node.get_label().dna == gyper::to_vec("TGA"));
+      REQUIRE(var_node.events.size() == 3);
+      REQUIRE(var_node.events.count(1));
+      REQUIRE(var_node.events.count(2));
+      REQUIRE(var_node.events.count(3));
+      REQUIRE(var_node.anti_events.size() == 2);
+      REQUIRE(var_node.anti_events.count(-2));
+      REQUIRE(var_node.anti_events.count(-3));
+    }
+  }
+
+  Options::instance()->add_all_variants = false;
 }

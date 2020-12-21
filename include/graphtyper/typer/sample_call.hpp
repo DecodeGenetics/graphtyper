@@ -18,7 +18,13 @@ class SampleCall
   friend class boost::serialization::access;
 
 public:
-  SampleCall() noexcept;
+  SampleCall() = default;
+  SampleCall(SampleCall const &) = default;
+  SampleCall(SampleCall &&) = default;
+  SampleCall & operator=(SampleCall const &) = default;
+  SampleCall & operator=(SampleCall &&) = default;
+  ~SampleCall() = default;
+
   SampleCall(std::vector<uint8_t> && phred,
              std::vector<uint16_t> && coverage,
              uint8_t ambiguous_depth,

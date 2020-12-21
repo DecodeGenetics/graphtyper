@@ -47,11 +47,11 @@ AbsolutePosition::is_contig_available(std::string const & contig) const
 }
 
 
-uint32_t
+long
 AbsolutePosition::get_absolute_position(std::string const & chromosome,
-                                        uint32_t const contig_position) const
+                                        long const contig_position) const
 {
-  uint32_t abs_pos;
+  long abs_pos{0};
 
   try
   {
@@ -74,16 +74,16 @@ AbsolutePosition::get_absolute_position(std::string const & chromosome,
 }
 
 
-std::pair<std::string, uint32_t>
-AbsolutePosition::get_contig_position(uint32_t const absolute_position,
+std::pair<std::string, long>
+AbsolutePosition::get_contig_position(long const absolute_position,
                                       std::vector<Contig> const & contigs) const
 {
   auto offset_it = std::lower_bound(offsets.begin(), offsets.end(), absolute_position);
   long const i = std::distance(offsets.begin(), offset_it);
   assert(i > 0);
   assert(i <= static_cast<long>(contigs.size()));
-  return std::make_pair<std::string, uint32_t>(std::string(contigs[i - 1].name),
-                                               absolute_position - offsets[i - 1]);
+  return std::make_pair<std::string, long>(std::string(contigs[i - 1].name),
+                                           absolute_position - offsets[i - 1]);
 }
 
 

@@ -5,6 +5,8 @@
 #include <boost/serialization/vector.hpp>
 
 #include <graphtyper/graph/label.hpp>
+#include <graphtyper/graph/var_record.hpp>
+
 
 namespace gyper
 {
@@ -30,11 +32,20 @@ Label::Label(Label && l) noexcept
 {}
 
 
-Label::Label(uint32_t const & _order, std::vector<char> && _dna, uint16_t const & _variant_num) noexcept
+Label::Label(uint32_t const _order, std::vector<char> && _dna, uint32_t const _variant_num) noexcept
   : order(_order)
   , dna(std::move(_dna))
   , variant_num(_variant_num)
 {}
+
+
+Label::Label(uint32_t const _order, Alt && alt, uint32_t const _variant_num)
+  : order(_order)
+  , dna(std::move(alt.seq))
+  , variant_num(_variant_num)
+{
+  // TODO do stuff with events and anti_events
+}
 
 
 uint32_t

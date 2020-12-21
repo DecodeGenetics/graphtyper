@@ -30,7 +30,7 @@ TEST_CASE("Haplotype with one genotype")
     records.push_back(record);
   }
 
-  graph = gyper::Graph(false /*use_absolute_positions*/);
+  graph = gyper::Graph();
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion());
   graph.create_special_positions();
 

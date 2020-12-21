@@ -8,6 +8,12 @@
 #include <graphtyper/constants.hpp> // MAX_NUMBER_OF_HAPLOTYPES
 #include <graphtyper/graph/genotype.hpp> // gyper::Genotype
 #include <graphtyper/typer/var_stats.hpp> // gyper::MapQ
+#include <graphtyper/utilities/options.hpp>
+
+#ifdef GT_DEV
+#include <map>
+#include <unordered_map>
+#endif // GT_DEV
 
 namespace gyper
 {
@@ -35,6 +41,11 @@ struct HapSample
   /** Further statistics are only calculated when --stats option is used. Therefore only save a pointer to the other details. */
   std::unique_ptr<HapStats> stats{nullptr};
 #endif // NDEBUG
+
+#ifdef GT_DEV
+  // here I assume Haplotype::gts is of size 1
+  std::vector<std::map<uint16_t, std::vector<uint16_t> > > connections; // per allele support to another variant group
+#endif // GT_DEV
 
   /**
    * INFO
@@ -65,9 +76,7 @@ struct HapSample
    */
   void increment_ambiguous_depth();
   void increment_ambiguous_depth_alt();
-  void increment_allele_depth(std::size_t variant_index,
-                              std::size_t allele_index
-                              );
+  void increment_allele_depth(std::size_t variant_index, std::size_t allele_index);
   void increment_alt_proper_pair_depth();
 
 private:
@@ -84,6 +93,9 @@ public:
   std::vector<Genotype> gts{}; /** \brief A list of genotypes this haplotype has. */
   std::vector<HapSample> hap_samples{};
   std::vector<VarStats> var_stats{};
+
+  std::vector<uint16_t> coverage; // per gt
+  std::vector<std::bitset<MAX_NUMBER_OF_HAPLOTYPES> > explains; // per gt
 
   Haplotype() noexcept;
 
@@ -137,9 +149,6 @@ public:
    */
 
 private:
-  std::vector<uint16_t> coverage; // per gt
-  std::vector<std::bitset<MAX_NUMBER_OF_HAPLOTYPES> > explains; // per gt
-
   std::bitset<MAX_NUMBER_OF_HAPLOTYPES> find_which_haplotypes_explain_the_read(uint32_t cnum) const;
   std::vector<uint16_t> find_with_how_many_errors_haplotypes_explain_the_read(uint32_t cnum) const;
 };

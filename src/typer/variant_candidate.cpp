@@ -116,7 +116,7 @@ VariantCandidate::print() const
   Variant new_var;
   new_var.abs_pos = abs_pos;
   new_var.seqs = seqs;
-  return new_var.print();
+  return new_var.to_string();
 }
 
 

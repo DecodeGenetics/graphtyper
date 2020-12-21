@@ -8,6 +8,9 @@
 #include <vector>
 
 
+#include <graphtyper/graph/snp_event.hpp>
+
+
 namespace gyper
 {
 
@@ -16,23 +19,8 @@ std::array<char, 4> constexpr index2base = {'A', 'C', 'G', 'T'};
 long
 base2index(char const base);
 
-struct BaseCount
-{
-  std::array<int32_t, 4> acgt;
-  std::array<int64_t, 4> acgt_qualsum;
-  int32_t deleted{0};
-  int32_t unknown{0};
 
-  long get_depth_without_deleted() const;
-  long get_depth_with_deleted() const;
-  std::string to_string() const;
-
-  void add_base(char seq, char qual);
-
-};
-
-
-class IndelEvent
+class Event
 {
 public:
   // Event type is the same as the CIGAR mappings, that is:
@@ -44,14 +32,14 @@ public:
   char type{'\0'};
   std::vector<char> sequence{};
 
-  IndelEvent() = default;
+  Event() = default;
 
-  IndelEvent(uint32_t _pos, char _type)
+  Event(uint32_t _pos, char _type)
     : pos(_pos)
     , type(_type)
   {}
 
-  IndelEvent(uint32_t _pos, char _type, std::vector<char> && _sequence)
+  Event(uint32_t _pos, char _type, std::vector<char> && _sequence)
     : pos{_pos}
     , type{_type}
     , sequence{std::forward<std::vector<char> >(_sequence)}
@@ -69,44 +57,13 @@ public:
   /*********************
    * OPERATOR OVERLOAD *
    *********************/
-  bool operator==(IndelEvent const & b) const;
-  bool operator!=(IndelEvent const & b) const;
-  bool operator<(IndelEvent const & b) const;
+  bool operator==(Event const & b) const;
+  bool operator!=(Event const & b) const;
+  bool operator<(Event const & b) const;
 };
 
 
-class SnpEvent
-{
-public:
-  uint32_t pos{0};
-  char base{'N'};
-
-  SnpEvent() = default;
-  SnpEvent(uint32_t _pos, char _base)
-    : pos(_pos)
-    , base(_base)
-  {}
-
-  inline
-  std::string
-  to_string() const
-  {
-    std::ostringstream ss;
-    ss << pos << " " << base;
-    return ss.str();
-  }
-
-
-  /*********************
-   * OPERATOR OVERLOAD *
-   *********************/
-  bool operator==(SnpEvent const & b) const;
-  bool operator!=(SnpEvent const & b) const;
-  bool operator<(SnpEvent const & b) const;
-};
-
-
-class SnpEventInfo
+class EventSupport
 {
 public:
   uint16_t hq_count{0};
@@ -120,20 +77,36 @@ public:
   int32_t uniq_pos1{-1};
   int32_t uniq_pos2{-1};
   int32_t uniq_pos3{-1};
-  std::map<SnpEvent, uint16_t> phase;
+  std::map<Event, uint16_t> phase;
 
+  void clear();
+  int get_raw_support() const;
   double corrected_support() const;
   bool has_good_support(long const cov) const;
   std::string to_string() const;
+  uint32_t log_qual(uint32_t eps = 7) const;
+  bool is_good_indel(uint32_t eps = 7) const;
+
+  // indel things
+  uint16_t multi_count{0};
+  uint16_t anti_count{0};
+  uint16_t span{1};
+
+  bool has_realignment_support{false};
+  bool has_indel_good_support{false};
+
+  uint32_t max_log_qual{0};
+  int max_log_qual_file_i{-1};
+
 
 };
 
 
-std::vector<uint8_t> get_phred_biallelic(uint32_t count, uint32_t anti_count, uint32_t eps);
+//std::vector<uint8_t> get_phred_biallelic(uint32_t count, uint32_t anti_count, uint32_t eps);
 uint32_t get_log_qual(uint32_t count, uint32_t anti_count, uint32_t eps = 7);
 uint32_t get_log_qual_double(double count, double anti_count, double eps = 7.0);
 
-
+/*
 class EventInfo
 {
 public:
@@ -152,19 +125,20 @@ public:
   uint32_t log_qual(uint32_t eps = 7) const;
   void clean_counts();
 };
+*/
 
 
 bool
 apply_indel_event(std::vector<char> & sequence,
                   std::vector<int32_t> & ref_pos,
-                  IndelEvent const & indel_event,
+                  Event const & indel_event,
                   long const offset,
                   bool const is_debug = false);
 
-IndelEvent
+Event
 make_deletion_event(std::vector<char> const & reference_sequence, long ref_offset, int32_t pos, long count);
 
-IndelEvent
+Event
 make_insertion_event(int32_t pos, std::vector<char> && event_sequence);
 
 } // namespace gyper
@@ -174,10 +148,10 @@ namespace std
 {
 
 template <>
-struct hash<gyper::IndelEvent>
+struct hash<gyper::Event>
 {
   size_t
-  operator()(gyper::IndelEvent const & event)
+  operator()(gyper::Event const & event)
   {
     size_t h1 = std::hash<uint32_t>()(event.pos);
     size_t h2 = std::hash<char>()(event.type);
@@ -199,6 +173,6 @@ namespace gyper
 {
 
 //using Tevents = phmap::node_hash_map<Event, uint32_t>;
-using Tindel_events = std::map<IndelEvent, EventInfo>; // maps events to count
+using Tindel_events = std::map<Event, EventSupport>; // maps events to count
 
 } // namespace gyper

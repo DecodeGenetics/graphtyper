@@ -36,12 +36,12 @@ prefix_match(std::vector<char> const & seq1, std::vector<char> const & seq2)
 
 
 bool
-has_matching_longest_prefix(std::vector<char> const & ref, std::vector<std::vector<char> > const & alts)
+has_matching_longest_prefix(std::vector<char> const & ref, std::vector<gyper::Alt> const & alts)
 {
   // Check reference
   for (uint32_t a = 0; a < alts.size(); ++a)
   {
-    if (prefix_match(ref, alts[a]))
+    if (prefix_match(ref, alts[a].seq))
       return true;
   }
 
@@ -51,10 +51,10 @@ has_matching_longest_prefix(std::vector<char> const & ref, std::vector<std::vect
   {
     for (uint32_t j = i + 1; j < alts.size(); ++j)
     {
-      if (prefix_match(alts[i], alts[j]))
+      if (prefix_match(alts[i].seq, alts[j].seq))
       {
         // Detect if there are duplicate alt alleles
-        if (alts[i] == alts[j])
+        if (alts[i].seq == alts[j].seq)
         {
           BOOST_LOG_TRIVIAL(error) << __HERE__ << " Duplicated alt. alleles detected. "
                                    << "Aborting constructing graph.";
@@ -176,36 +176,36 @@ GenomicRegion::to_string() const
 }
 
 
-uint32_t
+long
 GenomicRegion::get_absolute_begin_position() const
 {
   return absolute_pos.get_absolute_position(chr, begin + 1);
 }
 
 
-uint32_t
+long
 GenomicRegion::get_absolute_end_position() const
 {
   return absolute_pos.get_absolute_position(chr, end + 1);
 }
 
 
-uint32_t
-GenomicRegion::get_absolute_position(std::string const & chromosome, uint32_t contig_position) const
+long
+GenomicRegion::get_absolute_position(std::string const & chromosome, long contig_position) const
 {
   return absolute_pos.get_absolute_position(chromosome, contig_position);
 }
 
 
-uint32_t
-GenomicRegion::get_absolute_position(uint32_t contig_position) const
+long
+GenomicRegion::get_absolute_position(long contig_position) const
 {
   return absolute_pos.get_absolute_position(chr, contig_position);
 }
 
 
-std::pair<std::string, uint32_t>
-GenomicRegion::get_contig_position(uint32_t absolute_position, Graph const & graph) const
+std::pair<std::string, long>
+GenomicRegion::get_contig_position(long absolute_position, Graph const & graph) const
 {
   return absolute_pos.get_contig_position(absolute_position, graph.contigs);
 }
@@ -217,25 +217,25 @@ GenomicRegion::check_if_var_records_match_reference_genome(std::vector<VarRecord
 {
   for (auto const & record : var_records)
   {
-    uint32_t const pos = record.pos;
+    long const pos = record.pos;
 
-    if (pos >= GenomicRegion::begin + reference.size() || GenomicRegion::begin > pos)
+    if (pos >= static_cast<long>(GenomicRegion::begin + reference.size()) || GenomicRegion::begin > pos)
       continue;
 
-    assert(record.ref.size() > 0);
-    assert(record.ref[0] != '.');
+    assert(record.ref.seq.size() > 0);
+    assert(record.ref.seq[0] != '.');
 
     auto start_it = reference.begin() + (pos - GenomicRegion::begin);
     std::size_t const ref_len = std::min(static_cast<std::size_t>(std::distance(start_it, reference.end())),
-                                         record.ref.size());
+                                         record.ref.seq.size());
 
     std::vector<char> const reference_ref(start_it, start_it + ref_len);
 
-    if (reference_ref.size() > 0 && !prefix_match(record.ref, reference_ref))
+    if (reference_ref.size() > 0 && !prefix_match(record.ref.seq, reference_ref))
     {
-      BOOST_LOG_TRIVIAL(warning) << "[" << __HERE__ << "] Record @ position " << pos
+      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Record @ position " << pos
                                  << " (REF = "
-                                 << std::string(record.ref.begin(), record.ref.end()) << ')'
+                                 << std::string(record.ref.seq.begin(), record.ref.seq.end()) << ')'
                                  << " did not match the reference genome ("
                                  << std::string(reference_ref.begin(), reference_ref.end()) << ")";
     }
@@ -250,18 +250,18 @@ GenomicRegion::add_reference_to_record_if_they_have_a_matching_prefix(VarRecord 
   if (var_record.is_sv)
     return;
 
-  auto start_it = reference.begin() + (var_record.pos - GenomicRegion::begin) + var_record.ref.size();
+  auto start_it = reference.begin() + (var_record.pos - GenomicRegion::begin) + var_record.ref.seq.size();
   assert(std::distance(reference.begin(), start_it) <= static_cast<int64_t>(reference.size()));
 
-  while (start_it != reference.end() && *start_it != 'N' &&
-         has_matching_longest_prefix(var_record.ref, var_record.alts)
-         )
+  while (start_it != reference.end() &&
+         *start_it != 'N' &&
+         has_matching_longest_prefix(var_record.ref.seq, var_record.alts))
   {
     // Add base to back
-    var_record.ref.push_back(*start_it);
+    var_record.ref.seq.push_back(*start_it);
 
     for (auto & alt : var_record.alts)
-      alt.push_back(*start_it);
+      alt.seq.push_back(*start_it);
 
     ++start_it;
   }

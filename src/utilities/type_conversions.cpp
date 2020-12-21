@@ -36,6 +36,7 @@ to_uint64(char const c)
 
   default:
     BOOST_LOG_TRIVIAL(warning) << "[graphtyper::type_conversions] Invalid character " << c;
+    std::exit(1);
     return 0ul;
   }
 }

@@ -27,7 +27,7 @@ void
 find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read,
                                             gyper::GenotypePaths & geno,
                                             gyper::PHIndex const & ph_index,
-                                            gyper::Graph const & graph = gyper::graph)
+                                            gyper::Graph const & graph)
 {
   using namespace gyper;
 
@@ -113,38 +113,6 @@ find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read,
 #endif // NDEBUG
 }
 
-
-/*
-bool
-is_clipped(bam1_t const & b)
-{
-  if (b.core.n_cigar == 0)
-    return false;
-
-  auto it = b.data + b.core.l_qname;
-
-  // Check first
-  uint32_t opAndCnt;
-  memcpy(&opAndCnt, it, sizeof(uint32_t));
-
-  if ((opAndCnt & 15) == 4)
-  {
-    //std::cerr << "MIDNSHP=X*******"[opAndCnt & 15] << " first ";
-    return true;
-  }
-
-  // Check last
-  memcpy(&opAndCnt, it + sizeof(uint32_t) * (b.core.n_cigar - 1), sizeof(uint32_t));
-
-  if ((opAndCnt & 15) == 4)
-  {
-    //std::cerr << "MIDNSHP=X*******"[opAndCnt & 15] << " last ";
-    return true;
-  }
-
-  return false;
-}
-*/
 
 long
 clipped_count(bam1_t const & b)
@@ -397,11 +365,24 @@ align_read(bam1_t * rec,
   if (seqan::length(seq) < (2 * K - 1))
     return geno_paths;
 
-  find_genotype_paths_of_one_of_the_sequences(seq, geno_paths.first, ph_index);
-  find_genotype_paths_of_one_of_the_sequences(rseq, geno_paths.second, ph_index);
-  //uint8_t const score_diff = get_score_diff(rec);
-  //geno_paths.first.score_diff = score_diff;
-  //geno_paths.second.score_diff = score_diff;
+  if ((core.flag & IS_PAIRED) == 0u ||
+      (core.tid == core.mtid &&
+       core.isize > -1200 &&
+       core.isize < 1200 &&
+       (((core.flag & IS_SEQ_REVERSED) != 0u) != ((core.flag & IS_MATE_SEQ_REVERSED) != 0u))))
+  {
+    find_genotype_paths_of_one_of_the_sequences(seq, geno_paths.first, ph_index, graph);
+
+    // skip reverse orientation graph alignment if the read fulfills the above.. unless
+    if (Options::const_instance()->force_align_both_orientations)
+      find_genotype_paths_of_one_of_the_sequences(rseq, geno_paths.second, ph_index, graph);
+  }
+  else
+  {
+    find_genotype_paths_of_one_of_the_sequences(seq, geno_paths.first, ph_index, graph);
+    find_genotype_paths_of_one_of_the_sequences(rseq, geno_paths.second, ph_index, graph);
+  }
+
   return geno_paths;
 }
 

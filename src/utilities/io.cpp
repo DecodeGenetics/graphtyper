@@ -30,7 +30,7 @@ get_sample_name_from_bam_header(std::string const & hts_filename,
 
   if (!open(hts_file, hts_filename.c_str()))
   {
-    BOOST_LOG_TRIVIAL(error) << "[graphtyper::utilities::io] Could not open " << hts_filename << " for reading";
+    BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not open " << hts_filename << " for reading";
     std::exit(1);
   }
 
@@ -70,8 +70,7 @@ get_sample_name_from_bam_header(std::string const & hts_filename,
       std::string new_sample = line_it.substr(pos_samp + 4, pos_samp_ends - pos_samp - 4);
 
 #ifndef NDEBUG
-      BOOST_LOG_TRIVIAL(debug) << "[graphtyper::utilities::io] Added RG: '"
-                               << new_id << "' => '" << new_sample << "'";
+      BOOST_LOG_TRIVIAL(debug) << __HERE__ << "  Added RG: '" << new_id << "' => '" << new_sample << "'";
 #endif // NDEBUG
 
       auto find_it = std::find(samples.begin(), samples.end(), new_sample);

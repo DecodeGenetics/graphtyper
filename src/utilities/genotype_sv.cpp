@@ -105,8 +105,7 @@ genotype_sv(std::string ref_path,
 
     {
       bool constexpr is_sv_graph{true};
-      bool constexpr use_absolute_positions{true};
-      bool constexpr check_index{true};
+      bool constexpr use_index{true};
 
       BOOST_LOG_TRIVIAL(info) << "Constructing graph.";
 
@@ -114,8 +113,7 @@ genotype_sv(std::string ref_path,
                              sv_vcf,
                              padded_region.to_string(),
                              is_sv_graph,
-                             use_absolute_positions,
-                             check_index);
+                             use_index);
 
       BOOST_LOG_TRIVIAL(info) << "Calculating contig offsets.";
 
@@ -129,6 +127,7 @@ genotype_sv(std::string ref_path,
 
     PHIndex ph_index = index_graph(gyper::graph);
     std::string reference_fn{}; // empty by default
+    std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > ph;
 
     if (Options::const_instance()->force_use_input_ref_for_cram_reading)
       reference_fn = ref_path;
@@ -142,6 +141,7 @@ genotype_sv(std::string ref_path,
                   reference_fn, // reference
                   unpadded_region.to_string(), // region
                   nullptr,
+                  ph,
                   5,//minimum_variant_support,
                   0.25,//minimum_variant_support_ratio,
                   is_writing_calls_vcf,

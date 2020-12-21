@@ -1,3 +1,4 @@
+#include <cassert> // assert
 #include <bitset> // std::bitset<Size>
 #include <vector> // std::vector<Type>
 

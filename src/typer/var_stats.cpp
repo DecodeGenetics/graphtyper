@@ -11,6 +11,7 @@
 #include <boost/algorithm/string/split.hpp> // boost::split
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>
+#include <boost/lexical_cast.hpp>
 #include <boost/serialization/vector.hpp>
 
 #include <graphtyper/graph/absolute_position.hpp> // gyper::absolute_pos
@@ -172,6 +173,177 @@ VarStats::add_stats(VarStats const & stats)
     new_rs.r1_reverse += old_rs.r1_reverse;
     new_rs.r2_forward += old_rs.r2_forward;
     new_rs.r2_reverse += old_rs.r2_reverse;
+  }
+}
+
+
+void
+VarStats::read_stats(std::map<std::string, std::string> const & infos)
+{
+  {
+    auto find_it = infos.find("CR");
+
+    if (find_it != infos.end())
+      clipped_reads += std::strtoull(find_it->second.c_str(), NULL, 10);
+  }
+
+  {
+    auto find_it = infos.find("MQsquared");
+
+    if (find_it != infos.end())
+      mapq_squared += std::strtoull(find_it->second.c_str(), NULL, 10);
+  }
+
+  {
+    auto find_it = infos.find("SBF1");
+
+    if (find_it != infos.end())
+    {
+      std::stringstream ss(find_it->second);
+      long i{0};
+
+      for (uint32_t num; ss >> num; ++i)
+      {
+        assert(i < static_cast<long>(read_strand.size()));
+        read_strand[i].r1_forward += num;
+
+        if (ss.peek() == ',')
+          ss.ignore();
+      }
+    }
+  }
+
+  {
+    auto find_it = infos.find("SBF2");
+
+    if (find_it != infos.end())
+    {
+      std::stringstream ss(find_it->second);
+      long i{0};
+
+      for (uint32_t num; ss >> num; ++i)
+      {
+        assert(i < static_cast<long>(read_strand.size()));
+        read_strand[i].r2_forward += num;
+
+        if (ss.peek() == ',')
+          ss.ignore();
+      }
+    }
+  }
+
+  {
+    auto find_it = infos.find("SBR1");
+
+    if (find_it != infos.end())
+    {
+      std::stringstream ss(find_it->second);
+      long i{0};
+
+      for (uint32_t num; ss >> num; ++i)
+      {
+        assert(i < static_cast<long>(read_strand.size()));
+        read_strand[i].r1_reverse += num;
+
+        if (ss.peek() == ',')
+          ss.ignore();
+      }
+    }
+  }
+
+  {
+    auto find_it = infos.find("SBR2");
+
+    if (find_it != infos.end())
+    {
+      std::stringstream ss(find_it->second);
+      long i{0};
+
+      for (uint32_t num; ss >> num; ++i)
+      {
+        assert(i < static_cast<long>(read_strand.size()));
+        read_strand[i].r2_reverse += num;
+
+        if (ss.peek() == ',')
+          ss.ignore();
+      }
+    }
+  }
+
+  {
+    auto find_it = infos.find("CRal");
+
+    if (find_it != infos.end())
+    {
+      std::stringstream ss(find_it->second);
+      long i{0};
+
+      for (uint32_t num; ss >> num; ++i)
+      {
+        assert(i < static_cast<long>(per_allele.size()));
+        per_allele[i].clipped_bp += num;
+
+        if (ss.peek() == ',')
+          ss.ignore();
+      }
+    }
+  }
+
+  {
+    auto find_it = infos.find("MQSal");
+
+    if (find_it != infos.end())
+    {
+      std::stringstream ss(find_it->second);
+      long i{0};
+
+      for (uint32_t num; ss >> num; ++i)
+      {
+        assert(i < static_cast<long>(per_allele.size()));
+        per_allele[i].mapq_squared += num;
+
+        if (ss.peek() == ',')
+          ss.ignore();
+      }
+    }
+  }
+
+  {
+    auto find_it = infos.find("SDal");
+
+    if (find_it != infos.end())
+    {
+      std::stringstream ss(find_it->second);
+      long i{0};
+
+      for (uint32_t num; ss >> num; ++i)
+      {
+        assert(i < static_cast<long>(per_allele.size()));
+        per_allele[i].score_diff += num;
+
+        if (ss.peek() == ',')
+          ss.ignore();
+      }
+    }
+  }
+
+  {
+    auto find_it = infos.find("MMal");
+
+    if (find_it != infos.end())
+    {
+      std::stringstream ss(find_it->second);
+      long i{0};
+
+      for (uint32_t num; ss >> num; ++i)
+      {
+        assert(i < static_cast<long>(per_allele.size()));
+        per_allele[i].mismatches += num;
+
+        if (ss.peek() == ',')
+          ss.ignore();
+      }
+    }
   }
 }
 

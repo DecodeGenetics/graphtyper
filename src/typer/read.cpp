@@ -34,42 +34,91 @@ Alignment::is_clipped() const
 
 
 void
-Alignment::add_indel_event(int32_t pos, Tindel_events::iterator indel_it)
+Alignment::add_indel_event(int32_t pos, uint16_t flags, uint8_t mapq, Tindel_events::iterator indel_it)
 {
   if (pos == READ_ANTI_SUPPORT)
+  {
     ++indel_it->second.anti_count;
+  }
   else if (pos == READ_MULTI_SUPPORT)
+  {
     ++indel_it->second.multi_count;
+  }
   else
-    ++indel_it->second.count;
+  {
+    auto & indel_info = indel_it->second;
+    ++indel_info.hq_count;
+
+    if ((flags & IS_SEQ_REVERSED) != 0u)
+      ++indel_info.sequence_reversed;
+
+    if ((flags & IS_PROPER_PAIR) != 0u)
+      ++indel_info.proper_pairs;
+
+    if (mapq < 255 && mapq > indel_info.max_mapq)
+      indel_info.max_mapq = mapq;
+  }
 
   indel_events.push_back({pos, indel_it});
 }
 
 
 void
-Alignment::replace_indel_events(std::vector<ReadIndelEvent> && new_indel_events)
+Alignment::replace_indel_events(uint16_t flags, uint8_t mapq, std::vector<ReadIndelEvent> && new_indel_events)
 {
   // Lower count on old events
   for (auto & event_and_info : indel_events)
   {
     if (event_and_info.read_pos == READ_ANTI_SUPPORT)
+    {
       --event_and_info.event_it->second.anti_count;
+    }
     else if (event_and_info.read_pos == READ_MULTI_SUPPORT)
+    {
       --event_and_info.event_it->second.multi_count;
+    }
     else
-      --event_and_info.event_it->second.count;
+    {
+      --event_and_info.event_it->second.hq_count;
+
+      if ((flags & IS_SEQ_REVERSED) != 0u)
+      {
+        assert(event_and_info.event_it->second.sequence_reversed > 0);
+        --event_and_info.event_it->second.sequence_reversed;
+      }
+
+      if ((flags & IS_PROPER_PAIR) != 0u)
+      {
+        assert(event_and_info.event_it->second.proper_pairs > 0);
+        --event_and_info.event_it->second.proper_pairs;
+      }
+    }
   }
 
   // Increase count on new events
   for (auto & event_and_info : new_indel_events)
   {
     if (event_and_info.read_pos == READ_ANTI_SUPPORT)
+    {
       ++event_and_info.event_it->second.anti_count;
+    }
     else if (event_and_info.read_pos == READ_MULTI_SUPPORT)
+    {
       ++event_and_info.event_it->second.multi_count;
+    }
     else
-      ++event_and_info.event_it->second.count;
+    {
+      ++event_and_info.event_it->second.hq_count;
+
+      if ((flags & IS_SEQ_REVERSED) != 0u)
+        ++event_and_info.event_it->second.sequence_reversed;
+
+      if ((flags & IS_PROPER_PAIR) != 0u)
+        ++event_and_info.event_it->second.proper_pairs;
+
+      if (mapq < 255 && mapq > event_and_info.event_it->second.max_mapq)
+        event_and_info.event_it->second.max_mapq = mapq;
+    }
   }
 
   indel_events = std::move(new_indel_events);

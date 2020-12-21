@@ -42,8 +42,7 @@ bool
 parse_info_int(std::string const check_if_key,
                std::string const & key,
                std::string const & val,
-               Tint & parsed_val
-               )
+               Tint & parsed_val)
 {
   if (check_if_key == key)
   {
@@ -54,7 +53,7 @@ parse_info_int(std::string const check_if_key,
 
     if (!is.eof())
     {
-      BOOST_LOG_TRIVIAL(error) << "[" << __HERE__ << "] ERROR: Could not parse "
+      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not parse "
                                << check_if_key
                                << " from the INFO field (val = '"
                                << val
@@ -73,8 +72,7 @@ bool
 parse_info_str(std::string const check_if_key,
                std::string const & key,
                std::string const & val,
-               std::vector<char> & parsed_val
-               )
+               std::vector<char> & parsed_val)
 {
   if (check_if_key == key)
   {
@@ -95,8 +93,7 @@ bool
 parse_info_sv_type(std::string const check_if_key,
                    std::string const & key,
                    std::string const & val,
-                   gyper::SVTYPE & parsed_val
-                   )
+                   gyper::SVTYPE & parsed_val)
 {
   using namespace gyper;
 
@@ -201,7 +198,7 @@ open_reference_genome(seqan::FaiIndex & fasta_index, std::string const & fasta_f
 
     if (!f.is_open() || f.eof())
     {
-      BOOST_LOG_TRIVIAL(error) << "[" << __HERE__ << "] Failed to open FASTA index '"
+      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Failed to open FASTA index '"
                                << fasta_filename << ".fai'";
       std::exit(111);
     }
@@ -218,21 +215,6 @@ open_reference_genome(seqan::FaiIndex & fasta_index, std::string const & fasta_f
     }
 
     f.close();
-  }
-
-  // Check if the total length of contigs is too large
-  {
-    uint64_t sum = 0;
-
-    for (gyper::Contig const & contig : gyper::graph.contigs)
-      sum += contig.length;
-
-    if (sum > 0x00000000FFFFFFFFull)
-    {
-      BOOST_LOG_TRIVIAL(error) << "[" << __HERE__ << "] Graphtyper only supports references "
-                               << "with a total length less than 4,294,967,295 (2^32 - 1)\n";
-      std::exit(112);
-    }
   }
 
   if (!seqan::open(fasta_index, fasta_filename.c_str()))
@@ -265,7 +247,11 @@ complement(char const c)
 
   case 'T': return 'A';
 
-  default: return c;
+  case 'N': return 'N';
+
+  default:
+    BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Could not complement base=" << c;
+    return c;
   }
 }
 
@@ -365,69 +351,71 @@ add_sv_breakend(SV & sv,
                 uint32_t const EXTRA_SEQUENCE_LENGTH)
 {
   // Read the first matching reference base
-  read_reference_seq(var.ref, fasta_index, chrom_idx, var.pos, 1);
+  read_reference_seq(var.ref.seq, fasta_index, chrom_idx, var.pos, 1);
 
-  assert(var.ref.size() > 0);
+  assert(var.ref.seq.size() > 0);
   std::vector<char> alt(seqan::begin(vcf_record.alt), seqan::end(vcf_record.alt));
   sv.original_alt = alt;
 
   auto invalid_bnd_alt = [&var, &alt]()
                          {
-                           BOOST_LOG_TRIVIAL(error) << "[" << __HERE__ << "] Invalid breakend alt allele: "
+                           BOOST_LOG_TRIVIAL(error) << __HERE__ << " Invalid breakend alt allele: "
                                                     << std::string(begin(alt), end(alt))
                                                     << " at position " << var.pos;
                            std::exit(2);
                          };
 
-  auto parse_chromosome_name = [&](std::vector<char> const & seq, char const c) -> std::string
-                               {
-                                 auto find_it = std::find(seq.begin(), seq.end(), c);
-                                 auto find_last_colon_it = std::find(seq.rbegin(), seq.rend(), ':');
+  auto parse_chromosome_name =
+    [&](std::vector<char> const & seq, char const c) -> std::string
+    {
+      auto find_it = std::find(seq.begin(), seq.end(), c);
+      auto find_last_colon_it = std::find(seq.rbegin(), seq.rend(), ':');
 
-                                 if (find_last_colon_it == seq.rend())
-                                   invalid_bnd_alt();
+      if (find_last_colon_it == seq.rend())
+        invalid_bnd_alt();
 
-                                 long const colon_pos = seq.size() -
-                                                        std::distance(seq.rbegin(), find_last_colon_it) - 1;
-                                 assert(colon_pos < static_cast<long>(seq.size()));
-                                 assert(colon_pos >= 0);
-                                 auto find_colon_it = seq.begin() + colon_pos;
+      long const colon_pos = seq.size() -
+                             std::distance(seq.rbegin(), find_last_colon_it) - 1;
+      assert(colon_pos < static_cast<long>(seq.size()));
+      assert(colon_pos >= 0);
+      auto find_colon_it = seq.begin() + colon_pos;
 
-                                 if (find_colon_it == seq.end())
-                                   invalid_bnd_alt();
+      if (find_colon_it == seq.end())
+        invalid_bnd_alt();
 
-                                 return std::string(find_it + 1, find_colon_it);
-                               };
+      return std::string(find_it + 1, find_colon_it);
+    };
 
-  auto parse_position = [&](std::vector<char> const & seq, char const c) -> long
-                        {
-                          auto find_last_colon_it = std::find(seq.rbegin(), seq.rend(), ':');
+  auto parse_position =
+    [&](std::vector<char> const & seq, char const c) -> long
+    {
+      auto find_last_colon_it = std::find(seq.rbegin(), seq.rend(), ':');
 
-                          if (find_last_colon_it == seq.rend())
-                            invalid_bnd_alt();
+      if (find_last_colon_it == seq.rend())
+        invalid_bnd_alt();
 
-                          long const colon_pos = seq.size() -
-                                                 std::distance(seq.rbegin(), find_last_colon_it) - 1;
-                          assert(colon_pos < static_cast<long>(seq.size()));
-                          assert(colon_pos >= 0);
-                          auto find_colon_it = seq.begin() + colon_pos;
+      long const colon_pos = seq.size() -
+                             std::distance(seq.rbegin(), find_last_colon_it) - 1;
+      assert(colon_pos < static_cast<long>(seq.size()));
+      assert(colon_pos >= 0);
+      auto find_colon_it = seq.begin() + colon_pos;
 
-                          auto find_end_it = std::find(find_colon_it + 1, seq.end(), c);
+      auto find_end_it = std::find(find_colon_it + 1, seq.end(), c);
 
-                          if (find_end_it == seq.end())
-                            invalid_bnd_alt();
+      if (find_end_it == seq.end())
+        invalid_bnd_alt();
 
-                          long pos{0};
-                          std::istringstream ss {
-                            std::string(find_colon_it + 1, find_end_it)
-                          };
-                          ss >> pos;
+      long pos{0};
+      std::istringstream ss {
+        std::string(find_colon_it + 1, find_end_it)
+      };
+      ss >> pos;
 
-                          if (!ss.eof())
-                            invalid_bnd_alt();
+      if (!ss.eof())
+        invalid_bnd_alt();
 
-                          return pos;
-                        };
+      return pos;
+    };
 
   assert(std::count(begin(alt), end(alt), ',') == 0); // Not multi-allelic
   auto find_it = std::find(alt.begin(), alt.end(), '[');
@@ -443,7 +431,7 @@ add_sv_breakend(SV & sv,
     {
       // Case 1: S SNNN[chr:pos[ => Extending sequence right of chr:pos
       BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] BND variant case 1 @ " << var.pos + 1;
-      bnd = std::vector<char>(var.ref);
+      bnd = std::vector<char>(var.ref.seq);
       std::copy(alt.begin() + 1, find_it, std::back_inserter(bnd)); // Extra insertion
 
       // Length to extract from the mate locus
@@ -501,7 +489,7 @@ add_sv_breakend(SV & sv,
     }
     else
     {
-      bnd = std::vector<char>(var.ref);
+      bnd = std::vector<char>(var.ref.seq);
       // Case 4: S SNN]chr:pos] => Take sequence from chr:pos, reverse complement it and extend it
       // to the right of S
       BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] BND variant case 4 @ " << var.pos + 1;
@@ -518,7 +506,7 @@ add_sv_breakend(SV & sv,
   }
 
   // Append SV tag
-  var.alts.push_back(std::move(bnd));
+  var.alts.push_back(Alt(std::move(bnd)));
 
   // Add the SV
   graph.SVs.push_back(std::move(sv));
@@ -533,10 +521,10 @@ add_sv_deletion(SV & sv,
                 uint32_t const EXTRA_SEQUENCE_LENGTH)
 {
   // Read the first matching reference base
-  read_reference_seq(var.ref, fasta_index, chrom_idx, var.pos, 1);
+  read_reference_seq(var.ref.seq, fasta_index, chrom_idx, var.pos, 1);
 
   // Read the alternative allele
-  std::vector<char> alt1(var.ref);
+  std::vector<char> alt1(var.ref.seq);
 
   // If there is any inserted sequence, append it
   if (sv.seq.size() > 0 && sv.seq[0] != '.')
@@ -551,8 +539,7 @@ add_sv_deletion(SV & sv,
                        fasta_index,
                        chrom_idx,
                        var.pos + sv.seq.size() + sv.size + 1,
-                       static_cast<unsigned>(EXTRA_SEQUENCE_LENGTH + 1 - alt1.size())
-                       );
+                       static_cast<unsigned>(EXTRA_SEQUENCE_LENGTH + 1 - alt1.size()));
   }
 
   // Append SV tag
@@ -576,9 +563,9 @@ add_sv_insertion(SV & sv,
   assert(seqan::length(vcf_record.ref) >= 1);
 
   if (static_cast<char>(vcf_record.ref[0]) != 'N')
-    var.ref = std::vector<char>(begin(vcf_record.ref), end(vcf_record.ref));
+    var.ref.seq = std::vector<char>(begin(vcf_record.ref), end(vcf_record.ref));
   else
-    read_reference_seq(var.ref, fasta_index, chrom_idx, var.pos, 1);
+    read_reference_seq(var.ref.seq, fasta_index, chrom_idx, var.pos, 1);
 
   if (!sv.seq.empty())
   {
@@ -610,7 +597,7 @@ add_sv_insertion(SV & sv,
                 sv.seq.end(),
                 std::back_inserter(alt2));
 
-      sv.related_sv = static_cast<int>(graph.SVs.size()) - 1;  // Previous SV is related
+      sv.related_sv = static_cast<int>(graph.SVs.size()) - 1; // Previous SV is related
       sv.model = "BREAKPOINT2";
       graph.SVs.push_back(std::move(sv));
     }
@@ -664,8 +651,7 @@ add_sv_insertion(SV & sv,
                                                        chrom_idx,
                                                        sv.or_start - 1,
                                                        sv.or_end,
-                                                       EXTRA_SEQUENCE_LENGTH
-                                                       );
+                                                       EXTRA_SEQUENCE_LENGTH);
 
     /// Both breakpoints are entirely in the sequence if it is greater or equal to the
     /// EXTRA_SEQUENCE_LENGTH
@@ -750,7 +736,7 @@ add_sv_insertion(SV & sv,
 
       {
         // Breakpoint 1
-        std::vector<char> alt1(var.ref);
+        std::vector<char> alt1(var.ref.seq);
         std::move(begin(left), end(left), std::back_inserter(alt1));
         append_sv_tag_to_node(alt1);
         sv.model = "BREAKPOINT1";
@@ -773,7 +759,7 @@ add_sv_insertion(SV & sv,
     else if (left.size() > 1)
     {
       BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Only breakpoint 1 defined.";
-      std::vector<char> alt1(var.ref);
+      std::vector<char> alt1(var.ref.seq);
       std::move(begin(left), end(left), std::back_inserter(alt1));
       append_sv_tag_to_node(alt1);
       sv.model = "BREAKPOINT1";
@@ -810,7 +796,7 @@ add_sv_duplication(std::vector<VarRecord> & var_records,
                    )
 {
   // Read the first matching reference base
-  read_reference_seq(var.ref, fasta_index, chrom_idx, var.pos, 1);
+  read_reference_seq(var.ref.seq, fasta_index, chrom_idx, var.pos, 1);
 
   if (sv.or_end == -1)
   {
@@ -839,9 +825,9 @@ add_sv_duplication(std::vector<VarRecord> & var_records,
       var.pos += sv.length;
 
       // Re-read the reference base with the new position
-      var.ref.clear();
-      read_reference_seq(var.ref, fasta_index, chrom_idx, var.pos, 1);
-      std::vector<char> dup_begin(var.ref);
+      var.ref.seq.clear();
+      read_reference_seq(var.ref.seq, fasta_index, chrom_idx, var.pos, 1);
+      std::vector<char> dup_begin(var.ref.seq);
       std::copy(sv.ins_seq.begin(), sv.ins_seq.end(), std::back_inserter(dup_begin));
       std::vector<char> dup_end;
 
@@ -911,7 +897,7 @@ add_sv_duplication(std::vector<VarRecord> & var_records,
                                << sv.or_start
                                << " but OREND=N/A. Only one of the breakpoints is known";
 
-      std::vector<char> dup_begin(var.ref);
+      std::vector<char> dup_begin(var.ref.seq);
       std::copy(sv.ins_seq.begin(), sv.ins_seq.end(), std::back_inserter(dup_begin));
       read_reference_seq(dup_begin, fasta_index, chrom_idx, sv.or_start - 1,
                          EXTRA_SEQUENCE_LENGTH);
@@ -963,7 +949,7 @@ add_sv_inversion(std::vector<VarRecord> & var_records,
                  uint32_t const EXTRA_SEQUENCE_LENGTH)
 {
   // Read the first matching reference base
-  read_reference_seq(var.ref, fasta_index, chrom_idx, var.pos, 1);
+  read_reference_seq(var.ref.seq, fasta_index, chrom_idx, var.pos, 1);
 
   if (sv.inv_type == INV3)
   {
@@ -975,7 +961,7 @@ add_sv_inversion(std::vector<VarRecord> & var_records,
     sv.begin += sv.size;
     var.pos += sv.size;
     var.ref.clear();
-    read_reference_seq(var.ref, fasta_index, chrom_idx, var.pos, 1);
+    read_reference_seq(var.ref.seq, fasta_index, chrom_idx, var.pos, 1);
   }
 
   if (sv.or_end == -1)
@@ -999,17 +985,17 @@ add_sv_inversion(std::vector<VarRecord> & var_records,
       std::vector<char> inv(dup.rbegin(), dup.rend());
       std::transform(inv.begin(), inv.end(), inv.begin(), complement);
 
-      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Inverted sequence: " << std::string(
+      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Inverted sequence: " << std::string(
         inv.begin(),
         inv.end());
 
-      std::vector<char> inv_begin(var.ref);
+      std::vector<char> inv_begin(var.ref.seq);
       std::copy(sv.ins_seq.begin(), sv.ins_seq.end(), std::back_inserter(inv_begin));
 
       VarRecord var2(var); // First breakpoint is at a different location
       var2.pos += sv.length;
       var2.ref.clear();
-      read_reference_seq(var2.ref, fasta_index, chrom_idx, var2.pos, 1);
+      read_reference_seq(var2.ref.seq, fasta_index, chrom_idx, var2.pos, 1);
       std::vector<char> inv_end;
 
       // Both breakpoints are in the inverted sequence if it is greater or equal to the
@@ -1056,8 +1042,7 @@ add_sv_inversion(std::vector<VarRecord> & var_records,
                            fasta_index,
                            chrom_idx,
                            var2.pos - padding_size + 1,
-                           padding_size
-                           );
+                           padding_size);
 
         std::move(inv.begin(), inv.end(), std::back_inserter(inv_end));
         std::copy(sv.ins_seq.begin(), sv.ins_seq.end(), std::back_inserter(inv_end));
@@ -1098,14 +1083,13 @@ add_sv_inversion(std::vector<VarRecord> & var_records,
     // Case 3: OREND given but ORSTART not. Only one of the breakpoints is known
     // Duplication starts after: beginPos
     // Duplicated sequence is [OREND - 150, OREND]
-    BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Case 3: OREND="
+    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Case 3: OREND="
                              << sv.or_end
                              << " but ORSTART=N/A. Only one of the breakpoints is known";
 
     // Do not read before the chromosome starts!
     std::size_t const start_reading_at = std::max(static_cast<std::size_t>(EXTRA_SEQUENCE_LENGTH),
-                                                  static_cast<std::size_t>(sv.or_end)
-                                                  );
+                                                  static_cast<std::size_t>(sv.or_end));
 
     std::vector<char> dup;
     read_reference_seq(dup,
@@ -1116,7 +1100,7 @@ add_sv_inversion(std::vector<VarRecord> & var_records,
 
     std::transform(dup.begin(), dup.end(), dup.begin(), complement);
 
-    std::vector<char> inv(var.ref);
+    std::vector<char> inv(var.ref.seq);
     std::copy(sv.ins_seq.begin(), sv.ins_seq.end(), std::back_inserter(inv));
     std::copy(dup.rbegin(), dup.rend(), std::back_inserter(inv));
     append_sv_tag_to_node(inv);
@@ -1154,7 +1138,7 @@ split_multi_allelic(seqan::VcfRecord && vcf_record)
     return vcf_records;
   }
 
-  // Parse the INFO field
+  // Parse the ALT field
   seqan::StringSet<seqan::CharString> alts;
   seqan::strSplit(alts, vcf_record.alt, seqan::EqualsChar<','>());
   assert(NUM_ALT_ALLELES == static_cast<long>(length(alts)));
@@ -1324,6 +1308,13 @@ add_var_record(std::vector<VarRecord> & var_records,
     return;
   }
 
+  // Should always be biallelic at this point
+  assert(!std::any_of(seqan::begin(vcf_record.alt),
+                      seqan::end(vcf_record.alt),
+                      [](char c){
+      return c == ',';
+    }));
+
   VarRecord var(static_cast<uint32_t>(vcf_record.beginPos));
 
   var.is_sv = false;
@@ -1340,7 +1331,7 @@ add_var_record(std::vector<VarRecord> & var_records,
 
         if (not is_sv_graph)
         {
-          BOOST_LOG_TRIVIAL(error) << "[" << __HERE__ << "] Found an SV in a non-SV graph at "
+          BOOST_LOG_TRIVIAL(error) << __HERE__ << " Found an SV in a non-SV graph at "
                                    << genomic_region.chr << ":" << (vcf_record.beginPos + 1);
           std::exit(1234);
         }
@@ -1357,10 +1348,10 @@ add_var_record(std::vector<VarRecord> & var_records,
     unsigned chrom_idx = get_chrom_idx(fasta_index, genomic_region.chr);
 
     // Replace Ns with correct base from the reference
-    if (var.ref.size() == 1 && var.ref[0] == 'N')
+    if (var.ref.seq.size() == 1 && var.ref.seq[0] == 'N')
     {
       var.ref.clear();
-      read_reference_seq(var.ref, fasta_index, chrom_idx, var.pos, 1);
+      read_reference_seq(var.ref.seq, fasta_index, chrom_idx, var.pos, 1);
     }
 
     SV sv;
@@ -1377,8 +1368,7 @@ add_var_record(std::vector<VarRecord> & var_records,
     for (auto const & info : infos)
     {
       long const EQ_SIGN_POS = std::distance(seqan::begin(info),
-                                             std::find(seqan::begin(info), seqan::end(info), '=')
-                                             );
+                                             std::find(seqan::begin(info), seqan::end(info), '='));
 
       std::string const key = std::string(seqan::begin(info), seqan::begin(info) + EQ_SIGN_POS);
       std::string const val = EQ_SIGN_POS < static_cast<int>(seqan::length(info))
@@ -1456,39 +1446,41 @@ add_var_record(std::vector<VarRecord> & var_records,
 
     if (sv.type == INS && sv.seq.size() > 0)
     {
-      auto is_similar = [](std::vector<char> const & seq1, std::vector<char> const & seq2) -> bool
-                        {
-                          seqan::Dna5String seqan_seq1;
-                          seqan::Dna5String seqan_seq2;
+      auto is_similar =
+        [](std::vector<char> const & seq1, std::vector<char> const & seq2) -> bool
+        {
+          seqan::Dna5String seqan_seq1;
+          seqan::Dna5String seqan_seq2;
 
-                          std::size_t constexpr MAX_SIZE = 1000;
+          std::size_t constexpr MAX_SIZE = 1000;
 
-                          // At most align MAX_SIZE bp
-                          if (seq1.size() > MAX_SIZE && seq2.size() > MAX_SIZE)
-                          {
-                            seqan_seq1 = std::string(begin(seq1), begin(seq1) + MAX_SIZE).c_str();
-                            seqan_seq2 = std::string(begin(seq2), begin(seq2) + MAX_SIZE).c_str();
-                          }
-                          else
-                          {
-                            seqan_seq1 = std::string(begin(seq1), end(seq1)).c_str();
-                            seqan_seq2 = std::string(begin(seq2), end(seq2)).c_str();
-                          }
+          // At most align MAX_SIZE bp
+          if (seq1.size() > MAX_SIZE && seq2.size() > MAX_SIZE)
+          {
+            seqan_seq1 = std::string(begin(seq1), begin(seq1) + MAX_SIZE).c_str();
+            seqan_seq2 = std::string(begin(seq2), begin(seq2) + MAX_SIZE).c_str();
+          }
+          else
+          {
+            seqan_seq1 = std::string(begin(seq1), end(seq1)).c_str();
+            seqan_seq2 = std::string(begin(seq2), end(seq2)).c_str();
+          }
 
-                          auto const larger_size =
-                            std::max(length(seqan_seq1), length(seqan_seq2));
-                          seqan::Align<seqan::Dna5String> align;
-                          seqan::resize(seqan::rows(align), 2);
-                          seqan::assignSource(seqan::row(align, 0), seqan_seq1);
-                          seqan::assignSource(seqan::row(align, 1), seqan_seq2);
+          auto const larger_size =
+            std::max(length(seqan_seq1), length(seqan_seq2));
 
-                          seqan::Score<int, seqan::Simple> scoringScheme(1, -1, -1);
-                          seqan::AlignConfig<> alignConfig;
+          seqan::Align<seqan::Dna5String> align;
+          seqan::resize(seqan::rows(align), 2);
+          seqan::assignSource(seqan::row(align, 0), seqan_seq1);
+          seqan::assignSource(seqan::row(align, 1), seqan_seq2);
 
-                          int score = seqan::globalAlignment(align, scoringScheme, alignConfig);
-                          return static_cast<double>(score) / static_cast<double>(larger_size) >=
-                                 0.8;
-                        };
+          seqan::Score<int, seqan::Simple> scoringScheme(1, -1, -1);
+          seqan::AlignConfig<> alignConfig;
+
+          int score = seqan::globalAlignment(align, scoringScheme, alignConfig);
+          return (static_cast<double>(score) /
+                  static_cast<double>(larger_size)) >= 0.8;
+        };
 
       if (static_cast<long>(var.pos - 1l - sv.seq.size()) >= 0l)
       {
@@ -1505,9 +1497,10 @@ add_var_record(std::vector<VarRecord> & var_records,
         if (is_similar(ref_before, sv.seq))
         {
           // Change to a duplication
-          BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Changed insertion at position "
+          BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Changed insertion at position "
                                    << var.pos
                                    << " to a duplication and moved it.";
+
           var.pos -= sv.seq.size();
           sv.type = DUP;
         }
@@ -1522,7 +1515,7 @@ add_var_record(std::vector<VarRecord> & var_records,
         if (is_similar(ref_after, sv.seq))
         {
           // Change to a duplication
-          BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Changed insertion at position "
+          BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Changed insertion at position "
                                    << var.pos
                                    << " to a duplication.";
           sv.type = DUP;
@@ -1530,7 +1523,7 @@ add_var_record(std::vector<VarRecord> & var_records,
       }
     }
 
-    uint32_t constexpr EXTRA_SEQUENCE_LENGTH = 152;
+    uint32_t constexpr EXTRA_SEQUENCE_LENGTH{152};
     static_assert(EXTRA_SEQUENCE_LENGTH % 2 == 0, "Extra sequence length must be an even number");
 
     // Handle structural variants
@@ -1538,9 +1531,11 @@ add_var_record(std::vector<VarRecord> & var_records,
     {
     case BND:
     {
-      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] A breakend "
-                               << std::string(begin(v_alt), end(v_alt)) << " @ "
+      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " A breakend "
+                               << std::string(begin(v_alt), end(v_alt))
+                               << " @ "
                                << (vcf_record.beginPos + 1);
+
       add_sv_breakend(sv, var, vcf_record, fasta_index, chrom_idx, EXTRA_SEQUENCE_LENGTH);
       break;
     }
@@ -1550,8 +1545,11 @@ add_var_record(std::vector<VarRecord> & var_records,
     case DEL_ALU:
     {
       // Handle deletions
-      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] A deletion of size " << sv.size << " @ "
+      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " A deletion of size "
+                               << sv.size
+                               << " @ "
                                << (vcf_record.beginPos + 1);
+
       add_sv_deletion(sv, var, fasta_index, chrom_idx, EXTRA_SEQUENCE_LENGTH);
       break;
     }
@@ -1559,8 +1557,11 @@ add_var_record(std::vector<VarRecord> & var_records,
 
     case DUP:
     {
-      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] A duplication of size " << sv.size << " @ "
+      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " A duplication of size "
+                               << sv.size
+                               << " @ "
                                << (vcf_record.beginPos + 1);
+
       add_sv_duplication(var_records, sv, var, fasta_index, chrom_idx, EXTRA_SEQUENCE_LENGTH);
       break;
     }
@@ -1568,9 +1569,10 @@ add_var_record(std::vector<VarRecord> & var_records,
 
     case INS:
     {
-      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] An insertion of size "
+      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " An insertion of size "
                                << sv.size
-                               << " @ " << (vcf_record.beginPos + 1);
+                               << " @ "
+                               << (vcf_record.beginPos + 1);
 
       add_sv_insertion(sv, var, vcf_record, fasta_index, chrom_idx, EXTRA_SEQUENCE_LENGTH);
       break;
@@ -1579,7 +1581,7 @@ add_var_record(std::vector<VarRecord> & var_records,
 
     case INV:
     {
-      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] An inversion of size "
+      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " An inversion of size "
                                << sv.size
                                << " @ "
                                << (vcf_record.beginPos + 1);
@@ -1590,36 +1592,111 @@ add_var_record(std::vector<VarRecord> & var_records,
 
     default: {
       return;
-    }                 // Skip adding this variant
+    } // Skip adding this variant
     }
   }
   else
   {
     // Handle typical small variants (SNPs, indels <50 bps)
+    //
+    if (std::any_of(seqan::begin(vcf_record.alt),
+                    seqan::end(vcf_record.alt),
+                    [](char c){
+        return c != 'A' && c != 'C' && c != 'G' && c != 'T';
+      }))
+    {
+      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Ignoring alt. allele "
+                                 << seqan::toCString(vcf_record.alt) << " at pos="
+                                 << vcf_record.beginPos << ". Non-ACGT base.";
+      return;
+    }
+
     var.ref = std::vector<char>(seqan::begin(vcf_record.ref), seqan::end(vcf_record.ref));
     var.alts.push_back(std::vector<char>(seqan::begin(vcf_record.alt),
                                          seqan::end(vcf_record.alt)));
 
-    // Remove alleles with non-ACGT
-    var.alts.erase(
-      std::remove_if(
-        var.alts.begin(),
-        var.alts.end(),
-        [](std::vector<char> const & alt)
-      {
-        if (alt.size() == 0)
-          return true;
+    if (var.alts.size() == 1)
+    {
+      //BOOST_LOG_TRIVIAL(info) << __HERE__ << " have variant=" << var.pos << ":"
+      //                        << std::string(var.ref.seq.begin(), var.ref.seq.end()) << ":"
+      //                        << std::string(var.alts[0].seq.begin(), var.alts[0].seq.end());
 
-        for (char const c : alt)
+      Ref & ref = var.ref;
+      Alt & alt = var.alts[0];
+
+      //// set non-merge position
+      //if (var.ref.seq.size() == 1 && alt.seq.size() == 1)
+      //{
+      //  assert(alt.non_merge_start == -1);
+      //  assert(alt.non_merge_end == -1);
+      //}
+      //else
+      //{
+      //  // indel
+      //  int32_t constexpr EXTRA_BASES_INDELS = 2;
+      //  alt.non_merge_start = var.pos > EXTRA_BASES_INDELS ? (var.pos - EXTRA_BASES_INDELS) : 0;
+      //  alt.non_merge_end = var.pos + var.ref.seq.size() + EXTRA_BASES_INDELS;
+      //}
+
+      // Check if there are any anti events in the INFO field
+      seqan::StringSet<seqan::CharString> infos;
+
+      // Parse the INFO field
+      seqan::strSplit(infos, vcf_record.info, seqan::EqualsChar<';'>());
+
+      for (auto const & info : infos)
+      {
+        auto find_it = std::find(seqan::begin(info), seqan::end(info), '=');
+
+        if (find_it == seqan::end(info))
+          continue;
+
+        long const EQ_SIGN_POS = std::distance(seqan::begin(info), find_it);
+        std::string const key = std::string(seqan::begin(info), seqan::begin(info) + EQ_SIGN_POS);
+
+        if (key == "GT_ID")
         {
-          if (c != 'A' && c != 'C' && c != 'G' && c != 'T')
-            return true;
+          std::string value = EQ_SIGN_POS < static_cast<int>(seqan::length(info))
+                              ? std::string(seqan::begin(info) + EQ_SIGN_POS + 1, seqan::end(info))
+                              : std::string("");
+
+          long const event_id = std::stoul(value);
+          assert(event_id >= 1);
+          ref.events.insert(-event_id);
+          alt.events.insert(event_id);
+          continue;
         }
 
-        return false;
-      }
-        ), var.alts.end());
+        if (key != "GT_ANTI_HAPLOTYPE" && key != "GT_HAPLOTYPE")
+          continue;
 
+        seqan::CharString value = EQ_SIGN_POS < static_cast<int>(seqan::length(info))
+                                  ? std::string(seqan::begin(info) + EQ_SIGN_POS + 1, seqan::end(info))
+                                  : std::string("");
+
+        seqan::StringSet<seqan::CharString> values;
+
+        // Parse the values of the GT_ANTI_HAPLOTYPE field
+        seqan::strSplit(values, value, seqan::EqualsChar<','>());
+
+        for (auto const & val : values)
+        {
+          std::string val_str = seqan::toCString(val);
+
+          if (key == "GT_ANTI_HAPLOTYPE")
+          {
+            alt.anti_events.insert(std::stoul(val_str));
+          }
+          else
+          {
+            assert(key == "GT_HAPLOTYPE");
+            auto const val_ul = std::stoul(val_str);
+            ref.anti_events.insert(val_ul);
+            alt.anti_events.insert(-val_ul);
+          }
+        } // for (auto const & val : values)
+      } // for (auto const & info : infos)
+    } // if (var.alts.size() == 1)
   }
 
   // Only add var if there are some alternative alleles
@@ -1633,10 +1710,9 @@ construct_graph(std::string const & reference_filename,
                 std::string const & vcf_filename,
                 std::string const & region,
                 bool const is_sv_graph,
-                bool const use_absolute_positions,
-                bool const check_index)
+                bool const use_index)
 {
-  graph = Graph(use_absolute_positions);
+  graph = Graph();
   graph.is_sv_graph = is_sv_graph;
 
   BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Constructing graph for region " << region;
@@ -1659,15 +1735,16 @@ construct_graph(std::string const & reference_filename,
   }
 
   // Check reference sequence for problems
-  bool is_bad_base = std::any_of(reference_sequence.begin(), reference_sequence.end(), [](char c){
+  bool is_bad_base = std::any_of(reference_sequence.begin(),
+                                 reference_sequence.end(),
+                                 [](char c){
       return c < 'A' || c > 'Z';
     });
 
   if (is_bad_base)
   {
     BOOST_LOG_TRIVIAL(error) << __HERE__ << " Found a non-uppercase character in input FASTA reference."
-                             << "Make sure the file is not compressed and "
-                             << "all bases are uppercase.";
+                             << "Make sure the file is not compressed and all bases are uppercase.";
     std::exit(1);
   }
 
@@ -1676,10 +1753,10 @@ construct_graph(std::string const & reference_filename,
 
   if (vcf_filename.size() > 0)
   {
-    BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Reading VCF file located at " <<
+    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Reading VCF file located at " <<
       vcf_filename;
 
-    if (check_index)
+    if (use_index)
     {
       // Load region using the tabix index
       seqan::Tabix tabix_file;
@@ -1727,7 +1804,7 @@ construct_graph(std::string const & reference_filename,
 
       if (!igz.rdbuf()->is_open())
       {
-        BOOST_LOG_TRIVIAL(error) << "[" << __HERE__ << "] Could not open VCF " << vcf_filename;
+        BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not open VCF " << vcf_filename;
         std::exit(1);
       }
 
@@ -1768,18 +1845,22 @@ construct_graph(std::string const & reference_filename,
       }
     }
 
+    seqan::clear(fasta_index); // Close reference genome FASTA
+
     // Remove duplicate alternative alleles
-    for (auto & var_record : var_records)
-    {
-      std::sort(var_record.alts.begin(), var_record.alts.end());
-      var_record.alts.erase(std::unique(var_record.alts.begin(), var_record.alts.end()),
-                            var_record.alts.end());
-    }
+    //for (auto & var_record : var_records)
+    //{
+    //  std::sort(var_record.alts.begin(), var_record.alts.end());
+    //  var_record.alts.erase(std::unique(var_record.alts.begin(),
+    //                                    var_record.alts.end()),
+    //                        var_record.alts.end());
+    //}
 
 #ifndef NDEBUG
     genomic_region.check_if_var_records_match_reference_genome(var_records, reference_sequence);
 #endif // NDEBUG
 
+    // This is needed to prohibit a combination of alt. alleles being able to be equal to the reference
     for (auto & var_record : var_records)
     {
       genomic_region.add_reference_to_record_if_they_have_a_matching_prefix(var_record,
@@ -1791,15 +1872,16 @@ construct_graph(std::string const & reference_filename,
 #endif // NDEBUG
   }
 
-  seqan::clear(fasta_index); // Close reference genome FASTA
+  // Typically the input VCF is sorted by position, but its cheap to not have that requirement
+  bool const is_sorted = std::is_sorted(var_records.begin(), var_records.end());
 
-  // Sort var_records by position in increasing order
-  std::sort(var_records.begin(),
-            var_records.end(),
-            [](VarRecord const & a, VarRecord const & b){
-      return a.pos < b.pos;
-    }
-            );
+  if (!is_sorted)
+  {
+    std::sort(var_records.begin(), var_records.end());
+
+    BOOST_LOG_TRIVIAL(info) << __HERE__ << " Input VCF records are not sorted. "
+                                           "This is normal if the input VCF was not generated by graphtyper.";
+  }
 
   graph.add_genomic_region(std::move(reference_sequence),
                            std::move(var_records),
@@ -1808,17 +1890,17 @@ construct_graph(std::string const & reference_filename,
 #ifndef NDEBUG
   if (!graph.check())
   {
-    BOOST_LOG_TRIVIAL(error) << "[" << __HERE__ << "] Problem creating graph. Printing graph:";
+    BOOST_LOG_TRIVIAL(error) << __HERE__ << " Problem creating graph. Printing graph:";
     gyper::graph.print();
     std::exit(1);
   }
 #endif // NDEBUG
 
   // Create all specials positions
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Creating special positions for the graph.";
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Creating special positions for the graph.";
   graph.create_special_positions();
 
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Graph was successfully constructed.";
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Graph was successfully constructed.";
 }
 
 
@@ -1848,7 +1930,7 @@ get_variants_using_tabix(std::string const & vcf, GenomicRegion const & genomic_
 
     assert(alt_commas.size() >= 2);
 
-    for (int a = 0; a < static_cast<int>(alt_commas.size()) - 1; ++a)
+    for (int a{0}; a < static_cast<int>(alt_commas.size()) - 1; ++a)
     {
       std::string alt = get_string_at_tab_index(alts, alt_commas, a);
       var.seqs.push_back(std::vector<char>(alt.begin(), alt.end()));

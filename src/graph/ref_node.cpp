@@ -1,3 +1,5 @@
+#include <iostream>
+
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/serialization/vector.hpp>
@@ -20,6 +22,12 @@ RefNode::RefNode(RefNode const & rn) noexcept
 {}
 
 
+RefNode::RefNode(RefNode && o) noexcept
+  : label(std::move(o.label))
+  , out_var_ids(std::move(o.out_var_ids))
+{}
+
+
 Label const &
 RefNode::get_label() const
 {
@@ -35,21 +43,10 @@ RefNode::get_var_index(unsigned const & index) const
 }
 
 
-std::vector<TNodeIndex>
+std::vector<TNodeIndex> const &
 RefNode::get_vars() const
 {
   return out_var_ids;
-}
-
-
-void
-RefNode::change_label_order(uint32_t change)
-{
-  // Make sure we do not overflow
-  assert(change + label.order >= change);
-  assert(change + label.order >= label.order);
-
-  label.order += change;
 }
 
 
@@ -64,10 +61,6 @@ RefNode::out_degree() const
  * PRIVATE *
  ***********/
 
-RefNode::RefNode()
-  : label(), out_var_ids(0) {}
-
-
 template <typename Archive>
 void
 RefNode::serialize(Archive & ar, const unsigned int)
@@ -80,7 +73,9 @@ RefNode::serialize(Archive & ar, const unsigned int)
 /***************************
  * EXPLICIT INSTANTIATIONS *
  ***************************/
-template void RefNode::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &, const unsigned int);
-template void RefNode::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &, const unsigned int);
+template void RefNode::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &,
+                                                                  const unsigned int);
+template void RefNode::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &,
+                                                                  const unsigned int);
 
 } // namespace gyper

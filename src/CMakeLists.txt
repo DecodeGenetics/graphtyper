@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.2)
 
 set(graphtyper_SOURCE_FILES
   graph/absolute_position.cpp
+  graph/alt.cpp
   graph/constructor.cpp
   graph/genomic_region.cpp
   graph/genotype.cpp
@@ -13,11 +14,14 @@ set(graphtyper_SOURCE_FILES
   graph/label.cpp
   graph/read_strand.cpp
   graph/reference_depth.cpp
+  graph/ref.cpp
   graph/ref_node.cpp
   graph/sequence_extractor.cpp
+  graph/snp_event.cpp
   graph/sv.cpp
   graph/var_node.cpp
   graph/var_record.cpp
+  index/index_entry.cpp
   index/indexer.cpp
   index/kmer_label.cpp
   index/ph_index.cpp
@@ -43,6 +47,7 @@ set(graphtyper_SOURCE_FILES
   utilities/genotype.cpp
   utilities/genotype_camou.cpp
   utilities/genotype_sv.cpp
+  utilities/hash_seqan.cpp
   utilities/hts_parallel_reader.cpp
   utilities/hts_reader.cpp
   utilities/hts_writer.cpp

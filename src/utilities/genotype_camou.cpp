@@ -3,6 +3,8 @@
 #include <sstream>
 #include <vector>
 
+#include <boost/log/trivial.hpp>
+
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/constructor.hpp>
 #include <graphtyper/graph/genomic_region.hpp>
@@ -78,6 +80,10 @@ genotype_camou(std::string const & interval_fn,
   BOOST_LOG_TRIVIAL(info) << "Running with up to " << Options::const_instance()->threads << " threads.";
   BOOST_LOG_TRIVIAL(info) << "Copying data from " << NUM_SAMPLES << " input SAM/BAM/CRAMs to local disk.";
 
+#ifdef GT_DEV
+  Options::instance()->is_one_genotype_per_haplotype = true;
+#endif // GT_DEV
+
   // Get intervals
   std::vector<std::string> intervals;
 
@@ -147,71 +153,125 @@ genotype_camou(std::string const & interval_fn,
     GenomicRegion padded_genomic_region(genomic_region);
     padded_genomic_region.pad(1000l);
 
-    // Iteration 1
+    if (Options::const_instance()->vcf.size() == 0)
     {
-      BOOST_LOG_TRIVIAL(info) << "Camou variant discovery step starting.";
-      std::string const out_dir = tmp + "/it1";
-      std::string const haps_output_vcf = out_dir + "/haps.vcf.gz";
-      std::string const discovery_output_vcf = out_dir + "/discovery.vcf.gz";
+      {
+        // Iteration 1
+        BOOST_LOG_TRIVIAL(info) << "Camou variant discovery step starting.";
+        std::string const out_dir = tmp + "/it1";
+        std::string const haps_output_vcf = out_dir + "/haps.vcf.gz";
+        std::string const discovery_output_vcf = out_dir + "/discovery.vcf.gz";
 
-      mkdir(out_dir.c_str(), 0755);
-      construct_graph(ref_fn, "", padded_genomic_region.to_string(), false, true, false);
-      absolute_pos.calculate_offsets(gyper::graph.contigs);
-      BOOST_LOG_TRIVIAL(info) << "Graph construction complete.";
+        mkdir(out_dir.c_str(), 0755);
+        construct_graph(ref_fn, "", padded_genomic_region.to_string(), false, false);
+        absolute_pos.calculate_offsets(gyper::graph.contigs);
+        BOOST_LOG_TRIVIAL(info) << "Graph construction complete.";
 
 #ifndef NDEBUG
-      // Save graph in debug mode
-      save_graph(out_dir + "/graph");
+        // Save graph in debug mode
+        save_graph(out_dir + "/graph");
 #endif // NDEBUG
 
-      std::vector<std::string> paths;
+        std::vector<std::string> paths;
 
-      {
-        PHIndex ph_index = index_graph(gyper::graph);
-        BOOST_LOG_TRIVIAL(info) << "Index construction complete.";
+        {
+          PHIndex ph_index = index_graph(gyper::graph);
+          BOOST_LOG_TRIVIAL(info) << "Index construction complete.";
+          std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > ph;
 
-        long minimum_variant_support = 14;
-        double minimum_variant_support_ratio = 0.35 / static_cast<double>(num_intervals);
+          long minimum_variant_support = 14;
+          double minimum_variant_support_ratio = 0.35 / static_cast<double>(num_intervals);
 
-        paths = gyper::call(shrinked_sams,
-                            avg_cov_by_readlen,
-                            "", // graph_path
-                            ph_index,
-                            out_dir,
-                            "", // reference
-                            ".", // region
-                            nullptr,
-                            minimum_variant_support,
-                            minimum_variant_support_ratio,
-                            is_writing_calls_vcf,
-                            is_discovery,
-                            is_writing_hap);
+          paths = gyper::call(shrinked_sams,
+                              avg_cov_by_readlen,
+                              "", // graph_path
+                              ph_index,
+                              out_dir,
+                              "", // reference
+                              ".", // region
+                              nullptr,
+                              ph,
+                              minimum_variant_support,
+                              minimum_variant_support_ratio,
+                              is_writing_calls_vcf,
+                              is_discovery,
+                              is_writing_hap);
+        }
+
+        BOOST_LOG_TRIVIAL(info) << "Variant calling complete.";
+
+        // Append _variant_map
+        for (auto & path : paths)
+          path += "_variant_map";
+
+        VariantMap varmap;
+        varmap.load_many_variant_maps(paths);
+        varmap.filter_varmap_for_all();
+
+        Vcf discovery_vcf;
+        varmap.get_vcf(discovery_vcf, out_dir + "/final.vcf.gz");
+        discovery_vcf.write();
+#ifndef NDEBUG
+        discovery_vcf.write_tbi_index(); // Write index in debug mode
+#endif // NDEBUG
+
+        // free memory
+        graph = Graph();
       }
 
-      BOOST_LOG_TRIVIAL(info) << "Variant calling complete.";
+      // Iteration 2
+      {
+        BOOST_LOG_TRIVIAL(info) << "Starting genotyping step.";
 
-      // Append _variant_map
-      for (auto & path : paths)
-        path += "_variant_map";
+        is_writing_calls_vcf = true;
+        is_discovery = false;
 
-      VariantMap varmap;
-      varmap.load_many_variant_maps(paths);
-      varmap.filter_varmap_for_all();
+        std::string const out_dir = tmp + "/it2";
+        std::string const haps_output_vcf = out_dir + "/haps.vcf.gz";
+        std::string const discovery_output_vcf = out_dir + "/discovery.vcf.gz";
+        mkdir(out_dir.c_str(), 0755);
 
-      Vcf discovery_vcf;
-      varmap.get_vcf(discovery_vcf, out_dir + "/final.vcf.gz");
-      discovery_vcf.write();
-#ifndef NDEBUG
-      discovery_vcf.write_tbi_index(); // Write index in debug mode
-#endif // NDEBUG
+        construct_graph(ref_fn, tmp + "/it1/final.vcf.gz", padded_genomic_region.to_string(), false, false);
 
-      // free memory
-      graph = Graph();
+    #ifndef NDEBUG
+        // Save graph in debug mode
+        save_graph(out_dir + "/graph");
+    #endif // NDEBUG
+
+        std::vector<std::string> paths;
+
+        {
+          PHIndex ph_index = index_graph(gyper::graph);
+          std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > ph;
+
+          paths = gyper::call(shrinked_sams,
+                              avg_cov_by_readlen,
+                              "", // graph_path
+                              ph_index,
+                              out_dir,
+                              "", // reference
+                              ".", // region
+                              nullptr,
+                              ph,
+                              5, // minimum_variant_support - will be ignored
+                              0.25, // minimum_variant_support_ratio - will be ignored
+                              is_writing_calls_vcf,
+                              is_discovery,
+                              is_writing_hap);
+        }
+
+        bool constexpr filter_zero_qual{true};
+        vcf_merge_and_break(paths,
+                            tmp + "/graphtyper.vcf.gz",
+                            genomic_region.to_string(),
+                            filter_zero_qual,
+                            false,
+                            false);
+      }
     }
-
-    // Iteration 2
+    else
     {
-      BOOST_LOG_TRIVIAL(info) << "Starting genotyping step.";
+      BOOST_LOG_TRIVIAL(info) << "Starting genotyping step with input VCF.";
 
       is_writing_calls_vcf = true;
       is_discovery = false;
@@ -221,38 +281,50 @@ genotype_camou(std::string const & interval_fn,
       std::string const discovery_output_vcf = out_dir + "/discovery.vcf.gz";
       mkdir(out_dir.c_str(), 0755);
 
-      construct_graph(ref_fn, tmp + "/it1/final.vcf.gz", padded_genomic_region.to_string(), false, true, false);
+      bool constexpr is_sv_graph{false};
+      bool constexpr use_index{true};
 
-    #ifndef NDEBUG
+      construct_graph(ref_fn,
+                      Options::const_instance()->vcf,
+                      padded_genomic_region.to_string(),
+                      is_sv_graph,
+                      use_index);
+
+#ifndef NDEBUG
       // Save graph in debug mode
       save_graph(out_dir + "/graph");
-    #endif // NDEBUG
+#endif // NDEBUG
 
       std::vector<std::string> paths;
 
       {
         PHIndex ph_index = index_graph(gyper::graph);
+        std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > ph;
 
         paths = gyper::call(shrinked_sams,
                             avg_cov_by_readlen,
-                            "", // graph_path
+                            "",   // graph_path
                             ph_index,
                             out_dir,
-                            "", // reference
-                            ".", // region
+                            "",   // reference
+                            ".",   // region
                             nullptr,
-                            5, // minimum_variant_support - will be ignored
-                            0.25, // minimum_variant_support_ratio - will be ignored
+                            ph,
+                            5,   // minimum_variant_support - will be ignored
+                            0.25,   // minimum_variant_support_ratio - will be ignored
                             is_writing_calls_vcf,
                             is_discovery,
                             is_writing_hap);
       }
 
-      //for (auto & path : paths)
-      //  path += "_calls.vcf.gz";
+      bool constexpr filter_zero_qual{true};
 
-      //> FILTER_ZERO_QUAL, force_no_variant_overlapping
-      vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", genomic_region.to_string(), false, false, false);
+      vcf_merge_and_break(paths,
+                          tmp + "/graphtyper.vcf.gz",
+                          genomic_region.to_string(),
+                          filter_zero_qual,
+                          false,
+                          false);
     }
 
     auto copy_camou_vcf_to_system =

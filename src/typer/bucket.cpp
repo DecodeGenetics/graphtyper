@@ -20,7 +20,7 @@ std::string
 Bucket::to_string() const
 {
   std::ostringstream ss;
-  ss << " indel events " << "," << indel_events.size();
+  ss << " indel events " << "," << events.size();
   ss << " n_reads=" << reads.size();
 
   for (auto const & read : reads)
@@ -32,22 +32,22 @@ Bucket::to_string() const
 
 bool
 is_indel_in_bucket(std::vector<Bucket> const & buckets,
-                   IndelEvent const & indel_event,
+                   Event const & indel_event,
                    long const region_begin,
                    long const BUCKET_SIZE)
 {
   long const event_bucket_index = (indel_event.pos - region_begin) / BUCKET_SIZE;
   assert(event_bucket_index < static_cast<long>(buckets.size()));
-  auto & indel_events = buckets[event_bucket_index].indel_events;
+  auto & indel_events = buckets[event_bucket_index].events;
   auto find_it = indel_events.find(indel_event);
   return find_it != indel_events.end();
 }
 
 
 template <typename TBucket>
-Tindel_events::iterator
+std::map<Event, EventSupport>::iterator
 add_indel_event_to_bucket(std::vector<TBucket> & buckets,
-                          IndelEvent && new_indel_event,
+                          Event && new_indel_event,
                           long const region_begin,
                           long const BUCKET_SIZE,
                           std::vector<char> const & reference_sequence,
@@ -64,16 +64,16 @@ add_indel_event_to_bucket(std::vector<TBucket> & buckets,
 
   assert(event_bucket_index < static_cast<long>(buckets.size()));
 
-  EventInfo new_info;
-  std::pair<Tindel_events::iterator, bool> it_pair =
-    buckets[event_bucket_index].indel_events.insert({std::move(new_indel_event), std::move(new_info)});
+  EventSupport new_info;
+  std::pair<std::map<Event, EventSupport>::iterator, bool> it_pair =
+    buckets[event_bucket_index].events.insert({std::move(new_indel_event), std::move(new_info)});
 
-  assert(it_pair.first != buckets[event_bucket_index].indel_events.end());
+  assert(it_pair.first != buckets[event_bucket_index].events.end());
 
   if (it_pair.second)
   {
-    IndelEvent const & new_event = it_pair.first->first;
-    EventInfo & new_event_info = it_pair.first->second;
+    Event const & new_event = it_pair.first->first;
+    EventSupport & new_event_info = it_pair.first->second;
 
     long span{0};
     long const count{static_cast<long>(new_event.sequence.size())};
@@ -136,9 +136,9 @@ add_indel_event_to_bucket(std::vector<TBucket> & buckets,
 }
 
 
-std::map<SnpEvent, SnpEventInfo>::iterator
+std::map<Event, EventSupport>::iterator
 add_snp_event_to_bucket(std::vector<BucketFirstPass> & buckets,
-                        SnpEvent && event,
+                        Event && event,
                         long const region_begin,
                         long const BUCKET_SIZE)
 {
@@ -151,9 +151,9 @@ add_snp_event_to_bucket(std::vector<BucketFirstPass> & buckets,
 
   assert(event_bucket_index < static_cast<long>(buckets.size()));
 
-  SnpEventInfo new_info;
-  std::pair<std::map<SnpEvent, SnpEventInfo>::iterator, bool> it_pair =
-    buckets[event_bucket_index].snps.insert({std::move(event), std::move(new_info)});
+  EventSupport new_info;
+  std::pair<std::map<Event, EventSupport>::iterator, bool> it_pair =
+    buckets[event_bucket_index].events.insert({std::move(event), std::move(new_info)});
 
   return it_pair.first;
 }
@@ -187,17 +187,17 @@ add_base_to_bucket(std::vector<Bucket> & buckets,
 
 
 // explicit instantiation
-template Tindel_events::iterator
+template std::map<Event, EventSupport>::iterator
 add_indel_event_to_bucket(std::vector<BucketFirstPass> & buckets,
-                          IndelEvent && new_indel_event,
+                          Event && new_indel_event,
                           long const region_begin,
                           long const BUCKET_SIZE,
                           std::vector<char> const & reference_sequence,
                           long ref_offset);
 
-template Tindel_events::iterator
+template std::map<Event, EventSupport>::iterator
 add_indel_event_to_bucket(std::vector<Bucket> & buckets,
-                          IndelEvent && new_indel_event,
+                          Event && new_indel_event,
                           long const region_begin,
                           long const BUCKET_SIZE,
                           std::vector<char> const & reference_sequence,

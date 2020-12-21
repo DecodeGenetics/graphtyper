@@ -28,15 +28,13 @@
 #include <utility>
 #include <vector>
 
-//#define GT_DEV 1
-
 namespace
 {
 
 std::string
 get_basename_wo_ext(std::string const & sam)
 {
-// Get basename without extension
+  // Get basename without extension
   auto slash_it = std::find(sam.rbegin(), sam.rend(), '/');
   auto dot_it = std::find(sam.rbegin(), sam.rend(), '.');
   assert(dot_it != sam.rend());
@@ -279,10 +277,10 @@ genotype_only_with_a_vcf(std::string const & ref_path,
   std::string const out_dir = tmp + "/it1";
   gyper::Options const & copts = *(Options::const_instance());
   mkdir(out_dir.c_str(), 0755);
+  std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > ph;
 
   bool const is_sv_graph{false};
-  bool const use_absolute_positions{true};
-  bool const check_index{true};
+  bool const use_index{true};
   bool const is_writing_calls_vcf{true};
   bool const is_discovery{false};
   bool const is_writing_hap{false};
@@ -291,8 +289,7 @@ genotype_only_with_a_vcf(std::string const & ref_path,
                          copts.vcf,
                          padded_region.to_string(),
                          is_sv_graph,
-                         use_absolute_positions,
-                         check_index);
+                         use_index);
 
   absolute_pos.calculate_offsets(gyper::graph.contigs);
 
@@ -315,6 +312,7 @@ genotype_only_with_a_vcf(std::string const & ref_path,
                         "", // reference
                         ".", // region
                         primers,
+                        ph,
                         5, // minimum_variant_support,
                         0.25, // minimum_variant_support_ratio,
                         is_writing_calls_vcf,
@@ -427,13 +425,17 @@ genotype(std::string ref_path,
   }
   else
   {
+    BOOST_LOG_TRIVIAL(info) << "Running bamShrink.";
     std::string bamshrink_ref_path;
 
     if (copts.force_use_input_ref_for_cram_reading)
       bamshrink_ref_path = ref_path;
 
     shrinked_sams = run_bamshrink(sams, sams_index, bamshrink_ref_path, region, avg_cov_by_readlen, tmp);
-    std::sort(shrinked_sams.begin(), shrinked_sams.end()); // Sort by input filename
+
+    if (!copts.no_sample_name_reordering)
+      std::sort(shrinked_sams.begin(), shrinked_sams.end()); // Sort by input filename
+
     run_samtools_merge(shrinked_sams, tmp);
   }
 
@@ -469,102 +471,44 @@ genotype(std::string ref_path,
       mkdir(out_dir.c_str(), 0755);
 
 #ifdef GT_DEV
-      gyper::construct_graph(ref_path, "", padded_region.to_string(), false, true, false);
+      gyper::construct_graph(ref_path, "", padded_region.to_string(), false, false);
 
-
-      Vcf indel_sites;
+      Vcf variant_sites;
       gyper::streamlined_discovery(shrinked_sams,
                                    ref_path,
                                    padded_region.to_string(),
-                                   tmp,
-                                   indel_sites);
+                                   variant_sites);
+
+      //is_writing_calls_vcf = true;
 #endif // GT_DEV
 
-#ifndef NDEBUG
-      /*
-      BOOST_LOG_TRIVIAL(info) << __HERE__ << " WIP Third pass starting.";
-
-      // THIRD PASS
-      {
-        bool const is_sv_graph{false};
-        bool const use_absolute_positions{true};
-        bool const check_index{false};
-        bool const is_writing_calls_vcf{true};
-        bool const is_discovery{false};
-        bool const is_writing_hap{false};
-
-        gyper::construct_graph(ref_path,
-                               tmp + "/indel_sites.vcf.gz",
-                               padded_region.to_string(),
-                               is_sv_graph,
-                               use_absolute_positions,
-                               check_index);
-
-        absolute_pos.calculate_offsets(gyper::graph.contigs);
-
-//#ifndef NDEBUG
-        // Save graph in debug mode
-        save_graph(tmp + "/graph_indels");
-//#endif // NDEBUG
-
-        std::vector<std::string> paths;
-
-        {
-          PHIndex ph_index = index_graph(gyper::graph);
-          std::vector<double> avg_cov_by_readlen(shrinked_sams.size(), -1.0);
-
-          paths = gyper::call(shrinked_sams,
-                              avg_cov_by_readlen,
-                              "", // graph_path
-                              ph_index,
-                              tmp,
-                              "", // reference
-                              ".", // region
-                              primers.get(),
-                              5, // minimum_variant_support,
-                              0.25, // minimum_variant_support_ratio,
-                              is_writing_calls_vcf,
-                              is_discovery,
-                              is_writing_hap);
-        }
-
-        vcf_merge_and_break(paths,
-                            tmp + "/graphtyper.test.vcf.gz",
-                            region.to_string(),
-                            true,
-                            false,
-                            false);
-
-        graph = Graph(); // free memory reserved for graph
-        Options::instance()->stats.clear();
-      }
-      //*/
-      ///// WIP ends
-#endif // NDEBUG
-
-      gyper::construct_graph(ref_path, "", padded_region.to_string(), false, true, false);
+      gyper::construct_graph(ref_path, "", padded_region.to_string(), false, false);
 
 #ifndef NDEBUG
       // Save graph in debug mode
       save_graph(out_dir + "/graph");
 #endif
 
-      absolute_pos.calculate_offsets(gyper::graph.contigs);
-      auto output_paths = gyper::discover_directly_from_bam("",
-                                                            shrinked_sams,
-                                                            padded_region.to_string(),
-                                                            out_dir,
-                                                            minimum_variant_support,
-                                                            minimum_variant_support_ratio);
-      gyper::VariantMap varmap;
-      varmap.load_many_variant_maps(output_paths);
-      varmap.filter_varmap_for_all();
-      Vcf final_vcf;
-      varmap.get_vcf(final_vcf, output_vcf);
+      //absolute_pos.calculate_offsets(gyper::graph.contigs);
+      Vcf final_vcf(WRITE_BGZF_MODE, output_vcf);
 
-#ifdef GT_DEV
-      // Add indel sites
-      std::move(indel_sites.variants.begin(), indel_sites.variants.end(), std::back_inserter(final_vcf.variants));
+#ifndef GT_DEV
+      {
+        auto output_paths = gyper::discover_directly_from_bam("",
+                                                              shrinked_sams,
+                                                              padded_region.to_string(),
+                                                              out_dir,
+                                                              minimum_variant_support,
+                                                              minimum_variant_support_ratio);
+        gyper::VariantMap varmap;
+        varmap.load_many_variant_maps(output_paths);
+        varmap.filter_varmap_for_all();
+
+        varmap.get_vcf(final_vcf, output_vcf);
+      }
+#else
+      // Add discovered sites
+      std::move(variant_sites.variants.begin(), variant_sites.variants.end(), std::back_inserter(final_vcf.variants));
 #endif // GT_DEV
 
       if (copts.prior_vcf.size() > 0)
@@ -598,6 +542,13 @@ genotype(std::string ref_path,
     long FIRST_CALLONLY_ITERATION{3};
     long LAST_ITERATION{4};
 
+#ifdef GT_DEV
+    Options::instance()->is_one_genotype_per_haplotype = true;
+    Options::instance()->is_only_cigar_discovery = true;
+    //FIRST_CALLONLY_ITERATION = 3;
+    //LAST_ITERATION = 4;
+#endif // GT_DEV
+
     if (copts.is_extra_call_only_iteration)
       ++LAST_ITERATION;
 
@@ -611,11 +562,12 @@ genotype(std::string ref_path,
     else
     {
       BOOST_LOG_TRIVIAL(info) << "Further variant discovery step starting.";
+
       std::string const out_dir = tmp + "/it2";
       std::string const haps_output_vcf = out_dir + "/haps.vcf.gz";
       std::string const discovery_output_vcf = out_dir + "/discovery.vcf.gz";
       mkdir(out_dir.c_str(), 0755);
-      construct_graph(ref_path, tmp + "/it1/final.vcf.gz", padded_region.to_string(), false, true, false);
+      construct_graph(ref_path, tmp + "/it1/final.vcf.gz", padded_region.to_string(), false, false);
 
 #ifndef NDEBUG
       // Save graph in debug mode
@@ -626,6 +578,7 @@ genotype(std::string ref_path,
 
       {
         PHIndex ph_index = index_graph(gyper::graph);
+        std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > ph;
 
         minimum_variant_support = copts.genotype_dis_min_support;
         minimum_variant_support_ratio = copts.genotype_dis_min_support_ratio;
@@ -638,6 +591,7 @@ genotype(std::string ref_path,
                             "", // reference
                             ".", // region
                             nullptr,//primers.get(),
+                            ph,
                             minimum_variant_support,
                             minimum_variant_support_ratio,
                             is_writing_calls_vcf,
@@ -676,14 +630,18 @@ genotype(std::string ref_path,
     std::vector<std::string> paths;
 
     // Iteration FIRST_CALLONLY_ITERATION-LAST_ITERATION
-    for (long i = FIRST_CALLONLY_ITERATION; i <= LAST_ITERATION; ++i)
+    for (long i{FIRST_CALLONLY_ITERATION}; i <= LAST_ITERATION; ++i)
     {
       BOOST_LOG_TRIVIAL(info) << "Call step " << (i - FIRST_CALLONLY_ITERATION + 1) << " starting.";
+      std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > ph;
 
       if (i == LAST_ITERATION)
       {
         is_writing_calls_vcf = true; // Always write calls vcf in the last iteration
+
+#ifndef GT_DEV
         is_writing_hap = false; // No need for writing .hap
+#endif // GT_DEV
       }
 
       std::string prev_out_vcf;
@@ -701,7 +659,15 @@ genotype(std::string ref_path,
 
       mkdir(out_dir.c_str(), 0755);
       std::string const haps_output_vcf = out_dir + "/final.vcf.gz";
-      construct_graph(ref_path, prev_out_vcf, padded_region.to_string(), false, true, false);
+
+#ifdef GT_DEV
+      Options::instance()->add_all_variants = true;
+#endif // GT_DEV
+      construct_graph(ref_path, prev_out_vcf, padded_region.to_string(), false, false);
+#ifdef GT_DEV
+      //gyper::graph.print();
+      Options::instance()->add_all_variants = false;
+#endif // GT_DEV
 
 #ifndef NDEBUG
       // Save graph in debug mode
@@ -719,6 +685,7 @@ genotype(std::string ref_path,
                             "", // reference
                             ".", // region
                             primers.get(),
+                            ph,
                             minimum_variant_support,
                             minimum_variant_support_ratio,
                             is_writing_calls_vcf,
@@ -728,6 +695,16 @@ genotype(std::string ref_path,
 
       if (i < LAST_ITERATION)
       {
+#ifdef GT_DEV
+        //vcf_merge_and_break(paths,
+        //                    tmp + "/it2/graphtyper.vcf.gz",
+        //                    region.to_string(),
+        //                    false, // is_filtering_zero_qual
+        //                    false, // force_no_variant_overlapping
+        //                    true); // force_no_break_down
+
+        vcf_merge_and_filter(paths, haps_output_vcf, ph);
+#else
         // Split variants unless its the next-to-last iteration
         bool const is_splitting_vars = (i + 1) < LAST_ITERATION;
 
@@ -738,10 +715,12 @@ genotype(std::string ref_path,
                        is_splitting_vars);
 
         haps_vcf.write(".", copts.threads);
+
 #ifndef NDEBUG
         // Write index in debug mode
         haps_vcf.write_tbi_index();
 #endif // NDEBUG
+#endif // GT_DEV
 
         // free memory
         graph = Graph();
@@ -750,14 +729,17 @@ genotype(std::string ref_path,
 
     BOOST_LOG_TRIVIAL(info) << "Merging output VCFs.";
 
-    // VCF merge and break_down
+    // Merge VCFs and break/decompose the variants into SNPs and indels
     {
-      // Append _calls.vcf.gz
-      //for (auto & path : paths)
-      //  path += "_calls.vcf.gz";
+      bool const is_filter_zero_qual{copts.output_all_variants};
+      bool constexpr force_no_break_down{false};
 
-      //> FILTER_ZERO_QUAL, force_no_variant_overlapping
-      vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", region.to_string(), true, false, false);
+      vcf_merge_and_break(paths,
+                          tmp + "/graphtyper.vcf.gz",
+                          region.to_string(),
+                          is_filter_zero_qual,
+                          false, // force_no_variant_overlapping
+                          force_no_break_down);
 
       if (copts.normal_and_no_variant_overlapping)
       {
@@ -765,12 +747,11 @@ genotype(std::string ref_path,
         vcf_merge_and_break(paths,
                             tmp + "/graphtyper.no_variant_overlapping.vcf.gz",
                             region.to_string(),
-                            true,
-                            true,
-                            false);
+                            is_filter_zero_qual,
+                            true, // force_no_variant_overlapping
+                            force_no_break_down);
       }
     }
-
 
     BOOST_LOG_TRIVIAL(info) << "Copying results to output directory.";
 
@@ -801,6 +782,7 @@ genotype(std::string ref_path,
     [&](std::string const & basename_no_ext, std::string const & extension, std::string const & id)
     {
       std::ostringstream ss_cmd;
+
       ss_cmd << "cp -p " << tmp << "/" << basename_no_ext << extension << " "
              << output_path << "/" << region.chr << "/"
              << std::setw(9) << std::setfill('0') << (region.begin + 1)
@@ -855,13 +837,6 @@ genotype(std::string ref_path,
     copy_to_results("graphtyper.no_variant_overlapping", ".vcf.gz", ".no_variant_overlapping");
     copy_to_results("graphtyper.no_variant_overlapping", index_ext, ".no_variant_overlapping");
   }
-
-#ifndef NDEBUG
-  /*copy_to_results("indel_sites", ".vcf.gz", ".indel_sites");*/
-  //copy_to_results("indel_sites", index_ext, ".indel_sites");
-  //copy_to_results("graphtyper.test", ".vcf.gz", ".test");
-  //copy_to_results("graphtyper.test", index_ext, ".test");
-#endif // NDEBUG
 
   if (!copts.no_cleanup)
   {

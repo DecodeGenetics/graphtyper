@@ -1,6 +1,8 @@
 #include <string>
 #include <vector>
 
+#include <boost/log/trivial.hpp>
+
 #include <parallel_hashmap/phmap.h>
 
 #include <graphtyper/graph/graph.hpp>
@@ -114,6 +116,16 @@ PHIndex::multi_get(std::vector<std::vector<uint64_t> > const & keys) const
   }
 
   return labels;
+}
+
+
+void
+PHIndex::print() const
+{
+  for (auto it = hamming0.begin(); it != hamming0.end(); ++it)
+  {
+    std::cerr << to_dna_str(it->first) << " count=" << it->second.size() << '\n';
+  }
 }
 
 

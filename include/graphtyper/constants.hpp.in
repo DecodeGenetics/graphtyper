@@ -20,14 +20,15 @@ namespace gyper
 uint8_t constexpr  K = 32;   /** \brief The size of the k-mers. */
 uint32_t constexpr INVALID_ID = 0xFFFFFFFFul;
 uint16_t constexpr INVALID_NUM = 0xFFFFul;
-uint32_t constexpr MAX_NUMBER_OF_HAPLOTYPES = 2048u;   // 2^12 (=> Each score vector requires ~16 MB maximum)
+uint32_t constexpr MAX_NUMBER_OF_HAPLOTYPES = 1024u;   // 2^12 (=> Each score vector requires ~16 MB maximum)
 
 /** \brief Number of matches to trigger that a single variant is split into smaller variants */
 uint32_t constexpr SPLIT_VAR_THRESHOLD = 5;
 uint32_t constexpr MAX_READ_LENGTH = 151u;
 
-/** Any position at or above this position is a "special" position. The true position is in the special_pos vector.
-      correct_pos = special_pos[pos - SPECIAL_START]
+/** Any position at or above this position is a "special" position. The true position is in the special_pos
+ *   vector.
+       correct_pos = special_pos[pos - SPECIAL_START]
  */
 uint32_t constexpr SPECIAL_START = 0xD0000000ul; // == 3489660928
 
@@ -50,6 +51,10 @@ uint8_t constexpr SCORE_MISMATCH = 4;
 uint8_t constexpr SCORE_GAP_OPEN = 7;
 uint8_t constexpr SCORE_GAP_EXTEND = 1;
 uint8_t constexpr SCORE_CLIP = 5;
+
+// haplotype constants
+int8_t constexpr IS_ANY_HAP_SUPPORT{1};
+int8_t constexpr IS_ANY_ANTI_HAP_SUPPORT{2};
 
 
 /**

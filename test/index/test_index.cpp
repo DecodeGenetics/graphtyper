@@ -126,22 +126,22 @@ TEST_CASE("Test index chr2")
 
   // All kmers should have the correct starting index
   {
-    REQUIRE(ph_index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC"))[0].start_index == 0 + 67);
-    REQUIRE(ph_index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC"))[1].start_index == 0 + 67);
-    REQUIRE(ph_index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC"))[2].start_index == 10 + 67);
-    REQUIRE(ph_index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC"))[3].start_index == 20 + 67);
+    REQUIRE(ph_index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC"))[0].start_index == 1);
+    REQUIRE(ph_index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC"))[1].start_index == 1);
+    REQUIRE(ph_index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC"))[2].start_index == 11);
+    REQUIRE(ph_index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC"))[3].start_index == 21);
 
-    REQUIRE(ph_index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTGG"))[0].start_index == 30 + 67);
+    REQUIRE(ph_index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTGG"))[0].start_index == 31);
   }
 
   // All kmers should have the correct end index
   {
-    REQUIRE(ph_index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC"))[0].end_index == 31 + 67);
-    REQUIRE(ph_index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC"))[1].end_index == 31 + 67);
-    REQUIRE(ph_index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC"))[2].end_index == 41 + 67);
-    REQUIRE(ph_index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC"))[3].end_index == 51 + 67);
+    REQUIRE(ph_index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC"))[0].end_index == 32);
+    REQUIRE(ph_index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC"))[1].end_index == 32);
+    REQUIRE(ph_index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC"))[2].end_index == 42);
+    REQUIRE(ph_index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTCC"))[3].end_index == 52);
 
-    REQUIRE(ph_index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTGG"))[0].end_index == 61 + 67);
+    REQUIRE(ph_index.get(to_uint64("CCCCAGGTTTCCCCAGGTTTCCCCAGGTTTGG"))[0].end_index == 62);
   }
 
   // Correct variant id and num
@@ -163,7 +163,7 @@ TEST_CASE("Test index chr2")
 
 TEST_CASE("Test index chr3")
 {
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Test index chr3";
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Test index chr3";
 
   // AAAACAAAATAAAACAAAATAAAAGAAAACAAAATAAAACAAAATAAAAGAAAACATTATAAAACA
   // chr3 31 rs4 A G,GA
@@ -193,34 +193,34 @@ TEST_CASE("Test index chr3")
     // kmer ref
     std::vector<gyper::KmerLabel> labels0 = ph_index.get(gyper::to_uint64("AAAACAAAATAAAACAAAATAAAAGAAAACAA"));
     REQUIRE(labels0.size() == 1);
-    REQUIRE(labels0[0].start_index == 0 + 133);
-    REQUIRE(labels0[0].end_index == 31 + 133);
+    REQUIRE(labels0[0].start_index == 1);
+    REQUIRE(labels0[0].end_index == 32);
 
     // kmer 1
     std::vector<gyper::KmerLabel> labels1 = ph_index.get(gyper::to_uint64("AAAACAAAATAAAACAAAATAAAAGAAAACGA"));
     REQUIRE(labels1.size() == 2);
-    REQUIRE(labels1[0].start_index == 0 + 133);
+    REQUIRE(labels1[0].start_index == 1);
     REQUIRE(labels1[0].end_index == gyper::SPECIAL_START);
     REQUIRE(labels1[0].variant_id == 2);
-    REQUIRE(labels1[1].start_index == 0 + 133);
-    REQUIRE(labels1[1].end_index == 31 + 133);
+    REQUIRE(labels1[1].start_index == 1);
+    REQUIRE(labels1[1].end_index == 32);
     REQUIRE(labels1[1].variant_id == 1);
 
     // kmer 2
     std::vector<gyper::KmerLabel> labels2 = ph_index.get(gyper::to_uint64("AAAATAAAACAAAATAAAAGAAAACATTATAA"));
     REQUIRE(labels2.size() == 2);
-    REQUIRE(labels2[0].start_index == 30 + 133);
-    REQUIRE(labels2[0].end_index == 61 + 133);
+    REQUIRE(labels2[0].start_index == 31);
+    REQUIRE(labels2[0].end_index == 62);
     REQUIRE(labels2[0].variant_id == 0);
     REQUIRE(labels2[1].start_index == gyper::SPECIAL_START);
-    REQUIRE(labels2[1].end_index == 61 + 133);
+    REQUIRE(labels2[1].end_index == 62);
     REQUIRE(labels2[1].variant_id == 2);
 
     // kmer 3
     std::vector<gyper::KmerLabel> labels3 = ph_index.get(gyper::to_uint64("AAATAAAACAAAATAAAAGAAAACATTATAAA"));
     REQUIRE(labels3.size() == 1);
-    REQUIRE(labels3[0].start_index == 31 + 133);
-    REQUIRE(labels3[0].end_index == 62 + 133);
+    REQUIRE(labels3[0].start_index == 32);
+    REQUIRE(labels3[0].end_index == 63);
     REQUIRE(labels3[0].variant_id == -1);
   }
 }
@@ -228,7 +228,7 @@ TEST_CASE("Test index chr3")
 
 TEST_CASE("Test index chr4")
 {
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Test index chr4";
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Test index chr4";
 
   using namespace gyper;
 
@@ -252,14 +252,14 @@ TEST_CASE("Test index chr4")
   {
     std::vector<gyper::KmerLabel> labels0 = ph_index.get(to_uint64("AAAACAAAATAAAACAAAATAAAAGAAAACAA", 0));
     REQUIRE(labels0.size() == 1);
-    REQUIRE(labels0[0].start_index == 0 + 199);
-    REQUIRE(labels0[0].end_index == 31 + 199);
+    REQUIRE(labels0[0].start_index == 1);
+    REQUIRE(labels0[0].end_index == 32);
     REQUIRE(labels0[0].variant_id == 0);
 
     std::vector<gyper::KmerLabel> labels1 = ph_index.get(to_uint64("ATAACAAAATAAAACAAAATAAAAGAAAACAA", 0));
     REQUIRE(labels1.size() == 1);
-    REQUIRE(labels1[0].start_index == 0 + 199);
-    REQUIRE(labels1[0].end_index == 31 + 199);
+    REQUIRE(labels1[0].start_index == 1);
+    REQUIRE(labels1[0].end_index == 32);
     REQUIRE(labels1[0].variant_id == 1);
   }
 }
@@ -267,7 +267,7 @@ TEST_CASE("Test index chr4")
 
 TEST_CASE("Test index chr5")
 {
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Test index chr5";
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Test index chr5";
 
   using namespace gyper;
 
@@ -305,17 +305,17 @@ TEST_CASE("Test index chr5")
 
     std::vector<KmerLabel> labels1 = ph_index.get(to_uint64("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAG", 0));
     REQUIRE(labels1.size() == 1);
-    REQUIRE(labels1[0].start_index == 265 + 39);
+    REQUIRE(labels1[0].start_index == 40);
     REQUIRE(labels1[0].end_index == gyper::SPECIAL_START);
 
     std::vector<KmerLabel> labels2 = ph_index.get(to_uint64("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGG", 0));
     REQUIRE(labels2.size() == 1);
-    REQUIRE(labels2[0].start_index == 265 + 40);
+    REQUIRE(labels2[0].start_index == 41);
     REQUIRE(labels2[0].end_index == gyper::SPECIAL_START + 1);
 
     std::vector<KmerLabel> labels3 = ph_index.get(to_uint64("AGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG", 0));
     REQUIRE(labels3.size() == 1);
-    REQUIRE(labels3[0].start_index == 265 + 69);
+    REQUIRE(labels3[0].start_index == 70);
     REQUIRE(labels3[0].end_index == gyper::SPECIAL_START + 30);
 
     std::vector<KmerLabel> labels4 = ph_index.get(to_uint64("GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG", 0));
@@ -330,9 +330,6 @@ TEST_CASE("Test index chr5")
 
       REQUIRE(found_count == 1);
     }
-
-    std::vector<KmerLabel> labels5 = ph_index.get(to_uint64("TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT*", 0));
-    REQUIRE(labels5.size() == 0);
 
     std::vector<KmerLabel> labels6 = ph_index.get(to_uint64("TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT", 0));
     REQUIRE(labels6.size() == 2 * (71 - K)); // 78
@@ -377,3 +374,97 @@ TEST_CASE("Test index chr6")
   }
 }
 */
+
+TEST_CASE("Test index chr9 with anti event")
+{
+  using namespace gyper;
+
+  std::stringstream my_graph;
+  my_graph << gyper_SOURCE_DIRECTORY << "/test/data/graphs/index_test_chr9.grf";
+
+  gyper::load_graph(my_graph.str().c_str());
+  REQUIRE(graph.size() > 0);
+
+  gyper::PHIndex ph_index = gyper::index_graph(my_graph.str());
+  REQUIRE(ph_index.check());
+
+  std::vector<gyper::KmerLabel> labels = ph_index.get(gyper::to_uint64("GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG", 0));
+  REQUIRE(labels.size() == 36);
+
+  labels = ph_index.get(gyper::to_uint64("GGGGGAGTGGGGGGGGGGGGGGGGGGGGGGGG", 0));
+  REQUIRE(labels.size() == 1);
+  REQUIRE(labels[0].variant_id == 3); // insertion
+
+  labels = ph_index.get(gyper::to_uint64("GGGGGGGTGGGGGGGGGGGGGGGGGGGGGGGG", 0));
+
+  for (auto const & label : labels)
+  {
+    bool const is_either = label.variant_id == 0 || label.variant_id == 2;
+    REQUIRE(is_either);
+  }
+
+  REQUIRE(labels.size() == 2);
+  REQUIRE(labels[0].variant_id != labels[1].variant_id);
+
+  labels = ph_index.get(gyper::to_uint64("AGGGGGGTGGGGGGGGGGGGGGGGGGGGGGGG", 0));
+
+  for (auto const & label : labels)
+  {
+    bool const is_either = label.variant_id == 0 || label.variant_id == 2;
+    std::cerr << __HERE__ << " " << label.to_string() << "\n";
+  }
+
+  REQUIRE(labels.size() == 2);
+  REQUIRE(labels[0].variant_id != labels[1].variant_id);
+
+  labels = ph_index.get(gyper::to_uint64("AGGGGAGTGGGGGGGGGGGGGGGGGGGGGGGG", 0));
+  REQUIRE(labels.size() == 0);
+}
+
+TEST_CASE("Test index chr10 with parity event")
+{
+  using namespace gyper;
+
+  std::stringstream my_graph;
+  my_graph << gyper_SOURCE_DIRECTORY << "/test/data/graphs/index_test_chr10.grf";
+
+  gyper::load_graph(my_graph.str().c_str());
+  REQUIRE(graph.size() > 0);
+
+  gyper::PHIndex ph_index = gyper::index_graph(my_graph.str());
+  REQUIRE(ph_index.check());
+
+  ph_index.print();
+
+  std::vector<gyper::KmerLabel> labels = ph_index.get(gyper::to_uint64("GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG", 0));
+  REQUIRE(labels.size() == 36);
+
+  labels = ph_index.get(gyper::to_uint64("GGGGGAGTGGGGGGGGGGGGGGGGGGGGGGGG", 0));
+  REQUIRE(labels.size() == 1);
+  REQUIRE(labels[0].variant_id == 3); // insertion
+
+  labels = ph_index.get(gyper::to_uint64("GGGGGGGTGGGGGGGGGGGGGGGGGGGGGGGG", 0));
+
+  for (auto const & label : labels)
+  {
+    bool const is_either = label.variant_id == 0 || label.variant_id == 2;
+    REQUIRE(is_either);
+  }
+
+  REQUIRE(labels.size() == 2);
+  REQUIRE(labels[0].variant_id != labels[1].variant_id);
+
+  labels = ph_index.get(gyper::to_uint64("AGGGGGGTGGGGGGGGGGGGGGGGGGGGGGGG", 0));
+  REQUIRE(labels.size() == 0);
+
+  labels = ph_index.get(gyper::to_uint64("AGGGGGAGTGGGGGGGGGGGGGGGGGGGGGGG", 0));
+
+  for (auto const & label : labels)
+  {
+    bool const is_either = label.variant_id == 1 || label.variant_id == 3;
+    REQUIRE(is_either);
+  }
+
+  REQUIRE(labels.size() == 2);
+  REQUIRE(labels[0].variant_id != labels[1].variant_id);
+}

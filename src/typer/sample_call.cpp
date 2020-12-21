@@ -2,6 +2,9 @@
 #include <iostream>
 #include <numeric>
 
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/binary_iarchive.hpp>
+
 #include <boost/serialization/vector.hpp>
 
 #include <graphtyper/graph/absolute_position.hpp>
@@ -42,10 +45,6 @@ median(Tvec & vec)
 
 namespace gyper
 {
-
-SampleCall::SampleCall() noexcept
-  : ambiguous_depth(0)
-{}
 
 SampleCall::SampleCall(std::vector<uint8_t> && _phred,
                        std::vector<uint16_t> && _coverage,

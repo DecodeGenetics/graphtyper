@@ -36,6 +36,42 @@ bool constexpr CHANGE_READ_NAMES = true;
 namespace
 {
 
+// the character set is [!-?A-~], which is [33-64[ and [65-127[ . This corresponds to 31+62=93
+long constexpr CHAR_SET_SIZE = 93;
+
+char
+long_to_ascii(long in)
+{
+  assert(in >= 0);
+  assert(in < CHAR_SET_SIZE);
+
+  if (in >= 31)
+    ++in;
+
+  return '!' + in;
+}
+
+
+std::string
+decimal_to_read_name_string(long in)
+{
+  assert(in >= 0);
+  // std::string str = std::to_string(in); // for testing
+  std::string str; // = std::to_string(in);
+
+  while (in >= CHAR_SET_SIZE)
+  {
+    long rem = in % CHAR_SET_SIZE;
+    in = in / CHAR_SET_SIZE;
+    str.push_back(long_to_ascii(rem));
+  }
+
+  assert(in < CHAR_SET_SIZE);
+  str.push_back(long_to_ascii(in));
+  return str;
+}
+
+
 void
 removeHardClipped(seqan::String<seqan::CigarElement<> > & cigar)
 {
@@ -544,12 +580,12 @@ removeSoftClipped(BamAlignmentRecord & record, Options const & opts)
 bool
 removeNsAtEnds(BamAlignmentRecord & record, Options const & opts)
 {
-  int nOfNs = 0;
+  int nOfNs{0};
 
   if (record.seq[0] == 'N')
   {
     ++nOfNs;
-    int idx = 1;
+    int idx{1};
 
     while (record.seq[idx] == 'N' && idx < static_cast<long>(length(record.seq) - 1))
     {
@@ -608,11 +644,11 @@ removeNsAtEnds(BamAlignmentRecord & record, Options const & opts)
 Pair<int>
 findNum2Clip(BamAlignmentRecord & recordReverse, int forwardStartPos)
 {
-  int num2clip = 0;
-  int num2shift = 0;
-  unsigned cigarIndex = 0;
+  int num2clip{0};
+  int num2shift{0};
+  unsigned cigarIndex{0};
   long reverseStartPos = recordReverse.beginPos;
-  unsigned n = 0;
+  unsigned n{0};
 
   if (recordReverse.cigar[cigarIndex].operation == 'S')
   {
@@ -746,7 +782,6 @@ qualityFilterSlice2(Options const & opts,
   //bool is_paired_reads_with_no_mate{false};
   std::multiset<BamAlignmentRecord> read_set;
   std::unordered_map<seqan::String<char>, seqan::BamAlignmentRecord> read_first;
-  std::vector<seqan::BamAlignmentRecord> unpaired_reads;
   std::vector<std::pair<seqan::BamAlignmentRecord, seqan::BamAlignmentRecord> > paired_reads;
   seqan::BamAlignmentRecord record;
   long first_pos = -1;
@@ -853,9 +888,10 @@ qualityFilterSlice2(Options const & opts,
 
       if (CHANGE_READ_NAMES)
       {
-        std::ostringstream ss;
-        ss << std::hex << read_num;
-        rec.qName = ss.str();
+        //std::ostringstream ss;
+        //ss << std::hex << read_num;
+        //rec.qName = ss.str();
+        rec.qName = decimal_to_read_name_string(read_num);
         ++read_num;
       }
 
@@ -881,13 +917,19 @@ qualityFilterSlice2(Options const & opts,
 
       if (CHANGE_READ_NAMES)
       {
-        std::ostringstream ss;
-        ss << std::hex << read_num;
-        rec.qName = ss.str();
+        //std::ostringstream ss;
+        //ss << std::hex << read_num;
+        //rec.qName = ss.str();
+        rec.qName = decimal_to_read_name_string(read_num);
       }
 
       return true;
     };
+
+#ifndef NDEBUG
+  // testing if the output is sorted
+  long prev_pos{-1};
+#endif // NDEBUG
 
   while (readRegion(record, bamFileIn))
   {
@@ -905,35 +947,32 @@ qualityFilterSlice2(Options const & opts,
       first_pos = record.beginPos;
     }
 
-    if (read_first.size() > 0 &&
-        static_cast<long>(record.beginPos) >
-        static_cast<long>(2 * max_fragment_length + read_first.begin()->second.beginPos))
+    assert(record.beginPos >= 0);
+    assert(record.beginPos >= first_pos);
+
+    if (read_set.size() > 0 && (record.beginPos > (max_fragment_length + read_set.begin()->beginPos + 600)))
     {
-      auto it = read_first.begin();
-
-      while (it != read_first.end() &&
-             (record.beginPos > 2 * max_fragment_length + it->second.beginPos + 151) &&
-             (record.qName != it->first))
+      // If there are any records that need to be printed, check and add all read_first reads first
+      for (auto it = read_first.begin(); it != read_first.end();) // no increment
       {
-        makeUnpaired(it->second);
-        //is_paired_reads_with_no_mate = true;
+        if (static_cast<long>(record.beginPos) > (max_fragment_length + it->second.beginPos + 400))
+        {
+          makeUnpaired(it->second);
 
-        if (filter_unpaired(it->second))
-          post_process_unpaired(std::move(it->second));
+          if (filter_unpaired(it->second))
+            post_process_unpaired(std::move(it->second));
 
-        ++it;
+          it = read_first.erase(it);
+        }
+        else
+        {
+          ++it;
+        }
       }
 
-      read_first.erase(read_first.begin(), it);
-    }
-
-    if (read_set.size() > 0 &&
-        static_cast<long>(record.beginPos) >
-        static_cast<long>(3 * max_fragment_length + read_set.begin()->beginPos))
-    {
       auto it = read_set.begin();
 
-      while (it != read_set.end() && (record.beginPos > max_fragment_length + it->beginPos + 151))
+      while (it != read_set.end() && (record.beginPos > (max_fragment_length + it->beginPos + 400)))
       {
         long const bin1 = (it->beginPos - first_pos) / 50l;
         long const bin2 = (it->pNext - first_pos) / 50l;
@@ -941,6 +980,14 @@ qualityFilterSlice2(Options const & opts,
         if (bin_counts[bin1] < (opts.SUPER_HI_DEPTH * max_bin_sum) ||
             (hasFlagMultiple(*it) && bin_counts[bin2] < (opts.SUPER_HI_DEPTH * max_bin_sum)))
         {
+#ifndef NDEBUG
+          if (it->beginPos < prev_pos)
+          {
+            BOOST_LOG_TRIVIAL(warning) << __HERE__ << " output not sorted! " << it->beginPos << " < " << prev_pos;
+          }
+
+          prev_pos = it->beginPos;
+#endif
           writeRecord(bamFileOut, *it);
         }
 
@@ -1066,7 +1113,7 @@ qualityFilterSlice2(Options const & opts,
     read_first.erase(find_it);
   } //... while readRegion
 
-
+  // Make all leftover reads unpaired
   if (read_first.size() > 0)
   {
     for (auto && rec : read_first)
@@ -1089,6 +1136,16 @@ qualityFilterSlice2(Options const & opts,
     if (bin_counts[bin1] < (opts.SUPER_HI_DEPTH * max_bin_sum) ||
         (hasFlagMultiple(rec) && bin_counts[bin2] < (opts.SUPER_HI_DEPTH * max_bin_sum)))
     {
+#ifndef NDEBUG
+      if (rec.beginPos < prev_pos)
+      {
+        BOOST_LOG_TRIVIAL(warning) << __HERE__ << " output not sorted! " << rec.beginPos
+                                   << " < " << prev_pos;
+      }
+
+      prev_pos = rec.beginPos;
+#endif // NDEBUG
+
       writeRecord(bamFileOut, rec);
     }
   }
@@ -1219,7 +1276,7 @@ main(bamshrink::Options & opts)
   //
   open(bamFileIn, opts.bamPathIn.c_str());
 
-  BamFileOut bamFileOut(opts.bamPathOut.c_str(), "wb");
+  BamFileOut bamFileOut(opts.bamPathOut.c_str(), "wb1");
   BamAlignmentRecord record;
 
   if (length(intervalString) == 0)
@@ -1247,8 +1304,7 @@ main(bamshrink::Options & opts)
 
       if (std::equal(hd.begin(), hd.begin() + 4, t) ||
           std::equal(rg.begin(), rg.begin() + 4, t) ||
-          (line_size > sq_len && std::equal(sq.begin(), sq.begin() + sq_len, t))
-          )
+          (line_size > sq_len && std::equal(sq.begin(), sq.begin() + sq_len, t)))
       {
         new_ss << std::string(t, line_size) << '\n';
       }
@@ -1262,18 +1318,14 @@ main(bamshrink::Options & opts)
     bamFileOut.hdr->text = static_cast<char *>(realloc(bamFileOut.hdr->text, sizeof(char) * new_header.size()));
     strncpy(bamFileOut.hdr->text, new_header.c_str(), new_header.size());
     writeHeader(bamFileOut);
-    long read_num {
-      0
-    };
+    long read_num{0};
     qualityFilterSlice2(opts, intervalString[0], bamFileIn, bamFileOut, read_num, true); // is_single_contig
   }
   else
   {
     copyHeader(bamFileOut, bamFileIn);
     writeHeader(bamFileOut);
-    long read_num {
-      0
-    };
+    long read_num{0};
 
     for (unsigned i = 0; i < length(intervalString); ++i)
     {
@@ -1309,7 +1361,8 @@ bamshrink(seqan::String<seqan::Triple<seqan::CharString, int, int> > const & int
   BamFileIn bamFileIn;
   open(bamFileIn, path_in.c_str(), reference_genome);
 
-  BamFileOut bamFileOut(path_out.c_str(), "wb");
+  // The "wb1" means write, binary (BAM), with compression level 1. Use "wb" to use default compression instead
+  BamFileOut bamFileOut(path_out.c_str(), "wb1");
   opts.bamIndex = sam_index_in;
 
   if (avg_cov_by_readlen > 0.0)
@@ -1362,18 +1415,14 @@ bamshrink(seqan::String<seqan::Triple<seqan::CharString, int, int> > const & int
     bamFileOut.hdr->text = static_cast<char *>(realloc(bamFileOut.hdr->text, sizeof(char) * new_header.size()));
     strncpy(bamFileOut.hdr->text, new_header.c_str(), new_header.size());
     writeHeader(bamFileOut);
-    long read_num {
-      0
-    };
+    long read_num{0};
     bamshrink::qualityFilterSlice2(opts, interval, bamFileIn, bamFileOut, read_num, true); // is_single_contig
   }
   else
   {
     copyHeader(bamFileOut, bamFileIn);
     writeHeader(bamFileOut);
-    long read_num {
-      0
-    };
+    long read_num{0};
 
     for (auto const & interval : intervals)
     {
@@ -1399,7 +1448,7 @@ bamshrink(std::string const chrom,
   interval.i2 = begin;
   interval.i3 = end;
   seqan::appendValue(intervals, interval);
-  BOOST_LOG_TRIVIAL(debug) << "Bamshrink is copying file " << path_in;
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Bamshrink is copying file " << path_in;
   bamshrink(intervals, path_in, sam_index_in, path_out, avg_cov_by_readlen, ref_fn.c_str());
 }
 

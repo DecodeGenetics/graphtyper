@@ -152,6 +152,10 @@ Haplotype::clear_and_resize_samples(std::size_t const new_size)
     new_sample.log_score.resize(cnum * (cnum + 1) / 2, 0u);
     new_sample.gt_coverage.reserve(gts.size());
 
+#ifdef GT_DEV
+    new_sample.connections.resize(cnum);
+#endif // GT_DEV
+
     for (auto const & gt : gts)
     {
       new_sample.gt_coverage.push_back(std::vector<uint16_t>(gt.num, 0u));
@@ -464,9 +468,6 @@ Haplotype::coverage_to_gts(std::size_t const pn_index, bool const is_proper_pair
 
     }
   }
-
-  // Reset coverage
-  coverage.assign(gts.size(), NO_COVERAGE);
 }
 
 
@@ -583,7 +584,7 @@ Haplotype::explain_to_score(std::size_t const pn_index,
   long constexpr NON_UNIQUE_PATHS_PENALTY = 3; // penalty for read matching to multiple places
   long constexpr BAD_MAPQ_PENALTY = 2; // penalty for reads with low MQ
   long constexpr NOT_FULLY_ALIGNED_READ_PENALTY = 3; // penalty for reads which were clipped
-  long constexpr IS_READ_OVERLAPPING_PENALTY = 1; // penalty for reads that didn't fullt overlap the variant breakpoint
+  long constexpr IS_READ_OVERLAPPING_PENALTY = 1; // penalty for reads that didn't fully overlap the variant breakpoint
   long constexpr IS_LOW_QUAL = 2; // penalty for reads that have low quality bases overlapping the variant
 
   // Make sure we do not underflow

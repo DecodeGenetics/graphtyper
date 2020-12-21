@@ -73,25 +73,24 @@ get_logf(double abhom,
 }
 
 
-// aa score
-double constexpr AA_INTERCEPT{-6.347426707};
-double constexpr AA_SB{-0.252334000};
-double constexpr AA_MM{-0.013766577 * 3.0};
-double constexpr AA_SD{0.014572295};
-double constexpr AA_QD{0.065221319};
-double constexpr AA_CR{-0.006449446 * 3.0};
-double constexpr AA_MQ{0.055973424};
-
-std::array<double, 5l> constexpr AA_ABHom{{0.0,
-  1.304140117,
-  1.681221065,
-  2.214801195,
-  3.930106559}};
-
 inline double
 get_aa_score(double abhom, double sb, double mm, long sd, double qd, double cr, long mq)
 {
-  long abhom_bin{0};
+  double constexpr AA_INTERCEPT{-6.347426707};
+  double constexpr AA_SB{-0.25233400};
+  double constexpr AA_MM{-0.04129973};
+  double constexpr AA_SD{0.014572295};
+  double constexpr AA_QD{0.065221319};
+  double constexpr AA_CR{-0.01934834};
+  double constexpr AA_MQ{0.055973424};
+
+  std::array<double, 5l> constexpr AA_ABHom{{0.0,
+    1.304140117,
+    1.681221065,
+    2.214801195,
+    3.930106559}};
+
+  long abhom_bin{4};
 
   if (abhom <= 0.85)
     abhom_bin = 0;
@@ -101,8 +100,6 @@ get_aa_score(double abhom, double sb, double mm, long sd, double qd, double cr, 
     abhom_bin = 2;
   else if (abhom <= 0.99)
     abhom_bin = 3;
-  else
-    abhom_bin = 4;
 
   if (mq > 60)
     mq = 60;
@@ -116,23 +113,16 @@ get_aa_score(double abhom, double sb, double mm, long sd, double qd, double cr, 
                      cr * AA_CR +
                      mq * AA_MQ;
 
-  double const _exp = std::max(0.0, std::exp(-pwr));
+  /* TODO: check if this is ok
+  if (pwr < 0)
+  {
+    double const _exp = std::exp(pwr);
+    return _exp / (1.0 + _exp);
+  }
+  */
 
-  //if (sb > 0.8)
-  //{
-  //  BOOST_LOG_TRIVIAL(info) << __HERE__
-  //                          << " abhom_bin=" << abhom_bin
-  //                          << " abhom=" << AA_ABHom[abhom_bin]
-  //                          << " sb=" << sb
-  //                          << " mm=" << mm
-  //                          << " sd=" << sd
-  //                          << " qd=" << qd
-  //                          << " cr=" << cr
-  //                          << " mq=" << mq
-  //                          << " pwr=" << pwr
-  //                          << " val=" << (1.0 / (1.0 + _exp));
-  //}
-
+  double const _exp = std::exp(-pwr);
+  assert(_exp >= 0.0);
   return 1.0 / (1.0 + _exp);
 }
 

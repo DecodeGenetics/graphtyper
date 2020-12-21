@@ -10,7 +10,7 @@
 #include <graphtyper/graph/genotype.hpp>
 #include <graphtyper/typer/read_stats.hpp>
 #include <graphtyper/typer/segment.hpp>
-
+#include <graphtyper/utilities/options.hpp>
 
 namespace gyper
 {
@@ -28,8 +28,20 @@ public:
    * CLASS MODIFIERS *
    *******************/
   void set_samples(std::vector<std::string> const & samples);
+
   void update_haplotype_scores_geno(GenotypePaths & geno, long pn_index, Primers const * primers);
-  void push_to_haplotype_scores(GenotypePaths & geno, long pn_index);
+
+#ifdef GT_DEV
+  std::map<std::pair<uint16_t, uint16_t>, std::vector<std::pair<uint16_t, uint16_t> > >
+#else // GT_DEV
+  void
+#endif
+  push_to_haplotype_scores(GenotypePaths & geno, long pn_index);
+
+  void
+  update_haplotype_scores_geno(std::pair<GenotypePaths *, GenotypePaths *> & geno_paths,
+                               long const pn_index,
+                               Primers const * primers);
 
   /*********************
    * CLASS DATA ACCESS *

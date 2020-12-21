@@ -15,8 +15,8 @@ public:
   int32_t global_max_pos_end{-1};// Max pos end of alignments in this bucket and all previous buckets
   int32_t max_pos_end{-1}; // Max pos end of alignments in this bucket
 
-  std::map<SnpEvent, SnpEventInfo> snps;
-  Tindel_events indel_events; // type is std::map<IndelEvent, EventInfo>
+  std::map<Event, EventSupport> events;
+  //Tindel_events indel_events; // type is std::map<Event, EventInfo>
 };
 
 
@@ -26,7 +26,7 @@ public:
   int32_t global_max_pos_end{-1};// Max pos end of alignments in this bucket and all previous buckets
   int32_t max_pos_end{-1}; // Max pos end of alignments in this bucket
 
-  Tindel_events indel_events; // type is std::map<IndelEvent, EventInfo>
+  Tindel_events events; // type is std::map<Event, EventSupport>
   std::vector<Read> reads;
 
   std::string to_string() const;
@@ -35,22 +35,22 @@ public:
 
 bool
 is_indel_in_bucket(std::vector<Bucket> const & buckets,
-                   IndelEvent const & indel_event,
+                   Event const & indel_event,
                    long const region_begin,
                    long const BUCKET_SIZE);
 
 
-std::map<SnpEvent, SnpEventInfo>::iterator
+std::map<Event, EventSupport>::iterator
 add_snp_event_to_bucket(std::vector<BucketFirstPass> & buckets,
-                        SnpEvent && event,
+                        Event && event,
                         long const region_begin,
                         long const BUCKET_SIZE);
 
 
 template <typename TBucket>
-Tindel_events::iterator
+std::map<Event, EventSupport>::iterator
 add_indel_event_to_bucket(std::vector<TBucket> & buckets,
-                          IndelEvent && event,
+                          Event && event,
                           long const region_begin,
                           long const BUCKET_SIZE,
                           std::vector<char> const & reference_sequence,

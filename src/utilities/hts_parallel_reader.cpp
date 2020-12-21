@@ -12,6 +12,7 @@
 #include <seqan/sequence.h>
 #include <seqan/hts_io.h>
 
+#include <graphtyper/constants.hpp>
 #include <graphtyper/graph/haplotype_calls.hpp>
 #include <graphtyper/graph/reference_depth.hpp>
 #include <graphtyper/typer/alignment.hpp>
@@ -186,7 +187,7 @@ HtsParallelReader::get_header() const
 {
   if (hts_files.size() == 0)
   {
-    std::cerr << "[graphtyper::hts_parallel_reader] ERROR: Cannot get header with no opened files.\n";
+    BOOST_LOG_TRIVIAL(error) << __HERE__ << " Cannot get header with no opened files.";
     std::exit(1);
   }
 
@@ -273,7 +274,8 @@ genotype_only(HtsParallelReader const & hts_preader,
               HtsRecord const & hts_rec,
               seqan::IupacString & seq,
               seqan::IupacString & rseq,
-              bool update_prev_paths)
+              bool update_prev_paths,
+              bool const IS_SV_CALLING)
 {
   assert(hts_rec.record);
   assert(hts_rec.file_index >= 0);
@@ -297,37 +299,23 @@ genotype_only(HtsParallelReader const & hts_preader,
   }
 
   std::pair<GenotypePaths, GenotypePaths> geno_paths(prev_paths);
+
   auto find_it = map_gpaths.find(read_name);
 
   if (find_it == map_gpaths.end())
   {
-    if (hts_rec.record->core.flag & IS_PAIRED)
+    if ((hts_rec.record->core.flag & IS_PAIRED) != 0u)
     {
       // Read is in a pair and we need to wait for its mate
-//#ifndef NDEBUG
-//      update_paths(geno_paths, seq, rseq, hts_rec.record);
-//#else
       update_paths(geno_paths, hts_rec.record);
-//#endif
-
-      map_gpaths[read_name] = std::move(geno_paths); // Did not find the read name
+      map_gpaths[read_name] = std::move(geno_paths);   // Did not find the read name
     }
     else
     {
-//#ifndef NDEBUG
-//      GenotypePaths * selected = update_unpaired_read_paths(geno_paths, seq, rseq, hts_rec.record);
-//#else
       GenotypePaths * selected = update_unpaired_read_paths(geno_paths, hts_rec.record);
-//#endif
 
       if (selected)
       {
-        if (graph.is_sv_graph)
-        {
-          // Add reference depth
-          reference_depth.add_genotype_paths(*selected, sample_i);
-        }
-
         writer.update_haplotype_scores_geno(*selected, sample_i, primers);
       }
     }
@@ -335,15 +323,12 @@ genotype_only(HtsParallelReader const & hts_preader,
   else
   {
     // Do stuff with paired reads....
-//#ifndef NDEBUG
-//    update_paths(geno_paths, seq, rseq, hts_rec.record);
-//#else
     update_paths(geno_paths, hts_rec.record);
-//#endif
 
     if ((geno_paths.first.flags & IS_FIRST_IN_PAIR) == (find_it->second.first.flags & IS_FIRST_IN_PAIR))
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Reads with name '" << read_name << "' both have IS_FIRST_IN_PAIR="
+      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Reads with name=" << read_name
+                               << " both have IS_FIRST_IN_PAIR="
                                << ((geno_paths.first.flags & IS_FIRST_IN_PAIR) != 0);
       std::exit(1);
     }
@@ -356,15 +341,16 @@ genotype_only(HtsParallelReader const & hts_preader,
     {
       assert(better_paths.second);
 
-      if (graph.is_sv_graph)
+      if (IS_SV_CALLING)
       {
         // Add reference depth
         reference_depth.add_genotype_paths(*better_paths.first, sample_i);
         reference_depth.add_genotype_paths(*better_paths.second, sample_i);
       }
 
-      writer.update_haplotype_scores_geno(*better_paths.first, sample_i, primers);
-      writer.update_haplotype_scores_geno(*better_paths.second, sample_i, primers);
+      writer.update_haplotype_scores_geno(better_paths, sample_i, primers);
+      //writer.update_haplotype_scores_geno(*better_paths.first, sample_i, primers);
+      //writer.update_haplotype_scores_geno(*better_paths.second, sample_i, primers);
     }
 
     map_gpaths.erase(find_it); // Remove the read name afterwards
@@ -498,6 +484,14 @@ parallel_reader_genotype_only(std::string * out_path,
                               std::string const * region_ptr,
                               PHIndex const * ph_index_ptr,
                               Primers const * primers,
+
+                              std::map<std::pair<uint16_t, uint16_t>,
+                                       std::map<std::pair<uint16_t, uint16_t>, int8_t> > *
+#ifdef GT_DEV
+                              ph_ptr,
+#else
+                             ,
+#endif
                               bool const is_writing_calls_vcf,
                               bool const is_writing_hap)
 {
@@ -554,6 +548,7 @@ parallel_reader_genotype_only(std::string * out_path,
   std::pair<GenotypePaths, GenotypePaths> prev_paths;
   HtsRecord prev;
 
+  // returns true if the read is good enough to attempt graph alignment and use in genotyping
   auto is_good_read =
     [](bam1_t * record) -> bool
     {
@@ -568,6 +563,10 @@ parallel_reader_genotype_only(std::string * out_path,
 
       auto cigar_it = record->data + core.l_qname;
       long const N_CIGAR = core.n_cigar;
+      bool const is_mate_far_away = core.tid != core.mtid || std::abs(core.pos - core.mpos) > 200000;
+
+      if (core.qual <= 15 && is_mate_far_away)
+        return false;
 
       // Check if both ends are clipped
       if (N_CIGAR >= 2)
@@ -585,15 +584,10 @@ parallel_reader_genotype_only(std::string * out_path,
         bool const is_one_clipped = (cigar_operation_front == 'S' && count_front >= 12) ||
                                     (cigar_operation_back == 'S' && count_back >= 12);
 
-        bool const is_mate_far_away = core.tid != core.mtid || std::abs(core.pos - core.mpos) > 200000;
+        bool const are_both_clipped = cigar_operation_front == 'S' && cigar_operation_back == 'S';
 
-        if ((cigar_operation_front == 'S' && cigar_operation_back == 'S') ||
-            (is_mate_far_away && is_one_clipped) ||
-            (core.qual <= 15 && is_one_clipped) ||
-            (core.qual <= 15 && is_mate_far_away))
-        {
+        if (are_both_clipped || (core.qual <= 15 && is_one_clipped))
           return false;
-        }
       }
 
       return true;
@@ -626,7 +620,8 @@ parallel_reader_genotype_only(std::string * out_path,
     if (IS_COVERAGE_FILTER)
       bin_counts.resize(hts_preader.get_samples().size());
 
-    // Lambda function to update bin counts for the first record. Returns false when there are too many reads in bin
+    // Lambda function to update bin counts for the first record. Returns false when there are too many
+    // reads in bin
     auto update_bin_count =
       [&](HtsRecord const & hts_rec) -> bool
       {
@@ -668,8 +663,9 @@ parallel_reader_genotype_only(std::string * out_path,
     ++num_records;
     seqan::IupacString seq;
     seqan::IupacString rseq;
-    genotype_only(hts_preader, writer, reference_depth, maps, prev_paths, ph_index, primers, prev, seq, rseq,
-                  true /*update prev_geno_paths*/);
+
+    genotype_only(hts_preader, writer, reference_depth, maps, prev_paths, ph_index, primers,
+                  prev, seq, rseq, true /*update prev_geno_paths*/, IS_SV_CALLING);
 
     HtsRecord curr;
 
@@ -689,8 +685,9 @@ parallel_reader_genotype_only(std::string * out_path,
         // The two records are equal
         update_bin_count(curr);
         ++num_duplicated_records;
-        genotype_only(hts_preader, writer, reference_depth, maps, prev_paths, ph_index, primers, curr, seq, rseq,
-                      false /*update prev_geno_paths*/);
+
+        genotype_only(hts_preader, writer, reference_depth, maps, prev_paths, ph_index, primers,
+                      curr, seq, rseq, false /*update prev_geno_paths*/, IS_SV_CALLING);
       }
       else
       {
@@ -700,8 +697,9 @@ parallel_reader_genotype_only(std::string * out_path,
           continue;
         }
 
-        genotype_only(hts_preader, writer, reference_depth, maps, prev_paths, ph_index, primers, curr, seq, rseq,
-                      true /*update prev_geno_paths*/);
+        genotype_only(hts_preader, writer, reference_depth, maps, prev_paths, ph_index, primers,
+                      curr, seq, rseq, true /*update prev_geno_paths*/, IS_SV_CALLING);
+
         hts_preader.move_record(prev, curr); // move curr to prev
       }
     }
@@ -710,13 +708,263 @@ parallel_reader_genotype_only(std::string * out_path,
                              << num_duplicated_records << " / " << num_records;
   }
 
+  // align leftover reads
+  if (IS_SV_CALLING)
+  {
+    for (long sample_i{0}; sample_i < static_cast<long>(maps.size()); ++sample_i)
+    {
+      auto & map_gpaths = maps[sample_i];
+
+      for (auto read_it = map_gpaths.begin(); read_it != map_gpaths.end(); ++read_it)
+      {
+        //BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << read_it->first;
+        std::pair<GenotypePaths, GenotypePaths> copy(read_it->second);
+
+        toggle_bit(copy.first.flags, IS_FIRST_IN_PAIR | IS_SEQ_REVERSED);
+        toggle_bit(copy.second.flags, IS_FIRST_IN_PAIR | IS_SEQ_REVERSED);
+
+        std::pair<GenotypePaths *, GenotypePaths *> better_paths =
+          get_better_paths(read_it->second, copy);
+
+        if (better_paths.first)
+        {
+          assert(better_paths.second);
+
+          // Add reference depth
+          reference_depth.add_genotype_paths(*better_paths.first, sample_i);
+          //reference_depth.add_genotype_paths(*better_paths.second, sample_i);
+
+          writer.update_haplotype_scores_geno(*better_paths.first, sample_i, primers);
+          //writer.update_haplotype_scores_geno(*better_paths.second, sample_i, primers);
+        }
+      }
+    }
+
+    maps.clear();
+  }
+
 #ifndef NDEBUG
-  check_if_maps_are_empty(maps);
+  //if (!gyper::graph.is_sv_graph)
+  {
+    check_if_maps_are_empty(maps);
+  }
 #endif // NDEBUG
 
   // Write haplotype calls
   if (is_writing_hap)
   {
+#ifdef GT_DEV
+    assert(ph_ptr);
+    std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > & ph = *ph_ptr;
+
+    for (long ps1{0}; ps1 < (static_cast<long>(writer.haplotypes.size()) - 1l); ++ps1)
+    {
+      auto const & hap1 = writer.haplotypes[ps1];
+      assert(hap1.gts.size() == 1);
+      long const order1 = hap1.gts[0].id;
+
+      for (long ps2{ps1 + 1l}; ps2 < static_cast<long>(writer.haplotypes.size()); ++ps2)
+      {
+        auto const & hap2 = writer.haplotypes[ps2];
+        assert(hap2.gts.size() == 1);
+        long const order2 = hap2.gts[0].id;
+
+        if (order2 >= order1 + 100)
+          break;
+
+        for (long s{0}; s < static_cast<long>(hap1.hap_samples.size()); ++s)
+        {
+          auto const & hap_samples1 = hap1.hap_samples[s];
+          auto const & hap_samples2 = hap2.hap_samples[s];
+          auto const & conn_vec = hap_samples1.connections;
+          assert(conn_vec.size() == hap1.gts[0].num);
+
+          // skip reference
+          for (long cov1{1}; cov1 < static_cast<long>(hap1.gts[0].num); ++cov1)
+          {
+            // only check for phasing if at least N% of the reads map to this allele
+            assert(hap_samples1.gt_coverage.size() == 1);
+            assert(cov1 < static_cast<long>(hap_samples1.gt_coverage[0].size()));
+
+            auto const & conn = conn_vec[cov1];
+            auto find_it = conn.find(ps2);
+
+            if (find_it == conn.end()) // no info between these haplotypes
+              continue;
+
+            bool const is_clearly_seen1 = hap_samples1.gt_coverage[0][cov1] >= 4 ||
+                                          (static_cast<double>(hap_samples1.gt_coverage[0][cov1]) /
+                                           std::accumulate(hap_samples1.gt_coverage[0].begin(),
+                                                           hap_samples1.gt_coverage[0].end(),
+                                                           0.0)) >= 0.28;
+
+            bool const is_not_seen1 = hap_samples1.gt_coverage[0][cov1] <= 2 ||
+                                      (static_cast<double>(hap_samples1.gt_coverage[0][cov1]) /
+                                       std::accumulate(hap_samples1.gt_coverage[0].begin(),
+                                                       hap_samples1.gt_coverage[0].end(),
+                                                       0.0)) < 0.22;
+
+            auto find1_it = ph.find({ps1, cov1});
+
+            if (find1_it == ph.end())
+            {
+              auto insert_it = ph.insert({{ps1, cov1}, std::map<std::pair<uint16_t, uint16_t>, int8_t>()});
+              assert(insert_it.second);
+              find1_it = insert_it.first;
+            }
+
+            std::vector<uint16_t> const & support_vec = find_it->second;
+            assert(support_vec.size() == hap2.gts[0].num);
+
+            // total support between any alleles in these two variant groups
+            long total_support = std::accumulate(support_vec.begin(), support_vec.end(), 0l);
+
+            // skip reference
+            for (long cov2{1}; cov2 < static_cast<long>(support_vec.size()); ++cov2)
+            {
+              double const support = static_cast<double>(support_vec[cov2]);
+
+              //if (total_support <= 2)
+              //  continue;
+
+              int8_t is_good{0};
+
+              bool const is_clearly_seen2 = hap_samples2.gt_coverage[0][cov2] >= 4 ||
+                                            (static_cast<double>(hap_samples2.gt_coverage[0][cov2]) /
+                                             std::accumulate(hap_samples2.gt_coverage[0].begin(),
+                                                             hap_samples2.gt_coverage[0].end(),
+                                                             0.0)) >= 0.28;
+
+              bool const is_not_seen2 = hap_samples2.gt_coverage[0][cov2] <= 2 ||
+                                        (static_cast<double>(hap_samples2.gt_coverage[0][cov2]) /
+                                         std::accumulate(hap_samples2.gt_coverage[0].begin(),
+                                                         hap_samples2.gt_coverage[0].end(),
+                                                         0.0)) < 0.22;
+
+
+              //if (total_support <= 2)
+              //{
+              //  // is_good = 0;
+              //}
+              //else if (hap_samples2.gt_coverage[0][cov2] <= 2 ||
+              //         (static_cast<double>(hap_samples2.gt_coverage[0][cov2]) /
+              //          std::accumulate(hap_samples2.gt_coverage[0].begin(),
+              //                          hap_samples2.gt_coverage[0].end(),
+              //                          0.0)) < 0.22)
+              //{
+              //  is_good = IS_ANY_ANTI_HAP_SUPPORT;
+              //}
+              //if (!is_clearly_seen1 && !is_clearly_seen2)
+              if (is_not_seen1 && is_not_seen2)
+              {
+                // is_good==0
+                continue; // either needs to be clearly seen to determine anything
+              }
+
+              if ((is_not_seen1 && is_clearly_seen2) || (is_not_seen2 && is_clearly_seen1))
+              {
+                // if only one of the alleles is seen, add anti hap support to hinder them from false being in hap
+                is_good = IS_ANY_ANTI_HAP_SUPPORT;
+              }
+              else
+              {
+                // both alleles are seen, but are they on the same haplotype?
+                if (total_support <= 2)
+                  continue; // cannot determine - too low support between any two
+
+                if (is_clearly_seen1 && is_clearly_seen2 && support / static_cast<double>(total_support) > 0.78)
+                {
+                  is_good = IS_ANY_HAP_SUPPORT;
+                }
+                else if (support / static_cast<double>(total_support) < 0.22)
+                {
+                  is_good = IS_ANY_ANTI_HAP_SUPPORT;
+                }
+                else
+                {
+                  // is_good==0, ambigous
+                  continue;
+                }
+              }
+
+              //auto insert_it = find1_it->second.insert({{ps2, cov2}, 0});
+              //insert_it.first->second |= is_good;
+              find1_it->second[{ps2, cov2}] |= is_good;
+
+              //if (/*is_good == IS_ANY_ANTI_HAP_SUPPORT &&*/ hap1.gts[0].id >= 86840 && hap1.gts[0].id <= 86850 &&
+              //    hap2.gts[0].id <= 86869)
+              //{
+              //  BOOST_LOG_TRIVIAL(info) << __HERE__
+              //                          << " s=" << s
+              //                          << " order1=" << hap1.gts[0].id
+              //                          << " var1=" << ps1 << "." << cov1
+              //                          << " raw_supp1=" << hap_samples1.gt_coverage[0][cov1]
+              //                          << " order2=" << hap2.gts[0].id
+              //                          << " var2=" << ps2 << "." << cov2
+              //                          << " raw_supp2=" << hap_samples2.gt_coverage[0][cov2]
+              //                          << " ph_supp=" << support << "/" << total_support
+              //                          << " is_good=" << static_cast<long>(is_good);
+              //}
+            }
+          }
+        }
+      }
+    }
+
+    // check ph
+    /*
+    for (auto const & ph1 : ph)
+    {
+      std::pair<uint16_t, uint16_t> const & hap1 = ph1.first;
+
+      for (auto const & ph2 : ph1.second)
+      {
+        std::pair<uint16_t, uint16_t> const & hap2 = ph2.first;
+
+        if (hap1.first == 249 && hap2.first == 250)
+        {
+          if (ph2.second == IS_ANY_ANTI_HAP_SUPPORT || ph2.second == IS_ANY_HAP_SUPPORT)
+          {
+            BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << hap1.first << "." << hap1.second
+                                    << " o1=" << writer.haplotypes[hap1.first].gts[0].id << " "
+                                    << hap2.first << "." << hap2.second
+                                    << " o2=" << writer.haplotypes[hap2.first].gts[0].id
+                                    << " is_good=" << static_cast<long>(ph2.second);
+          }
+          else if (ph2.second == (IS_ANY_ANTI_HAP_SUPPORT | IS_ANY_HAP_SUPPORT))
+          {
+            BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << hap1.first << "." << hap1.second
+                                    << " o1=" << writer.haplotypes[hap1.first].gts[0].id << " "
+                                    << hap2.first << "." << hap2.second
+                                    << " o2=" << writer.haplotypes[hap2.first].gts[0].id
+                                    << " is_good=" << static_cast<long>(ph2.second);
+          }
+        }
+      }
+    }
+    */
+
+    if (!is_writing_calls_vcf)
+    {
+      assert(!graph.is_sv_graph);
+
+      // No need to create a VCF here if we are also creating a calls VCF
+      Vcf vcf;
+
+      // Set sample names
+      vcf.sample_names = writer.pns;
+
+      for (long ps{0}; ps < static_cast<long>(writer.haplotypes.size()); ++ps)
+      {
+        Haplotype & hap = writer.haplotypes[ps];
+        vcf.add_haplotype(writer.haplotypes[ps], static_cast<int32_t>(ps));
+        hap.clear();
+      }
+
+      save_vcf(vcf, output_dir + "/" + first_sample);
+    }
+
+#else
     // Write genotype calls. No need to write haplotype calls in SV genotyping
     std::ostringstream hap_calls_path;
     hap_calls_path << output_dir << "/" << first_sample << ".hap";
@@ -725,6 +973,7 @@ parallel_reader_genotype_only(std::string * out_path,
     BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Writing haplotype calls to '"
                              << hap_calls_path.str() << "'";
     save_calls(hap_calls, hap_calls_path.str());
+#endif
   }
 
   // Optionally we can write _calls.vcf.gz files for each pool of samples
@@ -739,15 +988,15 @@ parallel_reader_genotype_only(std::string * out_path,
     // Set sample names
     vcf.sample_names = writer.pns;
 
-    for (long ps = 0; ps < static_cast<long>(writer.haplotypes.size()); ++ps)
+    for (long ps{0}; ps < static_cast<long>(writer.haplotypes.size()); ++ps)
     {
-      vcf.add_haplotype(writer.haplotypes[ps],
-                        true /*clear haplotypes*/,
-                        static_cast<uint32_t>(ps));
+      Haplotype & hap = writer.haplotypes[ps];
+      vcf.add_haplotype(writer.haplotypes[ps], static_cast<int32_t>(ps));
+      hap.clear(); // clear haplotype
     }
 
-    for (auto & var : vcf.variants)
-      var.trim_sequences(false);   // Don't keep one match
+    //for (auto & var : vcf.variants)
+    //  var.trim_sequences(false);   // Don't keep one match
 
     if (graph.is_sv_graph)
     {
@@ -829,8 +1078,8 @@ parallel_reader_with_discovery(std::string * out_path,
   }
 #endif // ifndef NDEBUG
 
-  long num_records = 0;
-  long num_duplicated_records = 0;
+  long num_records{0};
+  long num_duplicated_records{0};
   std::pair<GenotypePaths, GenotypePaths> prev_paths;
   HtsRecord prev;
 
@@ -929,9 +1178,9 @@ parallel_reader_with_discovery(std::string * out_path,
 
     for (long ps = 0; ps < static_cast<long>(writer.haplotypes.size()); ++ps)
     {
-      vcf.add_haplotype(writer.haplotypes[ps],
-                        true /*clear haplotypes*/,
-                        static_cast<uint32_t>(ps));
+      Haplotype & hap = writer.haplotypes[ps];
+      vcf.add_haplotype(hap, static_cast<int32_t>(ps));
+      hap.clear();
     }
 
     for (auto & var : vcf.variants)
@@ -991,9 +1240,7 @@ sam_merge(std::string const & output_sam, std::vector<std::string> const & input
     int ret = unlink(input_sam.c_str());
 
     if (ret < 0)
-    {
       BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Unable to remove " << input_sam;
-    }
   }
 }
 

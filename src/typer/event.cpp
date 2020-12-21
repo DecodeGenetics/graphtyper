@@ -8,8 +8,65 @@
 #include <graphtyper/utilities/options.hpp>
 
 
+namespace
+{
+/*
+std::vector<uint8_t>
+get_phred_biallelic(uint32_t count, uint32_t anti_count, uint32_t eps)
+{
+  std::vector<uint8_t> phred(3);
+
+  uint64_t gt00 = count * eps;
+  uint64_t gt01 = count + anti_count;
+  uint64_t gt11 = anti_count * eps;
+  uint64_t const min_gt = std::min({gt00, gt01, gt11});
+  gt00 = (gt00 - min_gt) * 3ul;
+  gt01 = (gt01 - min_gt) * 3ul;
+  gt11 = (gt11 - min_gt) * 3ul;
+
+  uint64_t constexpr MAX = std::numeric_limits<uint8_t>::max();
+  phred[0] = std::min(gt00, MAX);
+  phred[1] = std::min(gt01, MAX);
+  phred[2] = std::min(gt11, MAX);
+  return phred;
+}
+*/
+
+} // anon namespace
+
+
 namespace gyper
 {
+
+uint32_t
+get_log_qual(uint32_t count, uint32_t anti_count, uint32_t eps)
+{
+  uint32_t const gt00 = count * eps;
+  uint32_t const gt01 = count + anti_count;
+  uint32_t const gt11 = anti_count * eps;
+  uint32_t const gt_alt = std::min(gt01, gt11);
+
+  if (gt00 > gt_alt)
+    return gt00 - gt_alt;
+  else
+    return 0u;
+}
+
+
+uint32_t
+get_log_qual_double(double count, double anti_count, double eps)
+{
+  double const gt00 = count * eps;
+  double const gt01 = count + anti_count;
+  double const gt11 = anti_count * eps;
+  double const gt_alt = std::min(gt01, gt11);
+
+  if (gt00 > gt_alt)
+    return static_cast<uint32_t>(gt00 - gt_alt + 0.5);
+  else
+    return 0u;
+}
+
 
 long
 base2index(char const base)
@@ -55,60 +112,8 @@ base2index(char const base)
 }
 
 
-long
-BaseCount::get_depth_without_deleted() const
-{
-  return acgt[0] + acgt[1] + acgt[2] + acgt[3];
-}
-
-
-long
-BaseCount::get_depth_with_deleted() const
-{
-  return acgt[0] + acgt[1] + acgt[2] + acgt[3] + deleted;
-}
-
-
-std::string
-BaseCount::to_string() const
-{
-  std::ostringstream ss;
-  ss << acgt[0] << "," << acgt[1] << "," << acgt[2] << "," << acgt[3] << ":"
-     << acgt_qualsum[0] << "," << acgt_qualsum[1] << "," << acgt_qualsum[2]
-     << "," << acgt_qualsum[3] << " " << deleted;
-  return ss.str();
-}
-
-
-void
-BaseCount::add_base(char seq, char qual)
-{
-  long i = base2index(seq);
-
-  if (i < 0)
-  {
-    if (i == -1)
-    {
-      ++unknown;
-      return;
-    }
-    else
-    {
-      assert(i == -2);
-      // -2 is deleted base
-      ++deleted;
-      return;
-    }
-  }
-
-  assert(i < 4);
-  ++(acgt[i]);
-  acgt_qualsum[i] += static_cast<int64_t>(qual);
-}
-
-
 bool
-IndelEvent::operator==(IndelEvent const & b) const
+Event::operator==(Event const & b) const
 {
   return (pos == b.pos) &&
          (type == b.type) &&
@@ -117,52 +122,63 @@ IndelEvent::operator==(IndelEvent const & b) const
 
 
 bool
-IndelEvent::operator!=(IndelEvent const & b) const
+Event::operator!=(Event const & b) const
 {
   return !(*this == b);
 }
 
 
 bool
-IndelEvent::operator<(IndelEvent const & b) const
+Event::operator<(Event const & b) const
 {
-  return pos < b.pos || (pos == b.pos && type < b.type) || (pos == b.pos && type == b.type && sequence < b.sequence);
+  // order is indel, deletions, snp
+  auto const order_a = (type == 'D') + 2 * (type == 'X');
+  auto const order_b = (b.type == 'D') + 2 * (b.type == 'X');
+
+  return pos < b.pos ||
+         (pos == b.pos && order_a < order_b) ||
+         (pos == b.pos && order_a == order_b && sequence < b.sequence);
 }
 
 
-bool
-SnpEvent::operator==(SnpEvent const & b) const
+void
+EventSupport::clear()
 {
-  return (pos == b.pos) && (base == b.base);
+  hq_count = 0;
+  lq_count = 0;
+  proper_pairs = 0;
+  first_in_pairs = 0;
+  sequence_reversed = 0;
+  clipped = 0;
+  max_mapq = 0;
+  max_distance = 0;
+  uniq_pos1 = -1;
+  uniq_pos2 = -1;
+  uniq_pos3 = -1;
+  //phase.clear();
+  // do not clear indel only things
 }
 
 
-bool
-SnpEvent::operator!=(SnpEvent const & b) const
+int
+EventSupport::get_raw_support() const
 {
-  return !(*this == b);
-}
-
-
-bool
-SnpEvent::operator<(SnpEvent const & b) const
-{
-  return pos < b.pos || (pos == b.pos && base < b.base);
+  return hq_count + lq_count;
 }
 
 
 double
-SnpEventInfo::corrected_support() const
+EventSupport::corrected_support() const
 {
   return static_cast<double>(hq_count) + static_cast<double>(lq_count) / 2.0;
 }
 
 
 bool
-SnpEventInfo::has_good_support(long const cov) const
+EventSupport::has_good_support(long const cov) const
 {
-  int const _depth = hq_count + lq_count;
-  bool const is_promising = uniq_pos3 != -1 && hq_count >= 4 && proper_pairs >= 3;
+  int const raw_support = get_raw_support();
+  bool const is_promising = uniq_pos3 != -1 && hq_count >= 7 && proper_pairs >= 4;
   gyper::Options const & copts = *(Options::const_instance());
 
   return (copts.no_filter_on_begin_pos || uniq_pos2 != -1)
@@ -173,24 +189,27 @@ SnpEventInfo::has_good_support(long const cov) const
          &&
          (!copts.filter_on_read_bias ||
           is_promising ||
-          (first_in_pairs > 0 && first_in_pairs < _depth))
+          (first_in_pairs > 0 && first_in_pairs < raw_support))
          &&
          (!copts.filter_on_strand_bias ||
-          (is_promising && sequence_reversed > 0 && sequence_reversed < _depth) ||
-          (sequence_reversed > 1 && sequence_reversed < (_depth - 1)))
+          (is_promising && sequence_reversed > 0 && sequence_reversed < raw_support) ||
+          (sequence_reversed > 1 && sequence_reversed < (raw_support - 1)))
          &&
-         ((clipped + 3) <= _depth)
+         (clipped <= 1 || (clipped + 5) <= raw_support)
          &&
-         ((is_promising && hq_count >= 7) || max_distance > 10)
+         (max_distance >= 10 || (is_promising && hq_count >= 10))
          &&
          (corrected_support() >= 3.9)
          &&
-         (cov <= 0 || (static_cast<double>(_depth) / static_cast<double>(cov) > 0.26));
+         (cov <= 0 ||
+          (static_cast<double>(raw_support) / static_cast<double>(cov) > 0.26) ||
+          (is_promising && static_cast<double>(raw_support) / static_cast<double>(cov) > 0.19)
+         );
 }
 
 
 std::string
-SnpEventInfo::to_string() const
+EventSupport::to_string() const
 {
   std::ostringstream ss;
 
@@ -205,83 +224,46 @@ SnpEventInfo::to_string() const
      << ",uniq_pos1=" << uniq_pos1
      << ",uniq_pos2=" << uniq_pos2
      << ",uniq_pos3=" << uniq_pos3
-     << ",phase_num=" << phase.size();
+     << ",phase_num=" << phase.size()
+     << ",anti_count=" << anti_count
+     << ",span=" << span
+     << ",max_log_qual=" << max_log_qual
+     << ",max_log_qual_file_i=" << max_log_qual_file_i;
 
   return ss.str();
 }
 
 
-std::vector<uint8_t>
-get_phred_biallelic(uint32_t count, uint32_t anti_count, uint32_t eps)
-{
-  std::vector<uint8_t> phred(3);
-
-  uint64_t gt00 = count * eps;
-  uint64_t gt01 = count + anti_count;
-  uint64_t gt11 = anti_count * eps;
-  uint64_t const min_gt = std::min({gt00, gt01, gt11});
-  gt00 = (gt00 - min_gt) * 3ul;
-  gt01 = (gt01 - min_gt) * 3ul;
-  gt11 = (gt11 - min_gt) * 3ul;
-
-  uint64_t constexpr MAX = std::numeric_limits<uint8_t>::max();
-  phred[0] = std::min(gt00, MAX);
-  phred[1] = std::min(gt01, MAX);
-  phred[2] = std::min(gt11, MAX);
-  return phred;
-}
-
-
 uint32_t
-get_log_qual(uint32_t count, uint32_t anti_count, uint32_t eps)
+EventSupport::log_qual(uint32_t eps) const
 {
-  uint32_t const gt00 = count * eps;
-  uint32_t const gt01 = count + anti_count;
-  uint32_t const gt11 = anti_count * eps;
-  uint32_t const gt_alt = std::min(gt01, gt11);
-
-  if (gt00 > gt_alt)
-    return gt00 - gt_alt;
-  else
-    return 0u;
+  return get_log_qual(hq_count + lq_count, anti_count, eps);
 }
 
 
-uint32_t
-get_log_qual_double(double count, double anti_count, double eps)
+bool
+EventSupport::is_good_indel(uint32_t eps) const
 {
-  double const gt00 = count * eps;
-  double const gt01 = count + anti_count;
-  double const gt11 = anti_count * eps;
-  double const gt_alt = std::min(gt01, gt11);
+  long const depth = hq_count + lq_count + anti_count + multi_count;
 
-  if (gt00 > gt_alt)
-    return static_cast<uint32_t>(gt00 - gt_alt + 0.5);
-  else
-    return 0u;
-}
+  if (depth == 0 || sequence_reversed <= 0 || sequence_reversed >= depth || proper_pairs <= 4 || max_mapq <= 30)
+    return false;
 
+  assert(sequence_reversed <= depth);
+  long const qual = 3 * get_log_qual(hq_count + lq_count, anti_count, eps);
 
-uint32_t
-EventInfo::log_qual(uint32_t eps) const
-{
-  return get_log_qual(count, anti_count, eps);
-}
+  if (qual < 60)
+    return false;
 
-
-void
-EventInfo::clean_counts()
-{
-  count = 0;
-  anti_count = 0;
-  multi_count = 0;
+  double const qd = static_cast<double>(qual) / static_cast<double>(depth);
+  return qd >= 3.0;
 }
 
 
 bool
 apply_indel_event(std::vector<char> & sequence,
                   std::vector<int32_t> & ref_positions,
-                  IndelEvent const & indel_event,
+                  Event const & indel_event,
                   long const offset,
                   bool const is_debug)
 {
@@ -294,7 +276,9 @@ apply_indel_event(std::vector<char> & sequence,
   long pos{ref_pos}; // Start the search for the reference position here
   long const event_size{static_cast<long>(indel_event.sequence.size())};
   long const seq_size{static_cast<long>(sequence.size())};
-  assert(pos < seq_size);
+
+  if (pos >= seq_size)
+    return false;
 
   if (ref_positions[pos] != ref_pos)
   {
@@ -383,10 +367,10 @@ apply_indel_event(std::vector<char> & sequence,
 }
 
 
-IndelEvent
+Event
 make_deletion_event(std::vector<char> const & reference_sequence, long ref_offset, int32_t pos, long count)
 {
-  IndelEvent new_event(pos, 'D');
+  Event new_event(pos, 'D');
 
   assert(ref_offset >= 0);
   assert(ref_offset + count < static_cast<long>(reference_sequence.size()));
@@ -398,10 +382,10 @@ make_deletion_event(std::vector<char> const & reference_sequence, long ref_offse
 }
 
 
-IndelEvent
+Event
 make_insertion_event(int32_t pos, std::vector<char> && event_sequence)
 {
-  IndelEvent new_event(pos, 'I');
+  Event new_event(pos, 'I');
   new_event.sequence = std::move(event_sequence);
   return new_event;
 }

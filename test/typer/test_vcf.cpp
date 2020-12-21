@@ -10,6 +10,7 @@
 #include <graphtyper/graph/graph_serialization.hpp> // load_graph()
 #include <graphtyper/index/indexer.hpp> // load_index()
 #include <graphtyper/typer/vcf.hpp>
+#include <graphtyper/utilities/type_conversions.hpp>
 
 
 TEST_CASE("Create a VCF and add samples")
@@ -73,11 +74,11 @@ TEST_CASE("Create a VCF and add variants")
     REQUIRE(vcf.variants.size() == 2);
 
     REQUIRE(vcf.variants[0].seqs.size() == 2);
-    REQUIRE(vcf.variants[0].seqs[0] == gyper::to_vec("CC"));
-    REQUIRE(vcf.variants[0].seqs[1] == gyper::to_vec("CA"));
+    REQUIRE(vcf.variants[0].seqs[0] == gyper::to_vec("C"));
+    REQUIRE(vcf.variants[0].seqs[1] == gyper::to_vec("A"));
 
     REQUIRE(vcf.variants[1].seqs.size() == 2);
-    REQUIRE(vcf.variants[1].seqs[0] == gyper::to_vec("CC"));
-    REQUIRE(vcf.variants[1].seqs[1] == gyper::to_vec("CA"));
+    REQUIRE(vcf.variants[1].seqs[0] == gyper::to_vec("C"));
+    REQUIRE(vcf.variants[1].seqs[1] == gyper::to_vec("A"));
   }
 }

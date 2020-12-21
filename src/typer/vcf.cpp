@@ -6,6 +6,9 @@
 
 #include <boost/algorithm/string/predicate.hpp> // boost::algorithm::ends_with
 #include <boost/log/trivial.hpp>
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/lexical_cast.hpp>
 #include <boost/serialization/string.hpp>
 #include <boost/serialization/vector.hpp>
 
@@ -309,7 +312,7 @@ Vcf::read_record(bool const SITES_ONLY)
         }
         );
 
-      for (int s = 0; s < static_cast<int>(info_semicolons.size()) - 1; ++s)
+      for (int s{0}; s < static_cast<int>(info_semicolons.size()) - 1; ++s)
       {
         std::string const info_key_value = get_string_at_tab_index(info, info_semicolons, s);
         auto eq_it = std::find(info_key_value.begin(), info_key_value.end(), '=');
@@ -330,27 +333,28 @@ Vcf::read_record(bool const SITES_ONLY)
     }
   }
 
+  new_var.stats.per_allele.resize(new_var.seqs.size());
+  new_var.stats.read_strand.resize(new_var.seqs.size());
+  new_var.stats.read_stats(new_var.infos);
+
   // Parse samples, if any
   if (!SITES_ONLY && sample_names.size() > 0)
   {
     std::string const format = get_string_at_tab_index(line, tabs, 8);
     std::vector<std::size_t> all_format_colon = get_all_pos(format, ':');
     int ad_field = -1;
-    int gt_field = -1;
     int pl_field = -1;
     int md_field = -1;
     int ra_field = -1;
     int pp_field = -1;
     int ft_field = -1;
 
-    for (int32_t f = 0; f < static_cast<int>(all_format_colon.size() - 1); ++f)
+    for (int f{0}; f < static_cast<int>(all_format_colon.size() - 1); ++f)
     {
       std::string const field = get_string_at_tab_index(format, all_format_colon, f);
 
       if (field == "AD")
         ad_field = f;
-      else if (field == "GT")
-        gt_field = f;
       else if (field == "PL")
         pl_field = f;
       else if (field == "MD")
@@ -364,11 +368,10 @@ Vcf::read_record(bool const SITES_ONLY)
     }
 
     assert(ad_field != -1);
-    assert(gt_field != -1);
     assert(pl_field != -1);
-    int constexpr FIELD_OFFSET = 9;
+    int constexpr FIELD_OFFSET = 9; // the first field that contains genotype calls
 
-    for (int i = FIELD_OFFSET; i < static_cast<int>(sample_names.size()) + FIELD_OFFSET; ++i)
+    for (int i{FIELD_OFFSET}; i < static_cast<int>(sample_names.size()) + FIELD_OFFSET; ++i)
     {
       // Create a new sample call
       SampleCall new_call;
@@ -376,33 +379,6 @@ Vcf::read_record(bool const SITES_ONLY)
       // Parse string of sample i
       std::string sample_string = get_string_at_tab_index(line, tabs, i);
       std::vector<std::size_t> sample_string_colon = get_all_pos(sample_string, ':');
-
-      // Parse GT (for phase)
-      std::string const gt_str = get_string_at_tab_index(sample_string, sample_string_colon, gt_field);
-
-      // Check if the genotypes are phased
-      /*
-      if (std::find(gt_str.begin(), gt_str.end(), '|') != gt_str.end())
-      {
-        // Check if gt is missing
-        if (gt_str[0] == '.')
-        {
-          new_var.phase.push_back(0);
-        }
-        else
-        {
-          std::vector<std::size_t> gt_str_pos = get_all_pos(gt_str, '|');
-          assert(gt_str_pos.size() == 3);
-          uint8_t call1 = static_cast<uint8_t>(std::stoul(get_string_at_tab_index(gt_str, gt_str_pos, 0)));
-          uint8_t call2 = static_cast<uint8_t>(std::stoul(get_string_at_tab_index(gt_str, gt_str_pos, 1)));
-
-          if (call1 <= call2)
-            new_var.phase.push_back(0);
-          else
-            new_var.phase.push_back(1);
-        }
-      }
-      */
 
       // Parse AD
       std::string const ad_str = get_string_at_tab_index(sample_string, sample_string_colon, ad_field);
@@ -485,8 +461,7 @@ Vcf::read_samples()
 
     if (!std::getline(bgzf_in, line))
     {
-      BOOST_LOG_TRIVIAL(error) << "[vcf] Could not find any line with samples in '"
-                               << filename << "'.";
+      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not find any line with samples in '" << filename << "'.";
       std::exit(1);
     }
 
@@ -555,7 +530,7 @@ Vcf::open_for_writing(long const n_threads)
     break;
 
   case WRITE_BGZF_MODE:
-    bgzf_stream.open(filename, "wb", n_threads);
+    bgzf_stream.open(filename, "w", n_threads);
     break;
 
   default:
@@ -566,7 +541,7 @@ Vcf::open_for_writing(long const n_threads)
 
 
 void
-Vcf::write_header()
+Vcf::write_header(bool const is_dropping_genotypes)
 {
   // Basic info
   bgzf_stream.ss << "##fileformat=VCFv4.2\n"
@@ -609,6 +584,11 @@ Vcf::write_header()
       << "##INFO=<ID=CRal,Number=.,Type=String,Description=\"Number of clipped reads per allele.\">\n"
       << "##INFO=<ID=CRalt,Number=A,Type=Float,Description=\"Percent of clipped reads per allele.\">\n"
       << "##INFO=<ID=END,Number=1,Type=Integer,Description=\"End position of an SV.\">\n"
+      << "##INFO=<ID=GT_ANTI_HAPLOTYPE,Number=.,Type=String,Description=\"Haplotype string with downstream variants "
+       " with no (or very low) evidence of being in the same haplotype. Used internally by Graphtyper.\">\n"
+      << "##INFO=<ID=GT_HAPLOTYPE,Number=.,Type=String,Description=\"Haplotype string with downstream variants "
+       " with high evidence of being always in the same haplotype. Used internally by Graphtyper.\">\n"
+      << "##INFO=<ID=GT_ID,Number=.,Type=String,Description=\"ID for variant. Used internally by Graphtyper.\">\n"
       << "##INFO=<ID=HOMSEQ,Number=.,Type=String,Description=\"Sequence of base pair identical "
        "homology at event breakpoints.\">\n"
       << "##INFO=<ID=INV3,Number=0,Type=Flag,Description=\"Inversion breakends open 3' of reported location\">\n"
@@ -715,9 +695,10 @@ Vcf::write_header()
 
   // FILTER definitions
   {
-    bgzf_stream.ss << "##FILTER=<ID=LowABHet,Description=\"Allele balance of heterozygous carriers is below 17.5%.\">\n"
+    bgzf_stream.ss << "##FILTER=<ID=LowAAScore,Description=\"Alternative alleles have a low score.\">\n"
+                   << "##FILTER=<ID=LowABHet,Description=\"Allele balance of heterozygous carriers is below 17.5%.\">\n"
                    << "##FILTER=<ID=LowABHom,Description=\"Allele balance of homozygous carriers is below 90%.\">\n"
-                   << "##FILTER=<ID=LowQD,Description=\"QD (quality by depth) is below 9.0.\">\n"
+                   << "##FILTER=<ID=LowQD,Description=\"QD (quality by depth) is below 6.0.\">\n"
                    << "##FILTER=<ID=LowQUAL,Description=\"QUAL score is less than 10.\">\n"
                    << "##FILTER=<ID=LowPratio,Description=\"Ratio of PASSed calls was too low.\">\n";
 
@@ -726,7 +707,7 @@ Vcf::write_header()
   // Column names
   bgzf_stream.ss << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO";
 
-  if (sample_names.size() > 0)
+  if (!is_dropping_genotypes && sample_names.size() > 0)
   {
     // Only a "format" column if there are any samples
     bgzf_stream.ss << "\tFORMAT";
@@ -736,16 +717,21 @@ Vcf::write_header()
   }
 
   bgzf_stream.ss << "\n";
+  bgzf_stream.flush();
 }
 
 
 void
-Vcf::write_record(Variant const & var, std::string const & suffix, bool const FILTER_ZERO_QUAL)
+Vcf::write_record(Variant const & var,
+                  std::string const & suffix,
+                  bool const FILTER_ZERO_QUAL,
+                  bool const is_dropping_genotypes)
 {
   // Parse the position
   auto contig_pos = absolute_pos.get_contig_position(var.abs_pos, gyper::graph.contigs);
+  Options const & copts = *(Options::const_instance());
 
-  if (!Options::instance()->output_all_variants && var.calls.size() > 0 && var.seqs.size() > 100)
+  if (!Options::const_instance()->output_all_variants && var.calls.size() > 0 && var.seqs.size() > 100)
   {
     BOOST_LOG_TRIVIAL(info) << "Skipped outputting variant at position "
                             << contig_pos.first << ":" << contig_pos.second
@@ -753,7 +739,7 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
     return;
   }
 
-  if (!Options::instance()->output_all_variants)
+  if (!copts.output_all_variants)
   {
     std::size_t total_allele_length = 0;
 
@@ -774,13 +760,18 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
   // Calculate qual
   const uint64_t variant_qual = var.get_qual();
 
-  if (FILTER_ZERO_QUAL && (sample_names.size() > 0 && variant_qual == 0))
+  if (!copts.force_no_filter_zero_qual && FILTER_ZERO_QUAL)
   {
-    //BOOST_LOG_TRIVIAL(warning) << "Zero qual variant at pos " << contig_pos.first << ":" << contig_pos.second;
-    BOOST_LOG_TRIVIAL(debug) << "Skipped outputting variant at position "
-                             << contig_pos.first << ":" << contig_pos.second
-                             << " because the variant had zero quality.";
-    return;
+    assert(sample_names.size() > 0);
+
+    if (variant_qual == 0)
+    {
+      //BOOST_LOG_TRIVIAL(warning) << "Zero qual variant at pos " << contig_pos.first << ":" << contig_pos.second;
+      BOOST_LOG_TRIVIAL(debug) << "Skipped outputting variant at position "
+                               << contig_pos.first << ":" << contig_pos.second
+                               << " because the variant had zero quality.";
+      return;
+    }
   }
 
   bgzf_stream.ss << contig_pos.first << '\t';
@@ -802,14 +793,14 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
                  << std::string(var.seqs[1].begin(), var.seqs[1].end());
 
   // Print other allele sequences if it is multi-allelic marker
-  for (long a = 2; a < static_cast<long>(var.seqs.size()); ++a)
+  for (long a{2}; a < static_cast<long>(var.seqs.size()); ++a)
     bgzf_stream.ss << ',' << std::string(var.seqs[a].begin(), var.seqs[a].end());
 
   // Parse qual
   bgzf_stream.ss << "\t" << std::to_string(variant_qual) << "\t";
 
   // Parse filter
-  if (sample_names.size() == 0 || Options::const_instance()->ploidy > 2)
+  if (sample_names.size() == 0 || copts.ploidy > 2)
   {
     bgzf_stream.ss << ".\t";
   }
@@ -840,13 +831,42 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
     }
 
     if (var.infos.count("AN") == 1 && std::stoi(var.infos.at("AN")) >= 6 &&
-        var.infos.count("QD") == 1 && std::stod(var.infos.at("QD")) < 9.0)
+        var.infos.count("QD") == 1 && std::stod(var.infos.at("QD")) < 6.0)
     {
       if (!is_pass)
         bgzf_stream.ss << ";";
 
       bgzf_stream.ss << "LowQD";
       is_pass = false;
+    }
+
+    auto find_aa_score_it = var.infos.find("AAScore");
+
+    if (var.infos.count("AN") == 1 && std::stoi(var.infos.at("AN")) >= 6 &&
+        find_aa_score_it != var.infos.end())
+    {
+      // loop through the aa score values and check if we find any above a threshold
+      double constexpr AA_SCORE_THRESHOLD{0.1};
+      std::stringstream ss(find_aa_score_it->second);
+      bool is_good_aa{false};
+
+      for (double num; ss >> num;)
+      {
+        if (num > AA_SCORE_THRESHOLD)
+          is_good_aa = true;
+
+        if (ss.peek() == ',')
+          ss.ignore();
+      }
+
+      if (!is_good_aa)
+      {
+        if (!is_pass)
+          bgzf_stream.ss << ";";
+
+        bgzf_stream.ss << "LowAAScore";
+        is_pass = false;
+      }
     }
 
     if (variant_qual < 10)
@@ -858,10 +878,13 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
       is_pass = false;
     }
 
-    // Only filter on PASS_ratio if we have sufficient amount of samples
-    if (var.infos.count("AN") == 1 && std::stoi(var.infos.at("AN")) >= 500 &&
-        var.infos.count("PASS_ratio") == 1 && std::stod(var.infos.at("PASS_ratio")) < 0.05
-        )
+    // Only filter on PASS_ratio there are no PASS calls or it is low and we have sufficient amount of samples
+    if (var.infos.count("AN") == 1 &&
+        ((std::stoi(var.infos.at("AN")) >= 500 &&
+          var.infos.count("PASS_ratio") == 1 &&
+          std::stod(var.infos.at("PASS_ratio")) < 0.05) ||
+         (var.infos.count("PASS_ratio") == 1 &&
+          std::stod(var.infos.at("PASS_ratio")) < 0.001)))
     {
       if (!is_pass)
         bgzf_stream.ss << ";";
@@ -875,7 +898,6 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
 
     bgzf_stream.ss << "\t";
   }
-
 
   // Parse info
   if (var.infos.empty())
@@ -906,87 +928,88 @@ Vcf::write_record(Variant const & var, std::string const & suffix, bool const FI
   bool const is_sv = var.is_sv();
 
   // Parse FORMAT
-  if (var.calls.size() > 0)
+  if (!is_dropping_genotypes)
   {
-    if (is_sv)
-      bgzf_stream.ss << "\tGT:FT:AD:MD:DP:RA:PP:GQ:PL";
-    else
-      bgzf_stream.ss << "\tGT:AD:MD:DP:GQ:PL";
-  }
-
-  for (long i = 0; i < static_cast<long>(var.calls.size()); ++i)
-  {
-    auto const & call = var.calls[i];
-
-    // Write GT
-    auto pl_non_zero = [](uint8_t const pl) -> bool
-                       {
-                         return pl != 0;
-                       };
-
-    if (std::find_if(call.phred.begin(), call.phred.end(), pl_non_zero) == call.phred.end())
+    if (var.calls.size() > 0)
     {
-      bgzf_stream.ss << "\t./.";
-    }
-    else
-    {
-      std::pair<uint16_t, uint16_t> const gt_call = call.get_gt_call();
-      bgzf_stream.ss << "\t" << gt_call.first << "/" << gt_call.second;
+      if (is_sv)
+        bgzf_stream.ss << "\tGT:FT:AD:MD:DP:RA:PP:GQ:PL";
+      else
+        bgzf_stream.ss << "\tGT:AD:MD:DP:GQ:PL";
     }
 
-    // Write FT
-    long const gq = call.get_gq();
-
-    if (is_sv)
+    for (long i{0}; i < static_cast<long>(var.calls.size()); ++i)
     {
-      bgzf_stream.ss << ":";
-      long filter = call.check_filter(gq);
+      auto const & call = var.calls[i];
 
-      if (filter == 0)
+      // Write GT
+      auto pl_non_zero = [](uint8_t const pl) -> bool
+                         {
+                           return pl != 0;
+                         };
+
+      if (std::find_if(call.phred.begin(), call.phred.end(), pl_non_zero) == call.phred.end())
       {
-        bgzf_stream.ss << "PASS";
+        bgzf_stream.ss << "\t./.";
       }
       else
       {
-        assert(filter > 0);
-        bgzf_stream.ss << "FAIL" << filter;
+        std::pair<uint16_t, uint16_t> const gt_call = call.get_gt_call();
+        bgzf_stream.ss << "\t" << gt_call.first << "/" << gt_call.second;
       }
+
+      // Write FT
+      long const gq = call.get_gq();
+
+      if (is_sv)
+      {
+        bgzf_stream.ss << ":";
+        long filter = call.check_filter(gq);
+
+        if (filter == 0)
+        {
+          bgzf_stream.ss << "PASS";
+        }
+        else
+        {
+          assert(filter > 0);
+          bgzf_stream.ss << "FAIL" << filter;
+        }
+      }
+
+      // Write AD
+      assert(call.coverage.size() > 0);
+      bgzf_stream.ss << ":" << call.coverage[0];
+
+      for (auto ad_it = call.coverage.begin() + 1; ad_it != call.coverage.end(); ++ad_it)
+      {
+        bgzf_stream.ss << "," << *ad_it;
+      }
+
+      // Write MD (Multi-depth)
+      bgzf_stream.ss << ":" << static_cast<uint16_t>(call.ambiguous_depth);
+
+      // Write DP
+      bgzf_stream.ss << ":" << call.get_depth();
+
+      if (is_sv)
+      {
+        // Write RA
+        bgzf_stream.ss << ":" << call.ref_total_depth << "," << call.alt_total_depth;
+
+        // Write PP
+        bgzf_stream.ss << ':' << static_cast<std::size_t>(call.alt_proper_pair_depth);
+      }
+
+      // Write GQ
+      bgzf_stream.ss << ':' << std::min(99l, gq);
+
+      // Write PL - This cast to uint16_t is needed! Otherwise uint8_t is represented as a char
+      bgzf_stream.ss << ':' << static_cast<uint16_t>(call.phred[0]);
+
+      for (long p{1}; p < static_cast<long>(call.phred.size()); ++p)
+        bgzf_stream.ss << ',' << static_cast<uint16_t>(call.phred[p]);
     }
-
-    // Write AD
-    assert(call.coverage.size() > 0);
-    bgzf_stream.ss << ":" << call.coverage[0];
-
-    for (auto ad_it = call.coverage.begin() + 1; ad_it != call.coverage.end(); ++ad_it)
-      bgzf_stream.ss << "," << *ad_it;
-
-    // Write MD (Multi-depth)
-    bgzf_stream.ss << ":" << static_cast<uint64_t>(call.ambiguous_depth);
-
-    // Write DP
-    bgzf_stream.ss << ":" << call.get_depth();
-
-    // Write RA
-    if (is_sv)
-    {
-      bgzf_stream.ss << ":" << call.ref_total_depth << "," << call.alt_total_depth;
-    }
-
-    // Write PP
-    if (is_sv)
-    {
-      bgzf_stream.ss << ':' << static_cast<std::size_t>(call.alt_proper_pair_depth);
-    }
-
-    // Write GQ
-    bgzf_stream.ss << ':' << std::min(99l, gq);
-
-    // Write PL
-    bgzf_stream.ss << ':' << static_cast<uint16_t>(call.phred[0]);
-    // This cast to uint16_t is needed! Otherwise uint8_t is represented as a char
-
-    for (std::size_t p = 1; p < call.phred.size(); ++p)
-      bgzf_stream.ss << ',' << static_cast<uint16_t>(call.phred[p]);
   }
 
   // Fin.
@@ -1009,40 +1032,65 @@ void
 Vcf::write_records(uint32_t const region_begin,
                    uint32_t const region_end,
                    bool const FILTER_ZERO_QUAL,
-                   std::vector<Variant> const & vars
-                   )
+                   bool const is_dropping_genotypes,
+                   std::vector<Variant> const & vars)
 {
   if (vars.size() == 0)
+  {
+    BOOST_LOG_TRIVIAL(info) << __HERE__ << " no variants to write to VCF.";
     return;
+  }
 
   // Sort the variants
-  auto compare_variants = [&](long const i, long const j) -> bool
-                          {
-                            assert(i < static_cast<long>(vars.size()));
-                            assert(j < static_cast<long>(vars.size()));
-                            gyper::Variant const & a = vars[i];
-                            gyper::Variant const & b = vars[j];
-                            assert(a.seqs.size() >= 2);
-                            assert(b.seqs.size() >= 2);
-                            return a.abs_pos < b.abs_pos ||
-                                   (a.abs_pos == b.abs_pos &&
-                                    a.determine_variant_type() < b.determine_variant_type()
-                                   ) ||
-                                   (a.abs_pos == b.abs_pos &&
-                                    a.determine_variant_type() == b.determine_variant_type() &&
-                                    a.seqs < b.seqs
-                                   );
-                          };
+  auto compare_variants =
+    [&](long const i, long const j) -> bool
+    {
+      assert(i < static_cast<long>(vars.size()));
+      assert(j < static_cast<long>(vars.size()));
+      gyper::Variant const & a = vars[i];
+      gyper::Variant const & b = vars[j];
+      assert(a.seqs.size() >= 2);
+      assert(b.seqs.size() >= 2);
 
-  auto same_variant_id = [](Variant const & a, Variant const & b) -> bool
-                         {
-                           return a.abs_pos == b.abs_pos && a.determine_variant_type() == b.determine_variant_type();
-                         };
+      if (a.abs_pos < b.abs_pos)
+        return true;
+      else if (a.abs_pos > b.abs_pos)
+        return false;
 
-  auto inside_region = [region_begin, region_end](uint32_t const pos) -> bool
-                       {
-                         return pos >= region_begin && pos <= region_end;
-                       };
+      // order is snp, insertion, deletion
+      long const order_a = (a.type == 'I') + 2 * (a.type == 'D');
+      long const order_b = (b.type == 'I') + 2 * (b.type == 'D');
+
+      if (order_a < order_b)
+        return true;
+      else if (order_a > order_b)
+        return false;
+
+      if (a.seqs.size() >= 2 && b.seqs.size() >= 2)
+      {
+        auto const a_vt = (a.seqs[0].size() > a.seqs[1].size()) + 2 * (a.seqs[0].size() == a.seqs[1].size());
+        auto const b_vt = (b.seqs[0].size() > b.seqs[1].size()) + 2 * (b.seqs[0].size() == b.seqs[1].size());
+
+        if (a_vt < b_vt)
+          return true;
+        else if (a_vt > b_vt)
+          return false;
+      }
+
+      return a.seqs < b.seqs || (a.seqs == b.seqs && a.infos.size() > b.infos.size());
+    };
+
+  auto same_variant_id =
+    [](Variant const & a, Variant const & b) -> bool
+    {
+      return a.abs_pos == b.abs_pos && a.determine_variant_type() == b.determine_variant_type();
+    };
+
+  auto inside_region =
+    [region_begin, region_end](uint32_t const pos) -> bool
+    {
+      return pos >= region_begin && pos <= region_end;
+    };
 
   std::vector<long> indexes;
 
@@ -1057,10 +1105,10 @@ Vcf::write_records(uint32_t const region_begin,
     auto const & first_var = vars[indexes[0]];
 
     if (inside_region(first_var.abs_pos))
-      write_record(first_var, "" /*suffix*/, FILTER_ZERO_QUAL);
+      write_record(first_var, "" /*suffix*/, FILTER_ZERO_QUAL, is_dropping_genotypes);
   }
 
-  long dup = -1; // -1 means no duplication
+  long dup{-1}; // -1 means no duplication
 
   // Write the variants in the correct order
   for (long i = 1; i < static_cast<long>(indexes.size()); ++i)
@@ -1087,21 +1135,21 @@ Vcf::write_records(uint32_t const region_begin,
     // make sure the variant ID is unique
     if (!same_variant_id(curr_var, prev_var))
     {
-      write_record(curr_var, "" /*suffix*/, FILTER_ZERO_QUAL);
+      write_record(curr_var, "" /*suffix*/, FILTER_ZERO_QUAL, is_dropping_genotypes);
       dup = -1;
     }
     else
     {
       ++dup;
       assert(dup >= 0);
-      write_record(curr_var, std::string(".") + std::to_string(dup), FILTER_ZERO_QUAL);
+      write_record(curr_var, std::string(".") + std::to_string(dup), FILTER_ZERO_QUAL, is_dropping_genotypes);
     }
   }
 }
 
 
 void
-Vcf::write_records(std::string const & region, bool const FILTER_ZERO_QUAL)
+Vcf::write_records(std::string const & region, bool const FILTER_ZERO_QUAL, bool const is_dropping_genotypes)
 {
   uint32_t region_begin = 0;
   uint32_t region_end = 0xFFFFFFFFull;
@@ -1114,16 +1162,14 @@ Vcf::write_records(std::string const & region, bool const FILTER_ZERO_QUAL)
     if (absolute_pos.is_contig_available(genomic_region.chr))
     {
       region_begin = 1 + absolute_pos.get_absolute_position(genomic_region.chr,
-                                                            genomic_region.begin
-                                                            );
+                                                            genomic_region.begin);
 
       region_end = absolute_pos.get_absolute_position(genomic_region.chr,
-                                                      genomic_region.end
-                                                      );
+                                                      genomic_region.end);
     }
   }
 
-  this->write_records(region_begin, region_end, FILTER_ZERO_QUAL, variants);
+  this->write_records(region_begin, region_end, FILTER_ZERO_QUAL, is_dropping_genotypes, variants);
 }
 
 
@@ -1235,7 +1281,7 @@ Vcf::add_segment(Segment && segment)
 
 
 void
-Vcf::add_haplotype(Haplotype & haplotype, bool const clear_haplotypes, uint32_t const /*phase_set*/)
+Vcf::add_haplotype(Haplotype & haplotype, int32_t const phase_set)
 {
   assert(haplotype.gts.size() > 0);
 
@@ -1250,17 +1296,16 @@ Vcf::add_haplotype(Haplotype & haplotype, bool const clear_haplotypes, uint32_t 
   assert(new_vars.size() == haplotype.var_stats.size());
 
   // Add variant stats
-  for (long i = 0; i < static_cast<long>(new_vars.size()); ++i)
+  for (long i{0}; i < static_cast<long>(new_vars.size()); ++i)
   {
     VarStats const & stats = haplotype.var_stats[i];
     auto & new_var = new_vars[i];
+    new_var.hap_id = phase_set;
 
     //new_var.infos["PS"] = std::to_string(phase_set);
     //stats.add_stats(new_var.infos);
     new_var.stats = stats;
   }
-
-  //long const ploidy = Options::const_instance()->ploidy;
 
   //if (ploidy <= 2)
   {
@@ -1273,7 +1318,7 @@ Vcf::add_haplotype(Haplotype & haplotype, bool const clear_haplotypes, uint32_t 
       assert(gt_phred.size() == new_vars.size());
       assert(hap_sample.gt_coverage.size() == new_vars.size());
 
-      for (long i = 0; i < static_cast<long>(new_vars.size()); ++i)
+      for (long i{0}; i < static_cast<long>(new_vars.size()); ++i)
       {
         assert(i < static_cast<long>(gt_phred.size()));
         assert(i < static_cast<long>(hap_sample.gt_coverage.size()));
@@ -1362,17 +1407,16 @@ Vcf::add_haplotype(Haplotype & haplotype, bool const clear_haplotypes, uint32_t 
   //*/
 
   // Set variant suffix ID
-  if (Options::instance()->variant_suffix_id.size() > 0)
+  if (Options::const_instance()->variant_suffix_id.size() > 0)
   {
+    std::string const & suffix_id = Options::const_instance()->variant_suffix_id;
+
     for (auto & new_var : new_vars)
-      new_var.suffix_id = Options::instance()->variant_suffix_id;
+      new_var.suffix_id = suffix_id;
   }
 
   // Add the variants
   std::move(new_vars.begin(), new_vars.end(), std::back_inserter(variants));
-
-  if (clear_haplotypes)
-    haplotype.clear();
 }
 
 
@@ -1382,7 +1426,7 @@ Vcf::add_haplotypes_for_extraction(std::vector<HaplotypeCall> const & hap_calls,
   assert(graph.size() > 0);
   bool const is_sv_graph = graph.is_sv_graph;
 
-  for (long i = 0; i < static_cast<long>(hap_calls.size()); ++i)
+  for (long i{0}; i < static_cast<long>(hap_calls.size()); ++i)
   {
     auto & hap_call = hap_calls[i];
     auto const & gts = hap_call.gts;
@@ -1445,9 +1489,7 @@ Vcf::add_haplotypes_for_extraction(std::vector<HaplotypeCall> const & hap_calls,
           })
             )
         {
-          //this->variants.push_back(std::move(var));
-          //*
-          //std::cout << var.print() << "\n";
+          //std::cout << var.to_string() << "\n";
           paw::Skyr skyr(var.seqs);
 
           bool constexpr is_normalize {
@@ -1467,7 +1509,7 @@ Vcf::add_haplotypes_for_extraction(std::vector<HaplotypeCall> const & hap_calls,
           }
           else
           {
-            BOOST_LOG_TRIVIAL(debug) << "Variant to be splitted: " << var.print();
+            //BOOST_LOG_TRIVIAL(debug) << "Variant to be splitted: " << var.to_string();
 
             for (auto & spl_var : spl_vars)
             {
@@ -1486,10 +1528,10 @@ Vcf::add_haplotypes_for_extraction(std::vector<HaplotypeCall> const & hap_calls,
               if (is_any_zero_size)
                 new_var.add_base_in_front(true); // Add N is true
 
-              BOOST_LOG_TRIVIAL(debug) << "...into " << new_var.print();
+              //BOOST_LOG_TRIVIAL(debug) << "...into " << new_var.to_string();
               this->variants.push_back(std::move(new_var));
             }
-          }//*/
+          }
         }
         else
         {
@@ -1620,6 +1662,16 @@ save_vcf(Vcf const & vcf, std::string const & filename)
         new_vcf.sample_names = vcf.sample_names;
 
       assert(v_begin < static_cast<long>(vcf.variants.size()));
+
+#ifndef NDEBUG
+      for (auto const & seq : var.seqs)
+      {
+        if (seq.size() == 0)
+        {
+          BOOST_LOG_TRIVIAL(warning) << __HERE__ << " empty sequence in variant " << var.to_string();
+        }
+      }
+#endif // NDEBUG
 
       // std::move okay, right?
       std::move(vcf.variants.begin() + v_begin, vcf.variants.begin() + (v + 1), std::back_inserter(new_vcf.variants));

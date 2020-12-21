@@ -24,11 +24,11 @@
 #include "../help_functions.hpp" // create_test_graph
 
 
-TEST_CASE("Construct test graph (chr1)")
+TEST_CASE("Construct test graph (chr1) (not with absolute positions)")
 {
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST CASE: Construct test graph (chr1)";
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: Construct test graph (chr1)";
 
-  create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr1", true);
+  create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr1", false);
 
   REQUIRE(gyper::graph.ref_nodes.size() == 2);
   REQUIRE(gyper::graph.var_nodes.size() == 2);
@@ -69,12 +69,11 @@ TEST_CASE("Construct test graph (chr1)")
 }
 
 
-TEST_CASE("Construct test graph (chr1) but with absolute positions")
+TEST_CASE("Construct test graph (chr1)")
 {
   using namespace gyper;
 
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__
-                           << "] TEST CASE: Construct test graph (chr1) but with absolute positions.";
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: Construct test graph (chr1) but with absolute positions.";
   create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr1", true);
 
   REQUIRE(graph.ref_nodes.size() == 2);
@@ -100,10 +99,10 @@ TEST_CASE("Construct test graph (chr1) but with absolute positions")
 
   // SECTION("The nodes should have the correct order")
   {
-    REQUIRE(ref_nodes[0].get_label().order == 0 + 1);
-    REQUIRE(var_nodes[0].get_label().order == 36 + 1);
-    REQUIRE(var_nodes[1].get_label().order == 36 + 1);
-    REQUIRE(ref_nodes[1].get_label().order == 37 + 1);
+    REQUIRE(ref_nodes[0].get_label().order == 1);
+    REQUIRE(var_nodes[0].get_label().order == 37);
+    REQUIRE(var_nodes[1].get_label().order == 37);
+    REQUIRE(ref_nodes[1].get_label().order == 38);
   }
 
   // SECTION("The nodes should have a label with the correct DNA bases")
@@ -120,7 +119,8 @@ TEST_CASE("Construct test graph (chr2)")
 {
   using namespace gyper;
 
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Construct test graph (chr2).";
+  Options::instance()->add_all_variants = false;
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Construct test graph (chr2).";
   create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr2", true);
 
   REQUIRE(graph.ref_nodes.size() == 3);
@@ -149,13 +149,13 @@ TEST_CASE("Construct test graph (chr2)")
 
   // SECTION("The nodes should have the correct order")
   {
-    REQUIRE(ref_nodes[0].get_label().order == 0 + 67);
-    REQUIRE(var_nodes[0].get_label().order == 1 + 67);
-    REQUIRE(var_nodes[1].get_label().order == 1 + 67);
-    REQUIRE(ref_nodes[1].get_label().order == 2 + 67);
-    REQUIRE(var_nodes[2].get_label().order == 2 + 67);
-    REQUIRE(var_nodes[3].get_label().order == 2 + 67);
-    REQUIRE(ref_nodes[2].get_label().order == 3 + 67);
+    REQUIRE(ref_nodes[0].get_label().order == 1);
+    REQUIRE(var_nodes[0].get_label().order == 2);
+    REQUIRE(var_nodes[1].get_label().order == 2);
+    REQUIRE(ref_nodes[1].get_label().order == 3);
+    REQUIRE(var_nodes[2].get_label().order == 3);
+    REQUIRE(var_nodes[3].get_label().order == 3);
+    REQUIRE(ref_nodes[2].get_label().order == 4);
   }
 
   // SECTION("The nodes should have a label with the correct DNA bases")
@@ -200,11 +200,11 @@ TEST_CASE("Construct test graph (chr3)")
 
   // SECTION("Nodes have the correct order")
   {
-    REQUIRE(ref_nodes[0].get_label().order == 0  + 133);
-    REQUIRE(var_nodes[0].get_label().order == 30 + 133);
-    REQUIRE(var_nodes[1].get_label().order == 30 + 133);
-    REQUIRE(var_nodes[2].get_label().order == 30 + 133);
-    REQUIRE(ref_nodes[1].get_label().order == 31 + 133);
+    REQUIRE(ref_nodes[0].get_label().order == 1);
+    REQUIRE(var_nodes[0].get_label().order == 31);
+    REQUIRE(var_nodes[1].get_label().order == 31);
+    REQUIRE(var_nodes[2].get_label().order == 31);
+    REQUIRE(ref_nodes[1].get_label().order == 32);
   }
 
   // SECTION("Nodes have the correct bases")
@@ -218,11 +218,11 @@ TEST_CASE("Construct test graph (chr3)")
     REQUIRE(graph.var_nodes[2].get_label().dna == gyper::to_vec("GA"));
 
     REQUIRE(graph.actual_poses.size() == 1);
-    REQUIRE(graph.actual_poses[0] == 31 + 133);
+    REQUIRE(graph.actual_poses[0] == 32);
     REQUIRE(graph.ref_reach_poses.size() == 1);
-    REQUIRE(graph.ref_reach_poses[0] == 30 + 133);
+    REQUIRE(graph.ref_reach_poses[0] == 31);
     REQUIRE(std::distance(graph.ref_reach_to_special_pos.begin(), graph.ref_reach_to_special_pos.end()) == 1);
-    REQUIRE(graph.ref_reach_to_special_pos.count(30 + 133) == 1);
+    REQUIRE(graph.ref_reach_to_special_pos.count(31) == 1);
   }
 }
 
@@ -236,8 +236,7 @@ TEST_CASE("Construct test graph (chr8) in a region that fully overlaps only a se
   //chr8 31 ATATATATATATATATTTTTTTTTTTT,A
   //chr8 39 ATATATATTTTTTTTTTT,A
 
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__
-                           << "] TEST CASE: Construct test graph (chr8) in a region "
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: Construct test graph (chr8) in a region "
                            << "that fully overlaps only a second indel";
 
   create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr8:1-56", true);
@@ -263,10 +262,10 @@ TEST_CASE("Construct test graph (chr8) in a region that fully overlaps only a se
 
   // Nodes have the correct order
   {
-    REQUIRE(ref_nodes[0].get_label().order == 0  + 1105);
-    REQUIRE(var_nodes[0].get_label().order == 38 + 1105);
-    REQUIRE(var_nodes[1].get_label().order == 38 + 1105);
-    REQUIRE(ref_nodes[1].get_label().order == 56 + 1105);
+    REQUIRE(ref_nodes[0].get_label().order == 1);
+    REQUIRE(var_nodes[0].get_label().order == 39);
+    REQUIRE(var_nodes[1].get_label().order == 39);
+    REQUIRE(ref_nodes[1].get_label().order == 57);
   }
 
   // Nodes have the correct bases
@@ -464,3 +463,81 @@ TEST_CASE("Construct test graph (chromosome 1, without chr in front)")
   }
 }
 */
+
+TEST_CASE("Construct test graph with anti events (chr9)")
+{
+  using namespace gyper;
+  Options::instance()->add_all_variants = true;
+
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: Construct test graph (chr9).";
+  create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr9", true);
+
+  std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
+  std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
+
+  {
+    REQUIRE(ref_nodes.size() == 3);
+    REQUIRE(var_nodes.size() == 4);
+  }
+
+  {
+    REQUIRE(var_nodes[0].events.size() == 1);
+    REQUIRE(var_nodes[0].events.count(-1) == 1);
+    REQUIRE(var_nodes[1].events.size() == 1);
+    REQUIRE(var_nodes[1].events.count(1) == 1);
+    REQUIRE(var_nodes[2].events.size() == 1);
+    REQUIRE(var_nodes[2].events.count(-2) == 1);
+    REQUIRE(var_nodes[3].events.size() == 1);
+    REQUIRE(var_nodes[3].events.count(2) == 1);
+  }
+
+  {
+    REQUIRE(var_nodes[0].anti_events.size() == 0);
+    REQUIRE(var_nodes[1].anti_events.size() == 1);
+    REQUIRE(var_nodes[1].anti_events.count(2) == 1);
+    REQUIRE(var_nodes[2].anti_events.size() == 0);
+    REQUIRE(var_nodes[3].anti_events.size() == 0);
+  }
+
+  Options::instance()->add_all_variants = false;
+}
+
+
+TEST_CASE("Construct test graph with anti events (chr10)")
+{
+  using namespace gyper;
+  Options::instance()->add_all_variants = true;
+
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: Construct test graph (chr10).";
+  create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr10", true);
+
+  std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
+  std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
+
+  {
+    REQUIRE(ref_nodes.size() == 3);
+    REQUIRE(var_nodes.size() == 4);
+  }
+
+  {
+    REQUIRE(var_nodes[0].events.size() == 1);
+    REQUIRE(var_nodes[0].events.count(-1) == 1);
+    REQUIRE(var_nodes[1].events.size() == 1);
+    REQUIRE(var_nodes[1].events.count(1) == 1);
+    REQUIRE(var_nodes[2].events.size() == 1);
+    REQUIRE(var_nodes[2].events.count(-2) == 1);
+    REQUIRE(var_nodes[3].events.size() == 1);
+    REQUIRE(var_nodes[3].events.count(2) == 1);
+  }
+
+  {
+    REQUIRE(var_nodes[0].anti_events.size() == 1);
+    REQUIRE(var_nodes[0].anti_events.count(2) == 1);
+    REQUIRE(var_nodes[1].anti_events.size() == 1);
+    REQUIRE(var_nodes[1].anti_events.count(-2) == 1);
+    REQUIRE(var_nodes[2].anti_events.size() == 0);
+    REQUIRE(var_nodes[3].anti_events.size() == 0);
+  }
+
+  Options::instance()->add_all_variants = false;
+}

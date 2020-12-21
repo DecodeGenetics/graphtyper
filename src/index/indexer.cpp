@@ -34,7 +34,7 @@ namespace gyper
 void
 index_reference_label(PHIndex & ph_index, TEntryList & mers, Label const & label)
 {
-  for (int d = 0; d < static_cast<int>(label.dna.size()); ++d)
+  for (int d{0}; d < static_cast<int>(label.dna.size()); ++d)
   {
     char const dna_base = label.dna[d];
 
@@ -77,12 +77,8 @@ index_reference_label(PHIndex & ph_index, TEntryList & mers, Label const & label
           std::vector<KmerLabel> new_labels;
           new_labels.reserve(q_it->variant_id.size());
 
-          for (long i = 0; i < static_cast<long>(q_it->variant_id.size()); ++i)
-          {
-            new_labels.push_back(KmerLabel(q_it->start_index,
-                                           label.order + d,
-                                           q_it->variant_id[i]));
-          }
+          for (auto var_id : q_it->variant_id)
+            new_labels.push_back(KmerLabel(q_it->start_index, label.order + d, var_id));
 
           ph_index.put(q_it->dna, std::vector<KmerLabel>(new_labels));
         }
@@ -97,15 +93,20 @@ index_reference_label(PHIndex & ph_index, TEntryList & mers, Label const & label
 void
 insert_variant_label(PHIndex & ph_index,
                      TEntryList & mers,
-                     Label const & label,
+                     std::vector<VarNode> const & var_nodes,
                      TNodeIndex const v,
                      bool const is_reference,
                      unsigned const var_count,
                      std::size_t const ref_reach)
 {
-  for (int d = 0; d < static_cast<int>(label.dna.size()); ++d)
+  assert(v < var_nodes.size());
+  VarNode const & var_node = var_nodes[v];
+  Label const & label = var_node.get_label();
+
+  for (long d{0}; d < static_cast<int>(label.dna.size()); ++d)
   {
     char const dna_base = label.dna[d];
+    assert(dna_base != 'N'); // shouldn't happen
 
     if (dna_base != 'A' && dna_base != 'C' && dna_base != 'G' && dna_base != 'T')
     {
@@ -115,16 +116,59 @@ insert_variant_label(PHIndex & ph_index,
 
     for (auto sublist_it = mers.begin(); sublist_it != mers.end(); ++sublist_it)
     {
-      for (auto entry_it = sublist_it->begin(); entry_it != sublist_it->end(); ++entry_it)
+      for (auto entry_it = sublist_it->begin(); entry_it != sublist_it->end();) // no increment of ++entry_it)
       {
-        entry_it->add_to_dna(dna_base);
+        // Check if we should add the base
+        IndexEntry & entry = *entry_it;
+        bool is_ok{true};
 
-        if (std::find(entry_it->variant_id.begin(),
-                      entry_it->variant_id.end(),
-                      v) == entry_it->variant_id.end())
+        //if (var_node.events.size() > 0 || var_node.anti_events.size() > 0)
+        //{
+        //  BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << var_node.events.size() << " "
+        //                          << var_node.anti_events.size() << " "
+        //                          << entry.events.size() << " "
+        //                          << entry.anti_events.size();
+        //}
+
+        for (auto const & anti_event : entry.anti_events)
         {
-          entry_it->variant_id.push_back(static_cast<unsigned>(v));
+          if (var_node.events.count(anti_event) == 1)
+          {
+            //BOOST_LOG_TRIVIAL(info) << __HERE__ << " bad event " << anti_event;
+            is_ok = false;
+            break;
+          }
         }
+
+        if (is_ok)
+        {
+          entry.add_to_dna(dna_base);
+
+          std::copy(var_node.events.begin(),
+                    var_node.events.end(),
+                    std::inserter(entry.events, entry.events.begin()));
+
+          std::copy(var_node.anti_events.begin(),
+                    var_node.anti_events.end(),
+                    std::inserter(entry.anti_events, entry.anti_events.begin()));
+
+          entry.variant_id.insert(v);
+          ++entry_it;
+        }
+        else
+        {
+          entry_it = sublist_it->erase(entry_it);
+        }
+
+        /*
+        for (auto const & event : entry.events)
+        {
+          if (var_node.anti_events.count(event) == 1)
+          {
+            BOOST_LOG_TRIVIAL(info) << __HERE__ << " bad event " << event.to_string();
+            is_ok = false;
+          }
+        }*/
       }
     }
 
@@ -136,6 +180,8 @@ insert_variant_label(PHIndex & ph_index,
 
     IndexEntry new_index_entry(pos, static_cast<uint32_t>(v), is_reference, var_count);
     new_index_entry.add_to_dna(dna_base);
+    new_index_entry.events = var_node.events;
+    new_index_entry.anti_events = var_node.anti_events;
 
     // If we are using a list
     mers.push_front(TEntrySublist(1, new_index_entry));
@@ -152,8 +198,8 @@ insert_variant_label(PHIndex & ph_index,
         std::vector<KmerLabel> new_labels;
         new_labels.reserve(q_it->variant_id.size());
 
-        for (unsigned i = 0; i < q_it->variant_id.size(); ++i)
-          new_labels.push_back(KmerLabel(q_it->start_index, pos, q_it->variant_id[i]));
+        for (auto var_id : q_it->variant_id)
+          new_labels.push_back(KmerLabel(q_it->start_index, pos, var_id));
 
         ph_index.put(q_it->dna, std::vector<KmerLabel>(new_labels));
       }
@@ -213,9 +259,9 @@ index_variant(PHIndex & ph_index,
   TEntryList clean_list(mers); // copies all mers, we find new kmers using the copy.
 
   // Insert reference label
+  assert(v < var_nodes.size());
   std::size_t const ref_label_reach = var_nodes[v].get_label().reach();
-  insert_variant_label(ph_index, mers, var_nodes[v].get_label(), v, true /*is reference*/, 1,
-                       ref_label_reach);
+  insert_variant_label(ph_index, mers, var_nodes, v, true /*is reference*/, 1, ref_label_reach);
 
   // Remove all labels with large variants
   remove_large_variants_from_list(clean_list, var_count);
@@ -230,11 +276,12 @@ index_variant(PHIndex & ph_index,
     TEntryList new_list(clean_list); // copies all mers, we find new kmers using the new copy
     insert_variant_label(ph_index,
                          new_list,
-                         var_nodes[v].get_label(),
+                         var_nodes,
                          v,
                          false /*is reference*/,
                          var_num,
                          ref_label_reach);
+
     append_list(mers, std::move(new_list));
   }
 
@@ -242,11 +289,12 @@ index_variant(PHIndex & ph_index,
   ++v;
   insert_variant_label(ph_index,
                        clean_list,
-                       var_nodes[v].get_label(),
+                       var_nodes,
                        v,
                        false /*is reference*/,
                        var_num,
                        ref_label_reach);
+
   append_list(mers, std::move(clean_list));
 }
 
@@ -265,14 +313,14 @@ index_graph(Graph const & graph)
 
   TNodeIndex r = 0; // Reference node index
   TEntryList mers;
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] The number of reference nodes are "
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " The number of reference nodes are "
                            << graph.ref_nodes.size();
 
   while (r < graph.ref_nodes.size() - 1)
   {
     if (graph.ref_nodes[r].get_label().order >= goal_order)
     {
-      BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Indexing progress: " << goal << '%';
+      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Indexing progress: " << goal << '%';
       goal_order += (end_order - start_order) / 5;
       goal += 20;
     }
@@ -285,20 +333,19 @@ index_graph(Graph const & graph)
                     graph.var_nodes,
                     mers,
                     static_cast<int>(graph.ref_nodes[r].out_degree()),
-                    graph.ref_nodes[r].get_var_index(0)
-                    );
+                    graph.ref_nodes[r].get_var_index(0));
     }
 
     ++r;
   }
 
   index_reference_label(ph_index, mers, graph.ref_nodes.back().get_label());
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Indexing progress: 100%";
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Indexing progress: 100%";
   mers.clear();
 
   // Commit the rest of the buffer before closing
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Writing index to disk...";
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Done indexing graph.";
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Writing index to disk...";
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Done indexing graph.";
   return ph_index;
 }
 
@@ -310,7 +357,7 @@ index_graph(std::string const & graph_path)
 
   if (graph.size() == 0)
   {
-    BOOST_LOG_TRIVIAL(warning) << "[" << __HERE__ << "] Trying to index empty graph.";
+    BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Trying to index empty graph.";
     PHIndex ph_index; // Make empty index
     return ph_index;
   }

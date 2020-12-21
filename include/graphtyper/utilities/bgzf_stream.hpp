@@ -34,6 +34,8 @@ public:
   BGZF_stream & operator<<(T const & x);
   void check_cache();
   void flush();
+  int write(void const * data, std::size_t length); // call bgzf_write directly
+  int write(std::string const & str);
   void open(std::string const & filename, std::string const & filemode, long const n_threads);
   bool is_open() const;
   void close(); // Close BGZF file
@@ -84,7 +86,40 @@ BGZF_stream::flush()
   }
 
   // Clear stringstream
-  ss.str("");
+  ss.str(std::string());
+  ss.clear();
+}
+
+
+inline
+int
+BGZF_stream::write(void const * data, std::size_t length)
+{
+  if (!fp)
+  {
+    std::cout << std::string(reinterpret_cast<const char *>(data), length);
+    return length;
+  }
+  else
+  {
+    return bgzf_write(fp, data, length);
+  }
+}
+
+
+inline
+int
+BGZF_stream::write(std::string const & str)
+{
+  if (!fp)
+  {
+    std::cout << str;
+    return str.size();
+  }
+  else
+  {
+    return bgzf_write(fp, str.data(), str.size());
+  }
 }
 
 

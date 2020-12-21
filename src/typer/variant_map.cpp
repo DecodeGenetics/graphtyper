@@ -8,6 +8,7 @@
 
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
+#include <boost/log/trivial.hpp>
 #include <boost/serialization/map.hpp>
 #include <boost/serialization/set.hpp>
 #include <boost/serialization/vector.hpp>
@@ -323,12 +324,12 @@ VariantMap::filter_varmap_for_all()
           }
           else
           {
-            #ifndef NDEBUG
+#ifndef NDEBUG
             BOOST_LOG_TRIVIAL(debug) << "Due to too high graph complexity I erased the variant: "
                                      << window_it->first.print()
                                      << ". It had support in " << window_it->second.size()
                                      << " samples and score of " << max_scores_in_bucket[s];
-            #endif // NDEBUG
+#endif // NDEBUG
             window_it = pool_varmap.erase(window_it);
           }
         }
@@ -336,58 +337,56 @@ VariantMap::filter_varmap_for_all()
         return window_it; // return the new iterator
       };
 
-    for (auto map_it = std::next(pool_varmap.begin()); map_it != pool_varmap.end(); ++map_it)
+    for (auto map_it = pool_varmap.begin(); map_it != pool_varmap.end(); ++map_it)
     {
       long const bucket = map_it->first.abs_pos / 100l;
       assert(bucket >= current_bucket); // We should never go backwards in order
 
+      if (bucket != current_bucket) // Let's continue looping through the variants until we reach the next bucket
       {
-        // Add the max variant score
-        long max_score{0};
+        assert(bucket > current_bucket);
 
-        // Get the max score for this variant
-        for (VariantSupport const & supp : map_it->second)
+        // We have reached a new bucket, check if there are too many variants in the bucket
+        if (static_cast<long>(max_scores_in_bucket.size()) > max_variants_in_100bp_window)
         {
-          long const score = supp.get_score();
-
-          if (score > max_score)
-            max_score = score;
+          assert(std::distance(window_it, map_it) == static_cast<long>(max_scores_in_bucket.size()));
+          window_it = filter_window(window_it);
+          map_it = window_it;
+        }
+        else
+        {
+          window_it = map_it;
         }
 
-        max_scores_in_bucket.push_back(max_score);
+        // Update current bucket
+        current_bucket = bucket;
+        max_scores_in_bucket.clear();
       }
 
-      if (bucket == current_bucket) // Let's continue looping through the variants until we reach the next bucket
-        continue;
+      // Add the max variant score
+      long max_score{0};
 
-      // We have reached a new bucket, check if there are too many variants in the bucket
-      if (static_cast<long>(max_scores_in_bucket.size()) > max_variants_in_100bp_window)
+      // Get the max score for this variant
+      for (VariantSupport const & supp : map_it->second)
       {
-        assert(std::distance(window_it, map_it) == static_cast<long>(max_scores_in_bucket.size()));
-        window_it = filter_window(window_it);
-        map_it = window_it;
-      }
-      else
-      {
-        window_it = map_it;
+        long const score = supp.get_score();
+
+        if (score > max_score)
+          max_score = score;
       }
 
-      // Update current bucket
-      current_bucket = bucket;
-      max_scores_in_bucket.clear();
+      max_scores_in_bucket.push_back(max_score);
     }
 
-    // Check if the last bucket has too many variants
-    if (static_cast<long>(max_scores_in_bucket.size()) > max_variants_in_100bp_window)
+    // check final bucket
+    if (window_it != pool_varmap.end() &&
+        static_cast<long>(max_scores_in_bucket.size()) > max_variants_in_100bp_window)
     {
-      assert(std::distance(window_it, pool_varmap.end()) == static_cast<long>(max_scores_in_bucket.size()));
       filter_window(window_it);
-      // Do stuff to filter variants in range [window_it, map_it[
     }
   }
 
   /** Break down variants to check if they are duplicates */
-  //*
   //std::vector<VariantCandidate> broken_vars_to_add;
   //std::vector<std::vector<VariantSupport> > supports_to_add;
 
@@ -396,13 +395,13 @@ VariantMap::filter_varmap_for_all()
     VariantCandidate var(map_it->first);
 
     {
-      long constexpr EXTRA_BASES_TO_ADD = 5;
+      long constexpr EXTRA_BASES_TO_ADD{5};
 
-      for (long i = 0; i < EXTRA_BASES_TO_ADD; ++i)
+      for (long i{0}; i < EXTRA_BASES_TO_ADD; ++i)
         if (!var.add_base_in_front(false)) // false is add_N
           break;
 
-      for (long i = 0; i < EXTRA_BASES_TO_ADD; ++i)
+      for (long i{0}; i < EXTRA_BASES_TO_ADD; ++i)
         if (!var.add_base_in_back(false)) // false is add_N
           break;
     }
@@ -461,7 +460,7 @@ VariantMap::filter_varmap_for_all()
     if (new_broken_down_var_candidates.size() == 0)
     {
 #ifndef NDEBUG
-      BOOST_LOG_TRIVIAL(debug) << "Erased " << map_it->first.print();
+      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Erased " << map_it->first.print();
 #endif // NDEBUG
       map_it = pool_varmap.erase(map_it); // Erase the old variant
     }

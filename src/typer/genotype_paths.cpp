@@ -1258,7 +1258,7 @@ compare_pair_of_genotype_paths(std::pair<GenotypePaths *, GenotypePaths *> const
     return 2;
   }
 
-  return 0;
+  return 1; // needed for sv calling
 }
 
 
