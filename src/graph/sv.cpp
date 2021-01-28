@@ -297,8 +297,7 @@ reformat_sv_vcf_records(std::vector<Variant> & variants, ReferenceDepth const & 
               combined_call.filter = 0; // PASS
             }
             else if (max_gq > 40 &&
-                     (var1.calls[i].phred[index] + var2.calls[i].phred[index]) <=
-                     20)
+                     (var1.calls[i].phred[index] + var2.calls[i].phred[index]) <= 20)
             {
               combined_call.filter = 0; // PASS
             }
@@ -338,7 +337,10 @@ reformat_sv_vcf_records(std::vector<Variant> & variants, ReferenceDepth const & 
 
         var.infos["SVTYPE"] = sv.get_type();
 
-        if (sv.end != 0)
+        // Make sure we do not write an END which is smaller then the begin position - otherwise bcftools is not happy
+        if (sv.end < sv.begin)
+          var.infos["END"] = std::to_string(sv.begin);
+        else
           var.infos["END"] = std::to_string(sv.end);
 
         if (sv.length != 0)

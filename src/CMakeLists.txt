@@ -46,6 +46,7 @@ set(graphtyper_SOURCE_FILES
   utilities/bamshrink.cpp
   utilities/genotype.cpp
   utilities/genotype_camou.cpp
+  utilities/genotype_lr.cpp
   utilities/genotype_sv.cpp
   utilities/hash_seqan.cpp
   utilities/hts_parallel_reader.cpp

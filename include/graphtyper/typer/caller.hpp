@@ -44,4 +44,10 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
                       std::string const & region_str,
                       gyper::Vcf & vcf);
 
+void
+streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
+                          std::string const & reference_fn,
+                          std::string const & region_str,
+                          gyper::Vcf & vcf);
+
 } // namespace gyper

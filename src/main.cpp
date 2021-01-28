@@ -24,6 +24,7 @@
 #include <graphtyper/utilities/bamshrink.hpp>
 #include <graphtyper/utilities/genotype.hpp>
 #include <graphtyper/utilities/genotype_camou.hpp>
+#include <graphtyper/utilities/genotype_lr.hpp>
 #include <graphtyper/utilities/genotype_sv.hpp>
 #include <graphtyper/utilities/io.hpp> // gyper::get_contig_to_lengths
 #include <graphtyper/utilities/options.hpp>
@@ -864,6 +865,133 @@ subcmd_genotype_sv(paw::Parser & parser)
 
 
 int
+subcmd_genotype_lr(paw::Parser & parser)
+{
+  gyper::Options & opts = *(gyper::Options::instance());
+
+  std::string output_dir{"sv_results"};
+  std::string opts_region{};
+  std::string opts_region_file{};
+  std::string ref_fn{};
+  std::string sam{};
+  std::string sams{};
+  bool force_copy_reference{false};
+  bool force_no_copy_reference{false};
+  bool see_advanced_options{false};
+
+  // Change the default values
+  opts.max_files_open = 128;
+
+  // Parse options
+  parser.parse_option(see_advanced_options,
+                      'a',
+                      "advanced",
+                      "Set to enable advanced options. "
+                      "See a list of all options (including advanced) with 'graphtyper genotype_sv --advanced --help'");
+
+  parser.parse_option(output_dir, 'O', "output", "Output directory.");
+  parser.parse_option(opts_region, 'r', "region", "Genomic region to genotype.");
+  parser.parse_option(opts_region_file, 'R', "region_file", "File with genomic regions to genotype.");
+  parser.parse_option(opts.threads, 't', "threads", "Max. number of threads to use.");
+  parser.parse_option(sam, 's', "sam", "SAM/BAM/CRAM to analyze.");
+  parser.parse_option(sams, 'S', "sams", "File with SAM/BAM/CRAMs to analyze (one per line).");
+
+  parser.parse_positional_argument(ref_fn, "REF.FA", "Reference genome in FASTA format.");
+
+  if (see_advanced_options)
+    parser.see_advanced_options(true);
+
+#ifndef NDEBUG
+  parser.parse_advanced_option(opts.stats, ' ', "stats", "Directory for statistics files.");
+#endif // NDEBUG
+
+  parser.parse_advanced_option(opts.get_sample_names_from_filename,
+                               ' ',
+                               "get_sample_names_from_filename",
+                               "Set to ignore sample names from RG tags and attempt to retrive the sample names "
+                               "from filenames instead.");
+
+  parser.parse_advanced_option(force_copy_reference, ' ', "force_copy_reference",
+                               "Force copy of the reference FASTA to temporary folder.");
+
+  parser.parse_advanced_option(force_no_copy_reference, ' ', "force_no_copy_reference",
+                               "Force that the reference FASTA is NOT copied to temporary folder.");
+
+  parser.parse_advanced_option(opts.no_filter_on_coverage,
+                               ' ',
+                               "no_filter_on_coverage",
+                               "Set to disable filter on coverage.");
+
+  parser.parse_advanced_option(opts.force_no_filter_zero_qual,
+                               ' ',
+                               "force_no_filter_zero_qual",
+                               "Set to force variants to be in the final output despite they have zero quality"
+                               " (all calls are ref/ref)");
+
+  parser.parse_advanced_option(opts.force_use_input_ref_for_cram_reading, ' ',
+                               "force_use_input_ref_for_cram_reading",
+                               "Force using the input reference FASTA file when reading CRAMs.");
+
+  parser.parse_advanced_option(opts.no_cleanup, ' ', "no_cleanup",
+                               "Set to skip removing temporary files. Useful for debugging.");
+
+  parser.parse_advanced_option(opts.is_csi,
+                               'C',
+                               "csi",
+                               "If set, graphtyper will make csi indices instead of tbi.");
+
+  parser.parse_advanced_option(opts.max_files_open,
+                               ' ',
+                               "max_files_open",
+                               "Select how many files can be open at the same time.");
+
+  parser.parse_advanced_option(opts.sam_flag_filter,
+                               ' ',
+                               "sam_flag_filter",
+                               "ANY of these bits set in reads will be completely ignored by GraphTyper. Use with care.");
+
+  parser.parse_advanced_option(opts.lr_mapq_filter,
+                               ' ',
+                               "lr_mapq_filter",
+                               "Filter reads with MAPQ below this threshold.");
+
+  if (opts.force_no_filter_zero_qual)
+    opts.force_no_filter_bad_alts = true;
+
+  parser.finalize();
+  setup_logger();
+
+  BOOST_LOG_TRIVIAL(info) << "Running the 'genotype_lr' subcommand.";
+
+#ifndef NDEBUG
+  // Create stats directory if it doesn't exist
+  if (opts.stats.size() > 0 && !gyper::is_directory(opts.stats))
+    mkdir(opts.stats.c_str(), 0755);
+#endif // NDEBUG
+
+  // Get the genomic regions to process from the --region and --region_file options
+  std::vector<gyper::GenomicRegion> regions = get_regions(ref_fn, opts_region, opts_region_file, 50000);
+
+  // Get the BAM/CRAM file names
+  std::vector<std::string> sams_fn = get_sams(sam, sams);
+
+  // If neither force copy reference or force no copy reference we determine it from number of SAMs
+  bool is_copy_reference = force_copy_reference || (!force_no_copy_reference && sams_fn.size() >= 100);
+
+  opts.filter_on_read_bias = false;
+  opts.filter_on_proper_pairs = false;
+
+  gyper::genotype_lr_regions(ref_fn,
+                             sams_fn,
+                             regions,
+                             output_dir,
+                             is_copy_reference);
+
+  return 0;
+}
+
+
+int
 subcmd_genotype_camou(paw::Parser & parser)
 {
   gyper::Options & opts = *(gyper::Options::instance());
@@ -1041,6 +1169,7 @@ main(int argc, char ** argv)
     parser.add_subcommand("construct", "Construct a graph.");
     parser.add_subcommand("genotype", "Run the SNP/indel genotyping pipeline.");
     parser.add_subcommand("genotype_camou", "(WIP) Run the camou SNP/indel genotyping pipeline.");
+    parser.add_subcommand("genotype_lr", "(WIP) Run the camou LR genotyping pipeline.");
     parser.add_subcommand("genotype_sv", "Run the structural variant (SV) genotyping pipeline.");
     parser.add_subcommand("index", "(deprecated) Index a graph.");
     parser.add_subcommand("vcf_break_down", "Break down/decompose a VCF file.");
@@ -1064,6 +1193,8 @@ main(int argc, char ** argv)
       ret = subcmd_genotype(parser);
     else if (subcmd == "genotype_camou")
       ret = subcmd_genotype_camou(parser);
+    else if (subcmd == "genotype_lr")
+      ret = subcmd_genotype_lr(parser);
     else if (subcmd == "genotype_sv")
       ret = subcmd_genotype_sv(parser);
     else if (subcmd == "index")

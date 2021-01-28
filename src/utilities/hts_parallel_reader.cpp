@@ -89,7 +89,7 @@ HtsParallelReader::open(std::vector<std::string> const & hts_file_paths,
   long const n = hts_files.size();
 
   // Read the first record of each hts file
-  for (long i = 0; i < n; ++i)
+  for (long i{0}; i < n; ++i)
   {
     bam1_t * hts_rec = hts_files[i].get_next_read_in_order();
 
@@ -179,6 +179,13 @@ long
 HtsParallelReader::get_num_rg() const
 {
   return num_rg;
+}
+
+
+long
+HtsParallelReader::get_num_samples() const
+{
+  return samples.size();
 }
 
 
@@ -711,31 +718,54 @@ parallel_reader_genotype_only(std::string * out_path,
   // align leftover reads
   if (IS_SV_CALLING)
   {
-    for (long sample_i{0}; sample_i < static_cast<long>(maps.size()); ++sample_i)
-    {
-      auto & map_gpaths = maps[sample_i];
-
-      for (auto read_it = map_gpaths.begin(); read_it != map_gpaths.end(); ++read_it)
+    auto process_leftovers =
+      [&](long sample_i, long rg_i)
       {
-        //BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << read_it->first;
-        std::pair<GenotypePaths, GenotypePaths> copy(read_it->second);
+        auto & map_gpaths = maps[rg_i];
 
-        toggle_bit(copy.first.flags, IS_FIRST_IN_PAIR | IS_SEQ_REVERSED);
-        toggle_bit(copy.second.flags, IS_FIRST_IN_PAIR | IS_SEQ_REVERSED);
-
-        std::pair<GenotypePaths *, GenotypePaths *> better_paths =
-          get_better_paths(read_it->second, copy);
-
-        if (better_paths.first)
+        for (auto read_it = map_gpaths.begin(); read_it != map_gpaths.end(); ++read_it)
         {
-          assert(better_paths.second);
+          //BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << read_it->first;
+          std::pair<GenotypePaths, GenotypePaths> copy(read_it->second);
 
-          // Add reference depth
-          reference_depth.add_genotype_paths(*better_paths.first, sample_i);
-          //reference_depth.add_genotype_paths(*better_paths.second, sample_i);
+          toggle_bit(copy.first.flags, IS_FIRST_IN_PAIR | IS_SEQ_REVERSED);
+          toggle_bit(copy.second.flags, IS_FIRST_IN_PAIR | IS_SEQ_REVERSED);
 
-          writer.update_haplotype_scores_geno(*better_paths.first, sample_i, primers);
-          //writer.update_haplotype_scores_geno(*better_paths.second, sample_i, primers);
+          std::pair<GenotypePaths *, GenotypePaths *> better_paths =
+            get_better_paths(read_it->second, copy);
+
+          if (better_paths.first)
+          {
+            assert(better_paths.second);
+
+            // Add reference depth
+            reference_depth.add_genotype_paths(*better_paths.first, sample_i);
+            //reference_depth.add_genotype_paths(*better_paths.second, sample_i);
+
+            writer.update_haplotype_scores_geno(*better_paths.first, sample_i, primers);
+            //writer.update_haplotype_scores_geno(*better_paths.second, sample_i, primers);
+          }
+        }
+      };
+
+    long const NUM_FILES = hts_preader.hts_files.size();
+
+    for (long file_i{0}; file_i < NUM_FILES; ++file_i)
+    {
+      auto const & hts_f = hts_preader.hts_files[file_i];
+
+      if (hts_f.rg2sample_i.size() <= 1)
+      {
+        long const sample_i = hts_f.sample_index_offset;
+        long const rg_i = hts_f.rg_index_offset;
+        process_leftovers(sample_i, rg_i);
+      }
+      else
+      {
+        for (long rg_i{0}; rg_i < static_cast<long>(hts_f.rg2sample_i.size()); ++rg_i)
+        {
+          long const sample_i = hts_f.sample_index_offset + hts_f.rg2sample_i[rg_i];
+          process_leftovers(sample_i, hts_f.rg_index_offset + rg_i);
         }
       }
     }

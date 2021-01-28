@@ -97,7 +97,7 @@ genotype_sv(std::string ref_path,
 
   // Iteration 1 out of 1
   {
-    BOOST_LOG_TRIVIAL(info) << "Initial variant discovery step starting.";
+    BOOST_LOG_TRIVIAL(info) << "Genotype calling step starting.";
     std::string const output_vcf = tmp + "/it1/final.vcf.gz";
     std::string const out_dir = tmp + "/it1";
     mkdir(out_dir.c_str(), 0755);

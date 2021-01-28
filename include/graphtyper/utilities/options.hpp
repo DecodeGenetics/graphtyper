@@ -42,6 +42,7 @@ public:
   bool filter_on_strand_bias{true};
   bool no_filter_on_begin_pos{false};
   bool no_filter_on_coverage{false};
+  int lr_mapq_filter{5};
 
   /*******************
    * GENERAL OPTIONS *

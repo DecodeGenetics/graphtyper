@@ -30,6 +30,44 @@ Bucket::to_string() const
 }
 
 
+void
+merge_bucket_lr(std::vector<BucketLR> & old_buckets, std::vector<BucketLR> const & new_buckets)
+{
+  long const max_bucket_size = std::max(old_buckets.size(), new_buckets.size());
+
+  for (long b{0}; b < max_bucket_size; ++b)
+  {
+    if (b >= static_cast<long>(new_buckets.size()) || new_buckets[b].pileup.size() == 0)
+      return;
+    else if (b >= static_cast<long>(old_buckets[b].pileup.size()) || old_buckets[b].pileup.size() == 0)
+      old_buckets[b].pileup = new_buckets[b].pileup;
+
+    auto & old_bucket = old_buckets[b];
+    auto const & new_bucket = new_buckets[b];
+    assert(old_bucket.pileup.size() == new_bucket.pileup.size());
+
+    for (long p{0}; p < static_cast<long>(old_bucket.pileup.size()); ++p)
+    {
+      auto & old_bc = old_bucket.pileup[p];
+      auto const & new_bc = new_bucket.pileup[p];
+
+      old_bc.acgt[0] += new_bc.acgt[0];
+      old_bc.acgt[2] += new_bc.acgt[1];
+      old_bc.acgt[3] += new_bc.acgt[2];
+      old_bc.acgt[3] += new_bc.acgt[3];
+
+      old_bc.acgt_qualsum[0] += new_bc.acgt_qualsum[0];
+      old_bc.acgt_qualsum[1] += new_bc.acgt_qualsum[1];
+      old_bc.acgt_qualsum[2] += new_bc.acgt_qualsum[2];
+      old_bc.acgt_qualsum[3] += new_bc.acgt_qualsum[3];
+
+      old_bc.deleted += new_bc.deleted;
+      old_bc.unknown += new_bc.unknown;
+    }
+  }
+}
+
+
 bool
 is_indel_in_bucket(std::vector<Bucket> const & buckets,
                    Event const & indel_event,
@@ -37,7 +75,10 @@ is_indel_in_bucket(std::vector<Bucket> const & buckets,
                    long const BUCKET_SIZE)
 {
   long const event_bucket_index = (indel_event.pos - region_begin) / BUCKET_SIZE;
-  assert(event_bucket_index < static_cast<long>(buckets.size()));
+
+  if (event_bucket_index >= static_cast<long>(buckets.size()))
+    return false;
+
   auto & indel_events = buckets[event_bucket_index].events;
   auto find_it = indel_events.find(indel_event);
   return find_it != indel_events.end();
@@ -159,9 +200,8 @@ add_snp_event_to_bucket(std::vector<BucketFirstPass> & buckets,
 }
 
 
-/*
 void
-add_base_to_bucket(std::vector<Bucket> & buckets,
+add_base_to_bucket(std::vector<BucketLR> & buckets,
                    int32_t pos,
                    char seq,
                    char qual,
@@ -183,7 +223,6 @@ add_base_to_bucket(std::vector<Bucket> & buckets,
   assert(local_pos < static_cast<long>(bucket.pileup.size()));
   bucket.pileup[local_pos].add_base(seq, qual);
 }
-*/
 
 
 // explicit instantiation

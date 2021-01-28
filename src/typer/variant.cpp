@@ -264,14 +264,17 @@ Variant::generate_infos()
   }
 
   // Write stats from VarStat object
-  if (stats.per_allele.size() != seqs.size())
+  bool const is_stats = stats.per_allele.size() != 0;
+
+  if (is_stats && stats.per_allele.size() != seqs.size())
   {
     BOOST_LOG_TRIVIAL(error) << __HERE__ << " stats.per_allele.size() != seqs.size(), "
                              << stats.per_allele.size() << " != " << seqs.size();
     std::exit(1);
   }
 
-  stats.write_stats(infos);
+  if (is_stats)
+    stats.write_stats(infos);
 
   // Calculate AC, AN, SeqDepth, MaxVS, ABHom, ABHet, ABHomMulti, ABHetMulti
   std::vector<uint32_t> ac(seqs.size() - 1, 0u);
@@ -764,183 +767,186 @@ Variant::generate_infos()
   assert(seqdepth_alt.size() + 1 == seqs.size());
 
   // Calculate SDalt, MMalt, CRalt and MQalt
-  if (stats.per_allele.size() == seqs.size())
+  if (is_stats)
   {
+    if (stats.per_allele.size() == seqs.size())
+    {
+      assert(stats.read_strand.size() == seqs.size());
+      assert(stats.per_allele.size() == stats.read_strand.size());
+
+      std::ostringstream sd_ss;
+      std::ostringstream mm_ss;
+      std::ostringstream cr_ss;
+      std::ostringstream mq_ss;
+
+      for (long s{0}; s < static_cast<long>(seqdepth_alt.size()); ++s)
+      {
+        uint64_t const alt_depth{seqdepth_alt[s]};
+
+        if (s > 0)
+        {
+          sd_ss << ',';
+          mm_ss << ',';
+          cr_ss << ',';
+          mq_ss << ',';
+        }
+
+        if (alt_depth > 0)
+        {
+          auto const & per_al = stats.per_allele[s + 1];
+
+          sd_ss << (static_cast<double>(per_al.score_diff) / static_cast<double>(alt_depth));
+          mm_ss << (static_cast<double>(per_al.mismatches) / static_cast<double>(alt_depth) / 10.0);
+          cr_ss << (static_cast<double>(per_al.clipped_bp) / static_cast<double>(alt_depth) / 10.0);
+          mq_ss << static_cast<long>(std::sqrt(static_cast<double>(per_al.mapq_squared) /
+                                               static_cast<double>(alt_depth)) + 0.5);
+        }
+        else
+        {
+          sd_ss << "0.0";
+          mm_ss << "0.0";
+          cr_ss << "0.0";
+          mq_ss << "0";
+        }
+      }
+
+      infos["SDalt"] = sd_ss.str();
+      infos["MMalt"] = mm_ss.str();
+      infos["CRalt"] = cr_ss.str();
+      infos["MQalt"] = mq_ss.str();
+    }
+
+    std::vector<uint64_t> sb_alt(seqs.size() - 1, 0);
     assert(stats.read_strand.size() == seqs.size());
-    assert(stats.per_allele.size() == stats.read_strand.size());
 
-    std::ostringstream sd_ss;
-    std::ostringstream mm_ss;
-    std::ostringstream cr_ss;
-    std::ostringstream mq_ss;
+    for (long s{0}; s < static_cast<long>(sb_alt.size()); ++s)
+      sb_alt[s] = stats.read_strand[s + 1].get_reverse_count();
 
-    for (long s{0}; s < static_cast<long>(seqdepth_alt.size()); ++s)
+    std::vector<double> aa_score(seqdepth_alt.size(), 0.0);
+
+    // Alternative allele score (AAScore)
+    if (graph.is_sv_graph)
     {
-      uint64_t const alt_depth{seqdepth_alt[s]};
-
-      if (s > 0)
-      {
-        sd_ss << ',';
-        mm_ss << ',';
-        cr_ss << ',';
-        mq_ss << ',';
-      }
-
-      if (alt_depth > 0)
-      {
-        auto const & per_al = stats.per_allele[s + 1];
-
-        sd_ss << (static_cast<double>(per_al.score_diff) / static_cast<double>(alt_depth));
-        mm_ss << (static_cast<double>(per_al.mismatches) / static_cast<double>(alt_depth) / 10.0);
-        cr_ss << (static_cast<double>(per_al.clipped_bp) / static_cast<double>(alt_depth) / 10.0);
-        mq_ss << static_cast<long>(std::sqrt(static_cast<double>(per_al.mapq_squared) /
-                                             static_cast<double>(alt_depth)) + 0.5);
-      }
-      else
-      {
-        sd_ss << "0.0";
-        mm_ss << "0.0";
-        cr_ss << "0.0";
-        mq_ss << "0";
-      }
+      aa_score = std::vector<double>(seqdepth_alt.size(), 1.0);
     }
-
-    infos["SDalt"] = sd_ss.str();
-    infos["MMalt"] = mm_ss.str();
-    infos["CRalt"] = cr_ss.str();
-    infos["MQalt"] = mq_ss.str();
-  }
-
-  std::vector<uint64_t> sb_alt(seqs.size() - 1, 0);
-  assert(stats.read_strand.size() == seqs.size());
-
-  for (long s{0}; s < static_cast<long>(sb_alt.size()); ++s)
-    sb_alt[s] = stats.read_strand[s + 1].get_reverse_count();
-
-  std::vector<double> aa_score(seqdepth_alt.size(), 0.0);
-
-  // Alternative allele score (AAScore)
-  if (graph.is_sv_graph)
-  {
-    aa_score = std::vector<double>(seqdepth_alt.size(), 1.0);
-  }
-  else
-  {
-    for (long s{0}; s < static_cast<long>(seqdepth_alt.size()); ++s)
+    else
     {
-      if (seqdepth_alt[s] > 0)
+      for (long s{0}; s < static_cast<long>(seqdepth_alt.size()); ++s)
       {
-        auto const & per_al = stats.per_allele[s + 1];
+        if (seqdepth_alt[s] > 0)
+        {
+          auto const & per_al = stats.per_allele[s + 1];
 
-        assert(s < static_cast<long>(qd_alt.size()));
-        double const alt_seq_depth = seqdepth_alt[s];
-        double const _sb = 2.0 * ((static_cast<double>(sb_alt[s]) / alt_seq_depth) - 0.5);
-        double const sb = _sb >= 0.0 ? _sb : -_sb;
-        assert(sb >= 0.0);
-        double const mm = static_cast<double>(per_al.mismatches) / alt_seq_depth / 10.0;
-        long const sd = static_cast<double>(per_al.score_diff) / alt_seq_depth + 0.5;
-        double const cr = static_cast<double>(per_al.clipped_bp) / alt_seq_depth / 10.0;
-        long const mq = std::sqrt(static_cast<double>(per_al.mapq_squared) / alt_seq_depth) + 0.5;
+          assert(s < static_cast<long>(qd_alt.size()));
+          double const alt_seq_depth = seqdepth_alt[s];
+          double const _sb = 2.0 * ((static_cast<double>(sb_alt[s]) / alt_seq_depth) - 0.5);
+          double const sb = _sb >= 0.0 ? _sb : -_sb;
+          assert(sb >= 0.0);
+          double const mm = static_cast<double>(per_al.mismatches) / alt_seq_depth / 10.0;
+          long const sd = static_cast<double>(per_al.score_diff) / alt_seq_depth + 0.5;
+          double const cr = static_cast<double>(per_al.clipped_bp) / alt_seq_depth / 10.0;
+          long const mq = std::sqrt(static_cast<double>(per_al.mapq_squared) / alt_seq_depth) + 0.5;
 
-        aa_score[s] = get_aa_score(info_abhom, sb, mm, sd, qd_alt[s], cr, mq);
+          aa_score[s] = get_aa_score(info_abhom, sb, mm, sd, qd_alt[s], cr, mq);
+        }
+        else
+        {
+          aa_score[s] = 0.0;
+        }
       }
-      else
-      {
-        aa_score[s] = 0.0;
-      }
-    }
-
-    std::ostringstream ss;
-    ss.precision(4);
-    ss << aa_score[0];
-
-    for (long s{1}; s < static_cast<long>(aa_score.size()); ++s)
-    {
-      ss.precision(4);
-      ss << "," << aa_score[s];
-    }
-
-    infos["AAScore"] = ss.str();
-
-    // Logistic regression quality filter (LOGF).
-    {
-      long const info_cr = infos.count("CR") ? std::stol(infos.at("CR")) : 0;
-      long const ab_het_bin = static_cast<long>(info_ab_het * 10.0 + 0.00001);
-      long const sbalt_bin = static_cast<long>(info_sbalt * 10.0 + 0.00001);
-      double const cr_by_seqdepth = static_cast<double>(info_cr) / static_cast<double>(seqdepth);
-      double const gt_yield = static_cast<double>(genotyped) / static_cast<double>(an);
-
-      // variables:
-      //  crBySeqdepth=info_cr/seqdepth
-      //  info_qd
-      //  info_abhom
-      //  info_mq
-      //  info_pass_ratio
-      //  gtYield=genotyped/an
-      assert(ab_het_bin >= 0l);
-      assert(ab_het_bin <= 10l);
-      assert(sbalt_bin >= 0l);
-      assert(sbalt_bin <= 10l);
-
-      double const logf = get_logf(info_abhom, cr_by_seqdepth, info_mq,
-                                   info_pass_ratio, gt_yield, info_qd, ab_het_bin, sbalt_bin);
 
       std::ostringstream ss;
       ss.precision(4);
-      ss << logf;
-      infos["LOGF"] = ss.str();
+      ss << aa_score[0];
+
+      for (long s{1}; s < static_cast<long>(aa_score.size()); ++s)
+      {
+        ss.precision(4);
+        ss << "," << aa_score[s];
+      }
+
+      infos["AAScore"] = ss.str();
+
+      // Logistic regression quality filter (LOGF).
+      {
+        long const info_cr = infos.count("CR") ? std::stol(infos.at("CR")) : 0;
+        long const ab_het_bin = static_cast<long>(info_ab_het * 10.0 + 0.00001);
+        long const sbalt_bin = static_cast<long>(info_sbalt * 10.0 + 0.00001);
+        double const cr_by_seqdepth = static_cast<double>(info_cr) / static_cast<double>(seqdepth);
+        double const gt_yield = static_cast<double>(genotyped) / static_cast<double>(an);
+
+        // variables:
+        //  crBySeqdepth=info_cr/seqdepth
+        //  info_qd
+        //  info_abhom
+        //  info_mq
+        //  info_pass_ratio
+        //  gtYield=genotyped/an
+        assert(ab_het_bin >= 0l);
+        assert(ab_het_bin <= 10l);
+        assert(sbalt_bin >= 0l);
+        assert(sbalt_bin <= 10l);
+
+        double const logf = get_logf(info_abhom, cr_by_seqdepth, info_mq,
+                                     info_pass_ratio, gt_yield, info_qd, ab_het_bin, sbalt_bin);
+
+        std::ostringstream ss;
+        ss.precision(4);
+        ss << logf;
+        infos["LOGF"] = ss.str();
+      }
     }
-  }
 
-  // check which alts are good
-  for (long a{0}; a < static_cast<long>(seqs.size()) - 1l; ++a)
-  {
-    assert(maximum_variant_support.size() == is_good_alt.size());
-    assert(maximum_alternative_support_ratio.size() == is_good_alt.size());
-    assert(aa_score.size() == is_good_alt.size());
-    assert(qd_alt.size() == is_good_alt.size());
-    assert(seqdepth_alt.size() == is_good_alt.size());
-    assert(stats.per_allele.size() == is_good_alt.size() + 1);
-
-    if (seqdepth_alt[a] == 0)
+    // check which alts are good
+    for (long a{0}; a < static_cast<long>(seqs.size()) - 1l; ++a)
     {
-      is_good_alt[a] = 0;
-      continue;
-    }
+      assert(maximum_variant_support.size() == is_good_alt.size());
+      assert(maximum_alternative_support_ratio.size() == is_good_alt.size());
+      assert(aa_score.size() == is_good_alt.size());
+      assert(qd_alt.size() == is_good_alt.size());
+      assert(seqdepth_alt.size() == is_good_alt.size());
+      assert(stats.per_allele.size() == is_good_alt.size() + 1);
 
-    auto const & per_al = stats.per_allele[a + 1];
-    double const alt_seq_depth = seqdepth_alt[a];
-    double const mm = static_cast<double>(per_al.mismatches) / alt_seq_depth / 10.0;
-    double const cr = static_cast<double>(per_al.clipped_bp) / alt_seq_depth / 10.0;
+      if (seqdepth_alt[a] == 0)
+      {
+        is_good_alt[a] = 0;
+        continue;
+      }
 
-    is_good_alt[a] = mm < 3.0 &&
-                     cr < 5.0 &&
-                     (cr + mm) < 6.0 &&
-                     maximum_variant_support[a] >= 3 &&
-                     maximum_alternative_support_ratio[a] >= 0.25 &&
-                     (qd_alt[a] >= 2.0 ||
-                      (maximum_variant_support[a] >= 10 && maximum_alternative_support_ratio[a] >= 0.45)) &&
-                     (qd_alt[a] >= 4.0 || aa_score[a] >= 0.20);
+      auto const & per_al = stats.per_allele[a + 1];
+      double const alt_seq_depth = seqdepth_alt[a];
+      double const mm = static_cast<double>(per_al.mismatches) / alt_seq_depth / 10.0;
+      double const cr = static_cast<double>(per_al.clipped_bp) / alt_seq_depth / 10.0;
+
+      is_good_alt[a] = mm < 3.0 &&
+                       cr < 5.0 &&
+                       (cr + mm) < 6.0 &&
+                       maximum_variant_support[a] >= 3 &&
+                       maximum_alternative_support_ratio[a] >= 0.25 &&
+                       (qd_alt[a] >= 2.0 ||
+                        (maximum_variant_support[a] >= 10 && maximum_alternative_support_ratio[a] >= 0.45)) &&
+                       (qd_alt[a] >= 4.0 || aa_score[a] >= 0.20);
 
 
 #ifndef NDEBUG
-    if (is_good_alt[a] == 0)
-    {
-      long const contig_pos = absolute_pos.get_contig_position(this->abs_pos, gyper::graph.contigs).second;
-
-      if (contig_pos > 699204 && contig_pos < 699224)
+      if (is_good_alt[a] == 0)
       {
-        BOOST_LOG_TRIVIAL(info) << __HERE__ << " In variant=" << to_string(true) // skip calls
-                                << " bad alt="
-                                << std::string(seqs[a + 1].begin(), seqs[a + 1].end())
-                                << " MaxAAS=" << maximum_variant_support[a]
-                                << " MaxAASR=" << maximum_alternative_support_ratio[a]
-                                << " AAScore=" << aa_score[a]
-                                << " ABHom=" << info_abhom
-                                << " QDAlt=" << qd_alt[a];
+        long const contig_pos = absolute_pos.get_contig_position(this->abs_pos, gyper::graph.contigs).second;
+
+        if (contig_pos > 699204 && contig_pos < 699224)
+        {
+          BOOST_LOG_TRIVIAL(info) << __HERE__ << " In variant=" << to_string(true) // skip calls
+                                  << " bad alt="
+                                  << std::string(seqs[a + 1].begin(), seqs[a + 1].end())
+                                  << " MaxAAS=" << maximum_variant_support[a]
+                                  << " MaxAASR=" << maximum_alternative_support_ratio[a]
+                                  << " AAScore=" << aa_score[a]
+                                  << " ABHom=" << info_abhom
+                                  << " QDAlt=" << qd_alt[a];
+        }
       }
-    }
 #endif // NDEBUG
+    }
   }
 
   return is_good_alt;

@@ -1,14 +1,12 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <sstream>
 #include <map>
 #include <unordered_map>
 #include <vector>
-
-
-#include <graphtyper/graph/snp_event.hpp>
 
 
 namespace gyper
@@ -18,6 +16,22 @@ std::array<char, 4> constexpr index2base = {'A', 'C', 'G', 'T'};
 
 long
 base2index(char const base);
+
+
+struct BaseCount
+{
+  std::array<int32_t, 4> acgt;
+  std::array<int64_t, 4> acgt_qualsum;
+  int32_t deleted{0};
+  int32_t unknown{0};
+
+  long get_depth_without_deleted() const;
+  long get_depth_with_deleted() const;
+  std::string to_string() const;
+
+  void add_base(char seq, char qual);
+
+};
 
 
 class Event

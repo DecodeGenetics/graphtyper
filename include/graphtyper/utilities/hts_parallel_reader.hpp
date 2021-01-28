@@ -22,7 +22,6 @@ class VariantMap;
 class HtsParallelReader
 {
 private:
-  std::vector<HtsReader> hts_files;
   std::vector<HtsRecord> heap;
   HtsStore store;
   std::vector<std::string> samples; // List of sample names
@@ -35,6 +34,9 @@ public:
   HtsParallelReader & operator=(HtsParallelReader const &) = delete;
   HtsParallelReader & operator=(HtsParallelReader &&) = delete;
   ~HtsParallelReader();
+
+  // all hts files the parallel reader has
+  std::vector<HtsReader> hts_files;
 
   // Opens multiple hts paths
   void open(std::vector<std::string> const & hts_file_paths,
@@ -58,6 +60,9 @@ public:
 
   // get the number of read groups
   long get_num_rg() const;
+
+  // get the number of samples
+  long get_num_samples() const;
 
   // get pointer to a header for the opened hts_files
   bam_hdr_t * get_header() const;

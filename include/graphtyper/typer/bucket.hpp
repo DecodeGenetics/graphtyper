@@ -1,7 +1,10 @@
 #pragma once
 
+#include <set>
+
 #include <parallel_hashmap/phmap_fwd_decl.h>
 
+#include <graphtyper/graph/snp_event.hpp>
 #include <graphtyper/typer/event.hpp>
 #include <graphtyper/typer/read.hpp>
 
@@ -18,6 +21,17 @@ public:
   std::map<Event, EventSupport> events;
   //Tindel_events indel_events; // type is std::map<Event, EventInfo>
 };
+
+class SnpEvent;
+
+class BucketLR
+{
+public:
+  std::vector<BaseCount> pileup;
+};
+
+
+void merge_bucket_lr(std::vector<BucketLR> & old_bucket, std::vector<BucketLR> const & new_bucket);
 
 
 class Bucket
@@ -56,12 +70,12 @@ add_indel_event_to_bucket(std::vector<TBucket> & buckets,
                           std::vector<char> const & reference_sequence,
                           long ref_offset);
 
-//void
-//add_base_to_bucket(std::vector<Bucket> & buckets,
-//                   int32_t pos,
-//                   char seq,
-//                   char qual,
-//                   long const region_begin,
-//                   long const BUCKET_SIZE);
+void
+add_base_to_bucket(std::vector<BucketLR> & buckets,
+                   int32_t pos,
+                   char seq,
+                   char qual,
+                   long const region_begin,
+                   long const BUCKET_SIZE);
 
 } // namespace gyper

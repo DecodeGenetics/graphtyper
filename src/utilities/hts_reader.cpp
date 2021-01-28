@@ -106,7 +106,21 @@ HtsReader::open(std::string const & path, std::string const & region, std::strin
   else
   {
     hts_index = sam_index_load(fp, path.c_str());
+
+    if (!hts_index)
+    {
+      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Failed to load index at '" << path << "'";
+      std::exit(1);
+    }
+
     hts_iter = sam_itr_querys(hts_index, fp->bam_header, region.c_str());
+
+    if (!hts_iter)
+    {
+      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Failed to query region '" << region << "'";
+      std::exit(1);
+    }
+
     ret = sam_itr_next(fp, hts_iter, rec);
   }
 }
@@ -115,10 +129,10 @@ HtsReader::open(std::string const & path, std::string const & region, std::strin
 void
 HtsReader::close()
 {
-  if (fp)
+  if (hts_index)
   {
-    hts_close(fp);
-    fp = nullptr;
+    hts_idx_destroy(hts_index);
+    hts_index = nullptr;
   }
 
   if (hts_iter)
@@ -127,10 +141,10 @@ HtsReader::close()
     hts_iter = nullptr;
   }
 
-  if (hts_index)
+  if (fp)
   {
-    hts_idx_destroy(hts_index);
-    hts_index = nullptr;
+    hts_close(fp);
+    fp = nullptr;
   }
 }
 

@@ -38,6 +38,66 @@ get_phred_biallelic(uint32_t count, uint32_t anti_count, uint32_t eps)
 namespace gyper
 {
 
+long
+BaseCount::get_depth_without_deleted() const
+{
+  return acgt[0] + acgt[1] + acgt[2] + acgt[3];
+}
+
+
+long
+BaseCount::get_depth_with_deleted() const
+{
+  return acgt[0] + acgt[1] + acgt[2] + acgt[3] + deleted;
+}
+
+
+std::string
+BaseCount::to_string() const
+{
+  std::ostringstream ss;
+
+  ss << acgt[0] << "," << acgt[1] << "," << acgt[2] << "," << acgt[3] << ":"
+     << acgt_qualsum[0] << "," << acgt_qualsum[1] << "," << acgt_qualsum[2]
+     << "," << acgt_qualsum[3] << " " << deleted;
+
+  return ss.str();
+}
+
+
+void
+BaseCount::add_base(char seq, char qual)
+{
+  if (qual == 0)
+  {
+    ++unknown;
+    return;
+  }
+
+  long i = base2index(seq);
+
+  if (i < 0)
+  {
+    if (i == -1)
+    {
+      ++unknown;
+      return;
+    }
+    else
+    {
+      assert(i == -2);
+      // -2 is deleted base
+      ++deleted;
+      return;
+    }
+  }
+
+  assert(i < 4);
+  ++(acgt[i]);
+  acgt_qualsum[i] += static_cast<int64_t>(qual);
+}
+
+
 uint32_t
 get_log_qual(uint32_t count, uint32_t anti_count, uint32_t eps)
 {
@@ -177,9 +237,10 @@ EventSupport::corrected_support() const
 bool
 EventSupport::has_good_support(long const cov) const
 {
-  int const raw_support = get_raw_support();
-  bool const is_promising = uniq_pos3 != -1 && hq_count >= 7 && proper_pairs >= 4;
   gyper::Options const & copts = *(Options::const_instance());
+
+  int const raw_support = get_raw_support();
+  bool const is_promising = uniq_pos3 != -1 && hq_count >= 7 && (!copts.filter_on_proper_pairs || proper_pairs >= 4);
 
   return (copts.no_filter_on_begin_pos || uniq_pos2 != -1)
          &&

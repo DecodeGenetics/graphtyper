@@ -3,6 +3,8 @@
 #include <sstream> // std::stringstream
 #include <vector> // std::vector
 
+#include <boost/log/trivial.hpp>
+
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/reference_depth.hpp>
 #include <graphtyper/typer/genotype_paths.hpp>
@@ -126,6 +128,16 @@ ReferenceDepth::get_total_read_depth_of_samples(VariantCandidate const & var,
 void
 ReferenceDepth::add_genotype_paths(GenotypePaths const & geno, long const sample_index)
 {
+  assert(depths.size() > 0);
+
+  if (sample_index >= static_cast<long>(depths.size()))
+  {
+    BOOST_LOG_TRIVIAL(error) << __HERE__ << " Odd.. sample_index >= expected ("
+                             << sample_index << " >= " << depths.size() << ")";
+    return;
+    //std::exit(1);
+  }
+
   assert(sample_index < static_cast<long>(depths.size()));
 
   if (geno.paths.size() == 0 || geno.paths[0].size() < 63)

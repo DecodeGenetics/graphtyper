@@ -24,6 +24,7 @@ public:
   std::vector<std::string> samples;
   int sample_index_offset{0};
   int rg_index_offset{0};
+  std::vector<int> rg2sample_i; // uses the rg index to determine the sample index
 
 private:
   int ret{0}; // return value of the most recently read record
@@ -32,7 +33,6 @@ private:
   // TODO check if it is faster to first check if the records are sorted
   HtsStore & store;
   std::unordered_map<std::string, long> rg2index; // associates read groups with indices of that rg
-  std::vector<int> rg2sample_i; // uses the rg index to determine the sample index
 
   void set_reference(std::string const & reference_path);
 
