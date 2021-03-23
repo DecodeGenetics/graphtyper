@@ -71,7 +71,8 @@ public:
 
 
 void
-parallel_reader_genotype_only(std::string * out_path,
+parallel_reader_genotype_only(long const thread_id,
+                              std::string * out_path,
                               std::vector<std::string> const * hts_paths_ptr,
                               std::vector<double> const * avg_cov_ptr,
                               std::string const * output_dir_ptr,
@@ -79,10 +80,11 @@ parallel_reader_genotype_only(std::string * out_path,
                               std::string const * region_ptr,
                               PHIndex const * ph_index_ptr,
                               Primers const * primers,
-                              std::map<std::pair<uint16_t, uint16_t>,
-                                       std::map<std::pair<uint16_t, uint16_t>, int8_t> > * ph_ptr,
+                              std::vector<std::map<std::pair<uint16_t, uint16_t>,
+                                                   std::map<std::pair<uint16_t, uint16_t>, int8_t> > > * ph_ptr,
                               bool const is_writing_calls_vcf,
-                              bool const is_writing_hap);
+                              bool const is_writing_hap,
+                              std::vector<std::unordered_map<uint32_t, uint32_t> > * allele_hap_gts_ptr = nullptr);
 
 void
 parallel_reader_with_discovery(std::string * out_path,

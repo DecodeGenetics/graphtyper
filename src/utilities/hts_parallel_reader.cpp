@@ -365,6 +365,7 @@ genotype_only(HtsParallelReader const & hts_preader,
 }
 
 
+/*
 void
 genotype_and_discover(HtsParallelReader const & hts_preader,
                       VcfWriter & writer,
@@ -480,10 +481,11 @@ genotype_and_discover(HtsParallelReader const & hts_preader,
     map_gpaths.erase(find_it); // Remove the read name afterwards
   }
 }
-
+*/
 
 void
-parallel_reader_genotype_only(std::string * out_path,
+parallel_reader_genotype_only(long const thread_id,
+                              std::string * out_path,
                               std::vector<std::string> const * hts_paths_ptr,
                               std::vector<double> const * avg_cov_ptr,
                               std::string const * output_dir_ptr,
@@ -491,16 +493,11 @@ parallel_reader_genotype_only(std::string * out_path,
                               std::string const * region_ptr,
                               PHIndex const * ph_index_ptr,
                               Primers const * primers,
-
-                              std::map<std::pair<uint16_t, uint16_t>,
-                                       std::map<std::pair<uint16_t, uint16_t>, int8_t> > *
-#ifdef GT_DEV
-                              ph_ptr,
-#else
-                             ,
-#endif
+                              std::vector<std::map<std::pair<uint16_t, uint16_t>,
+                                                   std::map<std::pair<uint16_t, uint16_t>, int8_t> > > * ph_ptr,
                               bool const is_writing_calls_vcf,
-                              bool const is_writing_hap)
+                              bool const is_writing_hap,
+                              std::vector<std::unordered_map<uint32_t, uint32_t> > * allele_hap_gts_ptr)
 {
   assert(hts_paths_ptr);
   assert(avg_cov_ptr);
@@ -508,6 +505,7 @@ parallel_reader_genotype_only(std::string * out_path,
   assert(output_dir_ptr);
   assert(reference_fn_ptr);
   assert(region_ptr);
+  //assert(allele_hap_gts_ptr);
 
   auto const & hts_paths = *hts_paths_ptr;
   auto const & avg_cov_by_readlen = *avg_cov_ptr;
@@ -521,7 +519,7 @@ parallel_reader_genotype_only(std::string * out_path,
   hts_preader.open(hts_paths, reference, region);
 
   // Set up VcfWriter
-  VcfWriter writer(SPLIT_VAR_THRESHOLD - 1);
+  VcfWriter writer(Options::const_instance()->split_var_threshold - 1);
   writer.set_samples(hts_preader.get_samples());
 
   if (writer.pns.size() == 0)
@@ -546,7 +544,7 @@ parallel_reader_genotype_only(std::string * out_path,
   {
     writer.print_statistics_headers();
     writer.print_variant_details();
-    writer.print_variant_group_details();
+    //writer.print_variant_group_details();
   }
 #endif // ifndef NDEBUG
 
@@ -785,19 +783,20 @@ parallel_reader_genotype_only(std::string * out_path,
   {
 #ifdef GT_DEV
     assert(ph_ptr);
-    std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > & ph = *ph_ptr;
+    assert(thread_id < static_cast<long>(ph_ptr->size()));
+
+    std::map<std::pair<uint16_t, uint16_t>,
+             std::map<std::pair<uint16_t, uint16_t>, int8_t> > & ph = (*ph_ptr)[thread_id];
 
     for (long ps1{0}; ps1 < (static_cast<long>(writer.haplotypes.size()) - 1l); ++ps1)
     {
       auto const & hap1 = writer.haplotypes[ps1];
-      assert(hap1.gts.size() == 1);
-      long const order1 = hap1.gts[0].id;
+      long const order1 = hap1.gt.id;
 
       for (long ps2{ps1 + 1l}; ps2 < static_cast<long>(writer.haplotypes.size()); ++ps2)
       {
         auto const & hap2 = writer.haplotypes[ps2];
-        assert(hap2.gts.size() == 1);
-        long const order2 = hap2.gts[0].id;
+        long const order2 = hap2.gt.id;
 
         if (order2 >= order1 + 100)
           break;
@@ -807,14 +806,13 @@ parallel_reader_genotype_only(std::string * out_path,
           auto const & hap_samples1 = hap1.hap_samples[s];
           auto const & hap_samples2 = hap2.hap_samples[s];
           auto const & conn_vec = hap_samples1.connections;
-          assert(conn_vec.size() == hap1.gts[0].num);
+          assert(conn_vec.size() == hap1.gt.num);
 
           // skip reference
-          for (long cov1{1}; cov1 < static_cast<long>(hap1.gts[0].num); ++cov1)
+          for (long cov1{1}; cov1 < static_cast<long>(hap1.gt.num); ++cov1)
           {
             // only check for phasing if at least N% of the reads map to this allele
-            assert(hap_samples1.gt_coverage.size() == 1);
-            assert(cov1 < static_cast<long>(hap_samples1.gt_coverage[0].size()));
+            assert(cov1 < static_cast<long>(hap_samples1.gt_coverage.size()));
 
             auto const & conn = conn_vec[cov1];
             auto find_it = conn.find(ps2);
@@ -822,16 +820,16 @@ parallel_reader_genotype_only(std::string * out_path,
             if (find_it == conn.end()) // no info between these haplotypes
               continue;
 
-            bool const is_clearly_seen1 = hap_samples1.gt_coverage[0][cov1] >= 4 ||
-                                          (static_cast<double>(hap_samples1.gt_coverage[0][cov1]) /
-                                           std::accumulate(hap_samples1.gt_coverage[0].begin(),
-                                                           hap_samples1.gt_coverage[0].end(),
+            bool const is_clearly_seen1 = hap_samples1.gt_coverage[cov1] >= 4 ||
+                                          (static_cast<double>(hap_samples1.gt_coverage[cov1]) /
+                                           std::accumulate(hap_samples1.gt_coverage.begin(),
+                                                           hap_samples1.gt_coverage.end(),
                                                            0.0)) >= 0.28;
 
-            bool const is_not_seen1 = hap_samples1.gt_coverage[0][cov1] <= 2 ||
-                                      (static_cast<double>(hap_samples1.gt_coverage[0][cov1]) /
-                                       std::accumulate(hap_samples1.gt_coverage[0].begin(),
-                                                       hap_samples1.gt_coverage[0].end(),
+            bool const is_not_seen1 = hap_samples1.gt_coverage[cov1] <= 2 ||
+                                      (static_cast<double>(hap_samples1.gt_coverage[cov1]) /
+                                       std::accumulate(hap_samples1.gt_coverage.begin(),
+                                                       hap_samples1.gt_coverage.end(),
                                                        0.0)) < 0.22;
 
             auto find1_it = ph.find({ps1, cov1});
@@ -844,7 +842,7 @@ parallel_reader_genotype_only(std::string * out_path,
             }
 
             std::vector<uint16_t> const & support_vec = find_it->second;
-            assert(support_vec.size() == hap2.gts[0].num);
+            assert(support_vec.size() == hap2.gt.num);
 
             // total support between any alleles in these two variant groups
             long total_support = std::accumulate(support_vec.begin(), support_vec.end(), 0l);
@@ -859,32 +857,18 @@ parallel_reader_genotype_only(std::string * out_path,
 
               int8_t is_good{0};
 
-              bool const is_clearly_seen2 = hap_samples2.gt_coverage[0][cov2] >= 4 ||
-                                            (static_cast<double>(hap_samples2.gt_coverage[0][cov2]) /
-                                             std::accumulate(hap_samples2.gt_coverage[0].begin(),
-                                                             hap_samples2.gt_coverage[0].end(),
+              bool const is_clearly_seen2 = hap_samples2.gt_coverage[cov2] >= 4 ||
+                                            (static_cast<double>(hap_samples2.gt_coverage[cov2]) /
+                                             std::accumulate(hap_samples2.gt_coverage.begin(),
+                                                             hap_samples2.gt_coverage.end(),
                                                              0.0)) >= 0.28;
 
-              bool const is_not_seen2 = hap_samples2.gt_coverage[0][cov2] <= 2 ||
-                                        (static_cast<double>(hap_samples2.gt_coverage[0][cov2]) /
-                                         std::accumulate(hap_samples2.gt_coverage[0].begin(),
-                                                         hap_samples2.gt_coverage[0].end(),
+              bool const is_not_seen2 = hap_samples2.gt_coverage[cov2] <= 2 ||
+                                        (static_cast<double>(hap_samples2.gt_coverage[cov2]) /
+                                         std::accumulate(hap_samples2.gt_coverage.begin(),
+                                                         hap_samples2.gt_coverage.end(),
                                                          0.0)) < 0.22;
 
-
-              //if (total_support <= 2)
-              //{
-              //  // is_good = 0;
-              //}
-              //else if (hap_samples2.gt_coverage[0][cov2] <= 2 ||
-              //         (static_cast<double>(hap_samples2.gt_coverage[0][cov2]) /
-              //          std::accumulate(hap_samples2.gt_coverage[0].begin(),
-              //                          hap_samples2.gt_coverage[0].end(),
-              //                          0.0)) < 0.22)
-              //{
-              //  is_good = IS_ANY_ANTI_HAP_SUPPORT;
-              //}
-              //if (!is_clearly_seen1 && !is_clearly_seen2)
               if (is_not_seen1 && is_not_seen2)
               {
                 // is_good==0
@@ -917,24 +901,7 @@ parallel_reader_genotype_only(std::string * out_path,
                 }
               }
 
-              //auto insert_it = find1_it->second.insert({{ps2, cov2}, 0});
-              //insert_it.first->second |= is_good;
               find1_it->second[{ps2, cov2}] |= is_good;
-
-              //if (/*is_good == IS_ANY_ANTI_HAP_SUPPORT &&*/ hap1.gts[0].id >= 86840 && hap1.gts[0].id <= 86850 &&
-              //    hap2.gts[0].id <= 86869)
-              //{
-              //  BOOST_LOG_TRIVIAL(info) << __HERE__
-              //                          << " s=" << s
-              //                          << " order1=" << hap1.gts[0].id
-              //                          << " var1=" << ps1 << "." << cov1
-              //                          << " raw_supp1=" << hap_samples1.gt_coverage[0][cov1]
-              //                          << " order2=" << hap2.gts[0].id
-              //                          << " var2=" << ps2 << "." << cov2
-              //                          << " raw_supp2=" << hap_samples2.gt_coverage[0][cov2]
-              //                          << " ph_supp=" << support << "/" << total_support
-              //                          << " is_good=" << static_cast<long>(is_good);
-              //}
             }
           }
         }
@@ -991,6 +958,13 @@ parallel_reader_genotype_only(std::string * out_path,
         hap.clear();
       }
 
+      // remove stuff from reference calls
+      for (Variant & variant : vcf.variants)
+      {
+        variant.scan_calls();
+        variant.calls.clear();
+      }
+
       save_vcf(vcf, output_dir + "/" + first_sample);
     }
 
@@ -1007,7 +981,23 @@ parallel_reader_genotype_only(std::string * out_path,
   }
 
   // Optionally we can write _calls.vcf.gz files for each pool of samples
-  if (is_writing_calls_vcf)
+  if (allele_hap_gts_ptr && !Options::const_instance()->force_ignore_segment)
+  {
+    //BOOST_LOG_TRIVIAL(info) << __HERE__ << " Writing HLA calls to '"
+    //                        << output_dir << "/"
+    //                        << first_sample << "_*'";
+    Vcf vcf;
+
+    // Set sample names
+    vcf.sample_names = writer.pns;
+    vcf.add_hla_haplotypes(writer.haplotypes, *allele_hap_gts_ptr);
+
+    for (Variant & var : vcf.variants)
+      var.scan_calls();
+
+    save_vcf(vcf, output_dir + "/" + first_sample);
+  }
+  else if (is_writing_calls_vcf || Options::const_instance()->force_ignore_segment)
   {
     BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Writing calls to '"
                              << output_dir << "/"
@@ -1046,6 +1036,12 @@ parallel_reader_genotype_only(std::string * out_path,
         });
     }
 
+    if (!Options::const_instance()->is_segment_calling)
+    {
+      for (Variant & var : vcf.variants)
+        var.scan_calls();
+    }
+
     save_vcf(vcf, output_dir + "/" + first_sample);
   }
 
@@ -1054,6 +1050,7 @@ parallel_reader_genotype_only(std::string * out_path,
 }
 
 
+/*
 void
 parallel_reader_with_discovery(std::string * out_path,
                                std::vector<std::string> const * hts_paths_ptr,
@@ -1084,7 +1081,7 @@ parallel_reader_with_discovery(std::string * out_path,
   hts_preader.open(hts_paths, reference, region);
 
   // Set up VcfWriter
-  VcfWriter writer(SPLIT_VAR_THRESHOLD - 1);
+  VcfWriter writer(Options::const_instance()->split_var_threshold - 1);
   writer.set_samples(hts_preader.get_samples());
   std::string const & first_sample = writer.pns[0];
 
@@ -1104,7 +1101,7 @@ parallel_reader_with_discovery(std::string * out_path,
   {
     writer.print_statistics_headers();
     writer.print_variant_details();
-    writer.print_variant_group_details();
+    //writer.print_variant_group_details();
   }
 #endif // ifndef NDEBUG
 
@@ -1133,7 +1130,7 @@ parallel_reader_with_discovery(std::string * out_path,
     seqan::IupacString seq;
     seqan::IupacString rseq;
     genotype_and_discover(hts_preader, writer, reference_depth, varmap, maps, prev_paths, ph_index, primers, prev,
-                          seq, rseq, true /*update prev_geno_paths*/);
+      seq, rseq, true); // update prev_geno_paths
     HtsRecord curr;
 
     while (hts_preader.read_record(curr))
@@ -1149,12 +1146,12 @@ parallel_reader_with_discovery(std::string * out_path,
         // The two records are equal
         ++num_duplicated_records;
         genotype_and_discover(hts_preader, writer, reference_depth, varmap, maps, prev_paths, ph_index, primers, curr,
-                              seq, rseq, false /*update prev_geno_paths*/);
+                              seq, rseq, false);
       }
       else
       {
         genotype_and_discover(hts_preader, writer, reference_depth, varmap, maps, prev_paths, ph_index, primers, curr,
-                              seq, rseq, true /*update prev_geno_paths*/);
+                              seq, rseq, true);
         hts_preader.move_record(prev, curr); // move curr to prev
       }
     }
@@ -1240,6 +1237,7 @@ parallel_reader_with_discovery(std::string * out_path,
   assert(out_path);
   *out_path = output_dir + "/" + first_sample;
 }
+*/
 
 
 void

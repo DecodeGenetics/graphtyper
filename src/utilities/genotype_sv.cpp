@@ -38,7 +38,6 @@ genotype_sv(std::string ref_path,
   gyper::Options const & copts = *(Options::const_instance());
   bool constexpr is_writing_calls_vcf{true};
   bool constexpr is_writing_hap{false};
-  bool constexpr is_discovery{false};
 
   long const NUM_SAMPLES = sams.size();
 
@@ -132,21 +131,17 @@ genotype_sv(std::string ref_path,
     if (Options::const_instance()->force_use_input_ref_for_cram_reading)
       reference_fn = ref_path;
 
-    std::vector<std::string> paths =
-      gyper::call(sams,
-                  avg_cov_by_readlen,
-                  "",   // graph_path
-                  ph_index,
-                  out_dir,
-                  reference_fn, // reference
-                  unpadded_region.to_string(), // region
-                  nullptr,
-                  ph,
-                  5,//minimum_variant_support,
-                  0.25,//minimum_variant_support_ratio,
-                  is_writing_calls_vcf,
-                  is_discovery,
-                  is_writing_hap);
+    std::vector<std::string> paths = gyper::call(sams,
+                                                 avg_cov_by_readlen,
+                                                 "", // graph_path
+                                                 ph_index,
+                                                 out_dir,
+                                                 reference_fn, // reference
+                                                 unpadded_region.to_string(), // region
+                                                 nullptr,
+                                                 ph,
+                                                 is_writing_calls_vcf,
+                                                 is_writing_hap);
 
     BOOST_LOG_TRIVIAL(info) << "Merging output VCFs.";
 

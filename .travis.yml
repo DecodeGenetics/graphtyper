@@ -2,10 +2,13 @@ language: cpp
 dist: xenial
 compiler: gcc
 
-before_install:
-  - sudo apt-get install -y libboost-all-dev 
+addons:
+  apt:
+    sources: ubuntu-toolchain-r-test
+    packages: ['g++-7', 'libboost-all-dev']
 
 install:
+  - export CXX="g++-7" CC="gcc-7"
   - mkdir -p build && cd build
   - cmake ..
   - VERBOSE=1 make -j4

@@ -20,7 +20,7 @@
 #include <graphtyper/utilities/io.hpp>
 #include <graphtyper/utilities/graph_help_functions.hpp>
 
-
+/*
 namespace
 {
 
@@ -29,8 +29,7 @@ void
 print_explain_map(std::vector<std::string> const & hap_ids,
                   std::map<uint32_t, std::vector<std::bitset<gyper::MAX_NUMBER_OF_HAPLOTYPES> > > const & explain_map,
                   int32_t index = -1,
-                  int32_t test_index = -1
-                  )
+                  int32_t test_index = -1)
 {
   // Index == -1 means all indexes will be printed
   if (index == -1)
@@ -103,8 +102,7 @@ void
 insert_into_explain_map(std::map<uint32_t, std::vector<std::bitset<gyper::MAX_NUMBER_OF_HAPLOTYPES> > > & explain_map,
                         std::pair<uint32_t, std::bitset<gyper::MAX_NUMBER_OF_HAPLOTYPES> > const & var_explanation,
                         unsigned i,
-                        std::size_t var_num
-                        )
+                        std::size_t var_num)
 {
   auto find_it = explain_map.find(var_explanation.first);
 
@@ -155,8 +153,8 @@ add_start_on_explain_map(std::map<uint32_t, std::vector<std::bitset<gyper::MAX_N
 
 
 void
-remove_insignificant_variants(std::map<uint32_t,
-                                       std::vector<std::bitset<gyper::MAX_NUMBER_OF_HAPLOTYPES> > > & explain_map)
+remove_insignificant_variants(
+  std::map<uint32_t, std::vector<std::bitset<gyper::MAX_NUMBER_OF_HAPLOTYPES> > > & explain_map)
 {
   for (auto it = explain_map.cbegin(); it != explain_map.cend();)
   {
@@ -187,15 +185,14 @@ remove_insignificant_variants(std::map<uint32_t,
 
 
 void
-remove_out_of_order_variants(std::map<uint32_t,
-                                      std::vector<std::bitset<gyper::MAX_NUMBER_OF_HAPLOTYPES> > > & exon_explain_map,
-                             std::map<uint32_t, std::vector<std::bitset<gyper::MAX_NUMBER_OF_HAPLOTYPES> > > & intron_explain_map
-                             )
+remove_out_of_order_variants(
+  std::map<uint32_t, std::vector<std::bitset<gyper::MAX_NUMBER_OF_HAPLOTYPES> > > & exon_explain_map,
+  std::map<uint32_t, std::vector<std::bitset<gyper::MAX_NUMBER_OF_HAPLOTYPES> > > & intron_explain_map)
 {
   if (exon_explain_map.size() == 0)
     return;
 
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Removing out of order variants.";
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Removing out of order variants.";
 
   // Find all unique variants
   std::vector<uint32_t> uniq_variants;
@@ -263,7 +260,7 @@ remove_out_of_order_variants(std::map<uint32_t,
     if (std::find(longest_uniq_variants.begin(), longest_uniq_variants.end(), it->first) == longest_uniq_variants.end())
     {
       // Remove the variant if it is not found in the longest unique variants vector
-      BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Removing from exon " << it->first;
+      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Removing from exon " << it->first;
       exon_explain_map.erase(it++);
     }
     else
@@ -416,13 +413,11 @@ put_reference_in_front(std::map<uint32_t, std::vector<std::bitset<gyper::MAX_NUM
 namespace gyper
 {
 
-
 void
 segment_calling(std::vector<std::string> const & segment_fasta_files,
                 VcfWriter & writer,
                 std::string const & segment_path,
-                std::vector<std::string> const & samples
-                )
+                std::vector<std::string> const & samples)
 {
   assert(samples.size() > 0);
   BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Segment VCF is at " << segment_path;
@@ -435,7 +430,7 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
   for (auto & haplototype : writer.haplotypes)
     haplototype.update_max_log_score();
 
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Gathering segments from "
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Gathering segments from "
                            << segment_fasta_files.size() << " segments.";
   std::vector<Segment> segments;
   using THapPaths = std::vector<GenotypePaths>;
@@ -480,8 +475,7 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
 
   for (auto haplotype_paths_it = all_haplotype_paths.cbegin();
        haplotype_paths_it != all_haplotype_paths.cend();
-       ++haplotype_paths_it
-       )
+       ++haplotype_paths_it)
   {
     // Type of haplotype_paths_it is std::map<std::string, THapPaths>::iterator
     std::vector<std::string> hap_ids;
@@ -518,19 +512,22 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
           if (it->second[j].paths.size() == 0)
           {
             if (has_long_exon[k][j])
-              BOOST_LOG_TRIVIAL(warning) <<
-                "[graphtyper::segment_calling] WARNING: No path found for a long exon sequence";
+            {
+              BOOST_LOG_TRIVIAL(warning) << __HERE__ << " No path found for a long exon sequence";
+            }
             else
-              BOOST_LOG_TRIVIAL(debug) <<
-                "[graphtyper::segment_calling] INFO: No path found for a short sequence or an intron";
+            {
+              BOOST_LOG_TRIVIAL(debug) << __HERE__ << " No path found for a short sequence or an intron";
+            }
           }
           else if (it->second[j].paths.size() == 1)
           {
-            BOOST_LOG_TRIVIAL(debug)
-              << "[graphtyper::segment_calling] INFO: Unique path found: "
-              << absolute_pos.get_contig_position(it->second[j].paths[0].start_ref_reach_pos()).second << "-"
-              << absolute_pos.get_contig_position(it->second[j].paths[0].end_ref_reach_pos()).second << " "
-              << static_cast<uint64_t>(it->second[j].paths[0].mismatches);
+            BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Unique path found: "
+                                     << absolute_pos.get_contig_position(it->second[j].paths[0].start_ref_reach_pos()).
+              second << "-"
+                                     << absolute_pos.get_contig_position(it->second[j].paths[0].end_ref_reach_pos()).
+              second << " "
+                                     << static_cast<uint64_t>(it->second[j].paths[0].mismatches);
           }
           else if (it->second[j].paths.size() > 1)
           {
@@ -685,7 +682,7 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
     int64_t seq_size = static_cast<int64_t>(longest_path_end.end_correct_pos()) -
                        static_cast<int64_t>(longest_path_start.start_correct_pos()) + 1;
     uint32_t segment_start = longest_path_start.start_correct_pos();
-    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Segment sequence size = " << seq_size;
+    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Segment sequence size = " << seq_size;
 
     if (seq_size < 0)
     {
@@ -694,7 +691,7 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
       segment_start = longest_path_end.start_correct_pos();
     }
 
-    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Number of hap_ids is " << hap_ids.size();
+    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Number of hap_ids is " << hap_ids.size();
 
     Segment seg(segment_start, static_cast<uint32_t>(seq_size), hap_ids);
     std::vector<std::vector<uint32_t> > hap_scores(samples.size());
@@ -705,7 +702,7 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
     {
       for (uint32_t s = 0; s < samples.size(); ++s)
       {
-        BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Sample name is " << samples[s];
+        BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Sample name is " << samples[s];
         // std::cout << "derp function starting" << std::endl;
         std::vector<uint32_t> hap_score = writer.explain_map_to_haplotype_scores(s, exon_explain_map);
         // std::cout << "derp function done" << std::endl;
@@ -841,3 +838,4 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
 
 
 } // namespace gyper
+*/

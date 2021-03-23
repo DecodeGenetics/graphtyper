@@ -138,7 +138,6 @@ get_contig_to_lengths(std::string const & fai_filename)
 }
 
 
-/*
 std::vector<std::pair<seqan::CharString, seqan::Dna5String> >
 read_fasta_sequences(std::string const & fasta_filename)
 {
@@ -231,7 +230,6 @@ read_haplotypes_from_fasta(std::string const & fasta_filename)
   assert(haplotypes.size() > 0);
   return haplotypes;
 }
-*/
 
 
 void

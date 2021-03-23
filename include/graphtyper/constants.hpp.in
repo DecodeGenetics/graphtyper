@@ -20,7 +20,7 @@ namespace gyper
 uint8_t constexpr  K = 32;   /** \brief The size of the k-mers. */
 uint32_t constexpr INVALID_ID = 0xFFFFFFFFul;
 uint16_t constexpr INVALID_NUM = 0xFFFFul;
-uint32_t constexpr MAX_NUMBER_OF_HAPLOTYPES = 1024u;   // 2^12 (=> Each score vector requires ~16 MB maximum)
+uint32_t constexpr MAX_NUMBER_OF_HAPLOTYPES = 2560u;   // 2^12 (=> Each score vector requires ~16 MB maximum)
 
 /** \brief Number of matches to trigger that a single variant is split into smaller variants */
 uint32_t constexpr SPLIT_VAR_THRESHOLD = 5;

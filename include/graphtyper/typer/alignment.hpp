@@ -54,7 +54,6 @@ further_update_paths_for_discovery(std::pair<GenotypePaths, GenotypePaths> & gen
 
 std::pair<GenotypePaths *, GenotypePaths *>
 get_better_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths1,
-                 std::pair<GenotypePaths, GenotypePaths> & geno_paths2
-                 );
+                 std::pair<GenotypePaths, GenotypePaths> & geno_paths2);
 
 } // namespace gyper

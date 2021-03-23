@@ -6,7 +6,7 @@
 #include <vector> // std::vector
 
 #include <boost/serialization/access.hpp>
-
+#include <boost/serialization/utility.hpp>
 
 #include <graphtyper/graph/read_strand.hpp>
 
@@ -19,6 +19,16 @@ struct VarStatsPerAllele
   uint64_t mapq_squared{0u};
   uint32_t score_diff{0u};
   uint32_t mismatches{0u};
+  uint64_t qd_qual{0u};
+  uint64_t qd_depth{0u};
+  uint64_t total_depth{0u};
+  uint32_t ac{0};
+  uint32_t pass_ac{0};
+  uint16_t maximum_alt_support{0u};
+  double maximum_alt_support_ratio{0u};
+  std::pair<uint32_t, uint32_t> het_multi_allele_depth{0u, 0u};
+  std::pair<uint32_t, uint32_t> hom_multi_allele_depth{0u, 0u};
+
 
   template <class Archive>
   void
@@ -28,6 +38,15 @@ struct VarStatsPerAllele
     ar & mapq_squared;
     ar & score_diff;
     ar & mismatches;
+    ar & qd_qual;
+    ar & qd_depth;
+    ar & total_depth;
+    ar & ac;
+    ar & pass_ac;
+    ar & maximum_alt_support;
+    ar & maximum_alt_support_ratio;
+    ar & het_multi_allele_depth;
+    ar & hom_multi_allele_depth;
   }
 
 
@@ -50,6 +69,19 @@ public:
 
   /** MapQ statistics */
   uint64_t mapq_squared{0u};
+
+  // Other statistics for INFO field
+  uint32_t n_genotyped{0};
+  uint32_t n_calls{0};
+  uint32_t n_passed_calls{0};
+  uint32_t n_ref_ref{0};
+  uint32_t n_ref_alt{0};
+  uint32_t n_alt_alt{0};
+  uint8_t n_max_alt_proper_pairs{0};
+  uint64_t seqdepth{0};
+
+  std::pair<uint32_t, uint32_t> het_allele_depth = {0ul, 0ul}; // First is the first call, second is the second call
+  std::pair<uint32_t, uint32_t> hom_allele_depth = {0ul, 0ul}; // First is the called allele, second is not the called one
 
   /**
    * CONSTRUCTORS

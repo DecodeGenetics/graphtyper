@@ -148,6 +148,7 @@ remove_file_tree(std::string const & path)
     if (unlink(full_path.c_str()) == 0)
     {
       BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Removed a file " << full_path;
+      //BOOST_LOG_TRIVIAL(info) << __HERE__ << " Removed a file " << full_path;
     }
     else
     {
@@ -158,7 +159,8 @@ remove_file_tree(std::string const & path)
   // remove the devastated directory and close the object of it
   if (rmdir(path.c_str()) == 0)
   {
-    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Removed a directory " << full_path;
+    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Removed a directory " << path;
+    //BOOST_LOG_TRIVIAL(info) << __HERE__ << " Removed a directory " << path;
   }
   else
   {

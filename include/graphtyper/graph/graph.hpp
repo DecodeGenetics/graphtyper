@@ -91,8 +91,8 @@ public:
   uint16_t get_variant_num(uint32_t v) const;
   std::vector<Haplotype> get_all_haplotypes(uint32_t variant_distance = MAX_READ_LENGTH) const;
 
-  std::vector<char> get_sequence_of_a_haplotype_call(std::vector<Genotype> const & gts,
-                                                     uint32_t const haplotype_call) const;
+  //std::vector<char> get_sequence_of_a_haplotype_call(std::vector<Genotype> const & gts,
+  //                                                   uint32_t const haplotype_call) const;
 
   std::vector<std::vector<char> > get_all_sequences_of_a_genotype(Genotype const & gt) const;
 
@@ -177,10 +177,10 @@ private:
 
   void add_variants(VarRecord && record);
 
-  void break_apart_haplotypes(std::vector<Genotype> gts,
-                              std::vector<Haplotype> & haplotypes,
-                              int32_t max_read_length
-                              ) const;
+  //void break_apart_haplotypes(std::vector<Genotype> gts,
+  //                            std::vector<Haplotype> & haplotypes,
+  //                            int32_t max_read_length
+  //                            ) const;
 };
 
 extern Graph graph;

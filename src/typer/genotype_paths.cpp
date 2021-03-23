@@ -689,6 +689,7 @@ GenotypePaths::walk_read_starts(seqan::IupacString const & seq, int maximum_mism
 }
 
 
+/*
 std::vector<VariantCandidate>
 GenotypePaths::find_new_variants() const
 {
@@ -887,6 +888,7 @@ GenotypePaths::find_new_variants() const
 
   return new_variants;
 }
+*/
 
 
 void

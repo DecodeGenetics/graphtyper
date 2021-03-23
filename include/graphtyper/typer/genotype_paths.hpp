@@ -86,7 +86,7 @@ public:
   void remove_non_ref_paths_when_read_matches_ref();
   void remove_fully_special_paths();
 
-  std::vector<VariantCandidate> find_new_variants() const;
+  //std::vector<VariantCandidate> find_new_variants() const;
 
   void update_longest_path_size();
 

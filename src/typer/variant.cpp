@@ -51,6 +51,7 @@ update_per_allele_stats(std::size_t const num_seqs,
   gyper::VarStats & new_stats = new_var.stats;
   new_stats.clipped_reads = old_stats.clipped_reads;
   new_stats.mapq_squared = old_stats.mapq_squared;
+  //new_stats.are_calls_scanned = false;
 
   for (uint32_t y = 0; y < num_seqs; ++y)
   {
@@ -150,6 +151,7 @@ Variant::Variant(Genotype const & gt)
 }
 
 
+/*
 Variant::Variant(std::vector<Genotype> const & gts, std::vector<uint16_t> const & hap_calls)
   : stats(0)
 {
@@ -161,6 +163,7 @@ Variant::Variant(std::vector<Genotype> const & gts, std::vector<uint16_t> const 
   stats = VarStats(seqs.size());
   abs_pos = graph.genomic_region.get_absolute_position(gts[0].id); // -1 cause we always fetch one position back as well
 }
+*/
 
 
 Variant::Variant(VariantCandidate const & var_candidate) noexcept
@@ -240,11 +243,222 @@ Variant::update_camou_phred(long const ploidy)
 }
 
 
+void
+Variant::scan_calls()
+{
+  if (stats.seqdepth > 0 || stats.n_calls > 0)
+    return;
+
+  if (stats.per_allele.size() == 0)
+  {
+    stats.per_allele.resize(seqs.size());
+    stats.read_strand.resize(seqs.size());
+  }
+
+  long const num_alts = seqs.size() - 1l;
+
+  //BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << calls.size();
+
+  stats.n_calls += calls.size();
+
+  for (auto const & sample_call : calls)
+  {
+    // Skip homozygous ref calls
+    if (sample_call.phred.size() > 0 && sample_call.phred[0] > 0)
+    {
+      std::pair<uint16_t, uint16_t> gt_call = sample_call.get_gt_call();
+      auto const & cov = sample_call.coverage;
+      assert(gt_call.first < cov.size());
+      assert(gt_call.second < cov.size());
+
+      if (gt_call.first > 0)
+      {
+        assert(gt_call.first < stats.per_allele.size());
+        auto & per_al = stats.per_allele[gt_call.first];
+        long const depth = std::min(10l, static_cast<long>(cov[gt_call.first] + sample_call.ambiguous_depth));
+
+        if (depth > 0)
+        {
+          per_al.qd_qual += std::min(25l * depth,
+                                     static_cast<long>(sample_call.get_lowest_phred_not_with(gt_call.first)));
+
+          per_al.qd_depth += depth;
+        }
+      }
+
+      if (gt_call.first != gt_call.second)
+      {
+        assert(gt_call.second < stats.per_allele.size());
+        auto & per_al = stats.per_allele[gt_call.second];
+        assert(gt_call.second > 0);
+        long const depth = std::min(10l, static_cast<long>(cov[gt_call.second] + sample_call.ambiguous_depth));
+
+        if (depth > 0)
+        {
+          per_al.qd_qual +=
+            std::min(25l * depth, static_cast<long>(sample_call.get_lowest_phred_not_with(gt_call.second)));
+
+          per_al.qd_depth += depth;
+        }
+      }
+    }
+
+    // do stuff for all calls
+    // MaxAltPP
+    stats.n_max_alt_proper_pairs = std::max(stats.n_max_alt_proper_pairs, sample_call.alt_proper_pair_depth);
+
+    uint32_t const total_depth = std::accumulate(sample_call.coverage.cbegin(),
+                                                 sample_call.coverage.cend(),
+                                                 0u);
+
+    assert(static_cast<long>(sample_call.coverage.size()) == num_alts + 1);
+
+    for (long c{0}; c < num_alts; ++c)
+    {
+      assert((c + 1) < static_cast<long>(stats.per_allele.size()));
+      // Skip zero (the reference)
+      auto & per_al = stats.per_allele[c + 1];
+      per_al.maximum_alt_support = std::max(per_al.maximum_alt_support, sample_call.coverage[c + 1]);
+
+      if (total_depth > 0)
+      {
+        double const current_ratio = static_cast<double>(sample_call.coverage[c + 1]) /
+                                     static_cast<double>(total_depth);
+        per_al.maximum_alt_support_ratio = std::max(per_al.maximum_alt_support_ratio, current_ratio);
+      }
+    }
+
+    // Get the GT
+    std::pair<uint16_t, uint16_t> call = sample_call.get_gt_call();
+    assert(seqs.size() == sample_call.coverage.size());
+    assert(call.first < seqs.size());
+    assert(call.second < seqs.size());
+    long const filter = sample_call.check_filter(sample_call.get_gq());
+
+    {
+      auto pl_non_zero = [](uint8_t const pl) -> bool
+                         {
+                           return pl != 0;
+                         };
+
+      if (std::find_if(sample_call.phred.begin(), sample_call.phred.end(), pl_non_zero) != sample_call.phred.end())
+        ++stats.n_genotyped;
+    }
+
+    if (filter == 0)
+      ++stats.n_passed_calls;
+
+    // ABHet and ABHom
+    {
+      // Check if heterozygous
+      if (call.first != call.second)
+      {
+        stats.het_allele_depth.first += sample_call.coverage[call.first];
+        stats.het_allele_depth.second += sample_call.coverage[call.second];
+      }
+      else
+      {
+        stats.hom_allele_depth.first += sample_call.coverage[call.first];
+        stats.hom_allele_depth.second += std::accumulate(sample_call.coverage.cbegin(),
+                                                         sample_call.coverage.cend(),
+                                                         0ull
+                                                         ) - sample_call.coverage[call.first];
+      }
+    }
+
+    {
+      uint32_t const call_depth = sample_call.get_unique_depth();
+
+      // Check if heterozygous
+      if (call.first != call.second)
+      {
+        auto const & c1 = call.first;
+        auto const & c2 = call.second;
+        assert(c1 < static_cast<long>(stats.per_allele.size()));
+        assert(c2 < static_cast<long>(stats.per_allele.size()));
+
+        stats.per_allele[c1].het_multi_allele_depth.first += sample_call.coverage[c1];
+        stats.per_allele[c1].het_multi_allele_depth.second += call_depth - sample_call.coverage[c1];
+
+        stats.per_allele[c2].het_multi_allele_depth.first += sample_call.coverage[c2];
+        stats.per_allele[c2].het_multi_allele_depth.second += call_depth - sample_call.coverage[c2];
+      }
+      else
+      {
+        auto const & c = call.first;
+        assert(static_cast<long>(c) < static_cast<long>(stats.per_allele.size()));
+        stats.per_allele[c].hom_multi_allele_depth.first += sample_call.coverage[c];
+        stats.per_allele[c].hom_multi_allele_depth.second += call_depth - sample_call.coverage[c];
+      }
+    }
+
+    // SeqDepth
+    if (sample_call.coverage.size() > 0)
+    {
+      stats.seqdepth += sample_call.get_depth();
+      assert(sample_call.coverage.size() == stats.per_allele.size());
+
+      for (long c{1}; c < static_cast<long>(sample_call.coverage.size()); ++c)
+        stats.per_allele[c].total_depth += sample_call.coverage[c];
+    }
+
+    // AC (AF can be derived from AC and AN)
+    {
+      assert(call.first < static_cast<long>(stats.per_allele.size()));
+      assert(call.second < static_cast<long>(stats.per_allele.size()));
+
+      ++stats.per_allele[call.first].ac;
+      ++stats.per_allele[call.second].ac;
+
+      if (filter == 0) // PASS
+      {
+        ++stats.per_allele[call.first].pass_ac;
+        ++stats.per_allele[call.second].pass_ac;
+      }
+
+      if (call.first == 0u && call.second == 0u)
+        ++stats.n_ref_ref;
+      else if (call.first == 0u || call.second == 0u)
+        ++stats.n_ref_alt;
+      else
+        ++stats.n_alt_alt;
+    }
+  }
+}
+
+
 std::vector<int8_t>
 Variant::generate_infos()
 {
-  std::vector<int8_t> is_good_alt(seqs.size() - 1, 1);
   assert(seqs.size() >= 2);
+
+  long const num_seqs = seqs.size();
+  long const num_alts = seqs.size() - 1l;
+
+  // Write stats from VarStat object
+  bool const is_stats = stats.per_allele.size() != 0;
+
+  if (is_stats && stats.per_allele.size() != seqs.size())
+  {
+    BOOST_LOG_TRIVIAL(error) << __HERE__ << " stats.per_allele.size() != seqs.size(), "
+                             << stats.per_allele.size() << " != " << seqs.size();
+    std::exit(1);
+  }
+
+  if (is_stats)
+  {
+    scan_calls();
+    stats.write_stats(infos);
+  }
+  else
+  {
+    stats.per_allele.resize(num_seqs);
+    stats.read_strand.resize(num_seqs);
+    scan_calls();
+  }
+
+  std::vector<int8_t> is_good_alt(seqs.size() - 1, 1);
+
   infos["RefLen"] = std::to_string(seqs[0].size());
 
   // Make sure END is greater or equal to POS
@@ -263,220 +477,36 @@ Variant::generate_infos()
     }
   }
 
-  // Write stats from VarStat object
-  bool const is_stats = stats.per_allele.size() != 0;
-
-  if (is_stats && stats.per_allele.size() != seqs.size())
-  {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << " stats.per_allele.size() != seqs.size(), "
-                             << stats.per_allele.size() << " != " << seqs.size();
-    std::exit(1);
-  }
-
-  if (is_stats)
-    stats.write_stats(infos);
 
   // Calculate AC, AN, SeqDepth, MaxVS, ABHom, ABHet, ABHomMulti, ABHetMulti
-  std::vector<uint32_t> ac(seqs.size() - 1, 0u);
-  std::vector<uint32_t> pass_ac(seqs.size() - 1, 0u);
-  assert(ac.size() > 0);
-  long an{0};
-  long pass_an{0};
-  long genotyped{0};
-  uint64_t seqdepth{0};
-  std::vector<uint32_t> seqdepth_alt(seqs.size() - 1, 0u);
-  std::pair<uint32_t, uint32_t> het_allele_depth = {0ul, 0ul}; // First is the first call, second is the second call
-  std::pair<uint32_t, uint32_t> hom_allele_depth = {0ul, 0ul}; // First is the called allele, second is not the called one
-
-  std::vector<std::pair<uint32_t, uint32_t> > het_multi_allele_depth(seqs.size(), {0u, 0u});
-  std::vector<std::pair<uint32_t, uint32_t> > hom_multi_allele_depth(seqs.size(), {0u, 0u});
-
-  // Max variant support and variant support ratio
-  std::vector<uint16_t> maximum_variant_support(seqs.size() - 1, 0);
-  std::vector<double> maximum_alternative_support_ratio(seqs.size() - 1, 0.0);
-
-  // Num REF/REF, REF/ALT, ALT/ALT
-  uint64_t n_ref_ref{0u};
-  uint64_t n_ref_alt{0u};
-  uint64_t n_alt_alt{0u};
-
-  // Maximum number of alt proper pairs (MaxAltPP)
-  uint8_t n_max_alt_proper_pairs{0u};
-
-  // For calculation how many calls passed
-  long n_passed_calls{0};
-
-  for (auto const & sample_call : calls)
-  {
-    // Check if the there is any call (i.e. there is a non-zero phred score) and ignore the
-    // sample call if that is the case
-    if (std::find_if(sample_call.phred.cbegin(), sample_call.phred.cend(), [](uint8_t const val){
-        return val != 0;
-      }) == sample_call.phred.end())
-    {
-      continue;
-    }
-
-    // MaxAltPP
-    n_max_alt_proper_pairs = std::max(n_max_alt_proper_pairs, sample_call.alt_proper_pair_depth);
-    uint32_t const total_depth = std::accumulate(sample_call.coverage.cbegin(),
-                                                 sample_call.coverage.cend(),
-                                                 0u);
-
-    // Skip zero (the reference)
-    for (uint16_t c = 1; c < sample_call.coverage.size(); ++c)
-    {
-      maximum_variant_support[c - 1] = std::max(maximum_variant_support[c - 1],
-                                                sample_call.coverage[c]);
-
-      if (total_depth > 0)
-      {
-        double const current_ratio = static_cast<double>(sample_call.coverage[c]) /
-                                     static_cast<double>(total_depth);
-        maximum_alternative_support_ratio[c - 1] =
-          std::max(maximum_alternative_support_ratio[c - 1],
-                   current_ratio);
-      }
-    }
-
-    // Get the GT
-    std::pair<uint16_t, uint16_t> call = sample_call.get_gt_call();
-    assert(seqs.size() == sample_call.coverage.size());
-    assert(call.first < seqs.size());
-    assert(call.second < seqs.size());
-    long filter = sample_call.check_filter(sample_call.get_gq());
-
-    auto pl_non_zero = [](uint8_t const pl) -> bool
-                       {
-                         return pl != 0;
-                       };
-
-    if (std::find_if(sample_call.phred.begin(), sample_call.phred.end(), pl_non_zero) != sample_call.phred.end())
-      ++genotyped;
-
-    if (filter == 0)
-      ++n_passed_calls;
-
-    // ABHet and ABHom
-    {
-      // Check if heterozygous
-      if (call.first != call.second)
-      {
-        het_allele_depth.first += sample_call.coverage[call.first];
-        het_allele_depth.second += sample_call.coverage[call.second];
-      }
-      else
-      {
-        hom_allele_depth.first += sample_call.coverage[call.first];
-        hom_allele_depth.second += std::accumulate(sample_call.coverage.cbegin(),
-                                                   sample_call.coverage.cend(),
-                                                   0ull
-                                                   ) - sample_call.coverage[call.first];
-      }
-    }
-
-    // ABHetMulti and ABHomMulti is calculated on multiallelic sites only - NO LONGER
-    //if (seqs.size() > 2)
-    {
-      uint32_t const call_depth = sample_call.get_unique_depth();
-
-      // Check if heterozygous
-      if (call.first != call.second)
-      {
-        // Only consider heterozygous reference calls
-        //if (call.first == 0u)
-        {
-          auto const & c1 = call.first;
-          auto const & c2 = call.second;
-          assert(c1 < static_cast<long>(het_multi_allele_depth.size()));
-          assert(c2 < static_cast<long>(het_multi_allele_depth.size()));
-
-          het_multi_allele_depth[c1].first += sample_call.coverage[c1];
-          het_multi_allele_depth[c1].second += call_depth - sample_call.coverage[c1];
-
-          het_multi_allele_depth[c2].first += sample_call.coverage[c2];
-          het_multi_allele_depth[c2].second += call_depth - sample_call.coverage[c2];
-        }
-      }
-      else
-      {
-        auto const & c = call.first;
-        assert(static_cast<long>(c) < static_cast<long>(hom_multi_allele_depth.size()));
-        hom_multi_allele_depth[c].first += sample_call.coverage[c];
-        hom_multi_allele_depth[c].second += call_depth - sample_call.coverage[c];
-      }
-    }
-
-    // SeqDepth
-    if (sample_call.coverage.size() > 0)
-    {
-      seqdepth += sample_call.get_depth();
-      assert(sample_call.coverage.size() == seqdepth_alt.size() + 1);
-
-      for (long c{1}; c < static_cast<long>(sample_call.coverage.size()); ++c)
-        seqdepth_alt[c - 1] += sample_call.coverage[c];
-    }
-
-    // AN
-    {
-      an += 2;
-
-      if (filter == 0) // PASS
-        pass_an += 2;
-    }
-
-    // AC (AF can be derived from AC and AN)
-    {
-      assert(call.first - 1 < static_cast<long>(ac.size()));
-      assert(call.second - 1 < static_cast<long>(ac.size()));
-
-      if (call.first != 0u)
-        ++ac[call.first - 1];
-
-      if (call.second != 0u)
-        ++ac[call.second - 1];
-
-      if (filter == 0) // PASS
-      {
-        if (call.first != 0u)
-          ++pass_ac[call.first - 1];
-
-        if (call.second != 0u)
-          ++pass_ac[call.second - 1];
-      }
-
-      if (call.first == 0u && call.second == 0u)
-        ++n_ref_ref;
-      else if (call.first == 0u || call.second == 0u)
-        ++n_ref_alt;
-      else
-        ++n_alt_alt;
-    }
-  } // LOOP over sample_call
+  //std::vector<std::pair<uint32_t, uint32_t> > het_multi_allele_depth(seqs.size(), {0u, 0u});
+  //std::vector<std::pair<uint32_t, uint32_t> > hom_multi_allele_depth(seqs.size(), {0u, 0u});
 
   // Write MaxAAS
   {
-    assert(maximum_variant_support.size() > 0);
-    assert(maximum_variant_support.size() == seqs.size() - 1);
+    //auto const & per_al =
+    assert(stats.per_allele.size() > 0);
+    assert(static_cast<long>(stats.per_allele.size()) == num_seqs);
     std::stringstream max_vs_ss;
-    max_vs_ss << static_cast<uint16_t>(maximum_variant_support[0]);
+    // skip 0 (reference)
+    max_vs_ss << static_cast<uint16_t>(stats.per_allele[1].maximum_alt_support);
 
-    for (uint32_t e = 1; e < maximum_variant_support.size(); ++e)
-      max_vs_ss << ',' << static_cast<uint16_t>(maximum_variant_support[e]);
+    for (long e{2}; e < num_seqs; ++e)
+      max_vs_ss << ',' << static_cast<uint16_t>(stats.per_allele[e].maximum_alt_support);
 
     infos["MaxAAS"] = max_vs_ss.str();
   }
 
   // Write MaxAASR
   {
-    assert(maximum_alternative_support_ratio.size() > 0);
-    assert(maximum_alternative_support_ratio.size() == seqs.size() - 1);
+    assert(stats.per_allele.size() > 0);
+    assert(static_cast<long>(stats.per_allele.size()) == num_seqs);
     std::stringstream ss_max_asr;
     ss_max_asr.precision(4);
-    ss_max_asr << maximum_alternative_support_ratio[0];
+    ss_max_asr << stats.per_allele[1].maximum_alt_support_ratio;
 
-    for (uint32_t e = 1; e < maximum_alternative_support_ratio.size(); ++e)
-      ss_max_asr << ',' << maximum_alternative_support_ratio[e];
+    for (long e{2}; e < num_seqs; ++e)
+      ss_max_asr << ',' << stats.per_allele[e].maximum_alt_support_ratio;
 
     infos["MaxAASR"] = ss_max_asr.str();
   }
@@ -484,41 +514,43 @@ Variant::generate_infos()
   // Write MaxAltPP
   if (is_sv())
   {
-    infos["MaxAltPP"] = std::to_string(static_cast<uint16_t>(n_max_alt_proper_pairs));
+    infos["MaxAltPP"] = std::to_string(static_cast<uint16_t>(stats.n_max_alt_proper_pairs));
   }
 
   // Write AC
   {
-    assert(ac.size() > 0);
-    assert(ac.size() == seqs.size() - 1);
+    assert(stats.per_allele.size() > 0);
+    assert(stats.per_allele.size() == seqs.size());
     std::ostringstream ac_ss;
-    ac_ss << ac[0];
+    ac_ss << stats.per_allele[1].ac;
 
-    for (uint32_t e = 1; e < ac.size(); ++e)
-      ac_ss << ',' << ac[e];
+    for (uint32_t e{2}; e < stats.per_allele.size(); ++e)
+      ac_ss << ',' << stats.per_allele[e].ac;
 
     infos["AC"] = ac_ss.str();
   }
 
   // Write AN
-  infos["AN"] = std::to_string(an);
+  infos["AN"] = std::to_string(2 * stats.n_genotyped);
 
   // Write AF
   {
     std::ostringstream af_ss;
     af_ss.precision(4);
 
-    if (an > 0)
-      af_ss << static_cast<double>(static_cast<double>(ac[0]) / static_cast<double>(an));
+    if (stats.n_genotyped > 0)
+      af_ss <<
+        static_cast<double>(static_cast<double>(stats.per_allele[1].ac) / static_cast<double>(2 * stats.n_genotyped));
     else
       af_ss << "0.0";
 
-    for (long e = 1; e < static_cast<long>(ac.size()); ++e)
+    for (long e{2}; e < static_cast<long>(stats.per_allele.size()); ++e)
     {
       af_ss << ',';
 
-      if (an > 0)
-        af_ss << static_cast<double>(static_cast<double>(ac[e]) / static_cast<double>(an));
+      if (stats.n_genotyped > 0)
+        af_ss <<
+          static_cast<double>(static_cast<double>(stats.per_allele[e].ac) / static_cast<double>(2 * stats.n_genotyped));
       else
         af_ss << "0.0";
     }
@@ -528,26 +560,25 @@ Variant::generate_infos()
 
   // Write PASS_AC
   {
-    assert(pass_ac.size() > 0);
-    assert(pass_ac.size() == seqs.size() - 1);
+    assert(stats.per_allele.size() == seqs.size());
     std::ostringstream ac_ss;
-    ac_ss << pass_ac[0];
+    ac_ss << stats.per_allele[1].pass_ac;
 
-    for (long e = 1; e < static_cast<long>(pass_ac.size()); ++e)
-      ac_ss << ',' << pass_ac[e];
+    for (long e{2}; e < static_cast<long>(stats.per_allele.size()); ++e)
+      ac_ss << ',' << stats.per_allele[e].pass_ac;
 
     infos["PASS_AC"] = ac_ss.str();
   }
 
   // Write PASS_AN
-  infos["PASS_AN"] = std::to_string(pass_an);
+  infos["PASS_AN"] = std::to_string(2 * stats.n_passed_calls);
 
   double info_pass_ratio{0.0};
 
   // Write PASS_ratio
-  if (calls.size() > 0)
+  if (stats.n_genotyped > 0)
   {
-    info_pass_ratio = static_cast<double>(n_passed_calls) / static_cast<double>(calls.size());
+    info_pass_ratio = static_cast<double>(stats.n_passed_calls) / static_cast<double>(stats.n_genotyped);
     std::stringstream ss_pr;
     ss_pr.precision(4);
     ss_pr << info_pass_ratio;
@@ -557,15 +588,15 @@ Variant::generate_infos()
   // Write Num REF/REF, REF/ALT, ALT/ALT, homozygous and heterozygous calls
   {
     std::ostringstream n_gt;
-    n_gt << n_ref_ref << "," << n_ref_alt << "," << n_alt_alt;
-    infos["NHomRef"] = std::to_string(n_ref_ref);
-    infos["NHet"] = std::to_string(n_ref_alt);
-    infos["NHomAlt"] = std::to_string(n_alt_alt);
+    n_gt << stats.n_ref_ref << "," << stats.n_ref_alt << "," << stats.n_alt_alt;
+    infos["NHomRef"] = std::to_string(stats.n_ref_ref);
+    infos["NHet"] = std::to_string(stats.n_ref_alt);
+    infos["NHomAlt"] = std::to_string(stats.n_alt_alt);
   }
 
   // Write SeqDepth
   {
-    infos["SeqDepth"] = std::to_string(seqdepth);
+    infos["SeqDepth"] = std::to_string(stats.seqdepth);
   }
 
   double info_ab_het{0.5};
@@ -574,11 +605,11 @@ Variant::generate_infos()
   {
     std::stringstream ss_abhet;
     ss_abhet.precision(4);
-    uint32_t const total_het_depth = het_allele_depth.first + het_allele_depth.second;
+    uint32_t const total_het_depth = stats.het_allele_depth.first + stats.het_allele_depth.second;
 
     if (total_het_depth > 0)
     {
-      info_ab_het = static_cast<double>(het_allele_depth.second) / static_cast<double>(total_het_depth);
+      info_ab_het = static_cast<double>(stats.het_allele_depth.second) / static_cast<double>(total_het_depth);
       ss_abhet << info_ab_het;
     }
     else
@@ -595,11 +626,11 @@ Variant::generate_infos()
   {
     std::stringstream ss_abhom;
     ss_abhom.precision(4);
-    uint32_t const total_hom_depth = hom_allele_depth.first + hom_allele_depth.second;
+    uint32_t const total_hom_depth = stats.hom_allele_depth.first + stats.hom_allele_depth.second;
 
     if (total_hom_depth > 0)
     {
-      info_abhom = static_cast<double>(hom_allele_depth.first) / static_cast<double>(total_hom_depth);
+      info_abhom = static_cast<double>(stats.hom_allele_depth.first) / static_cast<double>(total_hom_depth);
       ss_abhom << info_abhom;
     }
     else
@@ -651,17 +682,16 @@ Variant::generate_infos()
 
   // Write ABHetMulti
   {
-    assert(het_multi_allele_depth.size() > 0);
-    assert(het_multi_allele_depth.size() == seqs.size());
+    assert(stats.per_allele.size() == seqs.size());
     std::stringstream ss_abhet;
     ss_abhet.precision(4);
 
-    for (unsigned i = 0; i < het_multi_allele_depth.size(); ++i)
+    for (unsigned i{0}; i < stats.per_allele.size(); ++i)
     {
       if (i > 0)
         ss_abhet << ",";
 
-      auto const & het_depth_pair = het_multi_allele_depth[i];
+      auto const & het_depth_pair = stats.per_allele[i].het_multi_allele_depth;
       uint32_t const total_het_depth = het_depth_pair.first + het_depth_pair.second;
 
       if (total_het_depth > 0)
@@ -680,17 +710,16 @@ Variant::generate_infos()
 
   // Write ABHomMulti
   {
-    assert(hom_multi_allele_depth.size() > 0);
-    assert(hom_multi_allele_depth.size() == seqs.size());
+    assert(stats.per_allele.size() == seqs.size());
     std::stringstream ss_abhom;
     ss_abhom.precision(4);
 
-    for (unsigned i = 0; i < hom_multi_allele_depth.size(); ++i)
+    for (unsigned i{0}; i < stats.per_allele.size(); ++i)
     {
       if (i > 0)
         ss_abhom << ",";
 
-      auto const & hom_depth_pair = hom_multi_allele_depth[i];
+      auto const & hom_depth_pair = stats.per_allele[i].hom_multi_allele_depth;
       uint32_t const total_hom_depth = hom_depth_pair.first + hom_depth_pair.second;
 
       if (total_hom_depth > 0)
@@ -744,15 +773,16 @@ Variant::generate_infos()
 
   // Calculate MQ
   {
-    auto find_mapq_squared_it = infos.find("MQsquared");
-
-    if (find_mapq_squared_it != infos.end())
+    //auto find_mapq_squared_it = infos.find("MQsquared");
+    //
+    //if (find_mapq_squared_it != infos.end())
     {
-      double mapq_squared = std::stoull(find_mapq_squared_it->second);
+      //double mapq_squared = std::stoull(find_mapq_squared_it->second);
+      double mapq_squared = stats.mapq_squared;
 
-      if (seqdepth > 0)
+      if (stats.seqdepth > 0)
       {
-        double mapq = std::sqrt(mapq_squared / static_cast<double>(seqdepth));
+        double mapq = std::sqrt(mapq_squared / static_cast<double>(stats.seqdepth));
         info_mq = static_cast<long>(mapq + 0.5);
         infos["MQ"] = std::to_string(info_mq);
       }
@@ -763,8 +793,33 @@ Variant::generate_infos()
     }
   }
 
+  if (Options::const_instance()->is_segment_calling)
+  {
+    assert(stats.per_allele.size() == seqs.size());
 
-  assert(seqdepth_alt.size() + 1 == seqs.size());
+    for (long a{1}; a < static_cast<long>(stats.per_allele.size()); ++a)
+    {
+      is_good_alt[a - 1] = stats.per_allele[a].ac > 0;
+    }
+
+    // erase stats that don't make sense in segment calling
+    infos.erase("ABHet");
+    infos.erase("ABHom");
+    infos.erase("ABHetMulti");
+    infos.erase("ABHomMulti");
+    infos.erase("MaxAAS");
+    infos.erase("MaxAASR");
+    infos.erase("QD");
+    infos.erase("QDalt");
+    infos.erase("SB");
+    infos.erase("SBAlt");
+    infos.erase("SeqDepth");
+
+    return is_good_alt;
+  }
+
+
+  assert(stats.per_allele.size() == seqs.size());
 
   // Calculate SDalt, MMalt, CRalt and MQalt
   if (is_stats)
@@ -779,11 +834,12 @@ Variant::generate_infos()
       std::ostringstream cr_ss;
       std::ostringstream mq_ss;
 
-      for (long s{0}; s < static_cast<long>(seqdepth_alt.size()); ++s)
+      for (long s{1}; s < static_cast<long>(stats.per_allele.size()); ++s)
       {
-        uint64_t const alt_depth{seqdepth_alt[s]};
+        auto const & per_al = stats.per_allele[s];
+        uint64_t const alt_depth{per_al.total_depth};
 
-        if (s > 0)
+        if (s > 1)
         {
           sd_ss << ',';
           mm_ss << ',';
@@ -793,8 +849,6 @@ Variant::generate_infos()
 
         if (alt_depth > 0)
         {
-          auto const & per_al = stats.per_allele[s + 1];
-
           sd_ss << (static_cast<double>(per_al.score_diff) / static_cast<double>(alt_depth));
           mm_ss << (static_cast<double>(per_al.mismatches) / static_cast<double>(alt_depth) / 10.0);
           cr_ss << (static_cast<double>(per_al.clipped_bp) / static_cast<double>(alt_depth) / 10.0);
@@ -822,23 +876,32 @@ Variant::generate_infos()
     for (long s{0}; s < static_cast<long>(sb_alt.size()); ++s)
       sb_alt[s] = stats.read_strand[s + 1].get_reverse_count();
 
-    std::vector<double> aa_score(seqdepth_alt.size(), 0.0);
+    std::vector<double> aa_score;
 
     // Alternative allele score (AAScore)
     if (graph.is_sv_graph)
     {
-      aa_score = std::vector<double>(seqdepth_alt.size(), 1.0);
+      aa_score = std::vector<double>(num_alts, 1.0);
     }
     else
     {
-      for (long s{0}; s < static_cast<long>(seqdepth_alt.size()); ++s)
-      {
-        if (seqdepth_alt[s] > 0)
-        {
-          auto const & per_al = stats.per_allele[s + 1];
+      aa_score.resize(num_alts);
 
-          assert(s < static_cast<long>(qd_alt.size()));
-          double const alt_seq_depth = seqdepth_alt[s];
+      for (long s{0}; s < num_alts; ++s)
+      {
+        assert((s + 1) < static_cast<long>(stats.per_allele.size()));
+        auto const & per_al = stats.per_allele[s + 1];
+
+        assert(s < static_cast<long>(qd_alt.size()));
+        //assert(s < static_cast<long>(maximum_variant_support.size()));
+        double const qd = qd_alt[s];
+
+        if (per_al.total_depth > 0 &&
+            qd > 0.1 &&
+            per_al.maximum_alt_support >= 3 &&
+            per_al.maximum_alt_support_ratio >= 0.175)
+        {
+          double const alt_seq_depth = per_al.total_depth;
           double const _sb = 2.0 * ((static_cast<double>(sb_alt[s]) / alt_seq_depth) - 0.5);
           double const sb = _sb >= 0.0 ? _sb : -_sb;
           assert(sb >= 0.0);
@@ -847,7 +910,26 @@ Variant::generate_infos()
           double const cr = static_cast<double>(per_al.clipped_bp) / alt_seq_depth / 10.0;
           long const mq = std::sqrt(static_cast<double>(per_al.mapq_squared) / alt_seq_depth) + 0.5;
 
-          aa_score[s] = get_aa_score(info_abhom, sb, mm, sd, qd_alt[s], cr, mq);
+          //BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << sb << "," << alt_seq_depth << "," << mm
+          //                        << "," << sd << "," << cr << "," << mq;
+
+          double score = get_aa_score(info_abhom, sb, mm, sd, qd, cr, mq);
+
+          if (mm > 1.5)
+          {
+            double m = 1.0 - ((mm - 1.5) / 20.0);
+            m = m <= 0.5 ? 0.5 : m;
+            score *= m;
+          }
+
+          if ((cr + mm) > 2.5)
+          {
+            double m = 1.0 - ((cr + mm - 2.5) / 40.0);
+            m = m <= 0.5 ? 0.5 : m;
+            score *= m;
+          }
+
+          aa_score[s] = score;
         }
         else
         {
@@ -872,8 +954,8 @@ Variant::generate_infos()
         long const info_cr = infos.count("CR") ? std::stol(infos.at("CR")) : 0;
         long const ab_het_bin = static_cast<long>(info_ab_het * 10.0 + 0.00001);
         long const sbalt_bin = static_cast<long>(info_sbalt * 10.0 + 0.00001);
-        double const cr_by_seqdepth = static_cast<double>(info_cr) / static_cast<double>(seqdepth);
-        double const gt_yield = static_cast<double>(genotyped) / static_cast<double>(an);
+        double const cr_by_seqdepth = static_cast<double>(info_cr) / static_cast<double>(stats.seqdepth);
+        double const gt_yield = static_cast<double>(stats.n_genotyped) / static_cast<double>(stats.n_calls);
 
         // variables:
         //  crBySeqdepth=info_cr/seqdepth
@@ -900,50 +982,41 @@ Variant::generate_infos()
     // check which alts are good
     for (long a{0}; a < static_cast<long>(seqs.size()) - 1l; ++a)
     {
-      assert(maximum_variant_support.size() == is_good_alt.size());
-      assert(maximum_alternative_support_ratio.size() == is_good_alt.size());
+      //assert(maximum_variant_support.size() == is_good_alt.size());
+      //assert(maximum_alternative_support_ratio.size() == is_good_alt.size());
       assert(aa_score.size() == is_good_alt.size());
       assert(qd_alt.size() == is_good_alt.size());
-      assert(seqdepth_alt.size() == is_good_alt.size());
       assert(stats.per_allele.size() == is_good_alt.size() + 1);
+      auto const & per_al = stats.per_allele[a + 1];
 
-      if (seqdepth_alt[a] == 0)
+      if (per_al.total_depth == 0)
       {
         is_good_alt[a] = 0;
         continue;
       }
 
-      auto const & per_al = stats.per_allele[a + 1];
-      double const alt_seq_depth = seqdepth_alt[a];
-      double const mm = static_cast<double>(per_al.mismatches) / alt_seq_depth / 10.0;
-      double const cr = static_cast<double>(per_al.clipped_bp) / alt_seq_depth / 10.0;
+      assert(a < static_cast<long>(qd_alt.size()));
+      //assert(s < static_cast<long>(maximum_variant_support.size()));
+      double const qd = qd_alt[a];
 
-      is_good_alt[a] = mm < 3.0 &&
-                       cr < 5.0 &&
-                       (cr + mm) < 6.0 &&
-                       maximum_variant_support[a] >= 3 &&
-                       maximum_alternative_support_ratio[a] >= 0.25 &&
-                       (qd_alt[a] >= 2.0 ||
-                        (maximum_variant_support[a] >= 10 && maximum_alternative_support_ratio[a] >= 0.45)) &&
-                       (qd_alt[a] >= 4.0 || aa_score[a] >= 0.20);
-
+      is_good_alt[a] = aa_score[a] >= 0.05 &&
+                       qd > 1.0 &&
+                       per_al.maximum_alt_support >= 3 &&
+                       per_al.maximum_alt_support_ratio >= 0.175 &&
+                       (seqs.size() < 71 || (qd > 1.25 && per_al.maximum_alt_support_ratio >= 0.2)) &&
+                       (seqs.size() < 131 || (qd > 1.5 && per_al.maximum_alt_support_ratio >= 0.225));
 
 #ifndef NDEBUG
       if (is_good_alt[a] == 0)
       {
-        long const contig_pos = absolute_pos.get_contig_position(this->abs_pos, gyper::graph.contigs).second;
-
-        if (contig_pos > 699204 && contig_pos < 699224)
-        {
-          BOOST_LOG_TRIVIAL(info) << __HERE__ << " In variant=" << to_string(true) // skip calls
-                                  << " bad alt="
-                                  << std::string(seqs[a + 1].begin(), seqs[a + 1].end())
-                                  << " MaxAAS=" << maximum_variant_support[a]
-                                  << " MaxAASR=" << maximum_alternative_support_ratio[a]
-                                  << " AAScore=" << aa_score[a]
-                                  << " ABHom=" << info_abhom
-                                  << " QDAlt=" << qd_alt[a];
-        }
+        BOOST_LOG_TRIVIAL(debug) << __HERE__ << " In variant=" << to_string(true) // skip calls
+                                 << " bad alt="
+                                 << std::string(seqs[a + 1].begin(), seqs[a + 1].end())
+                                 << " MaxAAS=" << per_al.maximum_alt_support
+                                 << " MaxAASR=" << per_al.maximum_alt_support_ratio
+                                 << " AAScore=" << aa_score[a]
+                                 << " ABHom=" << info_abhom
+                                 << " QDAlt=" << qd_alt[a];
       }
 #endif // NDEBUG
     }
@@ -956,6 +1029,11 @@ Variant::generate_infos()
 bool
 Variant::is_sv() const
 {
+  assert(seqs.size() > 0);
+
+  if (Options::const_instance()->is_segment_calling)
+    return false;
+
   // If the variant has an SV breakpoint, skip trimming
   for (long s{1}; s < static_cast<long>(seqs.size()); ++s)
   {
@@ -1316,11 +1394,16 @@ Variant::determine_variant_type() const
 {
   assert(seqs.size() >= 2);
 
+  if (Options::const_instance()->is_segment_calling && seqs[0].size() > 0 && seqs[0][0] == '<')
+  {
+    return "H";
+  }
+
   // Count the number of alleles which are not of size 1
-  std::size_t num_non_ones = 0;
+  std::size_t num_non_ones{0};
 
   // Check if the variant is an SV
-  gyper::SVTYPE sv_type = NOT_SV;
+  gyper::SVTYPE sv_type{NOT_SV};
 
   for (auto it = seqs.begin(); it != seqs.end(); ++it)
   {
@@ -1408,8 +1491,8 @@ Variant::get_qual() const
 
   for (auto const & sample_call : calls)
   {
-    assert(sample_call.phred.size() > 0);
-    variant_qual += sample_call.phred[0];
+    if (sample_call.phred.size() > 0)
+      variant_qual += sample_call.phred[0];
   }
 
   return variant_qual;
@@ -1425,7 +1508,7 @@ Variant::get_qual_by_depth() const
   for (auto const & sample_call : calls)
   {
     // Skip homozygous ref calls
-    if (sample_call.phred[0] > 0)
+    if (sample_call.phred.size() > 0 && sample_call.phred[0] > 0)
     {
       long const depth = std::min(10l, static_cast<long>(sample_call.get_alt_depth()));
 
@@ -1450,52 +1533,13 @@ Variant::get_qual_by_depth_per_alt_allele() const
   assert(seqs.size() > 0);
   long const num_alts = seqs.size() - 1;
   std::vector<double> qd(num_alts, 0.0);
-  std::vector<long> total_qual(num_alts, 0);
-  std::vector<long> total_depth(num_alts, 0);
-
-  for (auto const & sample_call : calls)
-  {
-    // Skip homozygous ref calls
-    if (sample_call.phred[0] > 0)
-    {
-      std::pair<uint16_t, uint16_t> gt_call = sample_call.get_gt_call();
-      auto const & cov = sample_call.coverage;
-      assert(gt_call.first < cov.size());
-      assert(gt_call.second < cov.size());
-
-      if (gt_call.first > 0)
-      {
-        long const depth = std::min(10l, static_cast<long>(cov[gt_call.first] + sample_call.ambiguous_depth));
-
-        if (depth > 0)
-        {
-          total_qual[gt_call.first - 1] +=
-            std::min(25l * depth, static_cast<long>(sample_call.get_lowest_phred_not_with(gt_call.first)));
-
-          total_depth[gt_call.first - 1] += depth;
-        }
-      }
-
-      if (gt_call.first != gt_call.second)
-      {
-        assert(gt_call.second > 0);
-        long const depth = std::min(10l, static_cast<long>(cov[gt_call.second] + sample_call.ambiguous_depth));
-
-        if (depth > 0)
-        {
-          total_qual[gt_call.second - 1] +=
-            std::min(25l * depth, static_cast<long>(sample_call.get_lowest_phred_not_with(gt_call.second)));
-
-          total_depth[gt_call.second - 1] += depth;
-        }
-      }
-    }
-  }
 
   for (long s{0}; s < num_alts; ++s)
   {
-    if (total_depth[s] > 0)
-      qd[s] = static_cast<double>(total_qual[s]) / static_cast<double>(total_depth[s]);
+    auto const & per_al = stats.per_allele[s + 1];
+
+    if (per_al.qd_depth > 0)
+      qd[s] = static_cast<double>(per_al.qd_qual) / static_cast<double>(per_al.qd_depth);
   }
 
   return qd;
@@ -1594,6 +1638,7 @@ break_down_variant(Variant && var,
       return c == '<' || c == '[' || c == ']';
     })))
   {
+    //var.stats.are_calls_scanned = true;
     broken_down_vars.push_back(std::move(var)); // Don't break down SVs or if "no_decompose" was given
     return broken_down_vars;
   }
@@ -1769,6 +1814,61 @@ extract_sequences_from_aligned_variant(Variant const && var, std::size_t const T
   }
 
   return new_vars;
+}
+
+
+SampleCall
+bin_phred(Variant const & new_var,
+          Variant const & old_var,
+          SampleCall const & old_call,
+          std::vector<long> const & old2new)
+{
+  //BOOST_LOG_TRIVIAL(info) << __HERE__ << " old_var.seqs.size()=" << old_var.seqs.size()
+  //                        << " new_var.seqs.size()=" << new_var.seqs.size()
+  //                        << " old2new.size()=" << old2new.size();
+  SampleCall new_call;
+
+  long const new_cnum = new_var.seqs.size();
+  long const old_cnum = old_var.seqs.size();
+
+  assert(new_cnum > 1);
+  assert(old_cnum > 1);
+
+  new_call.coverage.resize(new_cnum);
+  new_call.phred.resize((new_cnum * (new_cnum + 1)) / 2, 255u);
+
+  for (long y{0}; y < old_cnum; ++y)
+  {
+    assert(y < static_cast<long>(old2new.size()));
+    long const new_y = old2new[y];
+
+    for (long x{0}; x <= y; ++x)
+    {
+      assert(x < static_cast<long>(old2new.size()));
+      long const old_i = to_index(x, y);
+
+      assert(old_i < static_cast<long>(old_call.phred.size()));
+      uint8_t const old_phred = old_call.phred[old_i];
+
+      long const new_x = old2new[x];
+      long const new_i = to_index_safe(new_x, new_y);
+
+      assert(new_i < static_cast<long>(new_call.phred.size()));
+      uint8_t const new_phred = new_call.phred[new_i];
+
+      if (old_phred < new_phred)
+        new_call.phred[new_i] = old_phred;
+    }
+  }
+
+  //std::cerr << __HERE__ << " ";
+  //
+  //for (auto p : new_call.phred)
+  //  std::cerr << static_cast<long>(p) << ",";
+  //
+  //std::cerr << std::endl;
+
+  return new_call;
 }
 
 

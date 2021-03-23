@@ -1847,15 +1847,6 @@ construct_graph(std::string const & reference_filename,
 
     seqan::clear(fasta_index); // Close reference genome FASTA
 
-    // Remove duplicate alternative alleles
-    //for (auto & var_record : var_records)
-    //{
-    //  std::sort(var_record.alts.begin(), var_record.alts.end());
-    //  var_record.alts.erase(std::unique(var_record.alts.begin(),
-    //                                    var_record.alts.end()),
-    //                        var_record.alts.end());
-    //}
-
 #ifndef NDEBUG
     genomic_region.check_if_var_records_match_reference_genome(var_records, reference_sequence);
 #endif // NDEBUG

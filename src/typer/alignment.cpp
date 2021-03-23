@@ -650,4 +650,47 @@ get_better_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths1,
 }
 
 
+/// SEGMENT CALLING
+
+std::vector<GenotypePaths>
+find_haplotype_paths(std::vector<seqan::Dna5String> const & sequences,
+                     gyper::PHIndex const & ph_index)
+{
+  std::vector<GenotypePaths> hap_paths;
+  uint32_t count_too_short_sequences = 0;
+
+  for (unsigned i = 0; i < sequences.size(); ++i)
+  {
+    if (seqan::length(sequences[i]) < 50)
+    {
+      // std::cout << "Skipped a sequence" << std::endl;
+      GenotypePaths new_geno;
+      new_geno.longest_path_length = 0;
+      hap_paths.push_back(std::move(new_geno));
+      continue;
+    }
+
+    GenotypePaths new_geno;
+    find_genotype_paths_of_one_of_the_sequences(sequences[i], new_geno, ph_index, graph);
+
+    // Merge the two genotype paths
+    if (new_geno.longest_path_length != seqan::length(sequences[i])) // Everything must align
+    {
+      new_geno.longest_path_length = 0;
+      ++count_too_short_sequences;
+    }
+
+    hap_paths.push_back(std::move(new_geno));
+  }
+
+  if (count_too_short_sequences > 0)
+  {
+    BOOST_LOG_TRIVIAL(info) << __HERE__ << " Could not align "
+                            << count_too_short_sequences << " sequences.";
+  }
+
+  return hap_paths;
+}
+
+
 } // namespace gyper

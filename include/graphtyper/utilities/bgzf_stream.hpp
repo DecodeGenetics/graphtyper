@@ -80,7 +80,7 @@ BGZF_stream::flush()
 
     if (ret < 0)
     {
-      std::cerr << "ERROR: Writing to BGZF file failed." << std::endl;
+      std::cerr << "[bgzf_stream] ERROR: Writing to BGZF file failed. No free space on device?" << std::endl;
       std::exit(1);
     }
   }

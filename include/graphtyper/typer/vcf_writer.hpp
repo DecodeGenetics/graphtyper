@@ -49,7 +49,8 @@ public:
   std::vector<HaplotypeCall> get_haplotype_calls() const;
 
 private:
-  std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t> > id2hap; // first = haplotype, second = local genotype id
+  std::unordered_map<uint32_t, uint32_t> id2hap;
+  //std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t> > id2hap; // first = haplotype, second = local genotype id
 
 public:
   std::vector<std::string> pns;
@@ -59,7 +60,7 @@ public:
  * DEBUG ONLY METHODS *
  **********************/
 #ifndef NDEBUG
-  void print_variant_group_details() const;
+  //void print_variant_group_details() const;
   void print_statistics_headers() const;
   void print_variant_details() const;
   void print_geno_statistics(std::stringstream & read_ss,

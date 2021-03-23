@@ -156,6 +156,18 @@ VarStats::add_stats(VarStats const & stats)
 
   clipped_reads += stats.clipped_reads;
   mapq_squared += stats.mapq_squared;
+  n_genotyped += stats.n_genotyped;
+  n_calls += stats.n_calls;
+  n_passed_calls += stats.n_passed_calls;
+  n_ref_ref += stats.n_ref_ref;
+  n_ref_alt += stats.n_ref_alt;
+  n_alt_alt += stats.n_alt_alt;
+  n_max_alt_proper_pairs += stats.n_max_alt_proper_pairs;
+  het_allele_depth.first += stats.het_allele_depth.first;
+  het_allele_depth.second += stats.het_allele_depth.second;
+  hom_allele_depth.first += stats.hom_allele_depth.first;
+  hom_allele_depth.second += stats.hom_allele_depth.second;
+  seqdepth += stats.seqdepth;
 
   for (long i{0}; i < static_cast<long>(per_allele.size()); ++i)
   {
@@ -168,6 +180,17 @@ VarStats::add_stats(VarStats const & stats)
     new_a.mapq_squared += old_a.mapq_squared;
     new_a.score_diff += old_a.score_diff;
     new_a.mismatches += old_a.mismatches;
+    new_a.qd_qual += old_a.qd_qual;
+    new_a.qd_depth += old_a.qd_depth;
+    new_a.total_depth += old_a.total_depth;
+    new_a.ac += old_a.ac;
+    new_a.pass_ac += old_a.pass_ac;
+    new_a.maximum_alt_support = std::max(new_a.maximum_alt_support, old_a.maximum_alt_support);
+    new_a.maximum_alt_support_ratio = std::max(new_a.maximum_alt_support_ratio, old_a.maximum_alt_support_ratio);
+    new_a.het_multi_allele_depth.first += old_a.het_multi_allele_depth.first;
+    new_a.het_multi_allele_depth.second += old_a.het_multi_allele_depth.second;
+    new_a.hom_multi_allele_depth.first += old_a.hom_multi_allele_depth.first;
+    new_a.hom_multi_allele_depth.second += old_a.hom_multi_allele_depth.second;
 
     new_rs.r1_forward += old_rs.r1_forward;
     new_rs.r1_reverse += old_rs.r1_reverse;
@@ -480,6 +503,16 @@ VarStats::serialize(Archive & ar, unsigned const int /*version*/)
   ar & read_strand;
   ar & clipped_reads;
   ar & mapq_squared;
+  ar & n_genotyped;
+  ar & n_calls;
+  ar & n_passed_calls;
+  ar & n_ref_ref;
+  ar & n_ref_alt;
+  ar & n_alt_alt;
+  ar & n_max_alt_proper_pairs;
+  ar & seqdepth;
+  ar & het_allele_depth;
+  ar & hom_allele_depth;
 }
 
 

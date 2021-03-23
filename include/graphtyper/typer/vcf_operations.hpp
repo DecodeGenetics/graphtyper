@@ -7,6 +7,11 @@
 namespace gyper
 {
 
+class Vcf;
+
+void
+vcf_merge_and_return(gyper::Vcf & vcf, std::vector<std::string> & vcfs, std::string const & output);
+
 void vcf_merge(std::vector<std::string> & vcfs, std::string const & output);
 
 void vcf_concatenate(std::vector<std::string> const & vcfs,

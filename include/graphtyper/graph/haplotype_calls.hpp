@@ -9,6 +9,7 @@
 #include <graphtyper/typer/vcf_writer.hpp>
 
 
+/*
 namespace gyper
 {
 
@@ -42,7 +43,7 @@ public:
   HaplotypeCalls() = default;
   explicit HaplotypeCalls(std::vector<HaplotypeCall> const & hap_calls);
 
-  /** \brief Return a list of haplotype calls. */
+  // \brief Return a list of haplotype calls.
   inline std::vector<HaplotypeCall>
   get_hap_calls()
   {
@@ -61,4 +62,5 @@ private:
 void save_calls(HaplotypeCalls & calls, std::string const & filename);
 std::vector<HaplotypeCall> load_calls(std::string const & filename);
 
-}
+} // namespace gyper
+*/

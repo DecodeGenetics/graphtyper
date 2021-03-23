@@ -32,6 +32,9 @@ public:
   bool is_sam_merging_allowed{false};
   long ploidy{2};
   bool is_dropping_genotypes{false};
+  uint32_t split_var_threshold{SPLIT_VAR_THRESHOLD};
+  bool is_segment_calling{false};
+  bool force_ignore_segment{false};
 
   /****
    * FILTERING OPTIONS
@@ -81,7 +84,7 @@ public:
   bool is_csi{false};
   bool force_align_both_orientations{false};
   int sam_flag_filter{3840};
-  long max_files_open{512}; // Maximum amount of SAM/BAM/CRAM files can be opened at the same time
+  long max_files_open{576}; // Maximum amount of SAM/BAM/CRAM files can be opened at the same time
   long soft_cap_of_variants_in_100_bp_window{22};
   bool get_sample_names_from_filename{false};
   bool output_all_variants{false};
@@ -99,12 +102,12 @@ public:
   double genotype_dis_min_support_ratio{0.30};
 
   // internal vcf options
-  long num_alleles_in_batch{500};
+  long num_alleles_in_batch{250};
 
   /********************************
    * HAPLOTYPE EXTRACTION OPTIONS *
    ********************************/
-  long max_extracted_haplotypes{64};
+  long max_extracted_haplotypes{100};
   int minimum_extract_variant_support{2};
   int minimum_extract_score_over_homref{27};
   double impurity_threshold{0.15};
@@ -132,4 +135,4 @@ private:
 
 } // namespace gyper
 
-//#define GT_DEV 1
+#define GT_DEV 1

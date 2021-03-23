@@ -35,6 +35,7 @@ set(graphtyper_SOURCE_FILES
   typer/read.cpp
   typer/sample_call.cpp
   typer/segment.cpp
+  typer/segment_calling.cpp
   typer/var_stats.cpp
   typer/variant.cpp
   typer/variant_candidate.cpp
@@ -46,6 +47,7 @@ set(graphtyper_SOURCE_FILES
   utilities/bamshrink.cpp
   utilities/genotype.cpp
   utilities/genotype_camou.cpp
+  utilities/genotype_hla.cpp
   utilities/genotype_lr.cpp
   utilities/genotype_sv.cpp
   utilities/hash_seqan.cpp

@@ -59,7 +59,7 @@ TEST_CASE("Create a VCF and add variants")
 
 
   std::vector<gyper::Haplotype> haps = graph.get_all_haplotypes(32 /*variant distance*/);
-  assert(haps.size() == 1);
+  assert(haps.size() == 2);
   Vcf vcf(WRITE_BGZF_MODE, "-");
 
   SECTION("Initially there are no variants")
@@ -68,6 +68,7 @@ TEST_CASE("Create a VCF and add variants")
   }
 
   vcf.add_haplotype(haps.at(0), false);
+  vcf.add_haplotype(haps.at(1), false);
 
   SECTION("Now both variant should have been added")
   {

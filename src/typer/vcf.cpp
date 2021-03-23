@@ -6,6 +6,8 @@
 
 #include <boost/algorithm/string/predicate.hpp> // boost::algorithm::ends_with
 #include <boost/log/trivial.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/lexical_cast.hpp>
@@ -22,6 +24,7 @@
 #include <graphtyper/typer/vcf.hpp>
 #include <graphtyper/utilities/graph_help_functions.hpp>
 #include <graphtyper/utilities/options.hpp> // gyper::options::instance()
+#include <graphtyper/utilities/system.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
 
 #include <paw/align.hpp>
@@ -46,45 +49,40 @@ current_date()
 
 
 std::vector<uint8_t>
-get_haplotype_phred(gyper::HapSample const & sample, uint32_t const cnum)
+get_haplotype_phred(gyper::HapSample const & sample)
 {
   using namespace gyper;
   assert(sample.log_score.size() > 0);
+  long const num = sample.log_score.size();
   std::vector<uint8_t> hap_phred;
+  //hap_phred.reserve(num);
 
-  // Check if all phred scores are zero by finding the first non-zero phred score
+  // First find out what the maximum log score is
+  uint16_t const max_log_score = *std::max_element(sample.log_score.begin(), sample.log_score.end());
+
+  // Check if all phred scores are the max score
   auto find_it = std::find_if(sample.log_score.begin(),
                               sample.log_score.end(),
-                              [](uint16_t const val){
-      return val != 0;
+                              [max_log_score](uint16_t const val){
+      return val != max_log_score;
     });
 
   if (find_it == sample.log_score.end())
   {
-    // If no non-zero phred score is found, the phred scores of the haplotype should be all zero
-    hap_phred = std::vector<uint8_t>(cnum * (cnum + 1) / 2, 0u);
+    // All scores are the same, the phred scores of the haplotype should be all zero
+    hap_phred = std::vector<uint8_t>(num, 0u);
   }
   else
   {
-    hap_phred = std::vector<uint8_t>(cnum * (cnum + 1) / 2, 255u);
+    hap_phred = std::vector<uint8_t>(num, 255u);
 
-    // First find out what the maximum log score is
-    uint16_t const max_log_score = *std::max_element(sample.log_score.begin(),
-                                                     sample.log_score.end()
-                                                     );
-
-    std::size_t const num_alleles = cnum * (cnum + 1) / 2;
-    assert(sample.log_score.size() == num_alleles);
-
-    for (std::size_t i = 0; i < num_alleles; ++i)
+    for (long i{0}; i < num; ++i)
     {
       double const LOG10_HALF_times_10 = 3.01029995663981195213738894724493026768189881462108541;
+      long const score = std::llround((max_log_score - sample.log_score[i]) * LOG10_HALF_times_10);
 
-      auto const phred_score =
-        std::llround((max_log_score - sample.log_score[i]) * LOG10_HALF_times_10);
-
-      if (phred_score < 255u)
-        hap_phred[i] = static_cast<uint8_t>(phred_score);
+      if (score < 255u)
+        hap_phred[i] = static_cast<uint8_t>(score);
     }
   }
 
@@ -92,17 +90,14 @@ get_haplotype_phred(gyper::HapSample const & sample, uint32_t const cnum)
 }
 
 
+/*
 std::vector<std::vector<uint8_t> >
 get_genotype_phred(gyper::HapSample const & sample,
-                   std::vector<gyper::Genotype> const & gts
-                   )
+                   gyper::Genotype const & gts)
 {
   using namespace gyper;
 
-  uint32_t cnum = 1;
-
-  for (auto const & gt : gts)
-    cnum *= gt.num;
+  uint32_t cnum = gt.num;
 
   std::vector<uint8_t> hap_phred = get_haplotype_phred(sample, cnum);
   std::vector<std::vector<uint8_t> > phred(gts.size());
@@ -160,6 +155,7 @@ get_genotype_phred(gyper::HapSample const & sample,
 
   return phred;
 }
+*/
 
 
 } // anon namespace
@@ -299,6 +295,8 @@ Vcf::read_record(bool const SITES_ONLY)
         {
           "CR", "CRal", "CRalt",
           "END",
+          "FEATURE",
+          "GT_ID",
           "HOMSEQ"
 //          "INV3", "INV5",
           "LEFT_SVINSSEQ",
@@ -342,12 +340,14 @@ Vcf::read_record(bool const SITES_ONLY)
   {
     std::string const format = get_string_at_tab_index(line, tabs, 8);
     std::vector<std::size_t> all_format_colon = get_all_pos(format, ':');
+
     int ad_field = -1;
     int pl_field = -1;
     int md_field = -1;
     int ra_field = -1;
     int pp_field = -1;
     int ft_field = -1;
+    int gt_field = -1;
 
     for (int f{0}; f < static_cast<int>(all_format_colon.size() - 1); ++f)
     {
@@ -365,10 +365,12 @@ Vcf::read_record(bool const SITES_ONLY)
         pp_field = f;
       else if (field == "FT")
         ft_field = f;
+      else if (field == "GT")
+        gt_field = f;
     }
 
-    assert(ad_field != -1);
-    assert(pl_field != -1);
+    assert(ad_field != -1 || gt_field != -1);
+    assert(pl_field != -1 || gt_field != -1);
     int constexpr FIELD_OFFSET = 9; // the first field that contains genotype calls
 
     for (int i{FIELD_OFFSET}; i < static_cast<int>(sample_names.size()) + FIELD_OFFSET; ++i)
@@ -381,12 +383,34 @@ Vcf::read_record(bool const SITES_ONLY)
       std::vector<std::size_t> sample_string_colon = get_all_pos(sample_string, ':');
 
       // Parse AD
-      std::string const ad_str = get_string_at_tab_index(sample_string, sample_string_colon, ad_field);
-      std::vector<std::size_t> ad_str_comma = get_all_pos(ad_str, ',');
+      if (ad_field != -1)
+      {
+        std::string const ad_str = get_string_at_tab_index(sample_string, sample_string_colon, ad_field);
+        std::vector<std::size_t> ad_str_comma = get_all_pos(ad_str, ',');
 
-      for (int j = 0; j < static_cast<int>(ad_str_comma.size()) - 1; ++j)
-        new_call.coverage.push_back(static_cast<uint16_t>(std::stoul(get_string_at_tab_index(ad_str, ad_str_comma,
-                                                                                             j))));
+        for (int j = 0; j < static_cast<int>(ad_str_comma.size()) - 1; ++j)
+          new_call.coverage.push_back(static_cast<uint16_t>(std::stoul(get_string_at_tab_index(ad_str, ad_str_comma,
+                                                                                               j))));
+      }
+      else if (gt_field != -1)
+      {
+        std::string const gt_str = get_string_at_tab_index(sample_string, sample_string_colon, gt_field);
+        std::vector<std::size_t> gt_str_comma = get_all_pos(gt_str, '/');
+
+        new_call.coverage.resize(new_var.seqs.size(), 0);
+
+        for (int j = 0; j < static_cast<int>(gt_str_comma.size()) - 1; ++j)
+        {
+          long call = std::stol(get_string_at_tab_index(gt_str, gt_str_comma, j));
+          assert(call >= 0);
+          assert(call < static_cast<long>(new_call.coverage.size()));
+          ++new_call.coverage[call];
+        }
+      }
+      else
+      {
+        assert(false);
+      }
 
       // Parse MD
       if (md_field != -1)
@@ -431,13 +455,37 @@ Vcf::read_record(bool const SITES_ONLY)
       }
 
       // Parse PL
-      std::string const pl_str = get_string_at_tab_index(sample_string, sample_string_colon, pl_field);
-      std::vector<std::size_t> pl_str_comma = get_all_pos(pl_str, ',');
+      if (pl_field != -1)
+      {
+        std::string const pl_str = get_string_at_tab_index(sample_string, sample_string_colon, pl_field);
+        std::vector<std::size_t> pl_str_comma = get_all_pos(pl_str, ',');
 
-      for (int j = 0; j < static_cast<int>(pl_str_comma.size()) - 1; ++j)
-        new_call.phred.push_back(static_cast<uint8_t>(std::stoul(get_string_at_tab_index(pl_str, pl_str_comma, j))));
+        for (int j = 0; j < static_cast<int>(pl_str_comma.size()) - 1; ++j)
+          new_call.phred.push_back(static_cast<uint8_t>(std::stoul(get_string_at_tab_index(pl_str, pl_str_comma, j))));
 
-      assert(new_call.coverage.size() * (new_call.coverage.size() + 1) / 2 == new_call.phred.size());
+        assert(new_call.coverage.size() * (new_call.coverage.size() + 1) / 2 == new_call.phred.size());
+      }
+      else if (gt_field != -1)
+      {
+        std::string const gt_str = get_string_at_tab_index(sample_string, sample_string_colon, gt_field);
+        std::vector<std::size_t> gt_str_comma = get_all_pos(gt_str, '/');
+        long const a = new_var.seqs.size();
+        new_call.phred.resize((a * (a + 1l)) / 2l, 255);
+
+        for (int j = 0; j < static_cast<int>(gt_str_comma.size()) - 1; ++j)
+        {
+          long call = std::stol(get_string_at_tab_index(gt_str, gt_str_comma, j));
+          assert(call >= 0);
+          assert(call < static_cast<long>(new_call.coverage.size()));
+          assert(to_index(call, call) < static_cast<long>(new_call.phred.size()));
+          new_call.phred[to_index(call, call)] = 0;
+        }
+      }
+      else
+      {
+        assert(false);
+      }
+
       new_var.calls.push_back(std::move(new_call));
     }
   }
@@ -469,8 +517,7 @@ Vcf::read_samples()
 
     // Read contigs
     if (is_checking_contigs && line[0] == '#' && line[1] == '#' &&
-        line.substr(2, 11) == std::string("contig=<ID=")
-        )
+        line.substr(2, 11) == std::string("contig=<ID="))
     {
       std::size_t comma_pos = line.find(',', 13);
 
@@ -584,6 +631,7 @@ Vcf::write_header(bool const is_dropping_genotypes)
       << "##INFO=<ID=CRal,Number=.,Type=String,Description=\"Number of clipped reads per allele.\">\n"
       << "##INFO=<ID=CRalt,Number=A,Type=Float,Description=\"Percent of clipped reads per allele.\">\n"
       << "##INFO=<ID=END,Number=1,Type=Integer,Description=\"End position of an SV.\">\n"
+      << "##INFO=<ID=FEATURE,Number=1,Type=String,Description=\"Gene feature.\">\n"
       << "##INFO=<ID=GT_ANTI_HAPLOTYPE,Number=.,Type=String,Description=\"Haplotype string with downstream variants "
        " with no (or very low) evidence of being in the same haplotype. Used internally by Graphtyper.\">\n"
       << "##INFO=<ID=GT_HAPLOTYPE,Number=.,Type=String,Description=\"Haplotype string with downstream variants "
@@ -731,17 +779,17 @@ Vcf::write_record(Variant const & var,
   auto contig_pos = absolute_pos.get_contig_position(var.abs_pos, gyper::graph.contigs);
   Options const & copts = *(Options::const_instance());
 
-  if (!Options::const_instance()->output_all_variants && var.calls.size() > 0 && var.seqs.size() > 100)
-  {
-    BOOST_LOG_TRIVIAL(info) << "Skipped outputting variant at position "
-                            << contig_pos.first << ":" << contig_pos.second
-                            << " because there are " << var.seqs.size() << " alleles.";
-    return;
-  }
-
   if (!copts.output_all_variants)
   {
-    std::size_t total_allele_length = 0;
+    if (var.calls.size() > 0 && var.seqs.size() > 80)
+    {
+      BOOST_LOG_TRIVIAL(warning) << "Skipped outputting variant at position "
+                                 << contig_pos.first << ":" << contig_pos.second
+                                 << " because there are " << var.seqs.size() << " alleles.";
+      return;
+    }
+
+    std::size_t total_allele_length{0};
 
     for (auto const & seq : var.seqs)
     {
@@ -800,7 +848,7 @@ Vcf::write_record(Variant const & var,
   bgzf_stream.ss << "\t" << std::to_string(variant_qual) << "\t";
 
   // Parse filter
-  if (sample_names.size() == 0 || copts.ploidy > 2)
+  if (sample_names.size() == 0 || copts.ploidy > 2 || copts.is_segment_calling)
   {
     bgzf_stream.ss << ".\t";
   }
@@ -846,7 +894,7 @@ Vcf::write_record(Variant const & var,
         find_aa_score_it != var.infos.end())
     {
       // loop through the aa score values and check if we find any above a threshold
-      double constexpr AA_SCORE_THRESHOLD{0.1};
+      double constexpr AA_SCORE_THRESHOLD{0.15};
       std::stringstream ss(find_aa_score_it->second);
       bool is_good_aa{false};
 
@@ -921,7 +969,6 @@ Vcf::write_record(Variant const & var,
       bgzf_stream.ss << ';';
       write_info(map_it);
     }
-
   }
 
   assert(sample_names.size() == var.calls.size());
@@ -933,9 +980,18 @@ Vcf::write_record(Variant const & var,
     if (var.calls.size() > 0)
     {
       if (is_sv)
+      {
         bgzf_stream.ss << "\tGT:FT:AD:MD:DP:RA:PP:GQ:PL";
-      else
+      }
+      else if ((!copts.is_segment_calling && !copts.force_ignore_segment) || var.seqs[0].size() == 0 ||
+               var.seqs[0][0] != '<')
+      {
         bgzf_stream.ss << "\tGT:AD:MD:DP:GQ:PL";
+      }
+      else
+      {
+        bgzf_stream.ss << "\tGT:GQ:PL";
+      }
     }
 
     for (long i{0}; i < static_cast<long>(var.calls.size()); ++i)
@@ -977,20 +1033,26 @@ Vcf::write_record(Variant const & var,
         }
       }
 
-      // Write AD
-      assert(call.coverage.size() > 0);
-      bgzf_stream.ss << ":" << call.coverage[0];
-
-      for (auto ad_it = call.coverage.begin() + 1; ad_it != call.coverage.end(); ++ad_it)
+      if ((!copts.is_segment_calling &&
+           !copts.force_ignore_segment) ||
+          var.seqs[0].size() == 0 ||
+          var.seqs[0][0] != '<')
       {
-        bgzf_stream.ss << "," << *ad_it;
+        // Write AD
+        assert(call.coverage.size() > 0);
+        bgzf_stream.ss << ":" << call.coverage[0];
+
+        for (auto ad_it = call.coverage.begin() + 1; ad_it != call.coverage.end(); ++ad_it)
+        {
+          bgzf_stream.ss << "," << *ad_it;
+        }
+
+        // Write MD (Multi-depth)
+        bgzf_stream.ss << ":" << static_cast<uint16_t>(call.ambiguous_depth);
+
+        // Write DP
+        bgzf_stream.ss << ":" << call.get_depth();
       }
-
-      // Write MD (Multi-depth)
-      bgzf_stream.ss << ":" << static_cast<uint16_t>(call.ambiguous_depth);
-
-      // Write DP
-      bgzf_stream.ss << ":" << call.get_depth();
 
       if (is_sv)
       {
@@ -1173,6 +1235,7 @@ Vcf::write_records(std::string const & region, bool const FILTER_ZERO_QUAL, bool
 }
 
 
+/*
 void
 Vcf::write_segments()
 {
@@ -1226,6 +1289,7 @@ Vcf::write_segments()
     bgzf_stream << "\n";
   }
 }
+*/
 
 
 void
@@ -1263,75 +1327,207 @@ Vcf::clear()
 
 
 void
-Vcf::add_segment(Segment && segment)
+Vcf::add_hla_haplotypes(std::vector<Haplotype> & haplotypes,
+                        std::vector<std::unordered_map<uint32_t, uint32_t> > const & all_hap_gts)
 {
-  assert(segment.allele_names.size() > 1);
-
-  if (segment.allele_names.size() == 2 /*check if it is already biallelic*/)
-  {
-    this->segments.push_back(std::move(segment));
+  if (haplotypes.size() == 0)
     return;
+
+  long const cnum = all_hap_gts.size();
+  Variant new_var;
+  new_var.abs_pos = graph.genomic_region.get_absolute_position(haplotypes[haplotypes.size() / 2].gt.id);
+  std::vector<char> const base = {{'<', 'H', '>'}};
+  new_var.seqs.resize(cnum, base);
+
+  for (auto & hap : haplotypes)
+    hap.update_max_log_score();
+
+  for (long s{0}; s < static_cast<long>(haplotypes[0].hap_samples.size()); ++s)
+  {
+    std::vector<int32_t> hla_scores((cnum * (cnum + 1)) / 2, 0);
+    std::vector<std::set<uint32_t> > het_haplotypes((cnum * (cnum + 1)) / 2);
+
+    for (long y{0}; y < cnum; ++y)
+    {
+      std::unordered_map<uint32_t, uint32_t> const & hap_gt_y = all_hap_gts[y];
+      long const i_hom = to_index(y, y);
+
+      assert(i_hom < static_cast<long>(hla_scores.size()));
+
+      // homozygous
+      for (auto it_y = hap_gt_y.begin(); it_y != hap_gt_y.end(); ++it_y)
+      {
+        long const hap_i = to_index(it_y->second, it_y->second);
+        assert(it_y->first < haplotypes.size());
+        assert(s < static_cast<long>(haplotypes[it_y->first].hap_samples.size()));
+        assert(hap_i < static_cast<long>(haplotypes[it_y->first].hap_samples[s].log_score.size()));
+
+        HapSample const & hap_sample = haplotypes[it_y->first].hap_samples[s];
+        long score_diff = hap_sample.max_log_score - hap_sample.log_score[hap_i];
+        long constexpr MAX_SCORE_DIFF{60};
+
+        if (score_diff > MAX_SCORE_DIFF)
+          score_diff = MAX_SCORE_DIFF;
+
+        hla_scores[i_hom] += score_diff;
+      }
+
+      for (long x{0}; x < y; ++x)
+      {
+        // heterozygous
+        std::unordered_map<uint32_t, uint32_t> const & hap_gt_x = all_hap_gts[x];
+        long const i_het = to_index(x, y);
+
+        for (auto it_y = hap_gt_y.begin(); it_y != hap_gt_y.end(); ++it_y)
+        {
+          auto it_x = hap_gt_x.find(it_y->first);
+
+          assert(it_x != hap_gt_x.end());
+          assert(it_x->first == it_y->first);
+
+          long const hap_i = to_index_safe(it_x->second, it_y->second);
+          assert(it_y->first < haplotypes.size());
+          assert(s < static_cast<long>(haplotypes[it_y->first].hap_samples.size()));
+          assert(hap_i < static_cast<long>(haplotypes[it_y->first].hap_samples[s].log_score.size()));
+
+          HapSample const & hap_sample = haplotypes[it_y->first].hap_samples[s];
+          long score_diff = hap_sample.max_log_score - hap_sample.log_score[hap_i];
+          long constexpr MAX_SCORE_DIFF{60};
+
+          if (it_x->second != it_y->second && score_diff == 0 && hap_sample.max_log_score > 0)
+          {
+#ifdef NDEBUG
+            het_haplotypes[i_het].insert(it_y->first);
+#else
+            auto insert_it = het_haplotypes[i_het].insert(it_y->first);
+            assert(insert_it.second);
+#endif
+          }
+          else if (score_diff > MAX_SCORE_DIFF)
+          {
+            score_diff = MAX_SCORE_DIFF;
+          }
+
+          hla_scores[i_het] += score_diff;
+        }
+      }
+    }
+
+    {
+      long i{1};
+
+      for (long y{1}; y < cnum; ++y)
+      {
+        for (long x{0}; x <= y; ++x, ++i)
+        {
+          if (x == y)
+            continue;
+
+          assert(i < static_cast<long>(het_haplotypes.size()));
+
+          if (het_haplotypes[i].size() > 1)
+          {
+            std::unordered_map<uint32_t, uint32_t> const & hap_gt_x = all_hap_gts[x];
+            std::unordered_map<uint32_t, uint32_t> const & hap_gt_y = all_hap_gts[y];
+
+            for (auto it1 = het_haplotypes[i].begin(); it1 != het_haplotypes[i].end(); ++it1)
+            {
+              auto find_itx1 = hap_gt_x.find(*it1);
+              auto find_ity1 = hap_gt_y.find(*it1);
+              assert(find_itx1 != hap_gt_x.end());
+              assert(find_ity1 != hap_gt_y.end());
+              assert(x <= y);
+              //BOOST_LOG_TRIVIAL(warning) << " " << i << " " << to_index(x, y);
+              assert(to_index(x, y) == i);
+              //long const i_het = to_index(x, y);
+
+              for (auto it2 = std::next(it1); it2 != het_haplotypes[i].end(); ++it2)
+              {
+                auto find_itx2 = hap_gt_x.find(*it2);
+                auto find_ity2 = hap_gt_y.find(*it2);
+
+                assert(find_itx2 != hap_gt_x.end());
+                assert(find_ity2 != hap_gt_y.end());
+
+                HapSample const & hap_sample1 = haplotypes[*it1].hap_samples[s];
+
+                assert(find_itx1->second < hap_sample1.connections.size());
+                assert(find_ity1->second < hap_sample1.connections.size());
+
+                auto const & hap_con_x1 = hap_sample1.connections[find_itx1->second];
+                auto const & hap_con_y1 = hap_sample1.connections[find_ity1->second];
+
+                auto find_it_x2 = hap_con_x1.find(*it2);
+                auto find_it_y2 = hap_con_y1.find(*it2);
+
+                if (find_it_x2 != hap_con_x1.end())
+                {
+                  assert(find_itx2->second < find_it_x2->second.size());
+                  long const total_reads_x = std::accumulate(find_it_x2->second.begin(), find_it_x2->second.end(), 0l);
+                  long const reads_supporting_x = find_it_x2->second[find_itx2->second];
+                  hla_scores[i] += (total_reads_x - 2 * reads_supporting_x) / 6;
+                }
+
+                if (find_it_y2 != hap_con_y1.end())
+                {
+                  assert(find_ity2->second < find_it_y2->second.size());
+                  long const total_reads_y = std::accumulate(find_it_y2->second.begin(), find_it_y2->second.end(), 0l);
+                  long const reads_supporting_y = find_it_y2->second[find_ity2->second];
+                  hla_scores[i] += (total_reads_y - 2 * reads_supporting_y) / 6;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    SampleCall new_call;
+    new_call.coverage.resize(cnum, 0);
+    new_call.phred.resize((cnum * (cnum + 1)) / 2, 0);
+
+    auto min_it = std::min_element(hla_scores.begin(), hla_scores.end());
+    assert(min_it != hla_scores.end());
+
+    for (long p{0}; p < static_cast<long>(hla_scores.size()); ++p)
+    {
+      long const score = 3l * (static_cast<long>(hla_scores[p]) - *min_it);
+
+      if (score > 255l)
+        new_call.phred[p] = 255;
+      else
+        new_call.phred[p] = score;
+    }
+
+    new_var.calls.push_back(std::move(new_call));
   }
 
-  // Split the segments into biallelic VCF records
-  std::vector<Segment> new_segments = segment.get_biallelic_segments();
-  segment.clear();
-  std::move(new_segments.begin(), new_segments.end(), std::back_inserter(this->segments));
+  variants.push_back(std::move(new_var));
 }
 
 
 void
 Vcf::add_haplotype(Haplotype & haplotype, int32_t const phase_set)
 {
-  assert(haplotype.gts.size() > 0);
+  Variant new_var(haplotype.gt);
+  new_var.hap_id = phase_set;
+  new_var.stats = std::move(haplotype.var_stats);
 
-  // Add each genotype
-  std::vector<Variant> new_vars;
-  new_vars.reserve(haplotype.gts.size());
-
-  for (auto const & gt : haplotype.gts)
-    new_vars.push_back(Variant(gt));
-
-  assert(new_vars.size() == haplotype.gts.size());
-  assert(new_vars.size() == haplotype.var_stats.size());
-
-  // Add variant stats
-  for (long i{0}; i < static_cast<long>(new_vars.size()); ++i)
   {
-    VarStats const & stats = haplotype.var_stats[i];
-    auto & new_var = new_vars[i];
-    new_var.hap_id = phase_set;
+    new_var.calls.reserve(haplotype.hap_samples.size());
 
-    //new_var.infos["PS"] = std::to_string(phase_set);
-    //stats.add_stats(new_var.infos);
-    new_var.stats = stats;
-  }
-
-  //if (ploidy <= 2)
-  {
     // Normal genotyping
     for (auto & hap_sample : haplotype.hap_samples)
     {
-      std::vector<std::vector<uint8_t> > gt_phred =
-        get_genotype_phred(hap_sample, haplotype.gts);
+      std::vector<uint8_t> gt_phred = get_haplotype_phred(hap_sample);
 
-      assert(gt_phred.size() == new_vars.size());
-      assert(hap_sample.gt_coverage.size() == new_vars.size());
+      SampleCall new_sample_call(std::move(gt_phred),
+                                 std::move(hap_sample.gt_coverage),
+                                 hap_sample.get_ambiguous_depth(),
+                                 hap_sample.get_ambiguous_depth_alt(),
+                                 hap_sample.get_alt_proper_pair_depth());
 
-      for (long i{0}; i < static_cast<long>(new_vars.size()); ++i)
-      {
-        assert(i < static_cast<long>(gt_phred.size()));
-        assert(i < static_cast<long>(hap_sample.gt_coverage.size()));
-        assert(new_vars[i].seqs.size() == hap_sample.gt_coverage[i].size());
-
-        SampleCall new_sample_call(std::move(gt_phred[i]),
-                                   std::move(hap_sample.gt_coverage[i]),
-                                   hap_sample.get_ambiguous_depth(),
-                                   hap_sample.get_ambiguous_depth_alt(),
-                                   hap_sample.get_alt_proper_pair_depth());
-
-        new_vars[i].calls.push_back(std::move(new_sample_call)); // Add new call
-      }
+      new_var.calls.push_back(std::move(new_sample_call)); // Add new call
     }
   }
   /*
@@ -1410,16 +1606,15 @@ Vcf::add_haplotype(Haplotype & haplotype, int32_t const phase_set)
   if (Options::const_instance()->variant_suffix_id.size() > 0)
   {
     std::string const & suffix_id = Options::const_instance()->variant_suffix_id;
-
-    for (auto & new_var : new_vars)
-      new_var.suffix_id = suffix_id;
+    new_var.suffix_id = suffix_id;
   }
 
   // Add the variants
-  std::move(new_vars.begin(), new_vars.end(), std::back_inserter(variants));
+  variants.push_back(std::move(new_var));
 }
 
 
+/*
 void
 Vcf::add_haplotypes_for_extraction(std::vector<HaplotypeCall> const & hap_calls, bool const is_splitting_vars)
 {
@@ -1541,38 +1736,7 @@ Vcf::add_haplotypes_for_extraction(std::vector<HaplotypeCall> const & hap_calls,
     }
   }
 }
-
-
-/*
-void
-Vcf::post_process_camou_variants(long const ploidy)
-{
-  // The variant is not camou
-  if (ploidy <= 2)
-    return;
-
-  for (auto & var : variants)
-  {
-
-  }
-}
-
-
-
-void
-Vcf::post_process_variants(bool const NORMALIZE, bool const TRIM_SEQUENCES)
-{
-  if (NORMALIZE)
-  {
-    for (auto & var : variants)
-      var.normalize();
-  }
-  else if (TRIM_SEQUENCES)
-  {
-    for (auto & var : variants)
-      var.trim_sequences(false); // Don't keep one match
-  }
-}*/
+*/
 
 
 /** Non-member functions */
@@ -1641,10 +1805,16 @@ template void Vcf::serialize<boost::archive::binary_oarchive>(boost::archive::bi
 void
 save_vcf(Vcf const & vcf, std::string const & filename)
 {
+#ifndef NDEBUG
+  for (Variant const & var : vcf.variants)
+    assert(var.stats.n_calls > 0 || var.stats.seqdepth > 0);
+#endif // NDEBUG
+
   long n_batch{0};
   long v_begin{0};
   long n_alleles{0}; // sqaured number of alleles. We use square because that better capture better the memory requirement
   long const MAX_ALLELES = Options::const_instance()->num_alleles_in_batch; // max number of squared alleles in batch
+  create_dir(filename);
 
   for (long v{0}; v < static_cast<long>(vcf.variants.size()); ++v)
   {
@@ -1677,7 +1847,7 @@ save_vcf(Vcf const & vcf, std::string const & filename)
       std::move(vcf.variants.begin() + v_begin, vcf.variants.begin() + (v + 1), std::back_inserter(new_vcf.variants));
 
       // save batch
-      std::string batch_filename = filename + "_" + std::to_string(n_batch);
+      std::string batch_filename = filename + "/" + std::to_string(n_batch);
       std::ofstream ofs(batch_filename.c_str(), std::ios::binary);
 
       if (!ofs.is_open())
@@ -1688,7 +1858,11 @@ save_vcf(Vcf const & vcf, std::string const & filename)
         std::exit(1);
       }
 
-      boost::archive::binary_oarchive oa(ofs);
+      boost::iostreams::filtering_ostream filter;
+      filter.push(boost::iostreams::gzip_compressor());
+      filter.push(ofs);
+
+      boost::archive::binary_oarchive oa(filter);
       oa << new_vcf; // done saving the batch
 
       v_begin = v + 1;
@@ -1709,7 +1883,7 @@ save_vcf(Vcf const & vcf, std::string const & filename)
   std::move(vcf.variants.begin() + v_begin, vcf.variants.end(), std::back_inserter(new_vcf.variants));
 
   // save batch
-  std::string batch_filename = filename + "_" + std::to_string(n_batch);
+  std::string batch_filename = filename + "/" + std::to_string(n_batch);
   std::ofstream ofs(batch_filename.c_str(), std::ios::binary);
 
   if (!ofs.is_open())
@@ -1719,7 +1893,12 @@ save_vcf(Vcf const & vcf, std::string const & filename)
     std::exit(1);
   }
 
-  boost::archive::binary_oarchive oa(ofs);
+  boost::iostreams::filtering_ostream filter;
+  filter.push(boost::iostreams::gzip_compressor());
+  filter.push(ofs);
+
+  boost::archive::binary_oarchive oa(filter);
+  //boost::archive::binary_oarchive oa(ofs);
   oa << new_vcf; // done saving the batch
 }
 
@@ -1740,7 +1919,7 @@ load_vcf(Vcf & vcf, std::string const & filename, long n_batch)
   }
   else
   {
-    std::string batch_filename = filename + "_" + std::to_string(n_batch);
+    std::string batch_filename = filename + "/" + std::to_string(n_batch);
     BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Loading variants from " << batch_filename;
     std::ifstream ifs(batch_filename.c_str(), std::ios::binary);
 
@@ -1750,7 +1929,11 @@ load_vcf(Vcf & vcf, std::string const & filename, long n_batch)
       std::exit(1);
     }
 
-    boost::archive::binary_iarchive ia(ifs);
+    boost::iostreams::filtering_stream<boost::iostreams::input> filter;
+    filter.push(boost::iostreams::gzip_decompressor());
+    filter.push(ifs);
+    boost::archive::binary_iarchive ia(filter);
+    //boost::archive::binary_iarchive ia(ifs);
     ia >> vcf;
   }
 }
@@ -1760,7 +1943,7 @@ bool
 append_vcf(Vcf & vcf, std::string const & filename, long n_batch)
 {
   Vcf new_vcf;
-  std::string batch_filename = filename + "_" + std::to_string(n_batch);
+  std::string batch_filename = filename + "/" + std::to_string(n_batch);
   BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Appending variants from " << batch_filename;
   std::ifstream ifs(batch_filename.c_str(), std::ios::binary);
 
@@ -1770,7 +1953,11 @@ append_vcf(Vcf & vcf, std::string const & filename, long n_batch)
     return false;
   }
 
-  boost::archive::binary_iarchive ia(ifs);
+  boost::iostreams::filtering_stream<boost::iostreams::input> filter;
+  filter.push(boost::iostreams::gzip_decompressor());
+  filter.push(ifs);
+  boost::archive::binary_iarchive ia(filter);
+  //boost::archive::binary_iarchive ia(ifs);
   ia >> new_vcf;
   std::move(new_vcf.variants.begin(), new_vcf.variants.end(), std::back_inserter(vcf.variants));
   return true;

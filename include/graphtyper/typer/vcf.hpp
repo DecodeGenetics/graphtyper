@@ -3,6 +3,7 @@
 #include <memory>
 #include <string> // std::string
 #include <unordered_map> // std::unordered_map
+#include <unordered_set> // std::unordered_map
 #include <vector> // std::vector
 
 #include <boost/serialization/access.hpp>
@@ -84,16 +85,17 @@ public:
   void clear();
 
   // Adding data
-  void add_segment(Segment && segment);
+  void add_hla_haplotypes(std::vector<Haplotype> & haplotypes,
+                          std::vector<std::unordered_map<uint32_t, uint32_t> > const & allele_hap_gts_ptr);
   void add_haplotype(Haplotype & haplotype, int32_t phase_set = -1);
 
   void add_haplotypes_for_extraction(std::vector<HaplotypeCall> const & hap_calls, bool const is_splitting_vars);
 
   VCF_FILE_MODE filemode;
   std::string filename;
+
   std::vector<std::string> sample_names;
   std::vector<Variant> variants;
-  std::vector<Segment> segments;
 
 private:
   template <class Archive>

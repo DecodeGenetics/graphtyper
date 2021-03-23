@@ -17,6 +17,133 @@
 namespace gyper
 {
 
+// vcf should be constructed with gyper::Vcf and no functions called
+void
+vcf_merge_and_return(gyper::Vcf & vcf, std::vector<std::string> & vcfs, std::string const & output)
+{
+  if (vcfs.size() == 0)
+    return;
+
+  auto const & copts = *(Options::const_instance());
+  //long const ploidy = copts.ploidy;
+  auto const & vcf_fn = vcfs[0];
+  load_vcf(vcf, vcf_fn, 0);
+  long n_batch{1};
+
+  // Read the entire file
+  while (append_vcf(vcf, vcf_fn, n_batch))
+    ++n_batch;
+
+  vcf.open(WRITE_MODE, output); // Change to write mode
+  vcf.open_for_writing(copts.threads);
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Read " << vcf.variants.size() << " variants.";
+
+  std::vector<gyper::Vcf> next_vcfs(vcfs.size() - 1);
+  n_batch = 1;
+
+  // Open all VCFs and add sample names
+  for (long i = 1; i < static_cast<long>(vcfs.size()); ++i)
+  {
+    auto const & vcf_fn = vcfs[i];
+    assert((i - 1) < static_cast<long>(next_vcfs.size()));
+    gyper::Vcf & next_vcf = next_vcfs[i - 1];
+    load_vcf(next_vcf, vcf_fn, 0);
+
+    assert(next_vcf.variants.size() == next_vcfs[0].variants.size()); // all bins have the same number of variants
+
+    // Add the samples on the first batch
+    vcf.sample_names.insert(vcf.sample_names.end(),
+                            next_vcf.sample_names.begin(),
+                            next_vcf.sample_names.end());
+  }
+
+  // Check whether the sample names are unique
+  {
+    std::vector<std::string> sample_names_cp(vcf.sample_names);
+    std::sort(sample_names_cp.begin(), sample_names_cp.end());
+    auto uniq_it = std::unique(sample_names_cp.begin(), sample_names_cp.end());
+
+    if (uniq_it != sample_names_cp.end())
+    {
+      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Sample names are not unique. "
+                                 << "The output VCF file will contain duplicated sample "
+                                 << "names (which is against the VCF specs).";
+    }
+  }
+
+  // We have all the samples, write the header now
+  vcf.write_header(false); // do not drop genotypes
+  long v_next{0}; // number of variants analyzed in previous batches
+
+  // lambda function for updating the reach
+  //auto update_reach =
+  //  [&reach](std::vector<Variant> const & new_variants) -> void
+  //  {
+  //    for (auto const & v : new_variants)
+  //    {
+  //      long curr_reach = v.seqs[0].size() + v.abs_pos;
+  //
+  //      if (curr_reach > reach)
+  //        reach = curr_reach;
+  //    }
+  //  };
+
+  for (long v{0}; v < static_cast<long>(vcf.variants.size()); ++v)
+  {
+    auto & var = vcf.variants[v];
+
+    // Trigger read next batch
+    if (next_vcfs.size() > 0 && (v - v_next) == static_cast<long>(next_vcfs[0].variants.size()))
+    {
+      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Updating next_vcfs";
+
+      v_next += static_cast<long>(next_vcfs[0].variants.size());
+
+      for (long i = 1; i < static_cast<long>(vcfs.size()); ++i)
+      {
+        auto const & vcf_fn = vcfs[i];
+        Vcf & next_vcf = next_vcfs[i - 1];
+        next_vcf.variants.clear(); // clear previous batch
+        bool ret = append_vcf(next_vcf, vcf_fn, n_batch);
+
+        if (!ret)
+        {
+          BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not find file " << vcf_fn;
+          std::exit(1);
+        }
+      }
+
+      ++n_batch;
+    }
+
+    for (auto & next_vcf : next_vcfs)
+    {
+      assert((v - v_next) >= 0);
+      assert((v - v_next) < static_cast<long>(next_vcf.variants.size()));
+      auto & next_vcf_var = next_vcf.variants[v - v_next];
+      var.stats.add_stats(next_vcf_var.stats);
+
+      std::move(next_vcf_var.calls.begin(),
+                next_vcf_var.calls.end(),
+                std::back_inserter(var.calls));
+    }
+
+    // Add strand bias, this must happend before the INFO is generated
+    //stats.add_stats(var.infos);
+
+    if (var.calls.size() != vcf.sample_names.size())
+    {
+      BOOST_LOG_TRIVIAL(error) << "Number of calls a variant had did not matches the number of samples "
+                               << var.calls.size() << " vs. " << vcf.sample_names.size();
+      std::exit(1);
+    }
+  }
+
+  //vcf.close_vcf_file();
+  //vcf.write_tbi_index();
+}
+
+
 void
 vcf_merge(std::vector<std::string> & vcfs, std::string const & output)
 {
@@ -142,7 +269,7 @@ vcf_merge(std::vector<std::string> & vcfs, std::string const & output)
     next_vcf.close_vcf_file();
 
   vcf.close_vcf_file();
-  //vcf.write_tbi_index();
+  vcf.write_tbi_index();
 }
 
 
@@ -471,6 +598,7 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
       assert((v - v_next) >= 0);
       assert((v - v_next) < static_cast<long>(next_vcf.variants.size()));
       auto & next_vcf_var = next_vcf.variants[v - v_next];
+      //next_vcf_var.scan_calls();
       var.stats.add_stats(next_vcf_var.stats);
 
       std::move(next_vcf_var.calls.begin(),
@@ -489,7 +617,7 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
     }
 
     //assert(var.infos.count("SBF1") == 1);
-    assert(var.stats.per_allele.size() == var.seqs.size());
+    //assert(var.stats.per_allele.size() == var.seqs.size());
 
     // break down the merged variants
     bool const is_no_variant_overlapping{copts.no_variant_overlapping ||
@@ -531,8 +659,8 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
             return is_good == 0;
           }))
         {
-          BOOST_LOG_TRIVIAL(info) << __HERE__ << " Removed variant=" << new_var.to_string(true)
-                                  << " because every alt was bad";
+          BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Removed variant=" << new_var.to_string(true)
+                                   << " because every alt was bad";
           it = new_variants.erase(it);
         }
         else

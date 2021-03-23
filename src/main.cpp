@@ -24,6 +24,7 @@
 #include <graphtyper/utilities/bamshrink.hpp>
 #include <graphtyper/utilities/genotype.hpp>
 #include <graphtyper/utilities/genotype_camou.hpp>
+#include <graphtyper/utilities/genotype_hla.hpp>
 #include <graphtyper/utilities/genotype_lr.hpp>
 #include <graphtyper/utilities/genotype_sv.hpp>
 #include <graphtyper/utilities/io.hpp> // gyper::get_contig_to_lengths
@@ -723,6 +724,168 @@ subcmd_genotype(paw::Parser & parser)
 
 
 int
+subcmd_genotype_hla(paw::Parser & parser)
+{
+  gyper::Options & opts = *(gyper::Options::instance());
+
+  std::string avg_cov_by_readlen_fn;
+  std::string output_dir{"hla_results"};
+  std::string opts_region{};
+  std::string opts_region_file{};
+  std::string ref_fn{};
+  std::string sam{};
+  std::string sams{};
+  std::string sam_index_fn{};
+  std::string hla_vcf{};
+  bool force_copy_reference{false};
+  bool force_no_copy_reference{false};
+  bool see_advanced_options{false};
+  std::string interval_fn{};
+
+  // Change the default values
+  opts.max_files_open = 1024;
+
+  // Parse options
+  parser.parse_option(see_advanced_options,
+                      'a',
+                      "advanced",
+                      "Set to enable advanced options. "
+                      "See a list of all options (including advanced) with 'graphtyper genotype_hla --advanced --help'");
+
+  parser.parse_option(avg_cov_by_readlen_fn,
+                      ' ',
+                      "avg_cov_by_readlen",
+                      "File with average coverage by read length (one value per line). "
+                      "The values are used for subsampling regions with extremely high coverage and should be in the same "
+                      "order as the BAM/CRAM list.");
+
+  parser.parse_option(interval_fn, 'i', "intervals",
+                      "BED file with intervals to gather reads from. If empty, reads in region will be used.");
+
+  parser.parse_option(output_dir, 'O', "output", "Output directory.");
+  parser.parse_option(opts_region, 'r', "region", "Genomic region to genotype.");
+  parser.parse_option(opts_region_file, 'R', "region_file", "File with genomic regions to genotype.");
+  parser.parse_option(opts.threads, 't', "threads", "Max. number of threads to use.");
+  parser.parse_option(sam, 's', "sam", "SAM/BAM/CRAM to analyze.");
+  parser.parse_option(sams, 'S', "sams", "File with SAM/BAM/CRAMs to analyze (one per line).");
+
+  parser.parse_option(sam_index_fn,
+                      'i',
+                      "sams_index",
+                      "File containing a list of BAM/CRAM indices to use when BAM/CRAM files are queried (one per line). "
+                      "The index files must be given in the same order as the BAMs/CRAMs.");
+
+  //parser.parse_option(opts.vcf, ' ', "vcf", "Input VCF file with SNP/indel variant sites.");
+
+  parser.parse_positional_argument(ref_fn, "REF.FA", "Reference genome in FASTA format.");
+  parser.parse_positional_argument(hla_vcf, "vcf",
+                                   "Input VCF file with known HLA variants.");
+
+  if (see_advanced_options)
+    parser.see_advanced_options(true);
+
+  parser.parse_advanced_option(opts.get_sample_names_from_filename,
+                               ' ',
+                               "get_sample_names_from_filename",
+                               "Set to ignore sample names from RG tags and attempt to retrive the sample names "
+                               "from filenames instead.");
+
+  parser.parse_advanced_option(force_copy_reference, ' ', "force_copy_reference",
+                               "Force copy of the reference FASTA to temporary folder.");
+
+  parser.parse_advanced_option(force_no_copy_reference, ' ', "force_no_copy_reference",
+                               "Force that the reference FASTA is NOT copied to temporary folder.");
+
+  parser.parse_advanced_option(opts.no_filter_on_coverage,
+                               ' ',
+                               "no_filter_on_coverage",
+                               "Set to disable filter on coverage.");
+
+  //parser.parse_advanced_option(opts.force_no_filter_zero_qual,
+  //                             ' ',
+  //                             "force_no_filter_zero_qual",
+  //                             "Set to force variants to be in the final output despite they have zero quality"
+  //                             " (all calls are ref/ref)");
+
+  parser.parse_advanced_option(opts.force_use_input_ref_for_cram_reading, ' ', "force_use_input_ref_for_cram_reading",
+                               "Force using the input reference FASTA file when reading CRAMs.");
+
+  parser.parse_advanced_option(opts.no_cleanup, ' ', "no_cleanup",
+                               "Set to skip removing temporary files. Useful for debugging.");
+
+  parser.parse_advanced_option(opts.is_csi,
+                               'C',
+                               "csi",
+                               "If set, graphtyper will make csi indices instead of tbi.");
+
+  parser.parse_advanced_option(opts.max_files_open,
+                               ' ',
+                               "max_files_open",
+                               "Select how many files can be open at the same time.");
+
+  parser.parse_advanced_option(opts.sam_flag_filter,
+                               ' ',
+                               "sam_flag_filter",
+                               "ANY of these bits set in reads will be completely ignored by GraphTyper. Use with care.");
+
+  parser.parse_advanced_option(opts.primer_bedpe,
+                               ' ',
+                               "primer_bedpe",
+                               "In case you have PCR amplicons sequence data you may specify here a BEDPE file containing "
+                               "coordinates of the primer pairs. The primer sequence will be used in GraphTyper's alignment but are "
+                               "ignored in the genotyping model.");
+
+  parser.parse_advanced_option(opts.force_ignore_segment,
+                               ' ',
+                               "force_ignore_segment",
+                               "Set to ignore segment calling. Just print graph variant sites instead.");
+
+  opts.no_decompose = true;
+  opts.is_segment_calling = true;
+  opts.force_no_filter_zero_qual = true;
+  opts.force_no_filter_bad_alts = true;
+  opts.output_all_variants = true;
+  opts.split_var_threshold = 2;
+  opts.hq_reads = true;
+  opts.is_one_genotype_per_haplotype = true;
+
+  parser.finalize();
+  setup_logger();
+
+  BOOST_LOG_TRIVIAL(info) << "Running the 'genotype_hla' subcommand.";
+
+#ifndef NDEBUG
+  // Create stats directory if it doesn't exist
+  if (opts.stats.size() > 0 && !gyper::is_directory(opts.stats))
+    mkdir(opts.stats.c_str(), 0755);
+#endif // NDEBUG
+
+  // Get the genomic regions to process from the --region and --region_file options
+  std::vector<gyper::GenomicRegion> regions = get_regions(ref_fn, opts_region, opts_region_file, 1000000);
+
+  // Get the BAM/CRAM file names
+  std::vector<std::string> sams_fn = get_sams(sam, sams);
+  std::vector<double> avg_cov_by_readlen = get_avg_cov_by_readlen(avg_cov_by_readlen_fn, sams_fn.size());
+  std::vector<std::string> sam_index_paths = get_sam_index_paths(sam_index_fn, sams_fn);
+
+  // If neither force copy reference or force no copy reference we determine it from number of SAMs
+  bool is_copy_reference = force_copy_reference || (!force_no_copy_reference && sams_fn.size() >= 100);
+
+  gyper::genotype_hla_regions(ref_fn,
+                              hla_vcf,
+                              interval_fn,
+                              sams_fn,
+                              sam_index_paths,
+                              avg_cov_by_readlen,
+                              regions,
+                              output_dir,
+                              is_copy_reference);
+
+  return 0;
+}
+
+
+int
 subcmd_genotype_sv(paw::Parser & parser)
 {
   gyper::Options & opts = *(gyper::Options::instance());
@@ -1093,10 +1256,12 @@ subcmd_vcf_concatenate(paw::Parser & parser)
   bool sites_only{false};
   std::string region{};
   bool write_tbi{false};
+  bool is_sv_vcf{false};
 
   parser.parse_option(no_sort, ' ', "no_sort", "Set to skip sorting the variants.");
   parser.parse_option(output_fn, 'o', "output", "Output VCF file name.");
   parser.parse_option(sites_only, ' ', "sites_only", "Set to write only variant site information.");
+  parser.parse_option(is_sv_vcf, ' ', "sv", "Set if the input VCFs were generated from genotype_sv.");
   parser.parse_option(region, 'r', "region", "Region to print variant in.");
   parser.parse_option(write_tbi, 't', "write_tbi", "Set to write TBI index.");
 
@@ -1104,6 +1269,9 @@ subcmd_vcf_concatenate(paw::Parser & parser)
 
   parser.finalize();
   setup_logger();
+
+  if (is_sv_vcf)
+    gyper::graph.is_sv_graph = true;
 
   gyper::vcf_concatenate(vcfs, output_fn, no_sort, sites_only, write_tbi, region);
   return 0;
@@ -1116,14 +1284,19 @@ subcmd_vcf_merge(paw::Parser & parser)
   std::vector<std::string> vcfs;
   std::string output_fn;
   std::string file_list;
+  bool is_sv_vcf{false};
 
   parser.parse_option(output_fn, 'o', "output", "Output VCF file name.");
   parser.parse_option(file_list, ' ', "file_list", "File containing VCFs to merge.");
+  parser.parse_option(is_sv_vcf, ' ', "sv", "Set if the input VCFs were generated from genotype_sv.");
 
   parser.parse_remaining_positional_arguments(vcfs, "vcfs...", "VCFs to merge");
 
   parser.finalize();
   setup_logger();
+
+  if (is_sv_vcf)
+    gyper::graph.is_sv_graph = true;
 
   if (file_list.size() > 0)
   {
@@ -1169,6 +1342,7 @@ main(int argc, char ** argv)
     parser.add_subcommand("construct", "Construct a graph.");
     parser.add_subcommand("genotype", "Run the SNP/indel genotyping pipeline.");
     parser.add_subcommand("genotype_camou", "(WIP) Run the camou SNP/indel genotyping pipeline.");
+    parser.add_subcommand("genotype_hla", "(WIP) Run the camou HLA genotyping pipeline.");
     parser.add_subcommand("genotype_lr", "(WIP) Run the camou LR genotyping pipeline.");
     parser.add_subcommand("genotype_sv", "Run the structural variant (SV) genotyping pipeline.");
     parser.add_subcommand("index", "(deprecated) Index a graph.");
@@ -1195,6 +1369,8 @@ main(int argc, char ** argv)
       ret = subcmd_genotype_camou(parser);
     else if (subcmd == "genotype_lr")
       ret = subcmd_genotype_lr(parser);
+    else if (subcmd == "genotype_hla")
+      ret = subcmd_genotype_hla(parser);
     else if (subcmd == "genotype_sv")
       ret = subcmd_genotype_sv(parser);
     else if (subcmd == "index")

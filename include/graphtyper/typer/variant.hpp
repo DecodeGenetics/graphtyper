@@ -41,13 +41,14 @@ public:
   ~Variant() = default;
 
   Variant(Genotype const & gt);
-  Variant(std::vector<Genotype> const & gts, std::vector<uint16_t> const & hap_calls);
+  //Variant(std::vector<Genotype> const & gts, std::vector<uint16_t> const & hap_calls);
   Variant(VariantCandidate const & var_candidate) noexcept;
 
   /******************
    * CLASS MODIFERS *
    ******************/
   void update_camou_phred(long const ploidy);
+  void scan_calls();
   std::vector<int8_t> generate_infos();
   bool add_base_in_back(bool const add_N = false);
   bool add_base_in_front(bool const add_N = false);
@@ -99,6 +100,11 @@ std::vector<Variant> break_down_skyr(Variant && var, long const reach);
 std::vector<Variant> extract_sequences_from_aligned_variant(Variant const && variant, std::size_t const THRESHOLD);
 std::vector<Variant> simplify_complex_haplotype(Variant && variant, std::size_t const THRESHOLD);
 std::vector<Variant> break_multi_snps(Variant const && var);
+SampleCall
+bin_phred(Variant const & new_var,
+          Variant const & old_var,
+          SampleCall const & old_call,
+          std::vector<long> const & new2old);
 void find_variant_sequences(gyper::Variant & new_var, gyper::Variant const & old_var);
 
 } // namespace gyper

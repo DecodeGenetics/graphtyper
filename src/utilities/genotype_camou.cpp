@@ -140,7 +140,6 @@ genotype_camou(std::string const & interval_fn,
   for (auto const & interval : intervals)
   {
     bool is_writing_calls_vcf{false};
-    bool is_discovery{true};
 
     BOOST_LOG_TRIVIAL(info) << "Genotyping interval " << interval;
     GenomicRegion genomic_region(interval);
@@ -179,9 +178,6 @@ genotype_camou(std::string const & interval_fn,
           BOOST_LOG_TRIVIAL(info) << "Index construction complete.";
           std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > ph;
 
-          long minimum_variant_support = 14;
-          double minimum_variant_support_ratio = 0.35 / static_cast<double>(num_intervals);
-
           paths = gyper::call(shrinked_sams,
                               avg_cov_by_readlen,
                               "", // graph_path
@@ -191,10 +187,7 @@ genotype_camou(std::string const & interval_fn,
                               ".", // region
                               nullptr,
                               ph,
-                              minimum_variant_support,
-                              minimum_variant_support_ratio,
                               is_writing_calls_vcf,
-                              is_discovery,
                               is_writing_hap);
         }
 
@@ -224,7 +217,6 @@ genotype_camou(std::string const & interval_fn,
         BOOST_LOG_TRIVIAL(info) << "Starting genotyping step.";
 
         is_writing_calls_vcf = true;
-        is_discovery = false;
 
         std::string const out_dir = tmp + "/it2";
         std::string const haps_output_vcf = out_dir + "/haps.vcf.gz";
@@ -253,10 +245,7 @@ genotype_camou(std::string const & interval_fn,
                               ".", // region
                               nullptr,
                               ph,
-                              5, // minimum_variant_support - will be ignored
-                              0.25, // minimum_variant_support_ratio - will be ignored
                               is_writing_calls_vcf,
-                              is_discovery,
                               is_writing_hap);
         }
 
@@ -274,7 +263,6 @@ genotype_camou(std::string const & interval_fn,
       BOOST_LOG_TRIVIAL(info) << "Starting genotyping step with input VCF.";
 
       is_writing_calls_vcf = true;
-      is_discovery = false;
 
       std::string const out_dir = tmp + "/it2";
       std::string const haps_output_vcf = out_dir + "/haps.vcf.gz";
@@ -310,10 +298,7 @@ genotype_camou(std::string const & interval_fn,
                             ".",   // region
                             nullptr,
                             ph,
-                            5,   // minimum_variant_support - will be ignored
-                            0.25,   // minimum_variant_support_ratio - will be ignored
                             is_writing_calls_vcf,
-                            is_discovery,
                             is_writing_hap);
       }
 

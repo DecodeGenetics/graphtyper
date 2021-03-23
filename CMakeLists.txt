@@ -5,8 +5,8 @@ include(ExternalProject)
 
 # The version number
 set (graphtyper_VERSION_MAJOR 2)
-set (graphtyper_VERSION_MINOR 6)
-set (graphtyper_VERSION_PATCH 2)
+set (graphtyper_VERSION_MINOR 7)
+set (graphtyper_VERSION_PATCH 0)
 set(STATIC_DIR "" CACHE STRING "If set, GraphTyper will be built as a static binary using libraries from the given STATIC_DIR.")
 
 # Get the current working branch
@@ -133,7 +133,7 @@ ExternalProject_Add(
   BUILD_IN_SOURCE 1
   PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/paw
   CONFIGURE_COMMAND ""
-  BUILD_COMMAND mkdir -p ${CMAKE_CURRENT_SOURCE_DIR}/paw/build COMMAND cmake -H${CMAKE_CURRENT_SOURCE_DIR}/paw -B${CMAKE_CURRENT_SOURCE_DIR}/paw/build COMMAND $(MAKE) -C ${CMAKE_CURRENT_SOURCE_DIR}/paw/build static
+  BUILD_COMMAND mkdir -p ${CMAKE_CURRENT_SOURCE_DIR}/paw/build COMMAND cmake -H${CMAKE_CURRENT_SOURCE_DIR}/paw -B${CMAKE_CURRENT_SOURCE_DIR}/paw/build -DFORCE_AVX512=1 COMMAND $(MAKE) -C ${CMAKE_CURRENT_SOURCE_DIR}/paw/build static
   INSTALL_COMMAND "")
 
 

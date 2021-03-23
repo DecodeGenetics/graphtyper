@@ -279,38 +279,6 @@ is_clipped(bam1_t const & b, uint32_t const min_count = 1)
 
 
 void
-_read_rg_and_samples(std::vector<std::string> & samples,
-                     std::vector<std::unordered_map<std::string, int> > & vec_rg2sample_i,
-                     std::vector<std::string> const & hts_paths)
-{
-  using namespace gyper;
-  vec_rg2sample_i.resize(hts_paths.size());
-
-  for (long i = 0; i < static_cast<long>(hts_paths.size()); ++i)
-  {
-    auto const & hts_path = hts_paths[i];
-    auto & rg2sample_i = vec_rg2sample_i[i];
-    std::size_t const old_size = samples.size();
-
-    if (!Options::const_instance()->get_sample_names_from_filename)
-    {
-      gyper::get_sample_name_from_bam_header(hts_path, samples, rg2sample_i);
-    }
-
-    if (samples.size() == old_size)
-    {
-      std::string sample_name = hts_path.substr(hts_path.rfind('/') + 1, hts_path.rfind('.'));
-
-      if (std::count(sample_name.begin(), sample_name.end(), '.') > 0)
-        sample_name = sample_name.substr(0, sample_name.find('.'));
-
-      samples.push_back(std::move(sample_name));
-    }
-  }
-}
-
-
-void
 _determine_num_jobs_and_num_parts(long & jobs,
                                   long & num_parts,
                                   long const NUM_SAMPLES)
@@ -346,38 +314,36 @@ _determine_num_jobs_and_num_parts(long & jobs,
 namespace gyper
 {
 
+/*
 std::vector<std::string>
-call(std::vector<std::string> const & hts_paths,
-     std::vector<double> const & avg_cov_by_readlen,
-     std::string const & graph_path,
-     PHIndex const & ph_index,
-     std::string const & output_dir,
-     std::string const & reference_fn,
-     std::string const & region,
-     Primers const * primers,
-     std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > & ph,
-     long const minimum_variant_support,
-     double const minimum_variant_support_ratio,
-     bool const is_writing_calls_vcf,
-     bool const is_discovery,
-     bool const is_writing_hap)
+call_segments(std::vector<std::string> const & hts_paths,
+              std::vector<double> const & avg_cov_by_readlen,
+              std::string const & graph_path,
+              PHIndex const & ph_index,
+              std::string const & output_dir,
+              std::string const & reference_fn,
+              std::string const & region,
+              std::string const & segment)
 {
-  std::vector<std::string> paths;
+
+  BOOST_LOG_TRIVIAL(info) << __HERE__ << " Start calling segments.";
 
   if (hts_paths.size() == 0)
   {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << " No input BAM files.";
+    BOOST_LOG_TRIVIAL(error) << __HERE__ << " No input BAM/CRAM files.";
     std::exit(1);
   }
 
   if (graph_path.size() > 0)
+  {
     load_graph(graph_path); // Loads the graph into the global variable 'graph'
+  }
 
-  // Split hts_paths
+  // split hts paths
+  std::vector<std::string> paths;
   std::vector<std::unique_ptr<std::vector<std::string> > > spl_hts_paths;
   std::vector<std::unique_ptr<std::vector<double> > > spl_avg_cov;
-  std::vector<std::unique_ptr<std::map<std::pair<uint16_t, uint16_t>,
-                                       std::map<std::pair<uint16_t, uint16_t>, int8_t> > > > spl_ph;
+
   assert(Options::const_instance()->max_files_open > 0);
 
   long jobs{1}; // Running jobs
@@ -402,9 +368,6 @@ call(std::vector<std::string> const & hts_paths,
       auto cov_end_it = cov_it + advance;
       spl_avg_cov.emplace_back(new std::vector<double>(cov_it, cov_end_it));
       cov_it = cov_end_it;
-
-      spl_ph.emplace_back(new std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>,
-                                                                               int8_t> >());
     }
   }
 
@@ -412,13 +375,14 @@ call(std::vector<std::string> const & hts_paths,
   long const NUM_POOLS = spl_hts_paths.size();
   paths.resize(NUM_POOLS);
 
-  // Run in parallel
   {
     paw::Station call_station(jobs); // last parameter is queue_size
 
     // Push all but the last pool to the thread pool
-    if (!is_discovery)
     {
+      bool constexpr is_writing_calls_vcf{false};
+      bool constexpr is_writing_hap{false};
+
       for (long i{0}; i < (NUM_POOLS - 1l); ++i)
       {
         call_station.add_work(parallel_reader_genotype_only,
@@ -429,8 +393,8 @@ call(std::vector<std::string> const & hts_paths,
                               &reference_fn,
                               &region,
                               &ph_index,
-                              primers,
-                              spl_ph[i].get(),
+                              nullptr,
+                              nullptr,
                               is_writing_calls_vcf,
                               is_writing_hap);
       }
@@ -445,41 +409,8 @@ call(std::vector<std::string> const & hts_paths,
                                  &reference_fn,
                                  &region,
                                  &ph_index,
-                                 primers,
-                                 spl_ph[NUM_POOLS - 1].get(),
-                                 is_writing_calls_vcf,
-                                 is_writing_hap);
-    }
-    else
-    {
-      for (long i{0}; i < (NUM_POOLS - 1l); ++i)
-      {
-        call_station.add_work(parallel_reader_with_discovery,
-                              &paths[i],
-                              spl_hts_paths[i].get(),
-                              &output_dir,
-                              &reference_fn,
-                              &region,
-                              &ph_index,
-                              primers,
-                              minimum_variant_support,
-                              minimum_variant_support_ratio,
-                              is_writing_calls_vcf,
-                              is_writing_hap);
-      }
-
-      // Do the last pool on the current thread
-      call_station.add_to_thread(jobs - 1,
-                                 parallel_reader_with_discovery,
-                                 &paths[NUM_POOLS - 1],
-                                 spl_hts_paths[NUM_POOLS - 1].get(),
-                                 &output_dir,
-                                 &reference_fn,
-                                 &region,
-                                 &ph_index,
-                                 primers,
-                                 minimum_variant_support,
-                                 minimum_variant_support_ratio,
+                                 nullptr,
+                                 nullptr,
                                  is_writing_calls_vcf,
                                  is_writing_hap);
     }
@@ -488,29 +419,163 @@ call(std::vector<std::string> const & hts_paths,
     BOOST_LOG_TRIVIAL(info) << "Finished calling. Thread work: " << thread_info;
   }
 
-  if (!is_discovery && is_writing_hap)
-  {
-    assert(spl_ph.size() > 0);
-    assert(spl_ph[0]);
+  //BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Estimating the likelihoods of few different segments.";
+  //
+  //std::ostringstream segment_calls_path;
+  //segment_calls_path << output_dir << "/" << pn << "_segments.vcf.gz";
+  //segment_calling(segment, *writer, segment_calls_path.str(), samples);
+  //
+  //BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Finished calling all samples.";
+  return paths;
+}
+*/
 
+
+std::vector<std::string>
+call(std::vector<std::string> const & hts_paths,
+     std::vector<double> const & avg_cov_by_readlen,
+     std::string const & graph_path,
+     PHIndex const & ph_index,
+     std::string const & output_dir,
+     std::string const & reference_fn,
+     std::string const & region,
+     Primers const * primers,
+     std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > & ph,
+     bool const is_writing_calls_vcf,
+     bool const is_writing_hap,
+     std::vector<std::unordered_map<uint32_t, uint32_t> > * allele_hap_gts_ptr)
+{
+  if (hts_paths.size() == 0)
+  {
+    BOOST_LOG_TRIVIAL(error) << __HERE__ << " No input BAM/CRAM files.";
+    std::exit(1);
+  }
+
+  if (graph_path.size() > 0)
+  {
+    load_graph(graph_path); // Loads the graph into the global variable 'graph'
+  }
+
+  using TMap = std::map<std::pair<uint16_t, uint16_t>,
+                        std::map<std::pair<uint16_t, uint16_t>, int8_t> >;
+
+  // Split hts_paths
+  std::vector<std::string> paths;
+  std::vector<std::unique_ptr<std::vector<std::string> > > spl_hts_paths;
+  std::vector<std::unique_ptr<std::vector<double> > > spl_avg_cov;
+  std::vector<TMap> spl_ph;
+  assert(Options::const_instance()->max_files_open > 0);
+
+  long jobs{1}; // Running jobs
+  long num_parts{1}; // Number of parts to split the work into
+  long const NUM_SAMPLES{static_cast<long>(hts_paths.size())};
+
+  _determine_num_jobs_and_num_parts(jobs, num_parts, NUM_SAMPLES);
+
+  assert(jobs >= 1);
+  spl_ph.resize(jobs);
+
+  {
+    auto it = hts_paths.begin();
+    auto cov_it = avg_cov_by_readlen.begin();
+
+    for (long i = 0; i < num_parts; ++i)
+    {
+      long const advance = NUM_SAMPLES / num_parts + (i < (NUM_SAMPLES % num_parts));
+
+      auto end_it = it + advance;
+      assert(std::distance(hts_paths.begin(), end_it) <= NUM_SAMPLES);
+      spl_hts_paths.emplace_back(new std::vector<std::string>(it, end_it));
+      it = end_it;
+
+      auto cov_end_it = cov_it + advance;
+      spl_avg_cov.emplace_back(new std::vector<double>(cov_it, cov_end_it));
+      cov_it = cov_end_it;
+
+      //spl_ph.emplace_back(new TMap());
+    }
+  }
+
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Number of pools = " << spl_hts_paths.size();
+  //long const NUM_POOLS = spl_hts_paths.size();
+  long const NUM_POOLS = num_parts;
+  paths.resize(NUM_POOLS);
+
+  // Run in parallel
+  {
+    paw::Station call_station(jobs); // last parameter is queue_size
+
+    // Push all but the last pool to the thread pool
+    //BOOST_LOG_TRIVIAL(info) << "No variant discovery";
+
+    for (long i{0}; i < (NUM_POOLS - 1l); ++i)
+    {
+      call_station.add_work_with_thread_id(parallel_reader_genotype_only,
+                                           &paths[i],
+                                           spl_hts_paths[i].get(),
+                                           spl_avg_cov[i].get(),
+                                           &output_dir,
+                                           &reference_fn,
+                                           &region,
+                                           &ph_index,
+                                           primers,
+                                           &spl_ph,
+                                           is_writing_calls_vcf,
+                                           is_writing_hap,
+                                           allele_hap_gts_ptr);
+    }
+
+    // Do the last pool on the current thread
+    call_station.add_to_thread(jobs - 1,
+                               parallel_reader_genotype_only,
+                               jobs - 1,
+                               &paths[NUM_POOLS - 1],
+                               spl_hts_paths[NUM_POOLS - 1].get(),
+                               spl_avg_cov[NUM_POOLS - 1].get(),
+                               &output_dir,
+                               &reference_fn,
+                               &region,
+                               &ph_index,
+                               primers,
+                               &spl_ph,
+                               is_writing_calls_vcf,
+                               is_writing_hap,
+                               allele_hap_gts_ptr);
+
+    std::string thread_info = call_station.join();
+    BOOST_LOG_TRIVIAL(info) << "Finished calling. Thread work: " << thread_info;
+  }
+
+  if (is_writing_hap)
+  {
     // gather ph
-    ph = std::move(*(spl_ph[0].get()));
+    ph = std::move(spl_ph[0]);
 
     for (long i{1}; i < static_cast<long>(spl_ph.size()); ++i)
     {
       // merge
-      std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > const & ph_parts
-        = (*spl_ph[i].get());
+      std::map<std::pair<uint16_t, uint16_t>,
+               std::map<std::pair<uint16_t, uint16_t>, int8_t> > & ph_parts = spl_ph[i];
 
-      for (auto const & ph_part : ph_parts)
+      for (auto && ph_part : ph_parts)
       {
-        //std::pair<uint16_t, uint16_t> const & ph1 = ph_part.first;
-        std::map<std::pair<uint16_t, uint16_t>, int8_t> const & ph2_map = ph_part.second;
-
-        auto insert1_it = ph.insert(ph_part);
+#ifndef NDEBUG
+        std::size_t const old_size = ph_part.second.size();
+#endif // NDEBUG
+        auto insert1_it = ph.insert(std::move(ph_part));
 
         if (insert1_it.second)
-          continue; // not found
+        {
+          continue;   // not found
+        }
+#ifndef NDEBUG
+        else
+        {
+          assert(ph_part.second.size() == old_size);
+        }
+#endif // NDEBUG
+
+        std::map<std::pair<uint16_t, uint16_t>, int8_t> & ph2_map = ph_part.second;
 
         // found - so it was not inserted
         for (auto const & ph2 : ph2_map)
@@ -519,395 +584,19 @@ call(std::vector<std::string> const & hts_paths,
           auto insert2_it = insert1_it.first->second.insert(ph2);
 
           if (insert2_it.second)
-            continue; // not found
+            continue;   // not found
 
           int8_t & flags = insert2_it.first->second;
           flags |= new_flags;
         }
+
+        ph2_map.clear();
       }
     }
   }
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Finished calling all samples.";
+  BOOST_LOG_TRIVIAL(info) << "Finished a calling pass for all samples.";
   return paths;
-}
-
-
-std::vector<VariantCandidate>
-find_variants_in_cigar(seqan::BamAlignmentRecord const & record,
-                       GenomicRegion const & region,
-                       std::string const & ref)
-{
-  std::vector<VariantCandidate> new_var_candidates;
-  assert(record.beginPos != -1);
-  long ref_abs_pos = absolute_pos.get_absolute_position(region.chr, record.beginPos + 1);
-  long const reference_offset = graph.ref_nodes.size() > 0 ?
-                                graph.ref_nodes[0].get_label().order +
-                                graph.genomic_region.get_absolute_position(1) -
-                                1 :
-                                0;
-
-  long read_pos{0};
-  std::string read(seqan::begin(record.seq), seqan::end(record.seq));
-  long begin_clipping_size{0};
-  bool is_clipped{false};
-  std::string reference_seq;
-  std::string read_seq;
-
-  for (long c = 0; c < static_cast<long>(seqan::length(record.cigar)); ++c)
-  {
-    auto const & cigar = record.cigar[c];
-
-    if (cigar.operation == 'M')
-    {
-      /// Add both read and reference
-      // Get reference sequence overlapping this cigar
-      reference_seq += ref.substr(ref_abs_pos - reference_offset, cigar.count);
-
-      // Get read sequence overlapping this cigar
-      read_seq += read.substr(read_pos, cigar.count);
-
-      // Matches/mismatches advance both the read and the reference position
-      read_pos    += cigar.count;
-      ref_abs_pos += cigar.count;
-    }
-    else if (cigar.operation == 'I')
-    {
-      // Ignore if we haven't moved in the read
-      if (read_pos > 0)
-      {
-        reference_seq.append(cigar.count, '-');
-        read_seq += read.substr(read_pos, cigar.count);
-      }
-
-      // Insertions advance only the read position
-      read_pos += cigar.count;
-    }
-    else if (cigar.operation == 'D')
-    {
-      // Ignore if we haven't moved in the read
-      if (read_pos > 0)
-      {
-        reference_seq += ref.substr(ref_abs_pos - reference_offset, cigar.count);
-        read_seq.append(cigar.count, '-');
-      }
-
-      // Deletions advance only the reference position
-      ref_abs_pos += cigar.count;
-    }
-    else if (cigar.operation == 'S')
-    {
-      // soft-clips advance only the read position
-      read_pos += cigar.count;
-      is_clipped = true;
-
-      if (c == 0)
-        begin_clipping_size = cigar.count;
-    }
-    // else hard-clips ('H') advance neither the read nor the reference position
-  }
-
-  if (reference_seq == read_seq)
-  {
-    return new_var_candidates;
-  }
-
-  long ref_to_seq_offset = 0;
-
-  // Reset to original ref_abs_pos
-  ref_abs_pos = absolute_pos.get_absolute_position(region.chr, record.beginPos + 1);
-
-  Variant new_var =
-    make_variant_of_gapped_strings(reference_seq, read_seq, ref_abs_pos, ref_to_seq_offset);
-
-  if (new_var.abs_pos == 0)
-    return new_var_candidates;
-
-  std::vector<Variant> new_vars =
-    extract_sequences_from_aligned_variant(std::move(new_var), SPLIT_VAR_THRESHOLD - 1);
-
-  new_var_candidates.resize(new_vars.size());
-
-  for (unsigned i = 0; i < new_vars.size(); ++i)
-  {
-    assert(i < new_var_candidates.size());
-    auto & new_var = new_vars[i];
-    auto & new_var_candidate = new_var_candidates[i];
-    assert(new_var.seqs.size() >= 2);
-    new_var.normalize();
-
-    //// Check if high or low quality
-    long r = new_var.abs_pos - ref_to_seq_offset;
-
-    // Fix r if the read was clipped
-    if (length(record.cigar) > 0 && record.cigar[0].operation == 'S')
-      r += record.cigar[0].count;
-
-    long r_end = r + new_var.seqs[1].size();
-    ref_to_seq_offset += static_cast<long>(new_var.seqs[0].size()) - static_cast<long>(new_var.seqs[1].size());
-
-    new_var_candidate.abs_pos = new_var.abs_pos;
-    new_var_candidate.original_pos = static_cast<uint32_t>(record.beginPos + 1 - begin_clipping_size);
-    new_var_candidate.seqs = std::move(new_var.seqs);
-    new_var_candidate.flags = record.flag;
-
-    //// In case no qual is available
-    if (static_cast<long>(seqan::length(record.qual)) > r)
-    {
-      int MAX_QUAL;
-
-      if (r_end < static_cast<long>(seqan::length(record.qual)))
-      {
-        MAX_QUAL = *std::max_element(seqan::begin(record.qual) + r,
-                                     seqan::begin(record.qual) + r_end) - 33;
-      }
-      else
-      {
-        MAX_QUAL = *std::max_element(seqan::begin(record.qual) + r,
-                                     seqan::end(record.qual)) - 33;
-      }
-
-      new_var_candidate.flags |= static_cast<uint16_t>(static_cast<bool>(MAX_QUAL < 25)) << IS_LOW_BASE_QUAL_SHIFT;
-    }
-
-    //new_var_candidate.flags |= is_in_proper_pair = seqan::hasFlagAllProper(record);
-    new_var_candidate.flags |= static_cast<uint16_t>(record.mapQ < 25) << IS_MAPQ_BAD_SHIFT;
-    new_var_candidate.flags |= static_cast<uint16_t>(is_clipped) << IS_CLIPPED_SHIFT;
-  }
-
-  return new_var_candidates;
-}
-
-
-void
-parallel_discover_from_cigar(std::string * output_ptr,
-                             std::vector<std::string> const * hts_paths_ptr,
-                             GenomicRegion const & region,
-                             std::string const & output_dir,
-                             std::string const & ref_str,
-                             long minimum_variant_support,
-                             double minimum_variant_support_ratio)
-{
-  assert(output_ptr);
-  assert(hts_paths_ptr);
-  auto const & hts_paths = *hts_paths_ptr;
-
-  if (ref_str.size() == 0)
-  {
-    BOOST_LOG_TRIVIAL(error) << "Trying to discover variants with no reference string";
-    std::exit(1);
-  }
-
-  // Determine the size of the region we are discovery variants on
-  std::size_t const REGION_SIZE = region.end - region.begin;
-
-  // Extract sample names from SAM
-  std::vector<std::string> samples;
-  std::vector<std::unordered_map<std::string, int> > vec_rg2sample_i; // Read group to sample index
-
-  // Gather all the sample names
-  _read_rg_and_samples(samples, vec_rg2sample_i, hts_paths);
-  assert(samples.size() > 0);
-
-  // Set up reference depth tracks
-  ReferenceDepth reference_depth;
-  reference_depth.set_depth_sizes(samples.size(), REGION_SIZE);
-
-  // Set up variant map
-  VariantMap varmap;
-  varmap.set_samples(samples);
-  varmap.minimum_variant_support = minimum_variant_support;
-  varmap.minimum_variant_support_ratio = minimum_variant_support_ratio;
-
-  for (long file_i = 0; file_i < static_cast<long>(hts_paths.size()); ++file_i)
-  {
-    assert(vec_rg2sample_i.size() == hts_paths.size());
-
-    auto const & sam = hts_paths[file_i];
-    auto & rg2sample_i = vec_rg2sample_i[file_i];
-
-    seqan::HtsFile hts(sam.c_str(), "r");
-    seqan::BamAlignmentRecord record;
-
-    while (seqan::readRecord(record, hts))
-    {
-      // Skip supplementary, secondary and QC fail, duplicated and unmapped reads
-      if (((record.flag & Options::const_instance()->sam_flag_filter) != 0) ||
-          seqan::hasFlagUnmapped(record))
-      {
-        continue;
-      }
-
-      // Skip reads that are clipped on both ends. It is also fine to skip reads with no cigar since they cannot be useful here
-      if (length(record.cigar) == 0 ||
-          (record.cigar[0].operation == 'S' &&
-           record.cigar[length(record.cigar) - 1].operation == 'S'))
-      {
-        continue;
-      }
-
-      if (Options::const_instance()->is_discovery_only_for_paired_reads &&
-          (((record.flag & IS_PAIRED) == 0) ||
-           ((record.flag & IS_PROPER_PAIR) == 0)))
-      {
-        continue;
-      }
-
-      assert(record.beginPos >= 0);
-
-      // 0-based positions
-      int64_t begin_pos = absolute_pos.get_absolute_position(region.chr, record.beginPos + 1);
-      int64_t end_pos = begin_pos + seqan::getAlignmentLengthInRef(record);
-
-      // Check if read is within region
-      if (begin_pos < region.get_absolute_begin_position() || end_pos > region.get_absolute_end_position())
-        continue;
-
-      assert(begin_pos >= 0);
-      assert(end_pos >= 0);
-
-      // Determine the sample index
-      assert(hts.hts_record);
-
-      long sample_i;
-
-      if (rg2sample_i.size() > 0)
-      {
-        uint8_t * rg_tag = bam_aux_get(hts.hts_record, "RG");
-
-        if (!rg_tag)
-        {
-          BOOST_LOG_TRIVIAL(error) << __HERE__ << " Unable to find RG tag in read.";
-          std::exit(1);
-        }
-
-        std::string read_group(reinterpret_cast<char *>(rg_tag + 1)); // Skip 'Z'
-
-        auto find_rg_it = rg2sample_i.find(read_group);
-
-        if (find_rg_it == rg2sample_i.end())
-        {
-          BOOST_LOG_TRIVIAL(error) << __HERE__ << " Unable to find read group. " << read_group;
-          std::exit(1);
-        }
-
-        sample_i = find_rg_it->second;
-      }
-      else
-      {
-        sample_i = file_i;
-      }
-
-      // Update reference depth (very arbitrarily)
-      if (end_pos - begin_pos < 50)
-        reference_depth.add_depth(begin_pos, end_pos, sample_i);
-      else
-        reference_depth.add_depth(begin_pos + 4, end_pos - 4, sample_i);
-
-      // Add variant candidates
-      std::vector<VariantCandidate> var_candidates = find_variants_in_cigar(record, region, ref_str);
-
-      if (var_candidates.size() > 0)
-      {
-        varmap.add_variants(std::move(var_candidates), sample_i);
-      }
-    }
-  }
-
-  // Write variant map
-  std::ostringstream variant_map_path;
-  variant_map_path << output_dir << "/" << samples[0] << "_variant_map";
-
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Writing variant map to '" << variant_map_path.str();
-  varmap.create_varmap_for_all(reference_depth);
-
-#ifndef NDEBUG
-  if (Options::const_instance()->stats.size() > 0)
-    varmap.write_stats("1");
-#endif // NDEBUG
-
-  save_variant_map(variant_map_path.str(), varmap);
-  *output_ptr = variant_map_path.str();
-}
-
-
-std::vector<std::string>
-discover_directly_from_bam(std::string const & graph_path,
-                           std::vector<std::string> const & hts_paths,
-                           std::string const & region_str,
-                           std::string const & output_dir,
-                           long minimum_variant_support,
-                           double minimum_variant_support_ratio)
-{
-  std::vector<std::string> output_file_paths;
-
-  if (graph_path.size() > 0)
-    load_graph(graph_path);
-
-  //graph.generate_reference_genome();
-  std::string ref_str(graph.reference.begin(), graph.reference.end());
-
-  // parse region
-  GenomicRegion const region(region_str);
-
-  std::vector<std::unique_ptr<std::vector<std::string> > > spl_hts_paths;
-  long jobs = 1;
-
-  {
-    long num_parts = 1;
-    long const NUM_FILES = hts_paths.size();
-    _determine_num_jobs_and_num_parts(jobs, num_parts, NUM_FILES);
-
-    {
-      auto it = hts_paths.cbegin();
-
-      for (long i = 0; i < num_parts; ++i)
-      {
-        auto end_it = it + NUM_FILES / num_parts + (i < (NUM_FILES % num_parts));
-        assert(std::distance(hts_paths.cbegin(), end_it) <= NUM_FILES);
-        spl_hts_paths.emplace_back(new std::vector<std::string>(it, end_it));
-        it = end_it;
-      }
-    }
-  }
-
-  long const NUM_POOLS = spl_hts_paths.size();
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Number of pools = " << NUM_POOLS;
-  output_file_paths.resize(NUM_POOLS);
-
-  // Run in parallel
-  {
-    paw::Station call_station(jobs); // last parameter is queue_size
-    //call_station.options.verbosity = 2; // Print messages
-
-    for (long i = 0; i < NUM_POOLS - 1; ++i)
-    {
-      call_station.add_work(parallel_discover_from_cigar,
-                            &(output_file_paths[i]),
-                            spl_hts_paths[i].get(),
-                            region,
-                            output_dir,
-                            ref_str,
-                            minimum_variant_support,
-                            minimum_variant_support_ratio);
-    }
-
-    // Do the last pool on the current thread
-    call_station.add_to_thread(jobs - 1,
-                               parallel_discover_from_cigar,
-                               &(output_file_paths[NUM_POOLS - 1]),
-                               spl_hts_paths[NUM_POOLS - 1].get(),
-                               region,
-                               output_dir,
-                               ref_str,
-                               minimum_variant_support,
-                               minimum_variant_support_ratio);
-
-    std::string thread_work_info = call_station.join();
-    BOOST_LOG_TRIVIAL(info) << "Finished initial variant discovery step. Thread work info: " << thread_work_info;
-  }
-
-  return output_file_paths;
 }
 
 
@@ -1467,7 +1156,8 @@ run_first_pass(bam1_t * hts_rec,
                //indel_info.sequence_reversed > 0 &&
                //indel_info.sequence_reversed < indel_info.hq_count &&
                indel_info.proper_pairs >= 1 &&
-               indel_info.max_mapq >= 25 &&
+               (indel_info.hq_count >= 5 || indel_info.max_mapq >= 25) &&
+               indel_info.max_mapq >= 10 &&
                indel_info.clipped < indel_info.hq_count)
       {
         // Realignment support, meaning low support but needs realignment to confirm/deny
@@ -1555,7 +1245,7 @@ run_first_pass(bam1_t * hts_rec,
           std::map<Event, uint16_t>::const_iterator find_it,
           std::map<Event, uint16_t> const & map) -> uint16_t
         {
-          bool is_indel = event_it->first.type != 'X' || event_it2->first.type != 'X';
+          bool const is_indel = event_it->first.type != 'X' || event_it2->first.type != 'X';
 
           if (is_indel)
           {
@@ -1611,7 +1301,6 @@ run_first_pass(bam1_t * hts_rec,
         }
 
         auto find_it = info.phase.find(other_event);
-        //assert(other_event.pos > event.pos);
         uint16_t const flags = is_good_support(cov, begin + 1, event_it, event_it2, find_it, info.phase);
         haplotypes[other_event] |= flags;
       }
@@ -1625,11 +1314,7 @@ run_first_pass(bam1_t * hts_rec,
         {
           Event const & other_event = event_it2->first;
           assert(other_event.pos > event.pos);
-
           assert(other_event.pos < (event.pos + 2 * BUCKET_SIZE));
-          //if (other_event.pos >= (event.pos + 2 * BUCKET_SIZE))
-          //  break;
-
           auto find_it = info.phase.find(other_event);
           uint16_t const flags = is_good_support(cov, begin + 1, event_it, event_it2, find_it, info.phase);
           haplotypes[other_event] |= flags;
@@ -2185,6 +1870,7 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
   opts.set_gap_open(SCORE_GAP_OPEN).set_gap_extend(SCORE_GAP_EXTEND);
   opts.left_column_free = true;
   opts.right_column_free = true;
+  opts.is_clip = true;
 #ifndef NDEBUG
   long _alignment_counter{0};
 #endif // NDEBUG
@@ -2324,23 +2010,25 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
         long const old_score = read.alignment.score;
 
         // TODO write greedy alignment
-        paw::global_alignment(read.sequence, new_ref, opts);
+        paw::pairwise_alignment(read.sequence, new_ref, opts);
 #ifndef NDEBUG
         ++_alignment_counter;
 #endif // NDEBUG
         assert(opts.get_alignment_results());
-        auto const clip = opts.get_alignment_results()->apply_clipping(read.sequence,
-                                                                       new_ref,
-                                                                       opts.get_match(),
-                                                                       opts.get_mismatch(),
-                                                                       opts.get_gap_open(),
-                                                                       opts.get_gap_extend(),
-                                                                       opts.get_clip());
+        //paw::AlignmentResults<Tuint> & ac = opts.get_alignment_cache();
+        //auto const clip = opts.get_alignment_results()->apply_clipping(ac,
+        //                                                               read.sequence,
+        //                                                               new_ref,
+        //                                                               opts.get_match(),
+        //                                                               opts.get_mismatch(),
+        //                                                               opts.get_gap_open(),
+        //                                                               opts.get_gap_extend(),
+        //                                                               opts.get_clip());
 
         paw::AlignmentResults<Tuint> const & ar = *opts.get_alignment_results();
-        auto p = ar.get_database_begin_end(read.sequence, new_ref);
+        //auto p = ar.get_database_begin_end(read.sequence, new_ref);
 
-        if (p.first == 0 || p.second == ar.database_end)
+        if (ar.database_begin == 0 || ar.database_end == static_cast<long>(new_ref.size()))
         {
           //auto aligned_strings = ar.get_aligned_strings(read.sequence, new_ref);
           //
@@ -2364,7 +2052,7 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
           //if (clip.first > 0 || clip.second < static_cast<long>(read.sequence.size()))
           {
             BOOST_LOG_TRIVIAL(debug) << __HERE__ << " name=" << read.name << " pos=" << read.alignment.pos
-                                     << " begin,end_clip="  << clip.first << "," << clip.second
+                                     << " begin,end_clip="  << ar.clip_begin << "," << ar.clip_end
                                      << " old_score=" << old_score << " new_score=" << ar.score;
           }
         }
@@ -2375,22 +2063,22 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
           // If the score is worse and the sequence is not clipped it is anti-support
           if (ar.score < old_score)
           {
-#ifndef NDEBUG
-            if (read.name == debug_read_name)
-            {
-              auto aligned_strings = ar.get_aligned_strings(read.sequence, new_ref);
-
-              BOOST_LOG_TRIVIAL(debug) << __HERE__ << " ANTI old_score, new_score, read = " << old_score << ", "
-                                       << ar.score << ", "
-                                       << read.name << '\n' << aligned_strings.first << '\n'
-                                       << aligned_strings.second;
-            }
-#endif // NDEBUG
+//#ifndef NDEBUG
+//            if (read.name == debug_read_name)
+//            {
+//              auto aligned_strings = ar.get_aligned_strings(read.sequence, new_ref);
+//
+//              BOOST_LOG_TRIVIAL(debug) << __HERE__ << " ANTI old_score, new_score, read = " << old_score << ", "
+//                                       << ar.score << ", "
+//                                       << read.name << '\n' << aligned_strings.first << '\n'
+//                                       << aligned_strings.second;
+//            }
+//#endif // NDEBUG
 
             read.alignment.add_indel_event(READ_ANTI_SUPPORT, read.flags, read.mapq, indel_it);
           }
-          else if (indel_it->first.pos >= (ref_pos[p.first] + begin_padded) &&
-                   indel_it->first.pos <= (ref_pos[p.second] + begin_padded))
+          else if (indel_it->first.pos >= (ref_pos[ar.database_begin] + begin_padded) &&
+                   indel_it->first.pos <= (ref_pos[ar.database_end] + begin_padded))
           {
             assert(ar.score == old_score);
 #ifndef NDEBUG
@@ -2419,7 +2107,7 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
         // Update alignment
 #ifndef NDEBUG
         {
-          long const _next_alignment_pos = ref_pos[p.first] + region_begin + begin_padded;
+          long const _next_alignment_pos = ref_pos[ar.database_begin] + region_begin + begin_padded;
 
           if (read.alignment.pos > (_next_alignment_pos + 300) ||
               _next_alignment_pos > (read.alignment.pos + 300))
@@ -2428,24 +2116,24 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
                                        << read.alignment.pos << " to="
                                        << _next_alignment_pos
                                        << " ("
-                                       << ref_pos[p.first] << " + " << region_begin << " + " << begin_padded
+                                       << ref_pos[ar.database_begin] << " + " << region_begin << " + " << begin_padded
                                        << ")";
           }
         }
 #endif // NDEBUG
 
-        read.alignment.pos = ref_pos[p.first] + region_begin + begin_padded;
-        read.alignment.pos_end = ref_pos[p.second] + region_begin + begin_padded;
+        read.alignment.pos = ref_pos[ar.database_begin] + region_begin + begin_padded;
+        read.alignment.pos_end = ref_pos[ar.database_end] + region_begin + begin_padded;
         read.alignment.score = ar.score;
-        read.alignment.num_clipped_begin = clip.first;
-        read.alignment.num_clipped_end = static_cast<long>(read.sequence.size()) - clip.second;
+        read.alignment.num_clipped_begin = ar.clip_begin;
+        read.alignment.num_clipped_end = static_cast<long>(read.sequence.size()) - ar.clip_end;
 
         // count number of inserted bases at the beginning of the read
         {
           long num_ins{0};
 
-          while (p.first + num_ins + 1 < static_cast<long>(ref_pos.size()) &&
-                 ref_pos[p.first + num_ins] == ref_pos[p.first + num_ins + 1])
+          while (ar.database_begin + num_ins + 1 < static_cast<long>(ref_pos.size()) &&
+                 ref_pos[ar.database_begin + num_ins] == ref_pos[ar.database_begin + num_ins + 1])
           {
             ++num_ins;
           }
@@ -2453,14 +2141,14 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
           read.alignment.num_ins_begin = num_ins;
         }
 
-#ifndef NDEBUG
-        if (read.name == debug_read_name)
-        {
-          auto aligned_strings = ar.get_aligned_strings(read.sequence, new_ref);
-          BOOST_LOG_TRIVIAL(info) << __HERE__ << " score=" << ar.score << "\n"
-                                  << aligned_strings.first << "\n" << aligned_strings.second;
-        }
-#endif // NDEBUG
+//#ifndef NDEBUG
+//        if (read.name == debug_read_name)
+//        {
+//          auto aligned_strings = ar.get_aligned_strings(read.sequence, new_ref);
+//          BOOST_LOG_TRIVIAL(info) << __HERE__ << " score=" << ar.score << "\n"
+//                                  << aligned_strings.first << "\n" << aligned_strings.second;
+//        }
+//#endif // NDEBUG
 
         if (reset_new_ref)
         {
@@ -2492,8 +2180,8 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
     double const count = correction * (indel_info.hq_count + indel_info.lq_count);
 
     bool const is_good_count = (indel_info.hq_count >= 5 && count >= 8.0) ||
-                               (indel_info.span >= 9 && indel_info.hq_count >= 4 && count >= 6.0) ||
-                               (indel_info.span >= 18 && indel_info.hq_count >= 3 && count >= 4.0);
+                               (indel_info.span >= 9 && indel_info.hq_count >= 5 && count >= 7.0) ||
+                               (indel_info.span >= 18 && indel_info.hq_count >= 4 && count >= 6.0);
 
 #ifndef NDEBUG
     if (debug_event_type == indel.type &&
@@ -3060,8 +2748,6 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
                       std::string const & region_str,
                       gyper::Vcf & vcf)
 {
-  BOOST_LOG_TRIVIAL(info) << "Start lr WIP on region " << region_str;
-
   long const NUM_FILES = hts_paths.size();
   GenomicRegion genomic_region(region_str);
   uint64_t const chromosome_offset = genomic_region.get_absolute_position(1);
@@ -3097,7 +2783,7 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
   }
 
 #ifndef NDEBUG
-  BOOST_LOG_TRIVIAL(info) << __HERE__ << " First pass starting.";
+  BOOST_LOG_TRIVIAL(info) << __HERE__ << " First discovery pass starting.";
 #endif // NDEBUG
 
   long const NUM_POOLS{static_cast<long>(spl_hts_paths.size())};
@@ -3223,12 +2909,6 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
     {
       it->second.clear();
 
-      //it->second.hq_count = 0;
-      //it->second.lq_count = 0;
-      //it->second.sequence_reversed = 0;
-      //it->second.proper_pairs = 0;
-      //it->second.max_mapq = 0;
-
       assert(it->second.anti_count == 0);
       assert(it->second.multi_count == 0);
       assert(it->second.has_realignment_support);
@@ -3337,14 +3017,6 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
         assert(false);
       }
 
-      //BOOST_LOG_TRIVIAL(info) << __HERE__ << " SNP=" << snp_it->first.to_string();
-      //for (auto ph_it = snp_it->second.begin(); ph_it != snp_it->second.end(); ++ph_it)
-      //{
-      //  BOOST_LOG_TRIVIAL(info) << __HERE__ << " phased with=" << ph_it->first.to_string()
-      //                          << " any_support=" << ((ph_it->second & IS_ANY_HAP_SUPPORT) != 0)
-      //                          << " any_anti_support=" << ((ph_it->second & IS_ANY_ANTI_HAP_SUPPORT) != 0);
-      //}
-
       {
         std::ostringstream ss_hap;
         std::ostringstream ss_anti;
@@ -3410,12 +3082,7 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
 
       vcf.variants.push_back(std::move(variant));
     }
-
   }
-
-#ifndef NDEBUG
-  BOOST_LOG_TRIVIAL(info) << __HERE__ << " WIP done";
-#endif // NDEBUG
 }
 
 
@@ -3425,7 +3092,7 @@ streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
                           std::string const & region_str,
                           gyper::Vcf & vcf)
 {
-  BOOST_LOG_TRIVIAL(info) << "Start WIP on region " << region_str;
+  BOOST_LOG_TRIVIAL(info) << "Start lr WIP on region " << region_str;
 
   long const NUM_FILES = hts_paths.size();
   GenomicRegion genomic_region(region_str);
@@ -3615,83 +3282,6 @@ streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
       }
     }
   }
-
-  /*
-  std::vector<std::vector<Tindel_events::iterator> > indel_to_realign;
-  indel_to_realign.resize(NUM_FILES);
-
-  // Add indels to events
-  for (auto it = indel_events.begin(); it != indel_events.end(); ++it)
-  {
-    it->second.clear();
-
-    //it->second.hq_count = 0;
-    //it->second.lq_count = 0;
-    //it->second.sequence_reversed = 0;
-    //it->second.proper_pairs = 0;
-    //it->second.max_mapq = 0;
-
-    assert(it->second.anti_count == 0);
-    assert(it->second.multi_count == 0);
-    assert(it->second.has_realignment_support);
-
-    if (!it->second.has_indel_good_support)
-    {
-#ifndef NDEBUG
-      if (debug_event_type == it->first.type &&
-          debug_event_pos == it->first.pos &&
-          debug_event_size == it->first.sequence.size())
-      {
-        BOOST_LOG_TRIVIAL(info) << __HERE__ << " realignment indel=" << it->first.to_string()
-                                << " qual,file_i="
-                                << it->second.max_log_qual << " " << it->second.max_log_qual_file_i;
-      }
-#endif // NDEBUG
-
-      assert(it->second.max_log_qual_file_i < static_cast<long>(indel_to_realign.size()));
-      indel_to_realign[it->second.max_log_qual_file_i].push_back(it);
-    }
-  }
-
-  {
-    paw::Station second_station(jobs);
-
-    for (long file_i{0}; file_i < (NUM_FILES - 1); ++file_i)
-    {
-      if (indel_to_realign[file_i].size() > 0)
-      {
-        second_station.add_work(parallel_second_pass,
-                                &(hts_paths[file_i]),
-                                &reference_sequence,
-                                &indel_events,
-                                &(indel_to_realign[file_i]),
-                                BUCKET_SIZE,
-                                NUM_BUCKETS,
-                                region_begin);
-      }
-    }
-
-    // Last file is run on current thread
-    long const file_i{(NUM_FILES - 1)};
-
-    if (indel_to_realign[file_i].size() > 0)
-    {
-      second_station.add_to_thread(jobs - 1,
-                                   parallel_second_pass,
-                                   &(hts_paths[file_i]),
-                                   &reference_sequence,
-                                   &indel_events,
-                                   &(indel_to_realign[file_i]),
-                                   BUCKET_SIZE,
-                                   NUM_BUCKETS,
-                                   region_begin);
-    }
-
-    second_station.join();
-  }
-
-  long event_index{1}; // tracks the index of the event in the haplotypes map
-  */
 
   BOOST_LOG_TRIVIAL(info) << __HERE__ << " Number of events: " << snp_events.size();
 

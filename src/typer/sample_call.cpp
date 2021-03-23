@@ -4,7 +4,7 @@
 
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
-
+#include <boost/log/trivial.hpp>
 #include <boost/serialization/vector.hpp>
 
 #include <graphtyper/graph/absolute_position.hpp>
@@ -50,8 +50,7 @@ SampleCall::SampleCall(std::vector<uint8_t> && _phred,
                        std::vector<uint16_t> && _coverage,
                        uint8_t const _ambiguous_depth,
                        uint8_t const _ambiguous_depth_alt,
-                       uint8_t const _alt_proper_pair_depth
-                       ) noexcept
+                       uint8_t const _alt_proper_pair_depth) noexcept
   : phred(std::forward<std::vector<uint8_t> >(_phred))
   , coverage(std::forward<std::vector<uint16_t> >(_coverage))
   , ambiguous_depth(_ambiguous_depth)
@@ -108,12 +107,17 @@ SampleCall::get_alt_depth() const
 std::pair<uint16_t, uint16_t>
 SampleCall::get_gt_call() const
 {
+  if (phred.size() == 0)
+    return std::make_pair<uint16_t, uint16_t>(0, 0);
+
   std::size_t i = 0;
 
   for (std::size_t y = 0; y < coverage.size(); ++y)
   {
     for (std::size_t x = 0; x <= y; ++x, ++i)
     {
+      assert(i < phred.size());
+
       if (phred[i] == 0)
       {
         return std::make_pair<uint16_t, uint16_t>(static_cast<uint16_t>(x),
@@ -123,6 +127,12 @@ SampleCall::get_gt_call() const
     }
   }
 
+  BOOST_LOG_TRIVIAL(warning) << __HERE__ << " No phred==0";
+
+  for (auto p : phred)
+    std::cerr << static_cast<long>(p) << ",";
+
+  std::cerr << std::endl;
   assert(false);
   return std::make_pair<uint16_t, uint16_t>(0xFFFFu, 0xFFFFu);
 }

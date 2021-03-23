@@ -9,6 +9,7 @@
 namespace gyper
 {
 
+/*
 void
 genotype_sv(std::string const & interval_fn,
             std::string const & ref_path,
@@ -16,6 +17,7 @@ genotype_sv(std::string const & interval_fn,
             std::vector<double> const & avg_cov_by_readlen,
             gyper::GenomicRegion const & genomic_region,
             std::string const & output_path);
+*/
 
 void
 genotype_sv_regions(std::string ref_path,

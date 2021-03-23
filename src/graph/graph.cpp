@@ -667,6 +667,7 @@ Graph::add_reference(unsigned end_pos, unsigned const & num_var, std::vector<cha
 }
 
 
+/*
 void
 Graph::break_apart_haplotypes(std::vector<Genotype> gts,
                               std::vector<Haplotype> & haplotypes,
@@ -722,10 +723,10 @@ Graph::break_apart_haplotypes(std::vector<Genotype> gts,
     }
   }
 }
-
+*/
 
 std::vector<Haplotype>
-Graph::get_all_haplotypes(uint32_t variant_distance) const
+Graph::get_all_haplotypes(uint32_t /*variant_distance*/) const
 {
   if (var_nodes.size() == 0)
     return std::vector<Haplotype>(0);
@@ -733,7 +734,7 @@ Graph::get_all_haplotypes(uint32_t variant_distance) const
   std::vector<Haplotype> haplotypes;
   uint32_t v = 0;
 
-  if (Options::instance()->is_one_genotype_per_haplotype)
+  //if (Options::instance()->is_one_genotype_per_haplotype)
   {
     for (uint32_t r = 0; r < ref_nodes.size() - 1; ++r)
     {
@@ -747,7 +748,7 @@ Graph::get_all_haplotypes(uint32_t variant_distance) const
 
       v += ref_node.out_degree();
     }
-  }
+  }/*
   else
   {
     Haplotype hap;
@@ -787,7 +788,7 @@ Graph::get_all_haplotypes(uint32_t variant_distance) const
       else
         haplotypes.push_back(std::move(hap));
     }
-  }
+    }*/
 
 // #ifndef NDEBUG
 //   for (auto & hap : haplotypes)
@@ -798,6 +799,7 @@ Graph::get_all_haplotypes(uint32_t variant_distance) const
 }
 
 
+/*
 std::vector<char>
 Graph::get_sequence_of_a_haplotype_call(std::vector<Genotype> const & gts,
                                         uint32_t const haplotype_call) const
@@ -861,6 +863,7 @@ Graph::get_sequence_of_a_haplotype_call(std::vector<Genotype> const & gts,
 
   return sequence;
 }
+*/
 
 
 std::vector<std::vector<char> >
@@ -989,12 +992,8 @@ Graph::get_locations_of_an_actual_position(uint32_t pos, Path const & path, bool
   assert(ref_nodes.size() != 0);
   std::vector<Location> locs(0);
 
-  if ((pos < ref_nodes[0].get_label().order) ||
-      (pos > (ref_nodes.back().get_label().reach())))
-  {
-    //assert(false);
+  if (pos < ref_nodes[0].get_label().order)
     return locs;
-  }
 
   if (ref_nodes.size() == 1)
   {
@@ -1029,7 +1028,7 @@ Graph::get_locations_of_an_actual_position(uint32_t pos, Path const & path, bool
       --rr; // Variants behind the reference can only have this location
     }
 
-    long const PADDING = is_sv_graph ? 1000000 : 1000;
+    long const PADDING = (is_sv_graph || Options::const_instance()->is_segment_calling) ? 1000000 : 1000;
 
     // Check variants behind this reference
     while (rr >= 0 && ref_nodes[rr].get_label().reach() + PADDING > pos)
@@ -1245,8 +1244,8 @@ Graph::get_locations_of_a_position(uint32_t pos, Path const & path) const
                                << ref_nodes[0].get_label().order
                                << ", end "
                                << ref_nodes.back().get_label().reach() << ") "
-                               << ref_nodes.size();
-    assert(false);
+                               << ref_nodes.size() << ", is_special=" << IS_SPECIAL;
+    //assert(false);
   }
 #endif
 

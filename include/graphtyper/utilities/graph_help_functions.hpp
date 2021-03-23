@@ -20,7 +20,7 @@ to_pair(long const index)
   --y;
   return std::make_pair<uint16_t, uint16_t>(static_cast<uint16_t>(index - (y * y + y) / 2u),
                                             static_cast<uint16_t>(y)
-    );
+                                            );
 }
 
 
@@ -29,6 +29,16 @@ to_index(long const x, long const y)
 {
   assert(x <= y);
   return x + (y + 1) * y / 2;
+}
+
+
+long inline
+to_index_safe(long const x, long const y)
+{
+  if (x <= y)
+    return x + (y + 1) * y / 2;
+  else
+    return y + (x + 1) * x / 2;
 }
 
 

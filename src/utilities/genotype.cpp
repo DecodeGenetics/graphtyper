@@ -258,7 +258,7 @@ run_samtools_merge(std::vector<std::string> & shrinked_sams, std::string const &
       Options::const_instance()->max_files_open;
 
     BOOST_LOG_TRIVIAL(info) << "Number of bamShrinked files are " << shrinked_sams.size()
-                            << " running accross " << Options::const_instance()->threads << " threads.";
+                            << " running across " << Options::const_instance()->threads << " threads.";
   }
 }
 
@@ -282,7 +282,6 @@ genotype_only_with_a_vcf(std::string const & ref_path,
   bool const is_sv_graph{false};
   bool const use_index{true};
   bool const is_writing_calls_vcf{true};
-  bool const is_discovery{false};
   bool const is_writing_hap{false};
 
   gyper::construct_graph(ref_path,
@@ -313,10 +312,7 @@ genotype_only_with_a_vcf(std::string const & ref_path,
                         ".", // region
                         primers,
                         ph,
-                        5, // minimum_variant_support,
-                        0.25, // minimum_variant_support_ratio,
                         is_writing_calls_vcf,
-                        is_discovery,
                         is_writing_hap);
   }
 
@@ -360,10 +356,7 @@ genotype(std::string ref_path,
   // TODO: Extract the reference sequence and use that to discover directly from BAM
   bool is_writing_calls_vcf{true};
   bool is_writing_hap{true};
-  bool is_discovery{true};
 
-  long minimum_variant_support = 5;
-  double minimum_variant_support_ratio = 0.25;
   gyper::Options const & copts = *(Options::const_instance());
 
   long const NUM_SAMPLES = sams.size();
@@ -445,6 +438,8 @@ genotype(std::string ref_path,
   // Read primers from amplicon sequencing if they were specified
   std::unique_ptr<Primers> primers;
 
+  paw::Station gc_station(Options::const_instance()->threads);
+
   if (copts.primer_bedpe.size() > 0)
   {
     BOOST_LOG_TRIVIAL(info) << "Reading primers from " << copts.primer_bedpe;
@@ -458,8 +453,6 @@ genotype(std::string ref_path,
   }
   else
   {
-    minimum_variant_support = copts.genotype_aln_min_support;
-    minimum_variant_support_ratio = copts.genotype_aln_min_support_ratio;
     is_writing_calls_vcf = false; // Skip writing calls vcf in release mode in all iterations except the last one
     std::vector<double> avg_cov_by_readlen(shrinked_sams.size(), -1.0);
 
@@ -470,7 +463,6 @@ genotype(std::string ref_path,
       std::string const out_dir = tmp + "/it1";
       mkdir(out_dir.c_str(), 0755);
 
-#ifdef GT_DEV
       gyper::construct_graph(ref_path, "", padded_region.to_string(), false, false);
 
       Vcf variant_sites;
@@ -478,9 +470,6 @@ genotype(std::string ref_path,
                                    ref_path,
                                    padded_region.to_string(),
                                    variant_sites);
-
-      //is_writing_calls_vcf = true;
-#endif // GT_DEV
 
       gyper::construct_graph(ref_path, "", padded_region.to_string(), false, false);
 
@@ -492,24 +481,8 @@ genotype(std::string ref_path,
       //absolute_pos.calculate_offsets(gyper::graph.contigs);
       Vcf final_vcf(WRITE_BGZF_MODE, output_vcf);
 
-#ifndef GT_DEV
-      {
-        auto output_paths = gyper::discover_directly_from_bam("",
-                                                              shrinked_sams,
-                                                              padded_region.to_string(),
-                                                              out_dir,
-                                                              minimum_variant_support,
-                                                              minimum_variant_support_ratio);
-        gyper::VariantMap varmap;
-        varmap.load_many_variant_maps(output_paths);
-        varmap.filter_varmap_for_all();
-
-        varmap.get_vcf(final_vcf, output_vcf);
-      }
-#else
       // Add discovered sites
       std::move(variant_sites.variants.begin(), variant_sites.variants.end(), std::back_inserter(final_vcf.variants));
-#endif // GT_DEV
 
       if (copts.prior_vcf.size() > 0)
       {
@@ -539,94 +512,14 @@ genotype(std::string ref_path,
     }
 #endif // NDEBUG
 
-    long FIRST_CALLONLY_ITERATION{3};
-    long LAST_ITERATION{4};
+    long FIRST_CALLONLY_ITERATION{2};
+    long LAST_ITERATION{3};
 
-#ifdef GT_DEV
     Options::instance()->is_one_genotype_per_haplotype = true;
-    Options::instance()->is_only_cigar_discovery = true;
-    //FIRST_CALLONLY_ITERATION = 3;
-    //LAST_ITERATION = 4;
-#endif // GT_DEV
 
     if (copts.is_extra_call_only_iteration)
       ++LAST_ITERATION;
 
-    // Iteration 2
-    if (copts.is_only_cigar_discovery)
-    {
-      // Skip the graphtyper discovery iteration
-      --FIRST_CALLONLY_ITERATION;
-      --LAST_ITERATION;
-    }
-    else
-    {
-      BOOST_LOG_TRIVIAL(info) << "Further variant discovery step starting.";
-
-      std::string const out_dir = tmp + "/it2";
-      std::string const haps_output_vcf = out_dir + "/haps.vcf.gz";
-      std::string const discovery_output_vcf = out_dir + "/discovery.vcf.gz";
-      mkdir(out_dir.c_str(), 0755);
-      construct_graph(ref_path, tmp + "/it1/final.vcf.gz", padded_region.to_string(), false, false);
-
-#ifndef NDEBUG
-      // Save graph in debug mode
-      save_graph(out_dir + "/graph");
-#endif // NDEBUG
-
-      std::vector<std::string> paths;
-
-      {
-        PHIndex ph_index = index_graph(gyper::graph);
-        std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > ph;
-
-        minimum_variant_support = copts.genotype_dis_min_support;
-        minimum_variant_support_ratio = copts.genotype_dis_min_support_ratio;
-
-        paths = gyper::call(shrinked_sams,
-                            avg_cov_by_readlen,
-                            "", // graph_path
-                            ph_index,
-                            out_dir,
-                            "", // reference
-                            ".", // region
-                            nullptr,//primers.get(),
-                            ph,
-                            minimum_variant_support,
-                            minimum_variant_support_ratio,
-                            is_writing_calls_vcf,
-                            is_discovery,
-                            is_writing_hap);
-      }
-
-      Vcf haps_vcf;
-      extract_to_vcf(haps_vcf,
-                     paths,
-                     haps_output_vcf,
-                     true); // is_splitting_vars
-
-      // Append _variant_map
-      for (auto & path : paths)
-        path += "_variant_map";
-
-      VariantMap varmap;
-      varmap.load_many_variant_maps(paths);
-      varmap.filter_varmap_for_all();
-
-      Vcf discovery_vcf;
-      varmap.get_vcf(discovery_vcf, out_dir + "/final.vcf.gz");
-      std::move(haps_vcf.variants.begin(), haps_vcf.variants.end(), std::back_inserter(discovery_vcf.variants));
-      discovery_vcf.write(".", copts.threads);
-
-#ifndef NDEBUG
-      discovery_vcf.write_tbi_index(); // Write index in debug mode
-#endif // NDEBUG
-
-      // free memory
-      graph = Graph();
-    }
-
-    is_discovery = false; // No more discovery
     std::vector<std::string> paths;
 
     // Iteration FIRST_CALLONLY_ITERATION-LAST_ITERATION
@@ -638,10 +531,7 @@ genotype(std::string ref_path,
       if (i == LAST_ITERATION)
       {
         is_writing_calls_vcf = true; // Always write calls vcf in the last iteration
-
-#ifndef GT_DEV
         is_writing_hap = false; // No need for writing .hap
-#endif // GT_DEV
       }
 
       std::string prev_out_vcf;
@@ -660,19 +550,31 @@ genotype(std::string ref_path,
       mkdir(out_dir.c_str(), 0755);
       std::string const haps_output_vcf = out_dir + "/final.vcf.gz";
 
-#ifdef GT_DEV
       Options::instance()->add_all_variants = true;
-#endif // GT_DEV
       construct_graph(ref_path, prev_out_vcf, padded_region.to_string(), false, false);
-#ifdef GT_DEV
-      //gyper::graph.print();
       Options::instance()->add_all_variants = false;
-#endif // GT_DEV
 
 #ifndef NDEBUG
       // Save graph in debug mode
       save_graph(out_dir + "/graph");
 #endif // NDEBUG
+
+      {
+        std::ostringstream ss1;
+        ss1 << "mv " << tmp << "/it" << (i - 1) << "/final.vcf.gz " << tmp << "/it" << (i - 1) << "_final.vcf.gz";
+        int ret = system(ss1.str().c_str());
+
+        if (ret != 0)
+          BOOST_LOG_TRIVIAL(warning) << __HERE__ << "Could not do " << ss1.str();
+      }
+
+      // clean previous iteration files
+      if (!copts.no_cleanup)
+      {
+        std::ostringstream ss3;
+        ss3 << tmp << "/it" << (i - 1);
+        gc_station.add_work(remove_file_tree, ss3.str());
+      }
 
       {
         PHIndex ph_index = index_graph(gyper::graph);
@@ -686,42 +588,19 @@ genotype(std::string ref_path,
                             ".", // region
                             primers.get(),
                             ph,
-                            minimum_variant_support,
-                            minimum_variant_support_ratio,
                             is_writing_calls_vcf,
-                            is_discovery,
                             is_writing_hap);
       }
 
-      if (i < LAST_ITERATION)
+      if (i == LAST_ITERATION && !copts.no_cleanup)
       {
-#ifdef GT_DEV
-        //vcf_merge_and_break(paths,
-        //                    tmp + "/it2/graphtyper.vcf.gz",
-        //                    region.to_string(),
-        //                    false, // is_filtering_zero_qual
-        //                    false, // force_no_variant_overlapping
-        //                    true); // force_no_break_down
-
+        std::ostringstream ss;
+        ss << tmp << "/bams";
+        gc_station.add_work(remove_file_tree, ss.str());
+      }
+      else if (i < LAST_ITERATION)
+      {
         vcf_merge_and_filter(paths, haps_output_vcf, ph);
-#else
-        // Split variants unless its the next-to-last iteration
-        bool const is_splitting_vars = (i + 1) < LAST_ITERATION;
-
-        Vcf haps_vcf;
-        extract_to_vcf(haps_vcf,
-                       paths,
-                       haps_output_vcf,
-                       is_splitting_vars);
-
-        haps_vcf.write(".", copts.threads);
-
-#ifndef NDEBUG
-        // Write index in debug mode
-        haps_vcf.write_tbi_index();
-#endif // NDEBUG
-#endif // GT_DEV
-
         // free memory
         graph = Graph();
       }
@@ -758,7 +637,7 @@ genotype(std::string ref_path,
     // Copy sites to system
     {
       std::ostringstream ss_cmd;
-      ss_cmd << "cp -p " << tmp << "/it" << (LAST_ITERATION - 1) << "/final.vcf.gz" << " "
+      ss_cmd << "cp -p " << tmp << "/it" << (LAST_ITERATION - 1) << "_final.vcf.gz" << " "
              << output_path << "/input_sites/" << region.chr << "/"
              << std::setw(9) << std::setfill('0') << (region.begin + 1)
              << '-'
@@ -838,6 +717,9 @@ genotype(std::string ref_path,
     copy_to_results("graphtyper.no_variant_overlapping", index_ext, ".no_variant_overlapping");
   }
 
+  // wait for gc
+  gc_station.join();
+
   if (!copts.no_cleanup)
   {
     BOOST_LOG_TRIVIAL(info) << "Cleaning up temporary files.";
@@ -883,14 +765,13 @@ genotype_regions(std::string const & ref_path,
     opts.genotype_aln_min_support_ratio += 0.02;
     opts.minimum_extract_score_over_homref += 6;
 
-    if (NUM_SAMPLES >= 100)
+    if (NUM_SAMPLES >= 1500)
     {
-      // default aln:6 and 0.25, dis:0.30 and 10, ext: 21 and 2
-      ++opts.genotype_aln_min_support;
-      ++opts.genotype_dis_min_support;
-      opts.genotype_aln_min_support_ratio += 0.02;
-      opts.minimum_extract_score_over_homref += 6;
+      // default aln:5 and 0.23, dis:0.30 and 9, ext: 18 and 2
+      //opts.genotype_aln_min_support_ratio += 0.02;
+      opts.minimum_extract_score_over_homref += 3;
 
+      /*
       if (NUM_SAMPLES >= 500)
       {
         // default aln:7 and 0.26, ext: 27 and 2
@@ -898,6 +779,7 @@ genotype_regions(std::string const & ref_path,
         ++opts.genotype_dis_min_support;
         opts.genotype_aln_min_support_ratio += 0.01;
         opts.minimum_extract_score_over_homref += 6;
+
 
         if (NUM_SAMPLES >= 10000)
         {
@@ -909,7 +791,7 @@ genotype_regions(std::string const & ref_path,
           ++opts.minimum_extract_variant_support;
           opts.minimum_extract_score_over_homref += 3;
         }
-      }
+      }*/
     }
   }
 

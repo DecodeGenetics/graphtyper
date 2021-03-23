@@ -240,6 +240,10 @@ EventSupport::has_good_support(long const cov) const
   gyper::Options const & copts = *(Options::const_instance());
 
   int const raw_support = get_raw_support();
+  bool const is_very_promising = uniq_pos3 != -1 &&
+                                 hq_count >= 8 &&
+                                 (!copts.filter_on_proper_pairs || proper_pairs >= 6) &&
+                                 (static_cast<double>(raw_support) / static_cast<double>(cov) > 0.35);
   bool const is_promising = uniq_pos3 != -1 && hq_count >= 7 && (!copts.filter_on_proper_pairs || proper_pairs >= 4);
 
   return (copts.no_filter_on_begin_pos || uniq_pos2 != -1)
@@ -252,7 +256,8 @@ EventSupport::has_good_support(long const cov) const
           is_promising ||
           (first_in_pairs > 0 && first_in_pairs < raw_support))
          &&
-         (!copts.filter_on_strand_bias ||
+         (is_very_promising ||
+          !copts.filter_on_strand_bias ||
           (is_promising && sequence_reversed > 0 && sequence_reversed < raw_support) ||
           (sequence_reversed > 1 && sequence_reversed < (raw_support - 1)))
          &&
@@ -307,8 +312,11 @@ EventSupport::is_good_indel(uint32_t eps) const
 {
   long const depth = hq_count + lq_count + anti_count + multi_count;
 
-  if (depth == 0 || sequence_reversed <= 0 || sequence_reversed >= depth || proper_pairs <= 4 || max_mapq <= 30)
+  if (depth == 0 || sequence_reversed <= 0 || sequence_reversed >= depth || proper_pairs <= 4 ||
+      (hq_count < 10 && max_mapq <= 10))
+  {
     return false;
+  }
 
   assert(sequence_reversed <= depth);
   long const qual = 3 * get_log_qual(hq_count + lq_count, anti_count, eps);
@@ -317,7 +325,7 @@ EventSupport::is_good_indel(uint32_t eps) const
     return false;
 
   double const qd = static_cast<double>(qual) / static_cast<double>(depth);
-  return qd >= 3.0;
+  return qd >= 4.0;
 }
 
 

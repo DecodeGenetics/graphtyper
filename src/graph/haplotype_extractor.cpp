@@ -28,6 +28,7 @@
 namespace
 {
 
+/*
 std::vector<gyper::HaplotypeCall>
 read_haplotype_calls(std::vector<std::string> const & haps_paths)
 {
@@ -88,26 +89,27 @@ read_haplotype_calls_from_file(std::string const & haps_path)
   haps_file.close();
   return read_haplotype_calls(haps_paths);
 }
-
+*/
 
 } // anon namespace
 
 
+/*
 namespace gyper
 {
 
 bool
 get_gapped_strings(std::pair<std::string, std::string> & gapped_strings,
                    std::vector<char> const & ref,
-                   std::vector<char> const & seq
-                   )
+                   std::vector<char> const & seq)
 {
   paw::AlignmentOptions<uint8_t> opts;
   opts.set_match(2).set_mismatch(4);
   opts.set_gap_open(6).set_gap_extend(1);
   opts.left_column_free = true;
   opts.right_column_free = true;
-  paw::global_alignment(seq, ref, opts);
+  opts.get_aligned_strings = true;
+  paw::pairwise_alignment(seq, ref, opts);
 
   paw::AlignmentResults<uint8_t> const & ar = *opts.get_alignment_results();
 
@@ -116,7 +118,7 @@ get_gapped_strings(std::pair<std::string, std::string> & gapped_strings,
   else if (ar.score < 42)
     return false;
 
-  gapped_strings = ar.get_aligned_strings(seq, ref);
+  gapped_strings = *ar.aligned_strings_ptr;
   return true;
 }
 
@@ -332,14 +334,16 @@ post_process_hap_calls(std::vector<gyper::HaplotypeCall> & hap_calls)
 {
   Options const & copts = *(Options::const_instance());
 
-  ///*
-  for (auto & hap_call : hap_calls)
+  std::vector<std::vector<long> > hap_occurences(hap_calls.size());
+
+  for (long h{0}; h < static_cast<long>(hap_calls.size()); ++h)
   {
+    auto & hap_call = hap_calls[h];
+    std::vector<long> & occurences = hap_occurences[h];
     auto & calls = hap_call.calls;
     assert(calls.size() > 0);
     assert(calls[0] == 0);
     std::sort(calls.begin(), calls.end());
-    std::vector<long> occurences;
     occurences.resize(calls[calls.size() - 1] + 1);
 
     {
@@ -394,41 +398,20 @@ post_process_hap_calls(std::vector<gyper::HaplotypeCall> & hap_calls)
                                           hap_call.calls.end(),
                                           [min_calls, &occurences](uint16_t const val){
           return val > 0 && occurences[val] < min_calls;
-        }), hap_call.calls.end()
-                           );
+        }), hap_call.calls.end());
     }
   }
-  //*/
 
-  //*
-  for (auto & hap_call : hap_calls)
+  for (long h{0}; h < static_cast<long>(hap_calls.size()); ++h)
   {
+    auto & hap_call = hap_calls[h];
+    std::vector<long> & occurences = hap_occurences[h];
     assert(hap_call.calls.size() >= 1);
 
-    if (hap_call.calls.size() == 1)
+    if (hap_call.calls.size() == 1 || hap_call.num_samples < 1000)
       continue;
 
     std::unordered_set<uint16_t> bad_calls;
-
-    // Check for high impurity if we have multiple samples
-    /*
-    if (hap_call.num_samples >= 50 && copts.impurity_threshold < 0.25)
-    {
-      for (long i = 0; i < static_cast<long>(hap_call.haplotype_impurity.size()); ++i)
-      {
-        double const impurity = static_cast<double>(hap_call.haplotype_impurity[i]) /
-                                static_cast<double>(hap_call.num_samples);
-        assert(impurity > -0.001);
-        assert(impurity < 0.251);
-
-        if (impurity > copts.impurity_threshold)
-        {
-          BOOST_LOG_TRIVIAL(debug) << "Too high impurity of " << impurity << " on haplotype " << (i + 1);
-          bad_calls.insert(i + 1);
-        }
-      }
-    }*/
-
     auto const & gts = hap_call.gts;
     assert(gts.size() > 0);
     assert(gts.size() == hap_call.read_strand.size());
@@ -443,6 +426,14 @@ post_process_hap_calls(std::vector<gyper::HaplotypeCall> & hap_calls)
     {
       if (haplotype_call == 0)
         continue;
+
+      assert(haplotype_call < occurences.size());
+
+      if (occurences[haplotype_call] < 10 &&
+          (static_cast<double>(occurences[haplotype_call]) / static_cast<double>(hap_call.num_samples)) < 0.01)
+      {
+        continue;
+      }
 
       uint32_t q = cnum;
       uint32_t call = haplotype_call;
@@ -488,7 +479,7 @@ post_process_hap_calls(std::vector<gyper::HaplotypeCall> & hap_calls)
           return bad_calls.count(val) >= 1;
         }), ca.end());
     }
-  }//*/
+  }
 }
 
 
@@ -529,3 +520,4 @@ extract_to_vcf(Vcf & hap_extract_vcf,
 
 
 } // namespace gyper
+*/

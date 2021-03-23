@@ -88,7 +88,7 @@ GenomicRegion::GenomicRegion(std::string const & region)
     return;
 
   assert(std::count(region.begin(), region.end(), ':') <= 1);
-  assert(std::count(region.begin(), region.end(), '-') <= 1);
+  //assert(std::count(region.begin(), region.end(), '-') <= 1);
 
   if (std::count(region.begin(), region.end(), ':') == 0)
   {
@@ -105,7 +105,7 @@ GenomicRegion::GenomicRegion(std::string const & region)
     }
     else
     {
-      std::size_t const dash = region.find('-');
+      std::size_t const dash = region.find('-', colon + 1);
 
       begin = std::stol(region.substr(colon + 1, dash - colon));
       end = std::stol(region.substr(dash + 1, region.size() - dash));

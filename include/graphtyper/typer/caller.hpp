@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string> // std::string
+#include <unordered_set> // std::unordered_set
 #include <vector> // std::vector
 
 
@@ -22,11 +23,9 @@ call(std::vector<std::string> const & hts_path,
      std::string const & region,
      Primers const * primers,
      std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > & ph,
-     long const minimum_variant_support,
-     double const minimum_variant_support_ratio,
      bool const is_writing_calls_vcf,
-     bool const is_discovery,
-     bool const is_writing_hap);
+     bool const is_writing_hap,
+     std::vector<std::unordered_map<uint32_t, uint32_t> > * allele_hap_gts_ptr = nullptr);
 
 
 // returns the written variant maps
