@@ -898,8 +898,8 @@ Variant::generate_infos()
 
         if (per_al.total_depth > 0 &&
             qd > 0.1 &&
-            per_al.maximum_alt_support >= 3 &&
-            per_al.maximum_alt_support_ratio >= 0.175)
+            per_al.maximum_alt_support >= 2 &&
+            per_al.maximum_alt_support_ratio >= 0.15)
         {
           double const alt_seq_depth = per_al.total_depth;
           double const _sb = 2.0 * ((static_cast<double>(sb_alt[s]) / alt_seq_depth) - 0.5);
@@ -1009,14 +1009,14 @@ Variant::generate_infos()
 #ifndef NDEBUG
       if (is_good_alt[a] == 0)
       {
-        BOOST_LOG_TRIVIAL(debug) << __HERE__ << " In variant=" << to_string(true) // skip calls
-                                 << " bad alt="
-                                 << std::string(seqs[a + 1].begin(), seqs[a + 1].end())
-                                 << " MaxAAS=" << per_al.maximum_alt_support
-                                 << " MaxAASR=" << per_al.maximum_alt_support_ratio
-                                 << " AAScore=" << aa_score[a]
-                                 << " ABHom=" << info_abhom
-                                 << " QDAlt=" << qd_alt[a];
+        BOOST_LOG_TRIVIAL(info) << __HERE__ << " In variant=" << to_string(true) // skip calls
+                                << " bad alt="
+                                << std::string(seqs[a + 1].begin(), seqs[a + 1].end())
+                                << " MaxAAS=" << per_al.maximum_alt_support
+                                << " MaxAASR=" << per_al.maximum_alt_support_ratio
+                                << " AAScore=" << aa_score[a]
+                                << " ABHom=" << info_abhom
+                                << " QDAlt=" << qd_alt[a];
       }
 #endif // NDEBUG
     }
