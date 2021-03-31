@@ -84,7 +84,7 @@ public:
   bool is_csi{false};
   bool force_align_both_orientations{false};
   int sam_flag_filter{3840};
-  long max_files_open{576}; // Maximum amount of SAM/BAM/CRAM files can be opened at the same time
+  long max_files_open{864}; // Maximum amount of SAM/BAM/CRAM files can be opened at the same time
   long soft_cap_of_variants_in_100_bp_window{22};
   bool get_sample_names_from_filename{false};
   bool output_all_variants{false};

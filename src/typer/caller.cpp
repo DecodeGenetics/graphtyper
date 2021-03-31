@@ -47,9 +47,9 @@ namespace
 
 #ifndef NDEBUG
 std::string const debug_read_name = "HISEQ1:33:H9YY4ADXX:1:2110:2792:58362/2";
-long debug_event_pos{699214};
-char debug_event_type{'D'};
-std::size_t debug_event_size{3};
+long debug_event_pos{15001};
+char debug_event_type{'X'};
+std::size_t debug_event_size{1};
 #endif // NDEBUG
 
 
@@ -1017,13 +1017,13 @@ run_first_pass(bam1_t * hts_rec,
         }
         else
         {
-//#ifndef NDEBUG
-//          if (debug_event_type == 'X' && snp.pos == debug_event_pos)
-//          {
-//            BOOST_LOG_TRIVIAL(info) << __HERE__ << " debug snp has bad support " << snp.to_string() << " "
-//                                    << info.to_string() << " file_i=" << file_i;
-//          }
-//#endif // DEBUG
+#ifndef NDEBUG
+          if (debug_event_type == 'X' && snp.pos == debug_event_pos)
+          {
+            BOOST_LOG_TRIVIAL(info) << __HERE__ << " debug snp has bad support " << snp.to_string() << " "
+                                    << info.to_string() << " file_i=" << file_i;
+          }
+#endif // DEBUG
 
           snp_it = bucket.events.erase(snp_it);
         }
@@ -1233,9 +1233,10 @@ run_first_pass(bam1_t * hts_rec,
       if (support_ratio < 0.3)
         support_ratio = 0.3;
 
-      // 0 low coverage or ambigous
+      // 0 low coverage
       // 1 support
       // 2 anti support
+      // 3 ambigous
       auto is_good_support =
         [&cov_down, &region_begin, &support_ratio]
           (long local_cov,
@@ -1285,7 +1286,7 @@ run_first_pass(bam1_t * hts_rec,
             return IS_ANY_HAP_SUPPORT;
           }
 
-          return 0;
+          return IS_ANY_ANTI_HAP_SUPPORT | IS_ANY_HAP_SUPPORT;
         };
 
       // check this bucket
@@ -2179,9 +2180,9 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
 
     double const count = correction * (indel_info.hq_count + indel_info.lq_count);
 
-    bool const is_good_count = (indel_info.hq_count >= 5 && count >= 8.0) ||
-                               (indel_info.span >= 9 && indel_info.hq_count >= 5 && count >= 7.0) ||
-                               (indel_info.span >= 18 && indel_info.hq_count >= 4 && count >= 6.0);
+    bool const is_good_count = (indel_info.hq_count >= 5 && count >= 5.5) ||
+                               (indel_info.span >= 5 && indel_info.hq_count >= 4 && count >= 5.0) ||
+                               (indel_info.span >= 15 && indel_info.hq_count >= 3 && count >= 4.5);
 
 #ifndef NDEBUG
     if (debug_event_type == indel.type &&

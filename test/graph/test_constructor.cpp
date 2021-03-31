@@ -533,10 +533,29 @@ TEST_CASE("Construct test graph with anti events (chr10)")
   {
     REQUIRE(var_nodes[0].anti_events.size() == 1);
     REQUIRE(var_nodes[0].anti_events.count(2) == 1);
-    REQUIRE(var_nodes[1].anti_events.size() == 1);
-    REQUIRE(var_nodes[1].anti_events.count(-2) == 1);
+    REQUIRE(var_nodes[1].anti_events.size() == 0);
     REQUIRE(var_nodes[2].anti_events.size() == 0);
     REQUIRE(var_nodes[3].anti_events.size() == 0);
+  }
+
+  Options::instance()->add_all_variants = false;
+}
+
+
+TEST_CASE("Construct test graph with anti events (chr11)")
+{
+  using namespace gyper;
+  Options::instance()->add_all_variants = true;
+
+  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: Construct test graph (chr11).";
+  create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr11", true);
+
+  std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
+  std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
+
+  {
+    REQUIRE(ref_nodes.size() == 2);
+    REQUIRE(var_nodes.size() == 6);
   }
 
   Options::instance()->add_all_variants = false;

@@ -321,11 +321,11 @@ EventSupport::is_good_indel(uint32_t eps) const
   assert(sequence_reversed <= depth);
   long const qual = 3 * get_log_qual(hq_count + lq_count, anti_count, eps);
 
-  if (qual < 60)
+  if (qual < 50)
     return false;
 
   double const qd = static_cast<double>(qual) / static_cast<double>(depth);
-  return qd >= 4.0;
+  return qd >= 3.5;
 }
 
 
