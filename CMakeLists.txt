@@ -72,8 +72,11 @@ include_directories("${PROJECT_BINARY_DIR}/include")
 
 # Find external libraries
 ## boost
-set(Boost_USE_STATIC_LIBS ON)
-message (STATUS "Checking for Boost")
+if (NOT DEFINED Boost_USE_STATIC_LIBS)
+  set(Boost_USE_STATIC_LIBS ON)
+endif()
+
+message (STATUS "Checking for Boost: USE_STATIC_LIBS=${Boost_USE_STATIC_LIBS}")
 find_package(Boost 1.57.0 REQUIRED COMPONENTS system iostreams log_setup log thread serialization filesystem REQUIRED)
 message (STATUS "Boost include directory: ${Boost_INCLUDE_DIR}")
 include_directories(SYSTEM ${Boost_INCLUDE_DIR})
