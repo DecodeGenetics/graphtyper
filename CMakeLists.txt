@@ -110,8 +110,8 @@ ExternalProject_Add(
   BUILD_IN_SOURCE 1
   PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/htslib
   CONFIGURE_COMMAND autoheader COMMAND autoconf COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/htslib/configure --disable-libcurl --disable-gcs --with-libdeflate
-  "CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/libdeflate"
-  "LDFLAGS=-L${CMAKE_CURRENT_SOURCE_DIR}/libdeflate"
+  "CFLAGS=${CFLAGS} -I${CMAKE_CURRENT_SOURCE_DIR}/libdeflate"
+  "LDFLAGS=${LDFLAGS} -L${CMAKE_CURRENT_SOURCE_DIR}/libdeflate"
   BUILD_COMMAND $(MAKE) -C ${CMAKE_CURRENT_SOURCE_DIR}/htslib "CFLAGS=-g -Wall -O3 -I${CMAKE_CURRENT_SOURCE_DIR}/libdeflate" libhts.a
   INSTALL_COMMAND ""
 )
