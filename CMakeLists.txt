@@ -70,6 +70,16 @@ configure_file (
 
 include_directories("${PROJECT_BINARY_DIR}/include")
 
+if (DEFINED CFLAGS)
+  set(MYCFLAGS "${CFLAGS}")
+  message (STATUS "Custom CFLAGS: ${MYCFLAGS}")
+endif()
+
+if (DEFINED LDFLAGS)
+  set(MYLDFLAGS "${LDFLAGS}")
+  message (STATUS "Custom LDFLAGS: ${MYLDFLAGS}")
+endif()
+
 # Find external libraries
 ## boost
 if (NOT DEFINED Boost_USE_STATIC_LIBS)
@@ -110,8 +120,8 @@ ExternalProject_Add(
   BUILD_IN_SOURCE 1
   PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/htslib
   CONFIGURE_COMMAND autoheader COMMAND autoconf COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/htslib/configure --disable-libcurl --disable-gcs --with-libdeflate
-  "CFLAGS=${CFLAGS} -I${CMAKE_CURRENT_SOURCE_DIR}/libdeflate"
-  "LDFLAGS=${LDFLAGS} -L${CMAKE_CURRENT_SOURCE_DIR}/libdeflate"
+  "CFLAGS=${MYCFLAGS} -I${CMAKE_CURRENT_SOURCE_DIR}/libdeflate"
+  "LDFLAGS=${MYLDFLAGS} -L${CMAKE_CURRENT_SOURCE_DIR}/libdeflate"
   BUILD_COMMAND $(MAKE) -C ${CMAKE_CURRENT_SOURCE_DIR}/htslib "CFLAGS=-g -Wall -O3 -I${CMAKE_CURRENT_SOURCE_DIR}/libdeflate" libhts.a
   INSTALL_COMMAND ""
 )
