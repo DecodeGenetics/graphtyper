@@ -86,6 +86,10 @@ if (NOT DEFINED Boost_USE_STATIC_LIBS)
   set(Boost_USE_STATIC_LIBS ON)
 endif()
 
+if (NOT Boost_USE_STATIC_LIBS)
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D${BOOST_LOG_DYN_LINK}")
+endif()
+
 message (STATUS "Checking for Boost: USE_STATIC_LIBS=${Boost_USE_STATIC_LIBS}")
 find_package(Boost 1.57.0 REQUIRED COMPONENTS system iostreams log_setup log thread serialization filesystem REQUIRED)
 message (STATUS "Boost include directory: ${Boost_INCLUDE_DIR}")
