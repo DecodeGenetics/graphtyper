@@ -13,10 +13,10 @@ IndexEntry::IndexEntry(uint32_t const s)
   : start_index(s)
 {}
 
-IndexEntry::IndexEntry(uint32_t const s, uint32_t const i, bool const is_reference, unsigned const var_num)
+IndexEntry::IndexEntry(uint32_t const s, uint32_t const i) //, bool const is_reference, unsigned const var_num)
   : start_index(s)
-  , total_var_num(var_num)
-  , total_var_count(static_cast<uint32_t>(!is_reference))
+//  , total_var_num(var_num)
+//  , total_var_count(static_cast<uint32_t>(!is_reference))
 {
   variant_id.insert(i);
 }
