@@ -78,7 +78,7 @@ index_reference_label(PHIndex & ph_index, TEntryList & mers, Label const & label
           for (auto var_id : q_it->variant_id)
             new_labels.push_back(KmerLabel(q_it->start_index, label.order + d, var_id));
 
-          ph_index.put(q_it->dna, std::vector<KmerLabel>(new_labels));
+          ph_index.put(q_it->dna, std::move(new_labels));
         }
       }
 
@@ -197,7 +197,7 @@ insert_variant_label(PHIndex & ph_index,
         for (auto var_id : q_it->variant_id)
           new_labels.push_back(KmerLabel(q_it->start_index, pos, var_id));
 
-        ph_index.put(q_it->dna, std::vector<KmerLabel>(new_labels));
+        ph_index.put(q_it->dna, std::move(new_labels));
       }
 
       mers.pop_back();
