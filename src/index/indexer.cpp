@@ -10,22 +10,20 @@
 #include <graphtyper/index/ph_index.hpp>
 
 
+/*
 namespace
 {
 
 bool
 entry_has_too_many_nonrefs(gyper::IndexEntry const & entry)
 {
-  uint32_t constexpr MAX_TOTAL_VAR_NUM = 401u; // 131 is a prime
-  uint32_t constexpr MAX_TOTAL_VAR_COUNT = 4u;
-
-  return entry.total_var_count > 1 &&
-         (entry.total_var_num > MAX_TOTAL_VAR_NUM || entry.total_var_count > MAX_TOTAL_VAR_COUNT);
+  uint32_t constexpr MAX_TOTAL_VAR_NUM = 401u;
+  return entry.total_var_count > 1 && entry.total_var_num > MAX_TOTAL_VAR_NUM;
 }
 
 
 } // anon namespace
-
+*/
 
 namespace gyper
 {
@@ -95,8 +93,6 @@ insert_variant_label(PHIndex & ph_index,
                      TEntryList & mers,
                      std::vector<VarNode> const & var_nodes,
                      TNodeIndex const v,
-                     bool const is_reference,
-                     unsigned const var_count,
                      std::size_t const ref_reach)
 {
   assert(v < var_nodes.size());
@@ -178,7 +174,7 @@ insert_variant_label(PHIndex & ph_index,
     if (pos > ref_reach)
       pos = graph.get_special_pos(pos, static_cast<uint32_t>(ref_reach));
 
-    IndexEntry new_index_entry(pos, static_cast<uint32_t>(v), is_reference, var_count);
+    IndexEntry new_index_entry(pos, static_cast<uint32_t>(v));
     new_index_entry.add_to_dna(dna_base);
     new_index_entry.events = var_node.events;
     new_index_entry.anti_events = var_node.anti_events;
@@ -230,6 +226,7 @@ append_list(TEntryList & mers, TEntryList && list)
 }
 
 
+/*
 void
 remove_large_variants_from_list(TEntryList & list, unsigned const var_count)
 {
@@ -246,7 +243,7 @@ remove_large_variants_from_list(TEntryList & list, unsigned const var_count)
                                      entry_has_too_many_nonrefs),
                       sublist_it->end());
   }
-}
+}*/
 
 
 void
@@ -261,11 +258,11 @@ index_variant(PHIndex & ph_index,
   // Insert reference label
   assert(v < var_nodes.size());
   std::size_t const ref_label_reach = var_nodes[v].get_label().reach();
-  insert_variant_label(ph_index, mers, var_nodes, v, true /*is reference*/, 1, ref_label_reach);
+  insert_variant_label(ph_index, mers, var_nodes, v, ref_label_reach);
 
   // Remove all labels with large variants
-  remove_large_variants_from_list(clean_list, var_count);
-  unsigned const var_num = var_count;
+  //remove_large_variants_from_list(clean_list, var_count);
+  //unsigned const var_num = var_count;
 
   // Loops over variants
   while (var_count > 2)
@@ -278,8 +275,6 @@ index_variant(PHIndex & ph_index,
                          new_list,
                          var_nodes,
                          v,
-                         false /*is reference*/,
-                         var_num,
                          ref_label_reach);
 
     append_list(mers, std::move(new_list));
@@ -291,8 +286,6 @@ index_variant(PHIndex & ph_index,
                        clean_list,
                        var_nodes,
                        v,
-                       false /*is reference*/,
-                       var_num,
                        ref_label_reach);
 
   append_list(mers, std::move(clean_list));
@@ -311,7 +304,7 @@ index_graph(Graph const & graph)
   uint32_t goal_order = start_order;
   uint32_t goal = 0;
 
-  TNodeIndex r = 0; // Reference node index
+  TNodeIndex r{0}; // Reference node index
   TEntryList mers;
   BOOST_LOG_TRIVIAL(debug) << __HERE__ << " The number of reference nodes are "
                            << graph.ref_nodes.size();
