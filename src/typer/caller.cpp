@@ -1212,10 +1212,10 @@ run_first_pass(bam1_t * hts_rec,
   // Find HQ SNPs and their haplotypes
   for (long b{0}; b < NUM_BUCKETS; ++b)
   {
-    auto const & bucket = buckets[b];
+    auto & bucket = buckets[b];
 
     // Check event phase
-    for (auto event_it = bucket.events.begin(); event_it != bucket.events.end(); ++event_it)
+    for (auto event_it = bucket.events.begin(); event_it != bucket.events.end();)  // no increment
     {
       Event const & event = event_it->first;
       EventSupport const & info = event_it->second;
@@ -1340,6 +1340,12 @@ run_first_pass(bam1_t * hts_rec,
           haplotypes[other_event] |= flags;
         }
       }
+
+      // remove SNP events, they are stored in the ph map from now on
+      if (event_it->first.type == 'X')
+        event_it = bucket.events.erase(event_it);
+      else
+        ++event_it;
     }
 
     // Add coverage from bucket b
@@ -2860,6 +2866,8 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
         for (auto && indel_event : bucket_first.events)
         {
           // Only add indels
+          assert(indel_event.first.type != 'X');
+
           if (indel_event.first.type == 'X')
             continue;
 
