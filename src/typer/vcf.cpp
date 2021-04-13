@@ -743,7 +743,8 @@ Vcf::write_header(bool const is_dropping_genotypes)
 
   // FILTER definitions
   {
-    bgzf_stream.ss << "##FILTER=<ID=LowAAScore,Description=\"Alternative alleles have a low score.\">\n"
+    bgzf_stream.ss << "##FILTER=<ID=PASS,Description=\"All filters passed\">\n"
+                   << "##FILTER=<ID=LowAAScore,Description=\"Alternative alleles have a low score.\">\n"
                    << "##FILTER=<ID=LowABHet,Description=\"Allele balance of heterozygous carriers is below 17.5%.\">\n"
                    << "##FILTER=<ID=LowABHom,Description=\"Allele balance of homozygous carriers is below 90%.\">\n"
                    << "##FILTER=<ID=LowQD,Description=\"QD (quality by depth) is below 6.0.\">\n"
@@ -760,8 +761,98 @@ Vcf::write_header(bool const is_dropping_genotypes)
     // Only a "format" column if there are any samples
     bgzf_stream.ss << "\tFORMAT";
 
-    for (auto const & sample_name : sample_names)
-      bgzf_stream.ss << "\t" << sample_name;
+    if (Options::const_instance()->uncompressed_sample_names)
+    {
+      // close the bgzf file, we will re-open it with new options
+      bgzf_stream.close();
+
+      // Get the prefix iterator
+      auto find_it = std::find(bgzf_stream.filename.begin(), bgzf_stream.filename.end(), '.');
+
+      // make sure prefix includes all directories
+      while (std::find(find_it, bgzf_stream.filename.end(), '/') != bgzf_stream.filename.end())
+        find_it = std::find(find_it + 1, bgzf_stream.filename.end(), '.'); // get next '.'
+
+      // make prefix
+      std::string const prefix(bgzf_stream.filename.begin(), find_it);
+
+      // truncate the file by 28 bytes
+      {
+        std::ostringstream ss_cmd;
+        ss_cmd << "truncate --size -28 " << bgzf_stream.filename;
+        std::string cmd = ss_cmd.str();
+        int ret = system(cmd.c_str());
+
+        if (ret != 0)
+        {
+          BOOST_LOG_TRIVIAL(error) << __HERE__ << " This command failed '" << cmd << "'";
+          std::exit(ret);
+        }
+      }
+
+      // get size of file, store in .samples_byte_range
+      {
+        std::ostringstream ss_cmd;
+        ss_cmd << "stat -c '%s' " << bgzf_stream.filename << " | awk 'NR==1{printf $1 + 1\" \"}'"
+               << " > "
+               << prefix << ".samples_byte_range";
+
+        std::string cmd = ss_cmd.str();
+        int ret = system(cmd.c_str());
+
+        if (ret != 0)
+        {
+          BOOST_LOG_TRIVIAL(error) << __HERE__ << " This command failed '" << cmd << "'";
+          std::exit(ret);
+        }
+      }
+
+      // append 0-level compressed data
+      bgzf_stream.open(bgzf_stream.filename, "a0", bgzf_stream.n_threads);
+
+      for (auto const & sample_name : sample_names)
+        bgzf_stream.ss << "\t" << sample_name;
+
+      bgzf_stream.close();
+
+      // truncate the file by 28 bytes
+      {
+        std::ostringstream ss_cmd;
+        ss_cmd << "truncate --size -28 " << bgzf_stream.filename;
+        std::string cmd = ss_cmd.str();
+        int ret = system(cmd.c_str());
+
+        if (ret != 0)
+        {
+          BOOST_LOG_TRIVIAL(error) << __HERE__ << " This command failed '" << cmd << "'";
+          std::exit(ret);
+        }
+      }
+
+      // get size of file, store in .samples_byte_range
+      {
+        std::ostringstream ss_cmd;
+        ss_cmd << "stat -c '%s' " << bgzf_stream.filename
+               << " >> "
+               << prefix << ".samples_byte_range";
+
+        std::string cmd = ss_cmd.str();
+        int ret = system(cmd.c_str());
+
+        if (ret != 0)
+        {
+          BOOST_LOG_TRIVIAL(error) << __HERE__ << " This command failed '" << cmd << "'";
+          std::exit(ret);
+        }
+      }
+
+      bgzf_stream.open(bgzf_stream.filename, "a", bgzf_stream.n_threads);
+    }
+    else
+    {
+      for (auto const & sample_name : sample_names)
+        bgzf_stream.ss << "\t" << sample_name;
+    }
   }
 
   bgzf_stream.ss << "\n";
@@ -806,7 +897,7 @@ Vcf::write_record(Variant const & var,
   }
 
   // Calculate qual
-  const uint64_t variant_qual = var.get_qual();
+  uint64_t const variant_qual = var.get_qual();
 
   if (!copts.force_no_filter_zero_qual && FILTER_ZERO_QUAL)
   {

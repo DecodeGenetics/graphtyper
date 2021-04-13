@@ -40,7 +40,10 @@ public:
   bool is_open() const;
   void close(); // Close BGZF file
 
-  long MAX_CACHE_SIZE{1000000ll};
+  std::string filename{};
+  std::string filemode{};
+  long n_threads{1};
+  long static constexpr MAX_CACHE_SIZE{1000000ll};
 };
 
 
@@ -125,18 +128,23 @@ BGZF_stream::write(std::string const & str)
 
 inline
 void
-BGZF_stream::open(std::string const & filename, std::string const & filemode, long const n_threads)
+BGZF_stream::open(std::string const & _filename, std::string const & _filemode, long const _n_threads)
 {
   if (fp)
     close();
 
-  if (filename.size() > 0 && filename != "-")
+  if (_filename.size() > 0 && _filename != "-")
   {
-    fp = bgzf_open(filename.c_str(), filemode.c_str());
+    fp = bgzf_open(_filename.c_str(), _filemode.c_str());
 
-    if (n_threads > 1)
-      bgzf_mt(fp, n_threads, 256);
+    if (_n_threads > 1)
+      bgzf_mt(fp, _n_threads, 256);
   }
+
+  // Options are stored for uncompressed sample names writing
+  this->filename = _filename;
+  this->filemode = _filemode;
+  this->n_threads = _n_threads;
 }
 
 

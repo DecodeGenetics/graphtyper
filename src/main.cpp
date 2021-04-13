@@ -674,6 +674,13 @@ subcmd_genotype(paw::Parser & parser)
                                "is_dropping_genotypes",
                                "If set, graphtyper will not output genotype calls (only sites and INFO).");
 
+  parser.parse_advanced_option(opts.uncompressed_sample_names,
+                               ' ',
+                               "uncompressed_sample_names",
+                               "If set, graphtyper BGZF VCF (.vcf.gz) files will output samples names in uncompressed "
+                               "(0-level) in the header. The byte range of these blocks will also be printed in "
+                               "${prefix}.samples_byte_range. Requires external utils: awk, truncate, stat.");
+
 #ifndef NDEBUG
   parser.parse_advanced_option(opts.stats, ' ', "stats", "Directory for statistics files.");
 #endif // ifndef NDEBUG
@@ -840,6 +847,13 @@ subcmd_genotype_hla(paw::Parser & parser)
                                "force_ignore_segment",
                                "Set to ignore segment calling. Just print graph variant sites instead.");
 
+  parser.parse_advanced_option(opts.uncompressed_sample_names,
+                               ' ',
+                               "uncompressed_sample_names",
+                               "If set, graphtyper BGZF VCF (.vcf.gz) files will output samples names in uncompressed "
+                               "(0-level) in the header. The byte range of these blocks will also be printed in "
+                               "${prefix}.samples_byte_range. Requires external utils: awk, truncate, stat.");
+
   opts.no_decompose = true;
   opts.is_segment_calling = true;
   opts.force_no_filter_zero_qual = true;
@@ -991,6 +1005,13 @@ subcmd_genotype_sv(paw::Parser & parser)
                                "coordinates of the primer pairs. The primer sequence will be used in GraphTyper's alignment but are "
                                "ignored in the genotyping model.");
 
+  parser.parse_advanced_option(opts.uncompressed_sample_names,
+                               ' ',
+                               "uncompressed_sample_names",
+                               "If set, graphtyper BGZF VCF (.vcf.gz) files will output samples names in uncompressed "
+                               "(0-level) in the header. The byte range of these blocks will also be printed in "
+                               "${prefix}.samples_byte_range. Requires external utils: awk, truncate, stat.");
+
   if (opts.force_no_filter_zero_qual)
     opts.force_no_filter_bad_alts = true;
 
@@ -1118,6 +1139,13 @@ subcmd_genotype_lr(paw::Parser & parser)
                                "lr_mapq_filter",
                                "Filter reads with MAPQ below this threshold.");
 
+  parser.parse_advanced_option(opts.uncompressed_sample_names,
+                               ' ',
+                               "uncompressed_sample_names",
+                               "If set, graphtyper BGZF VCF (.vcf.gz) files will output samples names in uncompressed "
+                               "(0-level) in the header. The byte range of these blocks will also be printed in "
+                               "${prefix}.samples_byte_range. Requires external utils: awk, truncate, stat.");
+
   if (opts.force_no_filter_zero_qual)
     opts.force_no_filter_bad_alts = true;
 
@@ -1193,6 +1221,13 @@ subcmd_genotype_camou(paw::Parser & parser)
                       "vcf",
                       "Input VCF file with variant sites. "
                       "Use this option if you want GraphTyper to only genotype variants from this VCF.");
+
+  parser.parse_advanced_option(opts.uncompressed_sample_names,
+                               ' ',
+                               "uncompressed_sample_names",
+                               "If set, graphtyper BGZF VCF (.vcf.gz) files will output samples names in uncompressed "
+                               "(0-level) in the header. The byte range of these blocks will also be printed in "
+                               "${prefix}.samples_byte_range. Requires external utils: awk, truncate, stat.");
 
   parser.parse_positional_argument(ref_fn, "REF.FA", "Reference genome in FASTA format.");
   parser.parse_positional_argument(interval_fn, "interval-file",
@@ -1342,7 +1377,7 @@ main(int argc, char ** argv)
     parser.add_subcommand("construct", "Construct a graph.");
     parser.add_subcommand("genotype", "Run the SNP/indel genotyping pipeline.");
     parser.add_subcommand("genotype_camou", "(WIP) Run the camou SNP/indel genotyping pipeline.");
-    parser.add_subcommand("genotype_hla", "(WIP) Run the camou HLA genotyping pipeline.");
+    parser.add_subcommand("genotype_hla", "(WIP) Run the HLA genotyping pipeline.");
     parser.add_subcommand("genotype_lr", "(WIP) Run the camou LR genotyping pipeline.");
     parser.add_subcommand("genotype_sv", "Run the structural variant (SV) genotyping pipeline.");
     parser.add_subcommand("index", "(deprecated) Index a graph.");

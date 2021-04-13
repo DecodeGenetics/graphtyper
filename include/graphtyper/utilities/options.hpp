@@ -35,6 +35,7 @@ public:
   uint32_t split_var_threshold{SPLIT_VAR_THRESHOLD};
   bool is_segment_calling{false};
   bool force_ignore_segment{false};
+  bool uncompressed_sample_names{false};
 
   /****
    * FILTERING OPTIONS

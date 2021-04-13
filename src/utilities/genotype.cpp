@@ -331,7 +331,7 @@ genotype_only_with_a_vcf(std::string const & ref_path,
   {
     //> FILTER_ZERO_QUAL, force_no_variant_overlapping
     vcf_merge_and_break(paths,
-                        tmp + "/graphtyper.no_variant_overlapping.vcf.gz",
+                        tmp + "/graphtyper_no_variant_overlapping.vcf.gz",
                         region.to_string(),
                         is_filter_zero_qual,
                         true,
@@ -525,7 +525,7 @@ genotype(std::string ref_path,
     // Iteration FIRST_CALLONLY_ITERATION-LAST_ITERATION
     for (long i{FIRST_CALLONLY_ITERATION}; i <= LAST_ITERATION; ++i)
     {
-      BOOST_LOG_TRIVIAL(info) << "Call step " << (i - FIRST_CALLONLY_ITERATION + 1) << " starting.";
+      BOOST_LOG_TRIVIAL(info) << "Call step " << (i - FIRST_CALLONLY_ITERATION + 1) << " is starting.";
       std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > ph;
 
       if (i == LAST_ITERATION)
@@ -551,7 +551,9 @@ genotype(std::string ref_path,
       std::string const haps_output_vcf = out_dir + "/final.vcf.gz";
 
       Options::instance()->add_all_variants = true;
+      BOOST_LOG_TRIVIAL(info) << " - Graph construction " << (i - FIRST_CALLONLY_ITERATION + 1) << " is starting.";
       construct_graph(ref_path, prev_out_vcf, padded_region.to_string(), false, false);
+
       Options::instance()->add_all_variants = false;
 
 #ifndef NDEBUG
@@ -577,8 +579,10 @@ genotype(std::string ref_path,
       }
 
       {
+        BOOST_LOG_TRIVIAL(info) << " - Index construction " << (i - FIRST_CALLONLY_ITERATION + 1) << " is starting.";
         PHIndex ph_index = index_graph(gyper::graph);
 
+        BOOST_LOG_TRIVIAL(info) << " - Read alignment " << (i - FIRST_CALLONLY_ITERATION + 1) << " is starting.";
         paths = gyper::call(shrinked_sams,
                             avg_cov_by_readlen,
                             "", // graph_path
@@ -624,7 +628,7 @@ genotype(std::string ref_path,
       {
         //> FILTER_ZERO_QUAL, force_no_variant_overlapping
         vcf_merge_and_break(paths,
-                            tmp + "/graphtyper.no_variant_overlapping.vcf.gz",
+                            tmp + "/graphtyper_no_variant_overlapping.vcf.gz",
                             region.to_string(),
                             is_filter_zero_qual,
                             true, // force_no_variant_overlapping
@@ -711,10 +715,21 @@ genotype(std::string ref_path,
   copy_to_results(basename_no_ext, ".vcf.gz", ""); // Copy final VCF
   copy_to_results(basename_no_ext, index_ext, ""); // Copy tabix index for final VCF
 
+  if (copts.uncompressed_sample_names)
+    copy_to_results(basename_no_ext, ".samples_byte_range", ""); // Copy samples_byte_range
+
+
   if (copts.normal_and_no_variant_overlapping)
   {
-    copy_to_results("graphtyper.no_variant_overlapping", ".vcf.gz", ".no_variant_overlapping");
-    copy_to_results("graphtyper.no_variant_overlapping", index_ext, ".no_variant_overlapping");
+    copy_to_results("graphtyper_no_variant_overlapping", ".vcf.gz", ".no_variant_overlapping");
+    copy_to_results("graphtyper_no_variant_overlapping", index_ext, ".no_variant_overlapping");
+
+    if (copts.uncompressed_sample_names)
+    {
+      copy_to_results("graphtyper_no_variant_overlapping",
+                      ".samples_byte_range",
+                      ".no_variant_overlapping"); // Copy samples_byte_range
+    }
   }
 
   // wait for gc
