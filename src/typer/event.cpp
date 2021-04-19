@@ -1,7 +1,9 @@
 #include <string>
 #include <vector>
 
+#include <boost/functional/hash.hpp> // boost::hash_range
 #include <boost/log/trivial.hpp>
+
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/typer/event.hpp>
@@ -235,16 +237,30 @@ EventSupport::corrected_support() const
 
 
 bool
-EventSupport::has_good_support(long const cov) const
+EventSupport::has_good_support(long cov) const
 {
   gyper::Options const & copts = *(Options::const_instance());
 
+  if (cov < 1)
+    cov = 1;
+
   int const raw_support = get_raw_support();
-  bool const is_very_promising = uniq_pos3 != -1 &&
-                                 hq_count >= 8 &&
-                                 (!copts.filter_on_proper_pairs || proper_pairs >= 6) &&
-                                 (static_cast<double>(raw_support) / static_cast<double>(cov) > 0.35);
-  bool const is_promising = uniq_pos3 != -1 && hq_count >= 7 && (!copts.filter_on_proper_pairs || proper_pairs >= 4);
+
+  bool const is_very_promising =
+    uniq_pos3 != -1 &&
+    (
+      (hq_count >= 8 && ((static_cast<double>(raw_support) / static_cast<double>(cov)) >= 0.35)) ||
+      (hq_count >= 7 && ((static_cast<double>(raw_support) / static_cast<double>(cov)) >= 0.40))
+    ) && (!copts.filter_on_proper_pairs || proper_pairs >= 6);
+
+  bool const is_promising =
+    uniq_pos3 != -1 &&
+    (
+      (hq_count >= 7 && ((static_cast<double>(raw_support) / static_cast<double>(cov)) >= 0.20)) ||
+      (hq_count >= 6 && ((static_cast<double>(raw_support) / static_cast<double>(cov)) >= 0.30)) ||
+      (hq_count >= 5 && ((static_cast<double>(raw_support) / static_cast<double>(cov)) >= 0.40))
+    ) &&
+    (!copts.filter_on_proper_pairs || proper_pairs >= 4);
 
   return (copts.no_filter_on_begin_pos || uniq_pos2 != -1)
          &&
@@ -267,10 +283,7 @@ EventSupport::has_good_support(long const cov) const
          &&
          (corrected_support() >= 3.9)
          &&
-         (cov <= 0 ||
-          (static_cast<double>(raw_support) / static_cast<double>(cov) > 0.26) ||
-          (is_promising && static_cast<double>(raw_support) / static_cast<double>(cov) > 0.19)
-         );
+         (((static_cast<double>(raw_support) / static_cast<double>(cov)) > 0.26) || is_promising);
 }
 
 
@@ -457,6 +470,16 @@ make_insertion_event(int32_t pos, std::vector<char> && event_sequence)
   Event new_event(pos, 'I');
   new_event.sequence = std::move(event_sequence);
   return new_event;
+}
+
+
+std::size_t
+EventHash::operator()(gyper::Event const & e) const
+{
+  std::size_t h1 = std::hash<uint32_t>()(e.pos);
+  std::size_t h2 = std::hash<char>()(e.type);
+  std::size_t h3 = 42 + boost::hash_range(e.sequence.begin(), e.sequence.end());
+  return h1 ^ (h2 << 1) ^ (h3 + 0x9e3779b9);
 }
 
 

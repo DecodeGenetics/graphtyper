@@ -21,6 +21,7 @@ HtsReader::HtsReader(HtsStore & _store)
 void
 HtsReader::open(std::string const & path, std::string const & region, std::string const & reference)
 {
+  filename = path;
   fp = hts_open(path.c_str(), "r");
 
   if (!fp)
@@ -198,7 +199,8 @@ HtsReader::get_next_read_in_order(bam1_t * old_record)
   {
     if (ret < -1)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " htslib failed BAM/CRAM reading and returned " << ret;
+      BOOST_LOG_TRIVIAL(error) << __HERE__ << " htslib failed BAM/CRAM reading of " << filename
+                               << " and returned " << ret;
       std::exit(1);
     }
 
@@ -268,7 +270,8 @@ HtsReader::get_next_read_in_order()
   {
     if (ret < -1)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " htslib failed BAM/CRAM reading and returned " << ret;
+      BOOST_LOG_TRIVIAL(error) << __HERE__ << " htslib failed BAM/CRAM reading of " << filename
+                               << " and returned " << ret;
       std::exit(1);
     }
 
@@ -329,7 +332,8 @@ HtsReader::get_next_read()
   {
     if (ret < -1)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " htslib failed BAM/CRAM reading and returned " << ret;
+      BOOST_LOG_TRIVIAL(error) << __HERE__ << " htslib failed BAM/CRAM reading of " << filename
+                               << " and returned " << ret;
       std::exit(1);
     }
 
@@ -356,7 +360,8 @@ HtsReader::get_next_read(bam1_t * old_record)
   {
     if (ret < -1)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " htslib failed BAM/CRAM reading and returned " << ret;
+      BOOST_LOG_TRIVIAL(error) << __HERE__ << " htslib failed BAM/CRAM reading of " << filename
+                               << " and returned " << ret;
       std::exit(1);
     }
 
@@ -392,7 +397,7 @@ HtsReader::get_sample_and_rg_index(long & sample_i, long & rg_i, bam1_t * rec) c
 
     if (!rg_tag)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Unable to find RG tag in read.";
+      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Unable to find RG tag in read in file " << filename;
       std::exit(1);
     }
 
@@ -401,7 +406,8 @@ HtsReader::get_sample_and_rg_index(long & sample_i, long & rg_i, bam1_t * rec) c
 
     if (find_rg_it == rg2index.end())
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Unable to find read group. " << read_group;
+      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Unable to find read group " << read_group << " in "
+                               << filename;
       std::exit(1);
     }
 

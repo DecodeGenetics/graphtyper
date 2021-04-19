@@ -88,6 +88,15 @@ removeHardClipped(seqan::String<seqan::CigarElement<> > & cigar)
 }
 
 
+long
+countHighBaseQuality(seqan::CharString const & qual)
+{
+  return std::count_if(seqan::begin(qual), seqan::end(qual), [](char q){
+      return (q - 33) >= 20;
+    });
+}
+
+
 void
 binarizeQual(seqan::CharString & qual)
 {
@@ -323,7 +332,7 @@ process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_tags, b
 
   if (as != -1 && xs != -1 && (!seqan::hasFlagMultiple(record) || seqan::hasFlagNextUnmapped(record)))
   {
-    if (as <= xs)
+    if (as <= (xs + 5))
       return false;
 
     long matches = 0;
@@ -802,11 +811,12 @@ qualityFilterSlice2(Options const & opts,
         return false;
       }
 
-      if (rec.mapQ < 25 ||
+      if (rec.mapQ < 40 ||
           static_cast<long>(length(rec.seq)) < opts.minUnpairedReadLen ||
           is_one_end_clipped(rec.cigar, 12) ||
           is_clipped_both_ends(rec.cigar, 5) ||
-          countMatchingBases(rec.cigar) < opts.minNumMatching + 5)
+          countMatchingBases(rec.cigar) < (opts.minNumMatching + 5) ||
+          countHighBaseQuality(rec.qual) < static_cast<long>(length(rec.seq) / 4l))
       {
         return false;
       }
@@ -817,7 +827,7 @@ qualityFilterSlice2(Options const & opts,
   auto filter_paired =
     [&chr_start_end, &opts](BamAlignmentRecord const & rec) -> bool
     {
-      if (opts.is_filtering_mapq0 && rec.mapQ == 0)
+      if (opts.is_filtering_mapq0 && rec.mapQ <= 1)
       {
         return false;
       }
@@ -844,10 +854,11 @@ qualityFilterSlice2(Options const & opts,
 
       // Filter for paired reads
       if (static_cast<long>(length(rec.seq)) < opts.minReadLen ||
-          (rec.mapQ < 30 && is_clipped_both_ends(rec.cigar, 12)) ||
+          (rec.mapQ < 55 && is_clipped_both_ends(rec.cigar, 12)) ||
           (rec.mapQ < 5 && is_one_end_clipped(rec.cigar, length(rec.seq) / 4)) ||
-          is_clipped_both_ends(rec.cigar, length(rec.seq) / 2) ||
-          countMatchingBases(rec.cigar) < opts.minNumMatching)
+          is_clipped_both_ends(rec.cigar, length(rec.seq) / 3) ||
+          countMatchingBases(rec.cigar) < opts.minNumMatching ||
+          countHighBaseQuality(rec.qual) <= static_cast<long>(length(rec.seq) / 10l))
       {
         return false;
       }
@@ -888,9 +899,6 @@ qualityFilterSlice2(Options const & opts,
 
       if (CHANGE_READ_NAMES)
       {
-        //std::ostringstream ss;
-        //ss << std::hex << read_num;
-        //rec.qName = ss.str();
         rec.qName = decimal_to_read_name_string(read_num);
         ++read_num;
       }
