@@ -33,6 +33,7 @@ private:
   // TODO check if it is faster to first check if the records are sorted
   HtsStore & store;
   std::unordered_map<std::string, long> rg2index; // associates read groups with indices of that rg
+  std::string filename{}; // for log messages
 
   void set_reference(std::string const & reference_path);
 

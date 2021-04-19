@@ -96,7 +96,7 @@ public:
   void clear();
   int get_raw_support() const;
   double corrected_support() const;
-  bool has_good_support(long const cov) const;
+  bool has_good_support(long cov) const;
   std::string to_string() const;
   uint32_t log_qual(uint32_t eps = 7) const;
   bool is_good_indel(uint32_t eps = 7) const;
@@ -155,38 +155,12 @@ make_deletion_event(std::vector<char> const & reference_sequence, long ref_offse
 Event
 make_insertion_event(int32_t pos, std::vector<char> && event_sequence);
 
-} // namespace gyper
-
-
-namespace std
-{
-
-template <>
-struct hash<gyper::Event>
-{
-  size_t
-  operator()(gyper::Event const & event)
-  {
-    size_t h1 = std::hash<uint32_t>()(event.pos);
-    size_t h2 = std::hash<char>()(event.type);
-    size_t h3 = 42 ^ event.sequence.size();
-
-    for (auto const & seq : event.sequence)
-      h3 ^= std::hash<char>()(seq);
-
-    return h1 ^ (h2 << 1) ^ (h3 + 0x9e3779b9);
-  }
-
-
-};
-
-} // namespace std
-
-
-namespace gyper
-{
-
 //using Tevents = phmap::node_hash_map<Event, uint32_t>;
 using Tindel_events = std::map<Event, EventSupport>; // maps events to count
+
+struct EventHash
+{
+  std::size_t operator()(gyper::Event const & e) const;
+};
 
 } // namespace gyper

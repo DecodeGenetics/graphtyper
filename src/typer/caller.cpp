@@ -55,7 +55,7 @@ std::size_t debug_event_size{1};
 
 #ifndef NDEBUG
 bool
-check_haplotypes(std::map<gyper::Event, std::map<gyper::Event, int8_t> > const & haplotypes)
+check_haplotypes(std::map<gyper::Event, std::unordered_map<gyper::Event, int8_t, gyper::EventHash> > const & haplotypes)
 {
   bool is_ok{true};
 
@@ -95,7 +95,8 @@ check_haplotypes(std::map<gyper::Event, std::map<gyper::Event, int8_t> > const &
 
       for (auto const & o : other_haps)
       {
-        BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << o.first.to_string() << " "
+        BOOST_LOG_TRIVIAL(info) << __HERE__ << " "
+                                << o.first.to_string() << " "
                                 << static_cast<long>(o.second);
       }
 
@@ -111,51 +112,57 @@ check_haplotypes(std::map<gyper::Event, std::map<gyper::Event, int8_t> > const &
 
 
 void
-merge_haplotypes(std::map<gyper::Event, std::map<gyper::Event, int8_t> > & into,
-                 std::map<gyper::Event, std::map<gyper::Event, int8_t> > & from)
+merge_haplotypes(std::map<gyper::Event, std::unordered_map<gyper::Event, int8_t, gyper::EventHash> > & into,
+                 std::map<gyper::Event, std::unordered_map<gyper::Event, int8_t, gyper::EventHash> > & from)
 {
   using namespace gyper;
 
+  //if (into.size() > 200 || from.size() > 200)
+  //  BOOST_LOG_TRIVIAL(info) << __HERE__ << " size of into, from=" << into.size() << " " << from.size();
+
   // go through into and find variants not in from, and add anti hap support accordingly
+  //std::unordered_set<uint32_t> from_positions;
+  //
+  //// cache positions from "from"
+  //for (auto from_it = from.begin(); from_it != from.end(); ++from_it)
+  //  from_positions.insert(from_it->first.pos);
+
   for (auto it = into.begin(); it != into.end(); ++it)
   {
     Event const & event_into = it->first;
-    std::map<gyper::Event, int8_t> & haplotype_into = it->second;
 
-    auto find_it = from.find(event_into);
+    if (from.count(event_into) == 1)
+      continue;
 
-    if (find_it == from.end())
+    std::unordered_map<gyper::Event, int8_t, gyper::EventHash> & haplotype_into = it->second;
+
+    ////
+    for (auto from_it = from.lower_bound(event_into); from_it != from.end(); ++from_it)
     {
-      // BOOST_LOG_TRIVIAL(info) << __HERE__ << " Did not find " << event_into.to_string();
+      Event const & from_event = from_it->first;
+      assert(from_event.pos >= event_into.pos);
 
-      for (auto & into2 : haplotype_into)
-      {
-        find_it = from.find(into2.first);
+      if (from_event.pos >= (event_into.pos + 100l))
+        break;
 
-        if (find_it != from.end())
-        {
-          into2.second |= gyper::IS_ANY_ANTI_HAP_SUPPORT;
-        } // else do nothing, the variant is phase completely irrelevant to "from"
-      }
+      auto find_it = haplotype_into.find(from_event);
+
+      if (find_it == haplotype_into.end())
+        continue;
+
+      find_it->second |= gyper::IS_ANY_ANTI_HAP_SUPPORT;
     }
-    else
-    {
-      // found
-      for (auto & into2 : haplotype_into)
-      {
-        auto find_it2 = haplotype_into.find(into2.first);
-
-        if (find_it2 != haplotype_into.end())
-        {
-          // found
-          into2.second |= find_it2->second;
-        }
-        else
-        {
-          into2.second |= gyper::IS_ANY_ANTI_HAP_SUPPORT;
-        }
-      }
-    }
+    //// alternative way - this is not the way
+    //// Add anti support to "event_into"
+    //for (std::pair<gyper::Event const, int8_t> & into2 : haplotype_into)
+    //{
+    //  if ((into2.second & gyper::IS_ANY_ANTI_HAP_SUPPORT) == 0u &&
+    //      from_positions.count(into2.first.pos) == 1 && from.count(into2.first) == 1)
+    //  {
+    //    into2.second |= gyper::IS_ANY_ANTI_HAP_SUPPORT;
+    //  } // else do nothing, the variant is phase completely irrelevant to "from"
+    //}
+    ////
   }
 
   for (auto it = from.begin(); it != from.end(); ++it)
@@ -169,7 +176,7 @@ merge_haplotypes(std::map<gyper::Event, std::map<gyper::Event, int8_t> > & into,
       //BOOST_LOG_TRIVIAL(info) << __HERE__ << " new event I hadnt seen before: " << it->first.to_string();
       // add anti-support for the event in previous events
       Event const & inserted_event = insert_it.first->first;
-      std::map<Event, std::map<Event, int8_t> >::iterator prev_it(insert_it.first);
+      std::map<Event, std::unordered_map<Event, int8_t, EventHash> >::iterator prev_it(insert_it.first);
 
       // Go back to previous events and make sure they have this event
       while (prev_it != into.begin())
@@ -190,7 +197,7 @@ merge_haplotypes(std::map<gyper::Event, std::map<gyper::Event, int8_t> > & into,
            ++forw_it)
       {
         Event const & next_event = forw_it->first;
-        std::map<Event, int8_t> & inserted_hap = insert_it.first->second;
+        std::unordered_map<Event, int8_t, EventHash> & inserted_hap = insert_it.first->second;
 
         // insert it if it isn't already there
         if (inserted_hap.count(next_event) == 0)
@@ -200,8 +207,8 @@ merge_haplotypes(std::map<gyper::Event, std::map<gyper::Event, int8_t> > & into,
     else
     {
       // We have seen this variant before
-      std::map<Event, int8_t> & into_haplotypes = insert_it.first->second;
-      std::map<Event, int8_t> const & from_haplotypes = it->second;
+      std::unordered_map<Event, int8_t, EventHash> & into_haplotypes = insert_it.first->second;
+      std::unordered_map<Event, int8_t, EventHash> const & from_haplotypes = it->second;
 
       // Add anti hap support to any variants not found in "from"
       for (auto into_hap_it = into_haplotypes.begin();
@@ -210,6 +217,9 @@ merge_haplotypes(std::map<gyper::Event, std::map<gyper::Event, int8_t> > & into,
       {
         Event const & into_next_event = into_hap_it->first;
         int8_t & flags = into_hap_it->second;
+
+        if (flags == (IS_ANY_HAP_SUPPORT | IS_ANY_ANTI_HAP_SUPPORT)) // support for both already
+          continue;
 
         auto find_it = from_haplotypes.find(into_next_event);
 
@@ -606,7 +616,7 @@ run_first_pass(bam1_t * hts_rec,
                long file_i,
                bool const is_first_in_pool,
                std::vector<BucketFirstPass> & buckets,
-               std::map<Event, std::map<Event, int8_t> > & pool_haplotypes,
+               std::map<Event, std::unordered_map<Event, int8_t, EventHash> > & pool_haplotypes,
                long const BUCKET_SIZE,
                long const region_begin,
                std::vector<char> const & reference_sequence)
@@ -615,7 +625,7 @@ run_first_pass(bam1_t * hts_rec,
   int32_t global_max_pos_end{0};
   std::vector<uint32_t> cov_up(REF_SIZE);
   std::vector<uint32_t> cov_down(REF_SIZE);
-  std::map<Event, std::map<Event, int8_t> > sample_haplotypes;
+  std::map<Event, std::unordered_map<Event, int8_t, EventHash> > sample_haplotypes;
 
   // make sure the buckets are empty
 #ifndef NDEBUG
@@ -699,6 +709,9 @@ run_first_pass(bam1_t * hts_rec,
       uint32_t const cigar_count = opAndCnt >> 4;
       char const cigar_operation = CIGAR_MAP[opAndCnt & 15];
       assert(cigar_count > 0);
+
+      if (ref_offset >= REF_SIZE)
+        break;
 
       switch (cigar_operation)
       {
@@ -846,11 +859,10 @@ run_first_pass(bam1_t * hts_rec,
           //event_support.first_in_pairs += ((read.flags & IS_FIRST_IN_PAIR) != 0);
           event_support.sequence_reversed += ((read.flags & IS_SEQ_REVERSED) != 0);
           event_support.clipped += is_read_clipped;
-
-          read_offset += cigar_count;
           cigar_events.push_back(indel_event_it);
         }
 
+        read_offset += cigar_count;
         break;
       }
 
@@ -859,34 +871,45 @@ run_first_pass(bam1_t * hts_rec,
         assert(cigar_count > 0);
 
         if (ref_offset + cigar_count >= REF_SIZE)
+        {
+          ref_offset += cigar_count;
           break;
+        }
 
         Event new_event =
           make_deletion_event(reference_sequence, ref_offset, region_begin + ref_offset, cigar_count);
 
-        auto indel_event_it = add_indel_event_to_bucket(buckets,
-                                                        std::move(new_event),
-                                                        region_begin,
-                                                        BUCKET_SIZE,
-                                                        reference_sequence,
-                                                        ref_offset);
+        if (std::all_of(new_event.sequence.begin(),
+                        new_event.sequence.end(),
+                        [](char c){
+              return c == 'A' || c == 'C' || c == 'G' || c == 'T';
+            }))
+        {
+          auto indel_event_it = add_indel_event_to_bucket(buckets,
+                                                          std::move(new_event),
+                                                          region_begin,
+                                                          BUCKET_SIZE,
+                                                          reference_sequence,
+                                                          ref_offset);
 #ifndef NDEBUG
-        if (read.name == debug_read_name)
-          BOOST_LOG_TRIVIAL(info) << __HERE__ << " new del=" << indel_event_it->first.to_string();
+          if (read.name == debug_read_name)
+            BOOST_LOG_TRIVIAL(info) << __HERE__ << " new del=" << indel_event_it->first.to_string();
 #endif // NDEBUG
 
-        auto & event_support = indel_event_it->second;
-        ++event_support.hq_count;
+          auto & event_support = indel_event_it->second;
+          ++event_support.hq_count;
 
-        if (core.qual != 255 && core.qual > event_support.max_mapq)
-          event_support.max_mapq = core.qual;
+          if (core.qual != 255 && core.qual > event_support.max_mapq)
+            event_support.max_mapq = core.qual;
 
-        event_support.proper_pairs += ((read.flags & IS_PROPER_PAIR) != 0);
-        //event_support.first_in_pairs += ((read.flags & IS_FIRST_IN_PAIR) != 0);
-        event_support.sequence_reversed += ((read.flags & IS_SEQ_REVERSED) != 0);
-        event_support.clipped += is_read_clipped;
+          event_support.proper_pairs += ((read.flags & IS_PROPER_PAIR) != 0);
+          //event_support.first_in_pairs += ((read.flags & IS_FIRST_IN_PAIR) != 0);
+          event_support.sequence_reversed += ((read.flags & IS_SEQ_REVERSED) != 0);
+          event_support.clipped += is_read_clipped;
+          cigar_events.push_back(indel_event_it);
+        }
+
         ref_offset += cigar_count;
-        cigar_events.push_back(indel_event_it);
         break;
       }
 
@@ -1223,8 +1246,8 @@ run_first_pass(bam1_t * hts_rec,
       long const begin = std::max(0l, event.pos - region_begin);
       long cov{depth}; // starting coverage depth
 
-      auto it_bool = sample_haplotypes.insert({event, std::map<Event, int8_t>()});
-      std::map<Event, int8_t> & haplotypes = it_bool.first->second;
+      auto it_bool = sample_haplotypes.insert({event, std::unordered_map<Event, int8_t, EventHash>()});
+      std::unordered_map<Event, int8_t, EventHash> & haplotypes = it_bool.first->second;
 
       assert(begin >= b * BUCKET_SIZE);
       update_coverage(cov, begin, b, BUCKET_SIZE);
@@ -1366,7 +1389,7 @@ run_first_pass(bam1_t * hts_rec,
   // Add sample haplotypes to pool haplotypes
 #ifndef NDEBUG
   // check for errors in sample_haplotypes
-  assert(check_haplotypes(sample_haplotypes));
+  //assert(check_haplotypes(sample_haplotypes));
 #endif // NDEBUG
 
   if (is_first_in_pool)
@@ -1376,7 +1399,7 @@ run_first_pass(bam1_t * hts_rec,
   else
   {
     merge_haplotypes(pool_haplotypes, sample_haplotypes);
-    assert(check_haplotypes(pool_haplotypes));
+    //assert(check_haplotypes(pool_haplotypes));
   }
 }
 
@@ -2504,7 +2527,7 @@ read_hts_and_return_realignment_indels(bam1_t * hts_rec,
 
 void
 parallel_first_pass(std::vector<std::string> * hts_paths_ptr,
-                    std::map<Event, std::map<Event, int8_t> > * pool_haplotypes_ptr,
+                    std::map<Event, std::unordered_map<Event, int8_t, EventHash> > * pool_haplotypes_ptr,
                     std::vector<std::vector<BucketFirstPass> > * file_buckets_first_pass_ptr,
                     std::vector<std::string> * sample_names_ptr,
                     std::vector<char> * reference_sequence_ptr,
@@ -2516,7 +2539,7 @@ parallel_first_pass(std::vector<std::string> * hts_paths_ptr,
   assert(pool_haplotypes_ptr);
 
   std::vector<std::string> const & hts_paths = *hts_paths_ptr;
-  std::map<Event, std::map<Event, int8_t> > & pool_haplotypes = *pool_haplotypes_ptr;
+  std::map<Event, std::unordered_map<Event, int8_t, EventHash> > & pool_haplotypes = *pool_haplotypes_ptr;
   std::vector<char> const & reference_sequence = *reference_sequence_ptr;
 
   for (long i{0}; i < static_cast<long>(hts_paths.size()); ++i)
@@ -2766,7 +2789,8 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
   sample_names.resize(NUM_FILES);
 
   std::vector<std::unique_ptr<std::vector<std::string> > > spl_hts_paths{};
-  std::vector<std::unique_ptr<std::map<Event, std::map<Event, int8_t> > > > spl_snp_hq_haplotypes{};
+  std::vector<std::unique_ptr<std::map<Event,
+                                       std::unordered_map<Event, int8_t, EventHash> > > > spl_snp_hq_haplotypes{};
   long jobs{1};
 
   {
@@ -2783,7 +2807,7 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
         auto end_it = it + NUM_FILES / num_parts + (i < (NUM_FILES % num_parts));
         assert(std::distance(hts_paths.cbegin(), end_it) <= NUM_FILES);
         spl_hts_paths.emplace_back(new std::vector<std::string>(it, end_it));
-        spl_snp_hq_haplotypes.emplace_back(new std::map<Event, std::map<Event, int8_t> >());
+        spl_snp_hq_haplotypes.emplace_back(new std::map<Event, std::unordered_map<Event, int8_t, EventHash> >());
         it = end_it;
       }
     }
@@ -2801,7 +2825,7 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
 
   Tindel_events indel_events;
   long NUM_BUCKETS{0};
-  std::map<Event, std::map<Event, int8_t> > haplotypes;
+  std::map<Event, std::unordered_map<Event, int8_t, EventHash> > haplotypes;
 
   // FIRST PASS
   {
@@ -2847,10 +2871,10 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
 
     for (long i{1}; i < NUM_POOLS; ++i)
     {
-      std::map<Event, std::map<Event, int8_t> > & pool_haplotypes = *spl_snp_hq_haplotypes[i];
-      assert(check_haplotypes(pool_haplotypes));
+      std::map<Event, std::unordered_map<Event, int8_t, EventHash> > & pool_haplotypes = *spl_snp_hq_haplotypes[i];
+      //assert(check_haplotypes(pool_haplotypes));
       merge_haplotypes(haplotypes, pool_haplotypes);
-      assert(check_haplotypes(haplotypes));
+      //assert(check_haplotypes(haplotypes));
     }
 
     // Create buckets for second pass
