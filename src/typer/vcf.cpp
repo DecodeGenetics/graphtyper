@@ -1162,6 +1162,9 @@ Vcf::write_record(Variant const & var,
 
       for (long p{1}; p < static_cast<long>(call.phred.size()); ++p)
         bgzf_stream.ss << ',' << static_cast<uint16_t>(call.phred[p]);
+
+      // Check if this should be added
+      //bgzf_stream.check_cache();
     }
   }
 

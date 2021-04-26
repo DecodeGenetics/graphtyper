@@ -7,6 +7,8 @@
 #include <sstream> // std::stringstream
 #include <string> // std::string
 
+#include <graphtyper/constants.hpp>
+
 #define INCLUDE_SEQAN_STREAM_IOSTREAM_BGZF_H_
 #include "bgzf.h" // part of htslib
 
@@ -43,7 +45,7 @@ public:
   std::string filename{};
   std::string filemode{};
   long n_threads{1};
-  long static constexpr MAX_CACHE_SIZE{1000000ll};
+  long static constexpr MAX_CACHE_SIZE{50000ll};
 };
 
 
@@ -83,7 +85,7 @@ BGZF_stream::flush()
 
     if (ret < 0)
     {
-      std::cerr << "[bgzf_stream] ERROR: Writing to BGZF file failed. No free space on device?" << std::endl;
+      std::cerr << "[bgzf_stream] ERROR: Writing to BGZF file failed. No space left on device?" << std::endl;
       std::exit(1);
     }
   }
@@ -163,7 +165,14 @@ BGZF_stream::close()
 
   if (fp)
   {
-    bgzf_close(fp);
+    int ret = bgzf_close(fp);
+
+    if (ret != 0)
+    {
+      std::cerr << " " << __HERE__ << "[bgzf_stream] ERROR: Failed closing bgzf file " << filename << "\n";
+      std::exit(1);
+    }
+
     fp = nullptr;
   }
 }
