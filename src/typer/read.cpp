@@ -83,14 +83,15 @@ Alignment::replace_indel_events(uint16_t flags, uint8_t mapq, std::vector<ReadIn
 
       if ((flags & IS_SEQ_REVERSED) != 0u)
       {
-        assert(event_and_info.event_it->second.sequence_reversed > 0);
-        --event_and_info.event_it->second.sequence_reversed;
+        if (event_and_info.event_it->second.sequence_reversed > 0)
+          --event_and_info.event_it->second.sequence_reversed;
       }
 
       if ((flags & IS_PROPER_PAIR) != 0u)
       {
-        assert(event_and_info.event_it->second.proper_pairs > 0);
-        --event_and_info.event_it->second.proper_pairs;
+        //assert(event_and_info.event_it->second.proper_pairs > 0);
+        if (event_and_info.event_it->second.proper_pairs > 0)
+          --event_and_info.event_it->second.proper_pairs;
       }
     }
   }
