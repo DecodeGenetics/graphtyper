@@ -363,7 +363,7 @@ genotype(std::string ref_path,
   BOOST_LOG_TRIVIAL(info) << "Genotyping region " << region.to_string();
   BOOST_LOG_TRIVIAL(info) << "Path to genome is '" << ref_path << "'";
   BOOST_LOG_TRIVIAL(info) << "Running with up to " << copts.threads << " threads.";
-  BOOST_LOG_TRIVIAL(info) << "Copying data from " << NUM_SAMPLES << " input SAM/BAM/CRAMs to local disk.";
+  BOOST_LOG_TRIVIAL(info) << "Input contains " << NUM_SAMPLES << " BAM/CRAM files.";
 
   std::string tmp = create_temp_dir(region);
 
@@ -418,7 +418,7 @@ genotype(std::string ref_path,
   }
   else
   {
-    BOOST_LOG_TRIVIAL(info) << "Running bamShrink.";
+    BOOST_LOG_TRIVIAL(info) << "Running bamShrink, which copies read data to tempory disk.";
     std::string bamshrink_ref_path;
 
     if (copts.force_use_input_ref_for_cram_reading)
@@ -429,7 +429,8 @@ genotype(std::string ref_path,
     if (!copts.no_sample_name_reordering)
       std::sort(shrinked_sams.begin(), shrinked_sams.end()); // Sort by input filename
 
-    run_samtools_merge(shrinked_sams, tmp);
+    // TODO implement merge in bamShrink step
+    //run_samtools_merge(shrinked_sams, tmp);
   }
 
   GenomicRegion padded_region(region);
