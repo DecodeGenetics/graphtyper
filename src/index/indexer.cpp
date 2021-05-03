@@ -10,21 +10,6 @@
 #include <graphtyper/index/ph_index.hpp>
 
 
-/*
-namespace
-{
-
-bool
-entry_has_too_many_nonrefs(gyper::IndexEntry const & entry)
-{
-  uint32_t constexpr MAX_TOTAL_VAR_NUM = 401u;
-  return entry.total_var_count > 1 && entry.total_var_num > MAX_TOTAL_VAR_NUM;
-}
-
-
-} // anon namespace
-*/
-
 namespace gyper
 {
 
@@ -61,7 +46,7 @@ index_reference_label(PHIndex & ph_index, TEntryList & mers, Label const & label
     {
       for (auto q_it = mers.back().begin(); q_it != mers.back().end(); ++q_it)
       {
-        // Skip invalid labels (e.g. labels with '*')
+        // Skip invalid labels (e.g. labels with '*'). Label is valid if valid==0
         if (q_it->valid > 0)
           continue;
 
@@ -226,26 +211,6 @@ append_list(TEntryList & mers, TEntryList && list)
 }
 
 
-/*
-void
-remove_large_variants_from_list(TEntryList & list, unsigned const var_count)
-{
-  for (auto sublist_it = list.begin(); sublist_it != list.end(); ++sublist_it)
-  {
-    for (auto entry_it = sublist_it->begin(); entry_it != sublist_it->end(); ++entry_it)
-    {
-      entry_it->total_var_num *= var_count;
-      ++entry_it->total_var_count;
-    }
-
-    sublist_it->erase(std::remove_if(sublist_it->begin(),
-                                     sublist_it->end(),
-                                     entry_has_too_many_nonrefs),
-                      sublist_it->end());
-  }
-}*/
-
-
 void
 index_variant(PHIndex & ph_index,
               std::vector<VarNode> const & var_nodes,
@@ -259,10 +224,6 @@ index_variant(PHIndex & ph_index,
   assert(v < var_nodes.size());
   std::size_t const ref_label_reach = var_nodes[v].get_label().reach();
   insert_variant_label(ph_index, mers, var_nodes, v, ref_label_reach);
-
-  // Remove all labels with large variants
-  //remove_large_variants_from_list(clean_list, var_count);
-  //unsigned const var_num = var_count;
 
   // Loops over variants
   while (var_count > 2)

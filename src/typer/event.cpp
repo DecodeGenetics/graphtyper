@@ -325,8 +325,9 @@ EventSupport::is_good_indel(uint32_t eps) const
 {
   long const depth = hq_count + lq_count + anti_count + multi_count;
 
-  if (depth == 0 || sequence_reversed <= 0 || sequence_reversed >= depth || proper_pairs <= 4 ||
-      (hq_count < 10 && max_mapq <= 10))
+  if (hq_count <= 6 || sequence_reversed <= 0 || sequence_reversed >= depth || proper_pairs <= 4 ||
+      (hq_count < 10 && max_mapq <= 10)
+      )
   {
     return false;
   }
