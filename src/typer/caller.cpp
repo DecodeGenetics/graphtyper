@@ -47,9 +47,9 @@ namespace
 
 #ifndef NDEBUG
 std::string const debug_read_name = "HISEQ1:33:H9YY4ADXX:1:2110:2792:58362/2";
-long debug_event_pos{15001};
-char debug_event_type{'X'};
-std::size_t debug_event_size{1};
+long debug_event_pos{50812009};
+char debug_event_type{'I'};
+std::size_t debug_event_size{19};
 #endif // NDEBUG
 
 
@@ -489,15 +489,14 @@ call(std::vector<std::string> const & hts_paths,
 
   auto emplace_paths =
     [&spl_hts_paths,
-     &spl_avg_cov,
-     &NUM_SAMPLES](std::vector<std::string>::const_iterator & hts_paths_it,
+     &spl_avg_cov](std::vector<std::string>::const_iterator & hts_paths_it,
                    std::vector<double>::const_iterator & cov_it,
                    long const num_parts,
                    long const num_parts_start,
                    long const num_parts_total,
+                   long const num_samples,
                    long const num_splits)
     {
-      long const num_samples{NUM_SAMPLES};
       assert(num_parts > 0);
       assert(num_samples > 0);
       assert(num_splits > 0);
@@ -531,15 +530,16 @@ call(std::vector<std::string> const & hts_paths,
       }
     };
 
-  if (jobs == 1 || NUM_SAMPLES < (4 * jobs))
+  // jobs=4, NUM_SAMPLES=1000, num_parts=4
+  if (jobs <= 2 || NUM_SAMPLES <= 20 || NUM_SAMPLES < (4 * jobs))
   {
-    BOOST_LOG_TRIVIAL(info) << __HERE__ << " there are 4 or less samples allocated to each thread";
+    BOOST_LOG_TRIVIAL(info) << __HERE__ << " Case 1: There are 4 or less samples allocated to each thread";
 
     // special case where there are 4 or less samples allocated to each thread
     auto hts_paths_it = hts_paths.begin();
     auto cov_it = avg_cov_by_readlen.begin();
 
-    emplace_paths(hts_paths_it, cov_it, num_parts, 0, num_parts, 1);
+    emplace_paths(hts_paths_it, cov_it, num_parts, 0, num_parts, NUM_SAMPLES, 1);
 
     // make sure everything is consumed
     assert(hts_paths_it == hts_paths.end());
@@ -547,25 +547,47 @@ call(std::vector<std::string> const & hts_paths,
   }
   else if (num_parts < (4 * jobs))
   {
-    BOOST_LOG_TRIVIAL(info) << __HERE__ << " Some threads get less than 4 \"work packages\""
+    BOOST_LOG_TRIVIAL(info) << __HERE__ << " Case 2: Some threads get less than 4 \"work packages\""
                             << " and there are more than 4 samples allocated to each thread";
 
     // Some threads do not get two "work packages" and there are more than 4 samples allocated to each thread
-    long const num_parts_three_quarters = (num_parts * 3) / 4;
-    //long first_phase_parts = jobs;
-    //_determine_num_jobs_and_num_parts(jobs, first_phase_parts, num_samples_three_quarters);
+    long const num_samples_first = NUM_SAMPLES / 2;
+    long current_phase_parts = jobs;
+    assert(jobs > 1);
+    _determine_num_jobs_and_num_parts(jobs - 1, current_phase_parts, num_samples_first); // skip main thread
 
     auto hts_paths_it = hts_paths.begin();
     auto cov_it = avg_cov_by_readlen.begin();
 
-    emplace_paths(hts_paths_it, cov_it, num_parts_three_quarters, 0, num_parts, 2);
+//#ifndef NDEBUG
+//    BOOST_LOG_TRIVIAL(info) << __HERE__ << " " <<
+//#endif // NDEBUG
 
-    long const num_parts_remaining = num_parts - num_parts_three_quarters;
-    //assert(num_samples_remaining > 0);
-    //long second_phase_parts = jobs;
-    //_determine_num_jobs_and_num_parts(jobs, second_phase_parts, num_samples_remaining);
+    emplace_paths(hts_paths_it, cov_it, current_phase_parts, 0, current_phase_parts, num_samples_first, 1);
 
-    emplace_paths(hts_paths_it, cov_it, num_parts_remaining, num_parts_three_quarters, num_parts, 4); // split in two parts
+    assert(hts_paths_it == (hts_paths.begin() + num_samples_first));
+    assert(cov_it == (avg_cov_by_readlen.begin() + num_samples_first));
+
+    long const num_samples_second = NUM_SAMPLES / 4;
+
+    if (num_samples_second > 0)
+    {
+      current_phase_parts = jobs;
+      assert(jobs > 1);
+      _determine_num_jobs_and_num_parts(jobs, current_phase_parts, num_samples_second);
+
+      emplace_paths(hts_paths_it, cov_it, current_phase_parts, 0, current_phase_parts, num_samples_second, 2);
+
+      assert(hts_paths_it == (hts_paths.begin() + num_samples_first + num_samples_second));
+      assert(cov_it == (avg_cov_by_readlen.begin() + num_samples_first + num_samples_second));
+    }
+
+    //long const num_parts_remaining = num_parts - num_parts_three_quarters;
+    long const num_samples_remaining = NUM_SAMPLES - num_samples_first - num_samples_second;
+    assert(num_samples_remaining > 0);
+    _determine_num_jobs_and_num_parts(jobs, current_phase_parts, num_samples_remaining);
+
+    emplace_paths(hts_paths_it, cov_it, current_phase_parts, 0, current_phase_parts, num_samples_remaining, 4);
 
     // make sure everything is consumed
     assert(hts_paths_it == hts_paths.end());
@@ -573,6 +595,8 @@ call(std::vector<std::string> const & hts_paths,
   }
   else
   {
+    BOOST_LOG_TRIVIAL(info) << __HERE__ << " Case 3: We reduce the size of the last two packages "
+                            << "by half when there are threads*2 packages left";
     // There are more than 4 sample per thread and more jobs than threads
     // In this case we reduce the size of the last two "work packages" by half when there are threads*2 packages left
     auto hts_paths_it = hts_paths.begin();
@@ -580,9 +604,9 @@ call(std::vector<std::string> const & hts_paths,
     assert(num_parts >= (2 * jobs));
     long const first_phase_parts = num_parts - 2 * jobs;
 
-    emplace_paths(hts_paths_it, cov_it, first_phase_parts, 0, num_parts, 1);
-    emplace_paths(hts_paths_it, cov_it, jobs, first_phase_parts, num_parts, 2);
-    emplace_paths(hts_paths_it, cov_it, jobs, first_phase_parts + jobs, num_parts, 4);
+    emplace_paths(hts_paths_it, cov_it, first_phase_parts, 0, num_parts, NUM_SAMPLES, 1);
+    emplace_paths(hts_paths_it, cov_it, jobs, first_phase_parts, num_parts, NUM_SAMPLES, 2);
+    emplace_paths(hts_paths_it, cov_it, jobs, first_phase_parts + jobs, num_parts, NUM_SAMPLES, 4);
 
     // make sure everything is consumed
     assert(hts_paths_it == hts_paths.end());
@@ -596,9 +620,6 @@ call(std::vector<std::string> const & hts_paths,
   // Run in parallel
   {
     paw::Station call_station(jobs); // last parameter is queue_size
-
-    // Push all but the last pool to the thread pool
-    //BOOST_LOG_TRIVIAL(info) << "No variant discovery";
 
     for (long i{0}; i < (NUM_POOLS - 1l); ++i)
     {
@@ -1262,6 +1283,7 @@ run_first_pass(bam1_t * hts_rec,
                //indel_info.sequence_reversed < indel_info.hq_count &&
                indel_info.proper_pairs >= 1 &&
                (indel_info.hq_count >= 5 || indel_info.max_mapq >= 25) &&
+               /*indel_info.hq_count >= 2 &&*/
                indel_info.max_mapq >= 10 &&
                indel_info.clipped < indel_info.hq_count)
       {
