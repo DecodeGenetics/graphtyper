@@ -596,7 +596,7 @@ genotype(std::string ref_path,
                             is_writing_hap);
       }
 
-      if (i == LAST_ITERATION && !copts.no_cleanup)
+      if (i == LAST_ITERATION && !copts.no_cleanup && !copts.no_bamshrink)
       {
         std::ostringstream ss;
         ss << tmp << "/bams";
