@@ -27,17 +27,13 @@ Path::Path(Graph const & graph,
     assert(l.variant_id < graph.var_nodes.size());
     //var_order.push_back(graph.var_nodes[l.variant_id].get_label().order);
     var_order.push_back(graph.get_variant_order(l.variant_id));
-    std::bitset<MAX_NUMBER_OF_HAPLOTYPES> new_bitset(1);
-    new_bitset <<= graph.get_variant_num(l.variant_id);
-    nums.push_back(new_bitset);
+    nums.push_back(std::set<uint64_t>{graph.get_variant_num(l.variant_id)});
   }
 }
 
-
 Path::Path(Path const & p1, Path const & p2) noexcept
+    : Path(p2) // Take everything from the latter path
 {
-  *this = p2; // Take everything from the latter path
-
   for (long i = 0; i < static_cast<long>(p1.var_order.size()); ++i)
   {
     bool id_found = false;
@@ -46,9 +42,23 @@ Path::Path(Path const & p1, Path const & p2) noexcept
     {
       if (p1.var_order[i] == var_order[j])
       {
-        nums[j] &= p1.nums[i];
+#if 1 // first implementation seems faster; copies more but has better asymptotic complexity
+        nums[j].clear();
+        std::set_intersection(p1.nums[i].begin(), p1.nums[i].end(),
+                              p2.nums[j].begin(), p2.nums[j].end(),
+                              std::insert_iterator{nums[j], nums[j].end()});
 
-        if (nums[j].none())
+#else
+        for (auto it = nums[j].begin(), e = nums[j].end(); it != e; /**/)
+        {
+            if (!p1.nums[i].contains(*it))
+                it = nums[j].erase(it);
+            else
+                ++it;
+        }
+#endif
+
+        if (nums[j].empty())
           return;
 
         id_found = true;
@@ -90,7 +100,7 @@ Path::erase_ref_support(long const index)
   assert(index < static_cast<long>(var_order.size()));
   assert(index < static_cast<long>(nums.size()));
 
-  if (nums[index].test(0))
+  if (nums[index].contains(0))
     erase_var_order(index); // delete if the sequence supports the reference
 }
 
@@ -111,17 +121,13 @@ Path::merge_with_current(KmerLabel const & l)
   {
     if (var_order[i] == variant_order)
     {
-      std::bitset<MAX_NUMBER_OF_HAPLOTYPES> new_bitset(1);
-      new_bitset <<= variant_num;
-      nums[i] |= new_bitset;
+      nums[i].insert(variant_num);
       return;
     }
   }
 
   var_order.push_back(variant_order);
-  std::bitset<MAX_NUMBER_OF_HAPLOTYPES> new_bitset(1);
-  new_bitset <<= variant_num;
-  nums.push_back(std::move(new_bitset));
+  nums.push_back(std::set<uint64_t>{variant_num});
 }
 
 
@@ -191,7 +197,7 @@ Path::is_reference() const
 {
   for (auto const & num : nums)
   {
-    if (not num.test(0))
+    if (not num.contains(0))
       return false;
   }
 
@@ -204,7 +210,7 @@ Path::is_purely_reference() const
 {
   for (auto const & num : nums)
   {
-    if (not num.test(0) or num.count() > 1)
+    if (not num.contains(0) or num.size() > 1)
       return false;
   }
 
