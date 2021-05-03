@@ -449,7 +449,7 @@ VcfWriter::print_geno_statistics(std::stringstream & read_ss,
 
       for (uint32_t g = 0; g < gt.num; ++g)
       {
-        if (num.test(g))
+        if (num.contains(g))
           overlapping_vars.push_back(gt.first_variant_node + g);
       }
     }
@@ -607,7 +607,7 @@ VcfWriter::push_to_haplotype_scores(GenotypePaths & geno, long const pn_index)
       uint32_t const hap_id = id2hap[p_it->var_order[i]]; // hap_id = first, gen_id = second
 
       assert(hap_id < haplotypes.size());
-      assert(p_it->nums[i].any());
+      assert(p_it->nums[i].size() > 0);
 
       auto & hap = haplotypes[hap_id];
       auto & num = p_it->nums[i];
@@ -629,24 +629,18 @@ VcfWriter::push_to_haplotype_scores(GenotypePaths & geno, long const pn_index)
       }
 
       // Add explanation
-      hap.explains |= num;
+      hap.explains.insert(num.begin(), num.end());
 
       // Add coverage if the explanation is unique
-      if (num.count() == 1)
+      if (num.size() == 1)
       {
-        // Check which bit is set
-        uint16_t b = 0;
-
-        while (not num.test(b))
-          ++b;
-
-        hap.add_coverage(0, b);
+          hap.add_coverage(0, *num.begin());
       }
       else /* Otherwise set the coverage is ambiguous */
       {
         hap.add_coverage(0, 1);
 
-        if (num.test(0))
+        if (num.contains(0))
           hap.add_coverage(0, 0);
         else
           hap.add_coverage(0, 2);
@@ -659,7 +653,7 @@ VcfWriter::push_to_haplotype_scores(GenotypePaths & geno, long const pn_index)
   for (auto it = recent_ids.begin(); it != recent_ids.end(); ++it)
   {
     auto & haplotype1 = haplotypes[it->first];
-    long const hap1_explains_count = haplotype1.explains.count();
+    long const hap1_explains_count = haplotype1.explains.size();
 
     if (hap1_explains_count == 0 || hap1_explains_count > 64)
       continue;
@@ -670,7 +664,7 @@ VcfWriter::push_to_haplotype_scores(GenotypePaths & geno, long const pn_index)
     {
       assert(b1 < static_cast<long>(haplotype1.gt.num));
 
-      if (!haplotype1.explains.test(b1))
+      if (!haplotype1.explains.contains(b1))
         continue;
 
       ++hap1_counter;
@@ -680,7 +674,7 @@ VcfWriter::push_to_haplotype_scores(GenotypePaths & geno, long const pn_index)
       for (auto it2 = std::next(it); it2 != recent_ids.end(); ++it2)
       {
         auto & haplotype2 = haplotypes[it2->first];
-        long const hap2_explains_count = haplotype2.explains.count();
+        long const hap2_explains_count = haplotype2.explains.size();
 
         if (hap2_explains_count == 0 || hap2_explains_count > 64)
           continue;
@@ -694,7 +688,7 @@ VcfWriter::push_to_haplotype_scores(GenotypePaths & geno, long const pn_index)
         {
           assert(b2 < static_cast<long>(haplotype2.gt.num));
 
-          if (!haplotype2.explains.test(b2))
+          if (!haplotype2.explains.contains(b2))
             continue;
 
           ++hap2_counter;
@@ -741,7 +735,7 @@ VcfWriter::push_to_haplotype_scores(GenotypePaths & geno, long const pn_index)
 
     // Reset coverage and clear explains bitset
     haplotype.coverage = Haplotype::NO_COVERAGE;
-    haplotype.explains = std::bitset<MAX_NUMBER_OF_HAPLOTYPES>(0);
+    haplotype.explains.clear();
   }
 
 #ifdef GT_DEV
