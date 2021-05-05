@@ -533,9 +533,7 @@ call(std::vector<std::string> const & hts_paths,
   // jobs=4, NUM_SAMPLES=1000, num_parts=4
   if (jobs <= 2 || NUM_SAMPLES <= 20 || NUM_SAMPLES < (4 * jobs))
   {
-    BOOST_LOG_TRIVIAL(info) << __HERE__ << " Case 1: There are 4 or less samples allocated to each thread";
-
-    // special case where there are 4 or less samples allocated to each thread
+    // special case where there are 4 or less samples allocated to each thread (or we have few threads..)
     auto hts_paths_it = hts_paths.begin();
     auto cov_it = avg_cov_by_readlen.begin();
 
@@ -547,8 +545,8 @@ call(std::vector<std::string> const & hts_paths,
   }
   else if (num_parts < (4 * jobs))
   {
-    BOOST_LOG_TRIVIAL(info) << __HERE__ << " Case 2: Some threads get less than 4 \"work packages\""
-                            << " and there are more than 4 samples allocated to each thread";
+    //BOOST_LOG_TRIVIAL(info) << __HERE__ << " Case 2: Some threads get less than 4 \"work packages\""
+    //                        << " and there are more than 4 samples allocated to each thread";
 
     // Some threads do not get two "work packages" and there are more than 4 samples allocated to each thread
     long const num_samples_first = NUM_SAMPLES / 2;
@@ -595,8 +593,8 @@ call(std::vector<std::string> const & hts_paths,
   }
   else
   {
-    BOOST_LOG_TRIVIAL(info) << __HERE__ << " Case 3: We reduce the size of the last two packages "
-                            << "by half when there are threads*2 packages left";
+    //BOOST_LOG_TRIVIAL(info) << __HERE__ << " Case 3: We reduce the size of the last two packages "
+    //                        << "by half when there are threads*2 packages left";
     // There are more than 4 sample per thread and more jobs than threads
     // In this case we reduce the size of the last two "work packages" by half when there are threads*2 packages left
     auto hts_paths_it = hts_paths.begin();
