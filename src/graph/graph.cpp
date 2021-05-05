@@ -1067,7 +1067,7 @@ Graph::get_locations_of_an_actual_position(uint32_t pos, Path const & path, bool
           assert(i == this->get_variant_num(v));
           assert(i < static_cast<int>(MAX_NUMBER_OF_HAPLOTYPES));
 
-          if (path.is_empty() || (j < static_cast<long>(path.nums.size()) && path.nums[j].contains(i)))
+          if (path.is_empty() || (j < static_cast<long>(path.nums.size()) && path.nums[j].count(i)))
           {
             locs.push_back(
               {'V' /*type*/,

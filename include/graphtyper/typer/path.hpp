@@ -34,8 +34,8 @@ public:
    */
   uint16_t read_end_index = 0;
   std::vector<uint32_t> var_order;
-  std::vector<std::set<uint64_t>> nums = std::vector<std::set<uint64_t>>(0);
-  uint16_t mismatches;
+  std::vector<std::set<uint64_t> > nums = std::vector<std::set<uint64_t> >(0);
+  uint16_t mismatches = 0;
 
   /*********************
    * PATH CONSTRUCTORS *
@@ -48,10 +48,10 @@ public:
        uint16_t mismatches = 0) noexcept;
 
   Path(Path const & p1, Path const & p2) noexcept;
-  Path(Path const &)                     noexcept = default;
-  Path(Path &&)                          noexcept = default;
-  Path & operator=(Path const &)         noexcept = default;
-  Path & operator=(Path &&)              noexcept = default;
+  Path(Path const &)                     = default;
+  Path(Path &&)                          = default;
+  Path & operator=(Path const &)         = default;
+  Path & operator=(Path &&)              = default;
 
   /**********************
    * PATH MODIFICATIONS *
