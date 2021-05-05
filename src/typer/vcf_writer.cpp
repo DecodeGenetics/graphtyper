@@ -449,7 +449,7 @@ VcfWriter::print_geno_statistics(std::stringstream & read_ss,
 
       for (uint32_t g = 0; g < gt.num; ++g)
       {
-        if (num.count(g))
+        if (num.count(g) == 1)
           overlapping_vars.push_back(gt.first_variant_node + g);
       }
     }
@@ -640,7 +640,7 @@ VcfWriter::push_to_haplotype_scores(GenotypePaths & geno, long const pn_index)
       {
         hap.add_coverage(0, 1);
 
-        if (num.count(0))
+        if (num.count(0) == 1)
           hap.add_coverage(0, 0);
         else
           hap.add_coverage(0, 2);
@@ -664,7 +664,7 @@ VcfWriter::push_to_haplotype_scores(GenotypePaths & geno, long const pn_index)
     {
       assert(b1 < static_cast<long>(haplotype1.gt.num));
 
-      if (!haplotype1.explains.count(b1))
+      if (haplotype1.explains.count(b1) == 0)
         continue;
 
       ++hap1_counter;
@@ -688,7 +688,7 @@ VcfWriter::push_to_haplotype_scores(GenotypePaths & geno, long const pn_index)
         {
           assert(b2 < static_cast<long>(haplotype2.gt.num));
 
-          if (!haplotype2.explains.count(b2))
+          if (haplotype2.explains.count(b2) == 0)
             continue;
 
           ++hap2_counter;

@@ -610,14 +610,18 @@ Haplotype::explain_to_score(std::size_t const pn_index,
 
     for (std::size_t y = 0; y < cnum; ++y)
     {
+      bool const explains_y = explains.count(y) == 1;
+
       for (std::size_t x = 0; x <= y; ++x, ++i)
       {
         assert(to_index(x, y) < static_cast<long>(hap_sample.log_score.size()));
         assert(i == to_index(x, y));
 
-        if (explains.count(x) && explains.count(y))
+        bool const explains_x = explains.count(x) == 1;
+
+        if (explains_x && explains_y)
           hap_sample.log_score[i] += epsilon_exponent;
-        else if (explains.count(x) || explains.count(y))
+        else if (explains_x || explains_y)
           hap_sample.log_score[i] += epsilon_exponent - 1;
         // else the log_score does not change
       }
