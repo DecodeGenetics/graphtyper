@@ -615,9 +615,9 @@ Haplotype::explain_to_score(std::size_t const pn_index,
         assert(to_index(x, y) < static_cast<long>(hap_sample.log_score.size()));
         assert(i == to_index(x, y));
 
-        if (explains.contains(x) && explains.contains(y))
+        if (explains.count(x) && explains.count(y))
           hap_sample.log_score[i] += epsilon_exponent;
-        else if (explains.contains(x) || explains.contains(y))
+        else if (explains.count(x) || explains.count(y))
           hap_sample.log_score[i] += epsilon_exponent - 1;
         // else the log_score does not change
       }

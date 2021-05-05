@@ -1154,17 +1154,18 @@ compare_pair_of_genotype_paths(std::pair<GenotypePaths *, GenotypePaths *> const
                                           {
                                             for (auto const & num : path.nums)
                                             {
-                                              count += (!num.contains(0));
+                                              count += (num.count(0) == 0);
                                             }
                                           }
 
                                           return count;
                                         };
 
-          std::size_t const COUNT_1 = alternative_call_count(genos1_first.paths) + alternative_call_count(
-            genos1_second.paths);
-          std::size_t const COUNT_2 = alternative_call_count(genos2_first.paths) + alternative_call_count(
-            genos2_second.paths);
+          std::size_t const COUNT_1 =
+            alternative_call_count(genos1_first.paths) + alternative_call_count(genos1_second.paths);
+
+          std::size_t const COUNT_2 =
+            alternative_call_count(genos2_first.paths) + alternative_call_count(genos2_second.paths);
 
           if (COUNT_1 >= COUNT_2)
           {

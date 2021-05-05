@@ -1,5 +1,6 @@
+#include <algorithm>
 #include <cassert> // assert
-#include <bitset> // std::bitset<Size>
+#include <set>
 #include <vector> // std::vector<Type>
 
 #include <graphtyper/typer/path.hpp>
@@ -31,8 +32,9 @@ Path::Path(Graph const & graph,
   }
 }
 
+
 Path::Path(Path const & p1, Path const & p2) noexcept
-    : Path(p2) // Take everything from the latter path
+  : Path(p2)   // Take everything from the latter path
 {
   for (long i = 0; i < static_cast<long>(p1.var_order.size()); ++i)
   {
@@ -46,15 +48,15 @@ Path::Path(Path const & p1, Path const & p2) noexcept
         nums[j].clear();
         std::set_intersection(p1.nums[i].begin(), p1.nums[i].end(),
                               p2.nums[j].begin(), p2.nums[j].end(),
-                              std::insert_iterator{nums[j], nums[j].end()});
+                              std::insert_iterator<std::set<uint64_t> >{nums[j], nums[j].end()});
 
 #else
         for (auto it = nums[j].begin(), e = nums[j].end(); it != e; /**/)
         {
-            if (!p1.nums[i].contains(*it))
-                it = nums[j].erase(it);
-            else
-                ++it;
+          if (p1.nums[i].count(*it) == 0)
+            it = nums[j].erase(it);
+          else
+            ++it;
         }
 #endif
 
@@ -100,7 +102,7 @@ Path::erase_ref_support(long const index)
   assert(index < static_cast<long>(var_order.size()));
   assert(index < static_cast<long>(nums.size()));
 
-  if (nums[index].contains(0))
+  if (nums[index].count(0))
     erase_var_order(index); // delete if the sequence supports the reference
 }
 
@@ -197,7 +199,7 @@ Path::is_reference() const
 {
   for (auto const & num : nums)
   {
-    if (not num.contains(0))
+    if (num.count(0) == 0)
       return false;
   }
 
@@ -210,7 +212,7 @@ Path::is_purely_reference() const
 {
   for (auto const & num : nums)
   {
-    if (not num.contains(0) or num.size() > 1)
+    if (num.count(0) == 0 || num.size() > 1)
       return false;
   }
 
