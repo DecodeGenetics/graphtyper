@@ -47,7 +47,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wfatal-errors -pedantic -
 if(CMAKE_BUILD_TYPE STREQUAL "DEBUG" OR CMAKE_BUILD_TYPE STREQUAL "Debug")
   message(STATUS "Building in debug mode.")
   set (CMAKE_CXX_FLAGS "-g -O0 -DDEBUG ${CMAKE_CXX_FLAGS}")
-elseif(CMAKE_BUILD_TYPE STREQUAL "RELDEB" OR CMAKE_BUILD_TYPE STREQUAL "Reldeb")
+elseif(CMAKE_BUILD_TYPE STREQUAL "RELDEB" OR CMAKE_BUILD_TYPE STREQUAL "Reldeb" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
   message(STATUS "Building in release (with assertions and debug info) mode.")
   set (CMAKE_CXX_FLAGS "-g -O3 -DDEBUG ${CMAKE_CXX_FLAGS}")
 elseif(CMAKE_BUILD_TYPE STREQUAL "PROFILING" OR CMAKE_BUILD_TYPE STREQUAL "Profiling")
