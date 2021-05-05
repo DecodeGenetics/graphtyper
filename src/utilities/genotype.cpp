@@ -533,6 +533,11 @@ genotype(std::string ref_path,
       {
         is_writing_calls_vcf = true; // Always write calls vcf in the last iteration
         is_writing_hap = false; // No need for writing .hap
+
+#ifndef NDEBUG
+        if (stats.size() > 0)
+          Options::instance()->stats = stats;
+#endif // NDEBUG
       }
 
       std::string prev_out_vcf;

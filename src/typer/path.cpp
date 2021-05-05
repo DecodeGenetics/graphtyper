@@ -28,13 +28,16 @@ Path::Path(Graph const & graph,
     assert(l.variant_id < graph.var_nodes.size());
     //var_order.push_back(graph.var_nodes[l.variant_id].get_label().order);
     var_order.push_back(graph.get_variant_order(l.variant_id));
-    nums.push_back(std::set<uint64_t>{graph.get_variant_num(l.variant_id)});
+
+    phmap::flat_hash_set<uint16_t> new_num;
+    new_num.insert(graph.get_variant_num(l.variant_id));
+    nums.push_back(std::move(new_num));
   }
 }
 
 
-Path::Path(Path const & p1, Path const & p2) noexcept
-  : Path(p2)   // Take everything from the latter path
+Path::Path(Path const & p1, Path const & p2)
+  : Path(p2)  // Take everything from the latter path
 {
   for (long i = 0; i < static_cast<long>(p1.var_order.size()); ++i)
   {
@@ -44,7 +47,7 @@ Path::Path(Path const & p1, Path const & p2) noexcept
     {
       if (p1.var_order[i] == var_order[j])
       {
-#if 1 // first implementation seems faster; copies more but has better asymptotic complexity
+#if 0 // first implementation seems faster; copies more but has better asymptotic complexity
         nums[j].clear();
         std::set_intersection(p1.nums[i].begin(), p1.nums[i].end(),
                               p2.nums[j].begin(), p2.nums[j].end(),
@@ -129,7 +132,9 @@ Path::merge_with_current(KmerLabel const & l)
   }
 
   var_order.push_back(variant_order);
-  nums.push_back(std::set<uint64_t>{variant_num});
+  phmap::flat_hash_set<uint16_t> new_num;
+  new_num.insert(variant_num);
+  nums.push_back(std::move(new_num));
 }
 
 
