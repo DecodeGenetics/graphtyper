@@ -172,7 +172,7 @@ void
 Haplotype::clear()
 {
   gt = Genotype();
-  explains = std::bitset<MAX_NUMBER_OF_HAPLOTYPES>(0);
+  explains.clear();
   coverage = NO_COVERAGE;
   hap_samples.clear();
   hap_samples.shrink_to_fit();
@@ -550,10 +550,12 @@ Haplotype::explain_to_score(std::size_t const pn_index,
   uint32_t const cnum = get_genotype_num();
 
 #ifndef NDEBUG
-  assert(!explains.none());
+  // TODO(h2) THE FOLLOWING DOESNT MAKE SENSE
+  /*assert(!explains.none());
 
   if (explains.none())
     explains.set(); // Flip 'em all, cause they can all explain this read
+    */
 #endif // NDEBUG
 
   //std::vector<uint16_t> haplotype_errors = find_with_how_many_errors_haplotypes_explain_the_read(cnum);
@@ -608,14 +610,18 @@ Haplotype::explain_to_score(std::size_t const pn_index,
 
     for (std::size_t y = 0; y < cnum; ++y)
     {
+      bool const explains_y = explains.count(y) == 1;
+
       for (std::size_t x = 0; x <= y; ++x, ++i)
       {
         assert(to_index(x, y) < static_cast<long>(hap_sample.log_score.size()));
         assert(i == to_index(x, y));
 
-        if (explains.test(x) && explains.test(y))
+        bool const explains_x = explains.count(x) == 1;
+
+        if (explains_x && explains_y)
           hap_sample.log_score[i] += epsilon_exponent;
-        else if (explains.test(x) || explains.test(y))
+        else if (explains_x || explains_y)
           hap_sample.log_score[i] += epsilon_exponent - 1;
         // else the log_score does not change
       }

@@ -3,6 +3,7 @@
 #include <bitset> // std::bitset
 #include <cstdint> // uint64_t
 #include <memory> // std::unique_ptr
+#include <set>
 #include <vector> // std::vector
 
 #include <graphtyper/constants.hpp> // MAX_NUMBER_OF_HAPLOTYPES
@@ -105,7 +106,7 @@ public:
   VarStats var_stats{};
 
   uint16_t coverage{NO_COVERAGE};
-  std::bitset<MAX_NUMBER_OF_HAPLOTYPES> explains{}; // per gt
+  std::set<uint64_t> explains;
 
   Haplotype() noexcept;
 
@@ -118,7 +119,7 @@ public:
   void clear();
 
   void add_coverage(uint32_t local_genotype_id, uint16_t c);
-  void add_explanation(uint32_t local_genotype_id, std::bitset<MAX_NUMBER_OF_HAPLOTYPES> const & e);
+  void add_explanation(uint32_t local_genotype_id, std::set<uint64_t> const & e);
 
   void update_max_log_score();
 
@@ -147,10 +148,10 @@ public:
   void mismatches_to_stats(uint8_t mismatches, int read_length);
   void score_diff_to_stats(uint8_t score_diff);
   void coverage_to_gts(std::size_t pn_index, bool is_proper_pair);
-  std::bitset<MAX_NUMBER_OF_HAPLOTYPES> explain_to_path_explain();
+  std::set<uint64_t> explain_to_path_explain();
 
 private:
-  std::bitset<MAX_NUMBER_OF_HAPLOTYPES> find_which_haplotypes_explain_the_read(uint32_t cnum) const;
+  std::set<uint64_t> find_which_haplotypes_explain_the_read(uint32_t cnum) const;
   std::vector<uint16_t> find_with_how_many_errors_haplotypes_explain_the_read(uint32_t cnum) const;
 };
 

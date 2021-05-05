@@ -341,7 +341,7 @@ GenotypePaths::add_next_kmer_labels(std::vector<KmerLabel> const & ll,
       continue;
 
     bool matched_at_least_once = false;
-    Path original_path(paths[i]);
+    Path const & original_path = paths[i];
 
     for (unsigned j = 0; j < pp.size(); ++j)
     {
@@ -435,7 +435,7 @@ GenotypePaths::remove_support_from_read_ends()
     {
       long const index = std::distance(path.var_order.begin(), min_max_elements.second);
       assert(index < static_cast<long>(path.nums.size()));
-      path.nums[index].set();
+      path.nums[index].clear();
     }
 
     // Check start position
@@ -459,7 +459,7 @@ GenotypePaths::remove_support_from_read_ends()
       {
         long const index = std::distance(path.var_order.begin(), min_max_elements.first);
         assert(index < static_cast<long>(path.nums.size()));
-        path.nums[index].set();
+        path.nums[index].clear();
       }
     }
   }
@@ -1154,17 +1154,18 @@ compare_pair_of_genotype_paths(std::pair<GenotypePaths *, GenotypePaths *> const
                                           {
                                             for (auto const & num : path.nums)
                                             {
-                                              count += (!num.test(0));
+                                              count += (num.count(0) == 0);
                                             }
                                           }
 
                                           return count;
                                         };
 
-          std::size_t const COUNT_1 = alternative_call_count(genos1_first.paths) + alternative_call_count(
-            genos1_second.paths);
-          std::size_t const COUNT_2 = alternative_call_count(genos2_first.paths) + alternative_call_count(
-            genos2_second.paths);
+          std::size_t const COUNT_1 =
+            alternative_call_count(genos1_first.paths) + alternative_call_count(genos1_second.paths);
+
+          std::size_t const COUNT_2 =
+            alternative_call_count(genos2_first.paths) + alternative_call_count(genos2_second.paths);
 
           if (COUNT_1 >= COUNT_2)
           {
