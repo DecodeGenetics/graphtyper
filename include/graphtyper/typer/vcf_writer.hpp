@@ -5,6 +5,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include <parallel_hashmap/phmap_fwd_decl.h>
+
 #include <graphtyper/typer/genotype_paths.hpp>
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/genotype.hpp>
@@ -32,7 +34,7 @@ public:
   void update_haplotype_scores_geno(GenotypePaths & geno, long pn_index, Primers const * primers);
 
 #ifdef GT_DEV
-  std::map<std::pair<uint16_t, uint16_t>, std::vector<std::pair<uint16_t, uint16_t> > >
+  phmap::flat_hash_map<std::pair<uint16_t, uint16_t>, std::vector<std::pair<uint16_t, uint16_t> > >
 #else // GT_DEV
   void
 #endif

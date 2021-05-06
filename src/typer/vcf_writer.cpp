@@ -9,6 +9,7 @@
 
 #include <boost/log/trivial.hpp>
 
+#include <parallel_hashmap/phmap.h>
 #include <paw/station.hpp>
 
 #include <graphtyper/graph/absolute_position.hpp>
@@ -110,7 +111,8 @@ VcfWriter::update_haplotype_scores_geno(GenotypePaths & geno, long const pn_inde
       primers->check(geno);
 
 #ifdef GT_DEV
-    std::map<std::pair<uint16_t, uint16_t>, std::vector<std::pair<uint16_t, uint16_t> > > merged_connections;
+    phmap::flat_hash_map<std::pair<uint16_t, uint16_t>,
+                         std::vector<std::pair<uint16_t, uint16_t> > > merged_connections;
     auto con1 = push_to_haplotype_scores(geno, pn_index);
 
     // add to merged connections
@@ -174,8 +176,8 @@ VcfWriter::update_haplotype_scores_geno(std::pair<GenotypePaths *, GenotypePaths
 #endif
 
 #ifdef GT_DEV
-  std::map<std::pair<uint16_t, uint16_t>, std::vector<std::pair<uint16_t, uint16_t> > > con1;
-  std::map<std::pair<uint16_t, uint16_t>, std::vector<std::pair<uint16_t, uint16_t> > > con2;
+  phmap::flat_hash_map<std::pair<uint16_t, uint16_t>, std::vector<std::pair<uint16_t, uint16_t> > > con1;
+  phmap::flat_hash_map<std::pair<uint16_t, uint16_t>, std::vector<std::pair<uint16_t, uint16_t> > > con2;
 #endif
 
   bool const is_good1 = are_genotype_paths_good(geno1);
@@ -209,7 +211,7 @@ VcfWriter::update_haplotype_scores_geno(std::pair<GenotypePaths *, GenotypePaths
   }
 
 #ifdef GT_DEV
-  std::map<std::pair<uint16_t, uint16_t>, std::vector<std::pair<uint16_t, uint16_t> > > merged_connections;
+  phmap::flat_hash_map<std::pair<uint16_t, uint16_t>, std::vector<std::pair<uint16_t, uint16_t> > > merged_connections;
 
   if (con1.size() > 0 || con2.size() > 0)
   {
@@ -558,7 +560,7 @@ VcfWriter::update_statistics(std::vector<std::pair<GenotypePaths, GenotypePaths>
 #endif // NDEBUG
 
 #ifdef GT_DEV
-std::map<std::pair<uint16_t, uint16_t>, std::vector<std::pair<uint16_t, uint16_t> > >
+phmap::flat_hash_map<std::pair<uint16_t, uint16_t>, std::vector<std::pair<uint16_t, uint16_t> > >
 #else // GT_DEV
 void
 #endif
@@ -579,7 +581,7 @@ VcfWriter::push_to_haplotype_scores(GenotypePaths & geno, long const pn_index)
 
 #ifdef GT_DEV
   std::map<uint32_t, bool> recent_ids; // maps to is_overlapping
-  std::map<std::pair<uint16_t, uint16_t>, std::vector<std::pair<uint16_t, uint16_t> > > new_connections;
+  phmap::flat_hash_map<std::pair<uint16_t, uint16_t>, std::vector<std::pair<uint16_t, uint16_t> > > new_connections;
 #else
   std::unordered_map<uint32_t, bool> recent_ids; // maps to is_overlapping
 #endif // GT_DEV

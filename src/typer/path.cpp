@@ -3,6 +3,8 @@
 #include <set>
 #include <vector> // std::vector<Type>
 
+#include <parallel_hashmap/phmap.h>
+
 #include <graphtyper/typer/path.hpp>
 #include <graphtyper/graph/graph.hpp>
 
