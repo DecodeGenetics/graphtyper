@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <filesystem>
 #include <iostream>
 #include <string>
 #include <sstream>
@@ -568,12 +569,9 @@ genotype(std::string ref_path,
 #endif // NDEBUG
 
       {
-        std::ostringstream ss1;
-        ss1 << "mv " << tmp << "/it" << (i - 1) << "/final.vcf.gz " << tmp << "/it" << (i - 1) << "_final.vcf.gz";
-        int ret = system(ss1.str().c_str());
-
-        if (ret != 0)
-          BOOST_LOG_TRIVIAL(warning) << __HERE__ << "Could not do " << ss1.str();
+        std::filesystem::path src = tmp + "/it" + std::to_string(i - 1) + "/final.vcf.gz";
+        std::filesystem::path dst = tmp + "/it" + std::to_string(i - 1) + "_final.vcf.gz";
+        std::filesystem::rename(src, dst);
       }
 
       // clean previous iteration files
@@ -670,28 +668,17 @@ genotype(std::string ref_path,
   auto copy_to_results =
     [&](std::string const & basename_no_ext, std::string const & extension, std::string const & id)
     {
-      std::ostringstream ss_cmd;
+      std::filesystem::path src = tmp + "/" + basename_no_ext + extension;
 
-      ss_cmd << "cp -p " << tmp << "/" << basename_no_ext << extension << " "
-             << output_path << "/" << region.chr << "/"
-             << std::setw(9) << std::setfill('0') << (region.begin + 1)
-             << '-'
-             << std::setw(9) << std::setfill('0') << region.end
-             << id
-             << extension;
+      std::ostringstream dest;
+      dest << output_path << "/" << region.chr << "/"
+           << std::setw(9) << std::setfill('0') << (region.begin + 1)
+           << '-'
+           << std::setw(9) << std::setfill('0') << region.end
+           << id
+           << extension;
 
-      int ret = system(ss_cmd.str().c_str());
-
-      if (extension != index_ext && ret != 0)
-      {
-        BOOST_LOG_TRIVIAL(error) << __HERE__ << " This command failed '" << ss_cmd.str() << "'";
-        std::exit(ret);
-      }
-      else if (ret != 0)
-      {
-        // Just a warning if tabix fails and there is no index
-        BOOST_LOG_TRIVIAL(warning) << __HERE__ << " This command failed '" << ss_cmd.str() << "'";
-      }
+      std::filesystem::copy_file(src, dest.str(), std::filesystem::copy_options::overwrite_existing);
     };
 
   std::string basename_no_ext{"graphtyper"};
