@@ -246,6 +246,7 @@ else(STATIC_DIR STREQUAL "")
     ${STATIC_DIR}/libbz2.a
     ${STATIC_DIR}/liblzma.a
     ${STATIC_DIR}/librt.a
+    ${STATIC_DIR}/libstdc++fs.a
 )
 endif(STATIC_DIR STREQUAL "")
 
