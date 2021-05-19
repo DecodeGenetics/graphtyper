@@ -1,3 +1,4 @@
+#include <iomanip>
 #include <sstream> // std::ostringstream
 #include <string> // std::string, std::stol
 
@@ -175,6 +176,13 @@ GenomicRegion::to_string() const
   return ss.str();
 }
 
+std::string
+GenomicRegion::to_file_string() const
+{
+  std::ostringstream ss;
+  ss << chr << "/" << std::setw(9) << std::setfill('0') << (begin + 1) << '-' << end;
+  return ss.str();
+}
 
 long
 GenomicRegion::get_absolute_begin_position() const

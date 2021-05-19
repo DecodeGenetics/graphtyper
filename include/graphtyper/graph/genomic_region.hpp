@@ -40,6 +40,7 @@ public:
   long get_absolute_position(long contig_position) const;
   std::pair<std::string, long> get_contig_position(long absolute_position, Graph const & graph) const;
   std::string to_string() const;
+  std::string to_file_string() const;
 
   void check_if_var_records_match_reference_genome(std::vector<VarRecord> const & var_records,
                                                    std::vector<char> const & reference);
