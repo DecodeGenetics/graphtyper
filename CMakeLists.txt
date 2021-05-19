@@ -206,6 +206,12 @@ if(STATIC_DIR STREQUAL "")
   if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     message(STATUS "Using GCC")
     list(APPEND graphtyper_all_libraries "rt")
+    list(APPEND graphtyper_all_libraries "stdc++fs")
+  elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+    message(STATUS "Using Clang")
+    list(APPEND graphtyper_all_libraries "c++fs")
+  else()
+    message(WARNING "Unsupported compiler")
   endif ()
 
   # If lzma is optional for htslib

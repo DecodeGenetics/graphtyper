@@ -11,6 +11,7 @@
 #include <graphtyper/typer/vcf.hpp>
 #include <graphtyper/typer/vcf_operations.hpp>
 #include <graphtyper/utilities/bamshrink.hpp>
+#include <graphtyper/utilities/filesystem.hpp> // std_filesystem -> std::filesystem/std::experimental::filesystem
 #include <graphtyper/utilities/genotype.hpp>
 #include <graphtyper/utilities/hts_parallel_reader.hpp>
 #include <graphtyper/utilities/options.hpp>
@@ -22,12 +23,12 @@
 
 #include <algorithm>
 #include <cassert>
-#include <filesystem>
 #include <iostream>
 #include <string>
 #include <sstream>
 #include <utility>
 #include <vector>
+
 
 namespace
 {
@@ -569,9 +570,9 @@ genotype(std::string ref_path,
 #endif // NDEBUG
 
       {
-        std::filesystem::path src = tmp + "/it" + std::to_string(i - 1) + "/final.vcf.gz";
-        std::filesystem::path dst = tmp + "/it" + std::to_string(i - 1) + "_final.vcf.gz";
-        std::filesystem::rename(src, dst);
+        std_filesystem::path src = tmp + "/it" + std::to_string(i - 1) + "/final.vcf.gz";
+        std_filesystem::path dst = tmp + "/it" + std::to_string(i - 1) + "_final.vcf.gz";
+        std_filesystem::rename(src, dst);
       }
 
       // clean previous iteration files
@@ -668,7 +669,7 @@ genotype(std::string ref_path,
   auto copy_to_results =
     [&](std::string const & basename_no_ext, std::string const & extension, std::string const & id)
     {
-      std::filesystem::path src = tmp + "/" + basename_no_ext + extension;
+      std_filesystem::path src = tmp + "/" + basename_no_ext + extension;
 
       std::ostringstream dest;
       dest << output_path << "/" << region.chr << "/"
@@ -678,7 +679,7 @@ genotype(std::string ref_path,
            << id
            << extension;
 
-      std::filesystem::copy_file(src, dest.str(), std::filesystem::copy_options::overwrite_existing);
+      std_filesystem::copy_file(src, dest.str(), std_filesystem::copy_options::overwrite_existing);
     };
 
   std::string basename_no_ext{"graphtyper"};
