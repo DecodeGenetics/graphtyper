@@ -22,12 +22,22 @@
 
 #include <algorithm>
 #include <cassert>
-#include <filesystem>
 #include <iostream>
 #include <string>
 #include <sstream>
 #include <utility>
 #include <vector>
+
+// Source: https://askubuntu.com/questions/1256440/how-to-get-libstdc-with-c17-filesystem-headers-on-ubuntu-18-bionic
+#if __has_include(<filesystem>)
+  #include <filesystem>
+namespace std_filesystem = std::filesystem;
+#elif __has_include(<experimental/filesystem>)
+  #include <experimental/filesystem>
+namespace std_filesystem = std::experimental::filesystem;
+#else
+  #error "Missing the <filesystem> header."
+#endif
 
 namespace
 {
@@ -569,9 +579,9 @@ genotype(std::string ref_path,
 #endif // NDEBUG
 
       {
-        std::filesystem::path src = tmp + "/it" + std::to_string(i - 1) + "/final.vcf.gz";
-        std::filesystem::path dst = tmp + "/it" + std::to_string(i - 1) + "_final.vcf.gz";
-        std::filesystem::rename(src, dst);
+        std_filesystem::path src = tmp + "/it" + std::to_string(i - 1) + "/final.vcf.gz";
+        std_filesystem::path dst = tmp + "/it" + std::to_string(i - 1) + "_final.vcf.gz";
+        std_filesystem::rename(src, dst);
       }
 
       // clean previous iteration files
@@ -668,7 +678,7 @@ genotype(std::string ref_path,
   auto copy_to_results =
     [&](std::string const & basename_no_ext, std::string const & extension, std::string const & id)
     {
-      std::filesystem::path src = tmp + "/" + basename_no_ext + extension;
+      std_filesystem::path src = tmp + "/" + basename_no_ext + extension;
 
       std::ostringstream dest;
       dest << output_path << "/" << region.chr << "/"
@@ -678,7 +688,7 @@ genotype(std::string ref_path,
            << id
            << extension;
 
-      std::filesystem::copy_file(src, dest.str(), std::filesystem::copy_options::overwrite_existing);
+      std_filesystem::copy_file(src, dest.str(), std_filesystem::copy_options::overwrite_existing);
     };
 
   std::string basename_no_ext{"graphtyper"};
