@@ -297,7 +297,7 @@ Vcf::read_record(bool const SITES_ONLY)
           "END",
           "FEATURE",
           "GT_ID",
-          "HOMSEQ"
+          "HOMSEQ",
 //          "INV3", "INV5",
           "LEFT_SVINSSEQ",
           "NCLUSTERS", "NUM_MERGED_SVS",

@@ -12,8 +12,7 @@
 #include <graphtyper/utilities/options.hpp>
 
 #ifdef GT_DEV
-#include <map>
-#include <unordered_map>
+#include <parallel_hashmap/phmap.h>
 #endif // GT_DEV
 
 namespace gyper
@@ -45,7 +44,7 @@ struct HapSample
 
 #ifdef GT_DEV
   // here I assume Haplotype::gts is of size 1
-  std::vector<std::map<uint16_t, std::vector<uint16_t> > > connections; // per allele support to another variant group
+  std::vector<phmap::flat_hash_map<uint16_t, std::vector<uint16_t> > > connections; // per allele support to another variant group
 #endif // GT_DEV
 
   /**
