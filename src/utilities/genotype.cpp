@@ -11,7 +11,7 @@
 #include <graphtyper/typer/vcf.hpp>
 #include <graphtyper/typer/vcf_operations.hpp>
 #include <graphtyper/utilities/bamshrink.hpp>
-#include <graphtyper/utilities/filesystem.hpp> // std_filesystem -> std::filesystem/std::experimental::filesystem
+#include <graphtyper/utilities/filesystem.hpp> // filesystem -> std::filesystem/std::experimental::filesystem
 #include <graphtyper/utilities/genotype.hpp>
 #include <graphtyper/utilities/hts_parallel_reader.hpp>
 #include <graphtyper/utilities/options.hpp>
@@ -382,32 +382,8 @@ genotype(std::string ref_path,
   {
     BOOST_LOG_TRIVIAL(info) << "Copying reference genome FASTA and its index to temporary folder.";
 
-    {
-      std::ostringstream ss_cmd;
-      ss_cmd << "cp " << ref_path << " " << tmp << "/genome.fa";
-
-      int ret = system(ss_cmd.str().c_str());
-
-      if (ret != 0)
-      {
-        BOOST_LOG_TRIVIAL(error) << "This command failed '" << ss_cmd.str() << "'";
-        std::exit(ret);
-      }
-    }
-
-    // Copy reference genome index
-    {
-      std::ostringstream ss_cmd;
-      ss_cmd << "cp " << ref_path << ".fai " << tmp << "/genome.fa.fai";
-
-      int ret = system(ss_cmd.str().c_str());
-
-      if (ret != 0)
-      {
-        BOOST_LOG_TRIVIAL(error) << "This command failed '" << ss_cmd.str() << "'";
-        std::exit(ret);
-      }
-    }
+    filesystem::copy_file(ref_path, tmp + "/genome.fa", filesystem::copy_options::overwrite_existing);
+    filesystem::copy_file(ref_path + ".fai", tmp + "/genome.fa.fai", filesystem::copy_options::overwrite_existing);
 
     ref_path = tmp + "/genome.fa";
   }
@@ -570,9 +546,9 @@ genotype(std::string ref_path,
 #endif // NDEBUG
 
       {
-        std_filesystem::path src = tmp + "/it" + std::to_string(i - 1) + "/final.vcf.gz";
-        std_filesystem::path dst = tmp + "/it" + std::to_string(i - 1) + "_final.vcf.gz";
-        std_filesystem::rename(src, dst);
+        filesystem::path src = tmp + "/it" + std::to_string(i - 1) + "/final.vcf.gz";
+        filesystem::path dst = tmp + "/it" + std::to_string(i - 1) + "_final.vcf.gz";
+        filesystem::rename(src, dst);
       }
 
       // clean previous iteration files
@@ -645,21 +621,10 @@ genotype(std::string ref_path,
 
     // Copy sites to system
     {
-      std::ostringstream ss_cmd;
-      ss_cmd << "cp -p " << tmp << "/it" << (LAST_ITERATION - 1) << "_final.vcf.gz" << " "
-             << output_path << "/input_sites/" << region.chr << "/"
-             << std::setw(9) << std::setfill('0') << (region.begin + 1)
-             << '-'
-             << std::setw(9) << std::setfill('0') << region.end
-             << ".vcf.gz";
+      filesystem::path src = tmp + "/it" + std::to_string(LAST_ITERATION - 1) + "_final.vcf.gz";
+      filesystem::path dest = output_path + "/input_sites/" + region.to_file_string() + ".vcf.gz";
 
-      int ret = system(ss_cmd.str().c_str());
-
-      if (ret != 0)
-      {
-        BOOST_LOG_TRIVIAL(error) << "This command failed '" << ss_cmd.str() << "'";
-        std::exit(ret);
-      }
+      filesystem::copy_file(src, dest, filesystem::copy_options::overwrite_existing);
     }
   }
 
@@ -669,17 +634,10 @@ genotype(std::string ref_path,
   auto copy_to_results =
     [&](std::string const & basename_no_ext, std::string const & extension, std::string const & id)
     {
-      std_filesystem::path src = tmp + "/" + basename_no_ext + extension;
+      filesystem::path src = tmp + "/" + basename_no_ext + extension;
+      filesystem::path dest = output_path + "/" + region.to_file_string() + id + extension;
 
-      std::ostringstream dest;
-      dest << output_path << "/" << region.chr << "/"
-           << std::setw(9) << std::setfill('0') << (region.begin + 1)
-           << '-'
-           << std::setw(9) << std::setfill('0') << region.end
-           << id
-           << extension;
-
-      std_filesystem::copy_file(src, dest.str(), std_filesystem::copy_options::overwrite_existing);
+      filesystem::copy_file(src, dest, filesystem::copy_options::overwrite_existing);
     };
 
   std::string basename_no_ext{"graphtyper"};

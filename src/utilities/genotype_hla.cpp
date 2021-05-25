@@ -14,6 +14,7 @@
 #include <graphtyper/typer/variant_map.hpp>
 #include <graphtyper/typer/vcf.hpp>
 #include <graphtyper/typer/vcf_operations.hpp>
+#include <graphtyper/utilities/filesystem.hpp>
 #include <graphtyper/utilities/options.hpp>
 #include <graphtyper/utilities/genotype.hpp>
 #include <graphtyper/utilities/graph_help_functions.hpp>
@@ -63,32 +64,8 @@ genotype_hla(std::string ref_path,
   {
     BOOST_LOG_TRIVIAL(info) << "Copying reference genome FASTA and its index to temporary folder.";
 
-    {
-      std::ostringstream ss_cmd;
-      ss_cmd << "cp " << ref_path << " " << tmp << "/genome.fa";
-
-      int ret = system(ss_cmd.str().c_str());
-
-      if (ret != 0)
-      {
-        BOOST_LOG_TRIVIAL(error) << "This command failed '" << ss_cmd.str() << "'";
-        std::exit(ret);
-      }
-    }
-
-    // Copy reference genome index
-    {
-      std::ostringstream ss_cmd;
-      ss_cmd << "cp " << ref_path << ".fai " << tmp << "/genome.fa.fai";
-
-      int ret = system(ss_cmd.str().c_str());
-
-      if (ret != 0)
-      {
-        BOOST_LOG_TRIVIAL(error) << "This command failed '" << ss_cmd.str() << "'";
-        std::exit(ret);
-      }
-    }
+    filesystem::copy_file(ref_path, tmp + "/genome.fa");
+    filesystem::copy_file(ref_path + ".fai", tmp + "/genome.fa.fai");
 
     ref_path = tmp + "/genome.fa";
   }
@@ -492,34 +469,11 @@ genotype_hla(std::string ref_path,
   auto copy_vcf_to_system =
     [&](std::string const & name, std::string const & extension) -> void
     {
-      std::ostringstream ss_cmd;
-      ss_cmd << "cp -p " << tmp << "/" << name << extension << " "
-             << output_path << "/" << genomic_region.chr << "/"
-             << std::setw(9) << std::setfill('0') << (genomic_region.begin + 1)
-             << '-'
-             << std::setw(9) << std::setfill('0') << genomic_region.end;
+        filesystem::path src = tmp + "/" + name + extension;
+        filesystem::path dest = output_path + "/" + genomic_region.to_file_string() +
+          ((name == "graphtyper.hla.vcf.gz") ? ".hla" : "") + ".vcf.gz" + extension;
 
-      if (name == "graphtyper.hla.vcf.gz")
-        ss_cmd << ".hla.vcf.gz" << extension;
-      else
-        ss_cmd << ".vcf.gz" << extension;
-
-      int ret = system(ss_cmd.str().c_str());
-
-      if (ret != 0)
-      {
-        if (extension.size() == 0)
-        {
-          // Error if copying final VCF
-          BOOST_LOG_TRIVIAL(error) << "This command failed '" << ss_cmd.str() << "'";
-          std::exit(ret);
-        }
-        else
-        {
-          // Otherwise a warning
-          BOOST_LOG_TRIVIAL(warning) << "This command failed '" << ss_cmd.str() << "'";
-        }
-      }
+        filesystem::copy_file(src, dest, filesystem::copy_options::overwrite_existing);
     };
 
   std::string const index_ext = copts.is_csi ? ".csi" : ".tbi";
