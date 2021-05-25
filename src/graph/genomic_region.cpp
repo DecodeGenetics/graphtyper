@@ -180,7 +180,9 @@ std::string
 GenomicRegion::to_file_string() const
 {
   std::ostringstream ss;
-  ss << chr << "/" << std::setw(9) << std::setfill('0') << (begin + 1) << '-' << end;
+  ss << chr << "/" // chromosome/contig
+     << std::setw(9) << std::setfill('0') << (begin + 1) << '-' // 9 digit begin position (1-indexed)
+     << std::setw(9) << std::setfill('0') << end; // 9 digit end position
   return ss.str();
 }
 
