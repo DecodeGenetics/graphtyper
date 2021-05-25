@@ -43,7 +43,7 @@ current_date()
   char buf[16];
   time_structure = *localtime(&now);
   strftime(buf, sizeof(buf), "%Y%m%d", &time_structure);
-  std::string const date(buf);
+  std::string date(buf);
   return date;
 }
 
@@ -52,7 +52,7 @@ std::vector<uint8_t>
 get_haplotype_phred(gyper::HapSample const & sample)
 {
   using namespace gyper;
-  assert(sample.log_score.size() > 0);
+  assert(!sample.log_score.empty());
   long const num = sample.log_score.size();
   std::vector<uint8_t> hap_phred;
   //hap_phred.reserve(num);
@@ -287,7 +287,7 @@ Vcf::read_record(bool const SITES_ONLY)
     std::string const info = get_string_at_tab_index(line, tabs, 7);
 
     // Don't parse anything if the INFO field is empty
-    if (info.size() > 0)
+    if (!info.empty())
     {
       std::vector<std::size_t> const info_semicolons = get_all_pos(info, ';');
 
@@ -336,7 +336,7 @@ Vcf::read_record(bool const SITES_ONLY)
   new_var.stats.read_stats(new_var.infos);
 
   // Parse samples, if any
-  if (!SITES_ONLY && sample_names.size() > 0)
+  if (!SITES_ONLY && !sample_names.empty())
   {
     std::string const format = get_string_at_tab_index(line, tabs, 8);
     std::vector<std::size_t> all_format_colon = get_all_pos(format, ':');
@@ -435,7 +435,7 @@ Vcf::read_record(bool const SITES_ONLY)
       // Parse PP
       if (pp_field != -1)
       {
-        std::string const pp_str = get_string_at_tab_index(sample_string, sample_string_colon, pp_field);
+        std::string pp_str = get_string_at_tab_index(sample_string, sample_string_colon, pp_field);
         new_call.alt_proper_pair_depth = static_cast<uint8_t>(std::stoul(std::move(pp_str)));
       }
 
@@ -535,7 +535,7 @@ Vcf::read_samples()
     else if (line[0] == '#' && line[1] != '#')
     {
       // Gather list of all samples using this line
-      assert(sample_names.size() == 0);
+      assert(sample_names.empty());
       std::vector<std::size_t> const all_line_tabs = get_all_pos(line, '\t');
 
       // Add all samples
@@ -756,7 +756,7 @@ Vcf::write_header(bool const is_dropping_genotypes)
   // Column names
   bgzf_stream.ss << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO";
 
-  if (!is_dropping_genotypes && sample_names.size() > 0)
+  if (!is_dropping_genotypes && !sample_names.empty())
   {
     // Only a "format" column if there are any samples
     bgzf_stream.ss << "\tFORMAT";
