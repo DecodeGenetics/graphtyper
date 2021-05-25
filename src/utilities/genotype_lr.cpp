@@ -11,6 +11,7 @@
 #include <graphtyper/typer/vcf.hpp>
 #include <graphtyper/typer/vcf_operations.hpp>
 #include <graphtyper/utilities/bamshrink.hpp>
+#include <graphtyper/utilities/filesystem.hpp>
 #include <graphtyper/utilities/genotype.hpp>
 #include <graphtyper/utilities/hts_parallel_reader.hpp>
 #include <graphtyper/utilities/options.hpp>
@@ -68,32 +69,8 @@ genotype_lr(std::string ref_path,
   {
     BOOST_LOG_TRIVIAL(info) << "Copying reference genome FASTA and its index to temporary folder.";
 
-    {
-      std::ostringstream ss_cmd;
-      ss_cmd << "cp " << ref_path << " " << tmp << "/genome.fa";
-
-      int ret = system(ss_cmd.str().c_str());
-
-      if (ret != 0)
-      {
-        BOOST_LOG_TRIVIAL(error) << "This command failed '" << ss_cmd.str() << "'";
-        std::exit(ret);
-      }
-    }
-
-    // Copy reference genome index
-    {
-      std::ostringstream ss_cmd;
-      ss_cmd << "cp " << ref_path << ".fai " << tmp << "/genome.fa.fai";
-
-      int ret = system(ss_cmd.str().c_str());
-
-      if (ret != 0)
-      {
-        BOOST_LOG_TRIVIAL(error) << "This command failed '" << ss_cmd.str() << "'";
-        std::exit(ret);
-      }
-    }
+    filesystem::copy_file(ref_path, tmp + "/genome.fa");
+    filesystem::copy_file(ref_path + ".fai", tmp + "/genome.fa.fai");
 
     ref_path = tmp + "/genome.fa";
   }
@@ -135,28 +112,10 @@ genotype_lr(std::string ref_path,
   auto copy_to_results =
     [&](std::string const & basename_no_ext, std::string const & extension, std::string const & id)
     {
-      std::ostringstream ss_cmd;
+      filesystem::path src = tmp + "/" + basename_no_ext + extension;
+      filesystem::path dest = output_path + "/" + region.to_file_string() + id + extension;
 
-      ss_cmd << "cp -p " << tmp << "/" << basename_no_ext << extension << " "
-             << output_path << "/" << region.chr << "/"
-             << std::setw(9) << std::setfill('0') << (region.begin + 1)
-             << '-'
-             << std::setw(9) << std::setfill('0') << region.end
-             << id
-             << extension;
-
-      int ret = system(ss_cmd.str().c_str());
-
-      if (extension != index_ext && ret != 0)
-      {
-        BOOST_LOG_TRIVIAL(error) << __HERE__ << " This command failed '" << ss_cmd.str() << "'";
-        std::exit(ret);
-      }
-      else if (ret != 0)
-      {
-        // Just a warning if tabix fails and there is no index
-        BOOST_LOG_TRIVIAL(warning) << __HERE__ << " This command failed '" << ss_cmd.str() << "'";
-      }
+      filesystem::copy_file(src, dest, filesystem::copy_options::overwrite_existing);
     };
 
   std::string basename_no_ext{"graphtyper"};

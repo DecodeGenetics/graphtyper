@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 
+#include <graphtyper/graph/genomic_region.hpp>
 
 namespace bamshrink
 {
