@@ -16,6 +16,7 @@
 #include <graphtyper/typer/variant_map.hpp>
 #include <graphtyper/typer/vcf.hpp>
 #include <graphtyper/typer/vcf_operations.hpp>
+#include <graphtyper/utilities/filesystem.hpp>
 #include <graphtyper/utilities/options.hpp>
 #include <graphtyper/utilities/genotype.hpp>
 #include <graphtyper/utilities/hts_parallel_reader.hpp>
@@ -315,22 +316,11 @@ genotype_camou(std::string const & interval_fn,
     auto copy_camou_vcf_to_system =
       [&](std::string const & extension) -> void
       {
-        std::ostringstream ss_cmd;
+        filesystem::path src = tmp + "/graphtyper.vcf.gz" + extension;
+        filesystem::path dest = output_path + "/" + genomic_region.to_file_string() + ".vcf.gz" + extension;
 
-        ss_cmd << "cp -p " << tmp << "/graphtyper.vcf.gz" << extension << " "
-               << output_path << "/" << genomic_region.chr << "/"
-               << std::setw(9) << std::setfill('0') << (genomic_region.begin + 1)
-               << '-'
-               << std::setw(9) << std::setfill('0') << genomic_region.end
-               << ".vcf.gz" << extension;
+        filesystem::copy_file(src, dest, filesystem::copy_options::overwrite_existing);
 
-        int ret = system(ss_cmd.str().c_str());
-
-        if (ret != 0)
-        {
-          BOOST_LOG_TRIVIAL(error) << "This command failed '" << ss_cmd.str() << "'";
-          std::exit(ret);
-        }
       };
 
     copy_camou_vcf_to_system(""); // Copy final camou VCF
