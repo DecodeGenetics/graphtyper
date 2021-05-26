@@ -91,6 +91,9 @@ jobs:
       - name: Install compiler ${{ matrix.name }}
         run: sudo apt-get install --yes ${{ matrix.pkg }}
 
+      - name: Install compiler ${{ matrix.cxx }}
+        run: sudo apt-get install --yes ${{ matrix.cxx }}
+
       - name: Load ccache
         uses: actions/cache@v2
         with:
