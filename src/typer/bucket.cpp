@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 #include <parallel_hashmap/phmap.h>
 

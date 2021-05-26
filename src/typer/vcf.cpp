@@ -5,7 +5,7 @@
 #include <unordered_map>
 
 #include <boost/algorithm/string/predicate.hpp> // boost::algorithm::ends_with
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
 #include <boost/archive/binary_oarchive.hpp>
@@ -217,7 +217,7 @@ Vcf::open_vcf_file_for_reading()
   switch (filemode)
   {
   case READ_UNCOMPRESSED_MODE:
-    BOOST_LOG_TRIVIAL(error) << "Cannot read uncompressed VCF, gzip it please.";
+    print_log(log_severity::error, "Cannot read uncompressed VCF, gzip it please.");
     std::exit(1);
     break;
 
@@ -226,14 +226,14 @@ Vcf::open_vcf_file_for_reading()
 
     if (!bgzf_in.rdbuf()->is_open())
     {
-      BOOST_LOG_TRIVIAL(error) << "Could not open " << filename;
+      print_log(log_severity::error, "Could not open ", filename);
       std::exit(1);
     }
 
     break;
 
   default:
-    BOOST_LOG_TRIVIAL(error) << "Trying to read in writing mode.";
+    print_log(log_severity::error, "Trying to read in writing mode.");
     std::exit(1);
   }
 }
@@ -510,7 +510,7 @@ Vcf::read_samples()
 
     if (!std::getline(bgzf_in, line))
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not find any line with samples in '" << filename << "'.";
+      print_log(log_severity::error, __HERE__, " Could not find any line with samples in '", filename, "'.");
       std::exit(1);
     }
 
@@ -582,7 +582,7 @@ Vcf::open_for_writing(long const n_threads)
     break;
 
   default:
-    BOOST_LOG_TRIVIAL(error) << "Trying to write in reading mode.";
+    print_log(log_severity::error, "Trying to write in reading mode.");
     std::exit(1);
   }
 }
@@ -827,9 +827,9 @@ Vcf::write_record(Variant const & var,
   {
     if (var.calls.size() > 0 && var.seqs.size() > 80)
     {
-      BOOST_LOG_TRIVIAL(warning) << "Skipped outputting variant at position "
-                                 << contig_pos.first << ":" << contig_pos.second
-                                 << " because there are " << var.seqs.size() << " alleles.";
+      print_log(log_severity::warning, "Skipped outputting variant at position "
+                                 , contig_pos.first, ":", contig_pos.second
+                                , " because there are ", var.seqs.size(), " alleles.");
       return;
     }
 
@@ -841,9 +841,9 @@ Vcf::write_record(Variant const & var,
 
       if (total_allele_length > 16000)
       {
-        BOOST_LOG_TRIVIAL(warning) << "Skipped outputting variant at position "
-                                   << contig_pos.first << ":" << contig_pos.second
-                                   << " because the total length of alleles is too high.";
+        print_log(log_severity::warning, "Skipped outputting variant at position "
+                                   , contig_pos.first, ":", contig_pos.second
+                                  , " because the total length of alleles is too high.");
         return;
       }
     }
@@ -859,9 +859,9 @@ Vcf::write_record(Variant const & var,
     if (variant_qual == 0)
     {
       //BOOST_LOG_TRIVIAL(warning) << "Zero qual variant at pos " << contig_pos.first << ":" << contig_pos.second;
-      BOOST_LOG_TRIVIAL(debug) << "Skipped outputting variant at position "
-                               << contig_pos.first << ":" << contig_pos.second
-                               << " because the variant had zero quality.";
+      print_log(log_severity::debug, "Skipped outputting variant at position "
+                               , contig_pos.first, ":", contig_pos.second
+                              , " because the variant had zero quality.");
       return;
     }
   }
@@ -1146,7 +1146,7 @@ Vcf::write_records(uint32_t const region_begin,
 {
   if (vars.size() == 0)
   {
-    BOOST_LOG_TRIVIAL(info) << __HERE__ << " no variants to write to VCF.";
+    print_log(log_severity::info, __HERE__, " no variants to write to VCF.");
     return;
   }
 
@@ -1286,10 +1286,10 @@ Vcf::write_records(std::string const & region, bool const FILTER_ZERO_QUAL, bool
 void
 Vcf::write_segments()
 {
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::vcf] Writing "
+  print_log(log_severity::debug, "[graphtyper::vcf] Writing "
                            << segments.size()
                            << " segments to "
-                           << filename;
+                          , filename);
 
   for (auto const & segment : segments)
   {
@@ -1361,7 +1361,7 @@ Vcf::write_tbi_index() const
             tbx_index_build(filename.c_str(), 0, &tbx_conf_vcf);
 
   if (ret < 0)
-    BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Could not build VCF index";
+    print_log(log_severity::warning, __HERE__, " Could not build VCF index");
 }
 
 
@@ -1885,7 +1885,7 @@ save_vcf(Vcf const & vcf, std::string const & filename)
       {
         if (seq.size() == 0)
         {
-          BOOST_LOG_TRIVIAL(warning) << __HERE__ << " empty sequence in variant " << var.to_string();
+          print_log(log_severity::warning, __HERE__, " empty sequence in variant ", var.to_string());
         }
       }
 #endif // NDEBUG
@@ -1899,9 +1899,9 @@ save_vcf(Vcf const & vcf, std::string const & filename)
 
       if (!ofs.is_open())
       {
-        BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not save VCF to location '"
-                                 << filename
-                                 << "'";
+        print_log(log_severity::error, __HERE__, " Could not save VCF to location '"
+                                , filename
+                                , "'");
         std::exit(1);
       }
 
@@ -1935,8 +1935,8 @@ save_vcf(Vcf const & vcf, std::string const & filename)
 
   if (!ofs.is_open())
   {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not save VCF to location '"
-                             << filename << "'";
+    print_log(log_severity::error, __HERE__, " Could not save VCF to location '"
+                            , filename, "'");
     std::exit(1);
   }
 
@@ -1967,12 +1967,12 @@ load_vcf(Vcf & vcf, std::string const & filename, long n_batch)
   else
   {
     std::string batch_filename = filename + "/" + std::to_string(n_batch);
-    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Loading variants from " << batch_filename;
+    print_log(log_severity::debug, __HERE__, " Loading variants from ", batch_filename);
     std::ifstream ifs(batch_filename.c_str(), std::ios::binary);
 
     if (!ifs.is_open())
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not open file " << batch_filename;
+      print_log(log_severity::error, __HERE__, " Could not open file ", batch_filename);
       std::exit(1);
     }
 
@@ -1991,7 +1991,7 @@ append_vcf(Vcf & vcf, std::string const & filename, long n_batch)
 {
   Vcf new_vcf;
   std::string batch_filename = filename + "/" + std::to_string(n_batch);
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Appending variants from " << batch_filename;
+  print_log(log_severity::debug, __HERE__, " Appending variants from ", batch_filename);
   std::ifstream ifs(batch_filename.c_str(), std::ios::binary);
 
   if (!ifs.is_open())

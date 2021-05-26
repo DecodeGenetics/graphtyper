@@ -7,8 +7,8 @@
 #include <boost/archive/binary_iarchive.hpp>
 
 #include <graphtyper/graph/graph.hpp>
+#include <graphtyper/utilities/logging.hpp>
 #include <graphtyper/utilities/system.hpp>
-
 
 inline void
 create_test_graph(std::string const & fasta,
@@ -22,8 +22,8 @@ create_test_graph(std::string const & fasta,
   std::stringstream reference_path;
   reference_path << gyper_SOURCE_DIRECTORY << fasta;
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Creating a graph for " << reference_path.str() << " "
-                           << vcf_path.str() << " at region " << region;
+  gyper::print_log(gyper::log_severity::debug, __HERE__, " Creating a graph for ", reference_path.str(), " "
+                          , vcf_path.str(), " at region ", region);
 
   gyper::construct_graph(reference_path.str(), vcf_path.str(), region, use_absolute_positions);
   std::stringstream graph_path;

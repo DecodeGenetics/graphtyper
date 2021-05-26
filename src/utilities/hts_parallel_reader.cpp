@@ -2,7 +2,7 @@
 #include <unordered_map> // std::unordered_map
 #include <vector> // std::vector
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 #include <htslib/hfile.h>
 #include <htslib/hts.h>
@@ -43,10 +43,11 @@ check_if_maps_are_empty(std::vector<TMapGPaths> const & maps)
 
     if (map.size() > 0)
     {
-      BOOST_LOG_TRIVIAL(info)
-        << __HERE__ << " Found a non-empty read map for with size "
-        << map.size()
-        << "! This likely means these reads have the BAM_FPAIRED flag set but have no mate read.";
+      print_log(gyper::log_severity::info,
+                __HERE__,
+                " Found a non-empty read map for with size ",
+                map.size(),
+                "! This likely means these reads have the BAM_FPAIRED flag set but have no mate read.");
 
       //for (auto it = map.begin(); it != map.end(); ++it)
       //  BOOST_LOG_TRIVIAL(debug) << "Leftover read name: " << it->first;
@@ -194,7 +195,7 @@ HtsParallelReader::get_header() const
 {
   if (hts_files.size() == 0)
   {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << " Cannot get header with no opened files.";
+    print_log(log_severity::error, __HERE__, " Cannot get header with no opened files.");
     std::exit(1);
   }
 
@@ -334,9 +335,12 @@ genotype_only(HtsParallelReader const & hts_preader,
 
     if ((geno_paths.first.flags & IS_FIRST_IN_PAIR) == (find_it->second.first.flags & IS_FIRST_IN_PAIR))
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Reads with name=" << read_name
-                               << " both have IS_FIRST_IN_PAIR="
-                               << ((geno_paths.first.flags & IS_FIRST_IN_PAIR) != 0);
+      print_log(log_severity::error,
+                __HERE__,
+                " Reads with name=",
+                read_name,
+                " both have IS_FIRST_IN_PAIR=",
+                ((geno_paths.first.flags & IS_FIRST_IN_PAIR) != 0));
       std::exit(1);
     }
 
@@ -444,8 +448,8 @@ genotype_and_discover(HtsParallelReader const & hts_preader,
 
     if ((geno_paths.first.flags & IS_FIRST_IN_PAIR) == (find_it->second.first.flags & IS_FIRST_IN_PAIR))
     {
-      BOOST_LOG_TRIVIAL(error) << "Reads with name '" << read_name << "' both have IS_FIRST_IN_PAIR="
-                               << ((geno_paths.first.flags & IS_FIRST_IN_PAIR) != 0);
+      print_log(log_severity::error, "Reads with name '", read_name, "' both have IS_FIRST_IN_PAIR="
+                              , ((geno_paths.first.flags & IS_FIRST_IN_PAIR) != 0));
       std::exit(1);
     }
 
@@ -524,7 +528,7 @@ parallel_reader_genotype_only(long const thread_id,
 
   if (writer.pns.size() == 0)
   {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << " No samples were extracted.";
+    print_log(log_severity::error, __HERE__, " No samples were extracted.");
     std::exit(1);
   }
 
@@ -606,13 +610,13 @@ parallel_reader_genotype_only(long const thread_id,
   while (!is_done && ((prev.record->core.flag & Options::const_instance()->sam_flag_filter) != 0u ||
                       (IS_SV_CALLING && !is_good_read(prev.record))))
   {
-    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Reread first record";
+    print_log(log_severity::debug, __HERE__, " Reread first record");
     is_done = !hts_preader.read_record(prev);
   }
 
   if (is_done)
   {
-    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " No reads found in BAM.";
+    print_log(log_severity::debug, __HERE__, " No reads found in BAM.");
   }
   else
   {
@@ -709,8 +713,8 @@ parallel_reader_genotype_only(long const thread_id,
       }
     }
 
-    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Num of duplicated records: "
-                             << num_duplicated_records << " / " << num_records;
+    print_log(log_severity::debug, __HERE__, " Num of duplicated records: "
+                            , num_duplicated_records, " / ", num_records);
   }
 
   // align leftover reads
@@ -922,19 +926,19 @@ parallel_reader_genotype_only(long const thread_id,
         {
           if (ph2.second == IS_ANY_ANTI_HAP_SUPPORT || ph2.second == IS_ANY_HAP_SUPPORT)
           {
-            BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << hap1.first << "." << hap1.second
+            print_log(log_severity::info, __HERE__, " ", hap1.first, ".", hap1.second
                                     << " o1=" << writer.haplotypes[hap1.first].gts[0].id << " "
                                     << hap2.first << "." << hap2.second
                                     << " o2=" << writer.haplotypes[hap2.first].gts[0].id
-                                    << " is_good=" << static_cast<long>(ph2.second);
+                                   , " is_good=", static_cast<long>(ph2.second));
           }
           else if (ph2.second == (IS_ANY_ANTI_HAP_SUPPORT | IS_ANY_HAP_SUPPORT))
           {
-            BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << hap1.first << "." << hap1.second
+            print_log(log_severity::info, __HERE__, " ", hap1.first, ".", hap1.second
                                     << " o1=" << writer.haplotypes[hap1.first].gts[0].id << " "
                                     << hap2.first << "." << hap2.second
                                     << " o2=" << writer.haplotypes[hap2.first].gts[0].id
-                                    << " is_good=" << static_cast<long>(ph2.second);
+                                   , " is_good=", static_cast<long>(ph2.second));
           }
         }
       }
@@ -974,8 +978,8 @@ parallel_reader_genotype_only(long const thread_id,
     hap_calls_path << output_dir << "/" << first_sample << ".hap";
     HaplotypeCalls hap_calls(writer.get_haplotype_calls());
 
-    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Writing haplotype calls to '"
-                             << hap_calls_path.str() << "'";
+    print_log(log_severity::debug, __HERE__, " Writing haplotype calls to '"
+                            , hap_calls_path.str(), "'");
     save_calls(hap_calls, hap_calls_path.str());
 #endif
   }
@@ -999,9 +1003,9 @@ parallel_reader_genotype_only(long const thread_id,
   }
   else if (is_writing_calls_vcf || Options::const_instance()->force_ignore_segment)
   {
-    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Writing calls to '"
-                             << output_dir << "/"
-                             << first_sample << "_*'";
+    print_log(log_severity::debug, __HERE__, " Writing calls to '"
+                            , output_dir, "/"
+                            , first_sample, "_*'");
 
     Vcf vcf;
 
@@ -1116,13 +1120,13 @@ parallel_reader_with_discovery(std::string * out_path,
 
   while (!is_done && (prev.record->core.flag & Options::const_instance()->sam_flag_filter) != 0u)
   {
-    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Reread first record";
+    print_log(log_severity::debug, __HERE__, " Reread first record");
     is_done = !hts_preader.read_record(prev);
   }
 
   if (is_done)
   {
-    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " No reads found in BAM.";
+    print_log(log_severity::debug, __HERE__, " No reads found in BAM.");
   }
   else
   {
@@ -1156,8 +1160,8 @@ parallel_reader_with_discovery(std::string * out_path,
       }
     }
 
-    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::hts_parallel_reader] Num of duplicated records: "
-                             << num_duplicated_records << " / " << num_records;
+    print_log(log_severity::debug, "[graphtyper::hts_parallel_reader] Num of duplicated records: "
+                            , num_duplicated_records, " / ", num_records);
   }
 
 #ifndef NDEBUG
@@ -1174,7 +1178,7 @@ parallel_reader_with_discovery(std::string * out_path,
 
   std::ostringstream variant_map_path;
   variant_map_path << output_dir << "/" << first_sample << "_variant_map";
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Writing variant map to '" << variant_map_path.str();
+  print_log(log_severity::debug, __HERE__, " Writing variant map to '", variant_map_path.str());
   save_variant_map(variant_map_path.str(), varmap);
 
   // Write haplotype calls
@@ -1185,17 +1189,17 @@ parallel_reader_with_discovery(std::string * out_path,
     hap_calls_path << output_dir << "/" << writer.pns[0] << ".hap";
     HaplotypeCalls hap_calls(writer.get_haplotype_calls());
 
-    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Writing haplotype calls to '"
-                             << hap_calls_path.str() << "'";
+    print_log(log_severity::debug, __HERE__, " Writing haplotype calls to '"
+                            , hap_calls_path.str(), "'");
     save_calls(hap_calls, hap_calls_path.str());
   }
 
   // Optionally we can write _calls.vcf.gz files for each pool of samples
   if (is_writing_calls_vcf)
   {
-    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Writing calls to '"
+    print_log(log_severity::debug, __HERE__, " Writing calls to '"
                              << output_dir << "/"
-                             << first_sample << "_*'";
+                            , first_sample, "_*'");
 
     // Handle SNP/indel graphs
     Vcf vcf;
@@ -1268,7 +1272,7 @@ sam_merge(std::string const & output_sam, std::vector<std::string> const & input
     int ret = unlink(input_sam.c_str());
 
     if (ret < 0)
-      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Unable to remove " << input_sam;
+      print_log(log_severity::warning, __HERE__, " Unable to remove ", input_sam);
   }
 }
 

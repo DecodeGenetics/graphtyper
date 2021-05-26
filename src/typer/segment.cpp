@@ -7,7 +7,7 @@
 #include <sstream>
 #include <string>
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 #include <graphtyper/typer/segment.hpp>
 #include <graphtyper/utilities/graph_help_functions.hpp>
@@ -32,7 +32,7 @@ get_segment_phred_from_log2_scores(std::vector<uint32_t> const & log_score)
 
   if (find_it == log_score.end())
   {
-    BOOST_LOG_TRIVIAL(warning) << "[graphtyper::segment] All PHRED scores zero";
+    print_log(log_severity::warning, "[graphtyper::segment] All PHRED scores zero");
     return std::vector<uint8_t>(log_score.size(), 0u); // If no non-zero phred score is found, the phred scores of the haplotype should be all zero as well
   }
 
@@ -109,7 +109,7 @@ Segment::insert_score(std::vector<uint32_t> const & score)
 
   if (find_it == new_segment_call.phred.end())
   {
-    BOOST_LOG_TRIVIAL(error) << "[graphtyper::segment] No zero PHRED score found in segment!";
+    print_log(log_severity::error, "[graphtyper::segment] No zero PHRED score found in segment!");
     std::exit(1);
   }
 
@@ -223,7 +223,7 @@ Segment::get_biallelic_segments() const
 
       if (new_calls.call.first == 0xFFFFu)
       {
-        BOOST_LOG_TRIVIAL(error) << "[graphtyper::segment] No phred score zero found in a segment!";
+        print_log(log_severity::error, "[graphtyper::segment] No phred score zero found in a segment!");
         std::exit(1);
       }
     }

@@ -7,7 +7,7 @@
 #include <time.h>
 #include <utility>
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 #include <parallel_hashmap/phmap.h>
 #include <paw/station.hpp>
@@ -72,8 +72,8 @@ namespace gyper
 VcfWriter::VcfWriter(uint32_t variant_distance)
 {
   haplotypes = gyper::graph.get_all_haplotypes(variant_distance);
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Number of variant nodes in graph " << graph.var_nodes.size();
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Got " << haplotypes.size() << " haplotypes.";
+  print_log(log_severity::debug, __HERE__, " Number of variant nodes in graph ", graph.var_nodes.size());
+  print_log(log_severity::debug, __HERE__, " Got ", haplotypes.size(), " haplotypes.");
 }
 
 
@@ -288,7 +288,7 @@ VcfWriter::print_variant_group_details() const
 {
   assert(pns.size() > 0);
   std::string const hap_stats_fn = Options::instance()->stats + "/" + pns[0] + "_variant_group_details.tsv.gz";
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Generating variant group info statistics to " << hap_stats_fn;
+  print_log(log_severity::debug, __HERE__, " Generating variant group info statistics to ", hap_stats_fn);
   std::stringstream hap_file;
 
   // Write header file
@@ -326,8 +326,8 @@ VcfWriter::print_variant_details() const
   std::string const variant_details_fn =
     Options::instance()->stats + "/" + pns[0] + "_variant_details.tsv.gz";
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Generating variant info statistics to "
-                           << variant_details_fn;
+  print_log(log_severity::debug, __HERE__, " Generating variant info statistics to "
+                          , variant_details_fn);
 
   std::stringstream variant_file;
 
@@ -595,11 +595,11 @@ VcfWriter::push_to_haplotype_scores(GenotypePaths & geno, long const pn_index)
 #ifndef NDEBUG
       if (id2hap.count(p_it->var_order[i]) == 0)
       {
-        BOOST_LOG_TRIVIAL(error) << __HERE__ << " Did not find var order=" << p_it->var_order[i];
+        print_log(log_severity::error, __HERE__, " Did not find var order=", p_it->var_order[i]);
 
         for (auto id_hap : id2hap)
         {
-          BOOST_LOG_TRIVIAL(info) << id_hap.first << " " << id_hap.second << " " << 0;
+          print_log(log_severity::info, id_hap.first, " ", id_hap.second, " ", 0);
         }
       }
 

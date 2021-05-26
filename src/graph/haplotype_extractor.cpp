@@ -8,7 +8,7 @@
 
 #include <paw/align.hpp>
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/graph.hpp>
@@ -36,7 +36,7 @@ read_haplotype_calls(std::vector<std::string> const & haps_paths)
 
   if (haps_paths.size() == 0)
   {
-    BOOST_LOG_TRIVIAL(info) << "[graphtyper::haplotype_extractor] No haplotype calls were extracted";
+    print_log(log_severity::info, "[graphtyper::haplotype_extractor] No haplotype calls were extracted");
     std::exit(0);
   }
 
@@ -74,7 +74,7 @@ read_haplotype_calls_from_file(std::string const & haps_path)
   // Make sure the file could be opened
   if (!haps_file.is_open())
   {
-    BOOST_LOG_TRIVIAL(error) << "[graphtyper::haplotype_extractor] Unable to open file '" << haps_path << "'.";
+    print_log(log_severity::error, "[graphtyper::haplotype_extractor] Unable to open file '", haps_path, "'.");
     std::exit(1);
   }
 
@@ -280,9 +280,9 @@ find_variants_in_alignment(uint32_t const pos,
 #ifndef NDEBUG
     if (new_var.seqs.size() != 2 || new_var.seqs[0].size() == 0 || new_var.seqs[1].size() == 0)
     {
-      BOOST_LOG_TRIVIAL(error) << "Error in discovery. " << new_var.seqs.size() << ","
+      print_log(log_severity::error, "Error in discovery. ", new_var.seqs.size(), ","
                                << new_var.seqs[0].size() << ","
-                               << new_var.seqs[1].size();
+                              , new_var.seqs[1].size());
       std::exit(1);
     }
 #endif // NDEBUG
@@ -296,8 +296,8 @@ find_variants_in_alignment(uint32_t const pos,
     // its a sign of a problem if the new variant candidate is not normalized, most likely this means the 50bp where not enough
     if (!new_var.is_normalized())
     {
-      BOOST_LOG_TRIVIAL(debug) << "Removed variant candidate since it was not in normalized form "
-                               << new_var.to_string();
+      print_log(log_severity::debug, "Removed variant candidate since it was not in normalized form "
+                              , new_var.to_string());
       continue;
     }
 
@@ -391,8 +391,8 @@ post_process_hap_calls(std::vector<gyper::HaplotypeCall> & hap_calls)
         ++min_calls;
       }
 
-      BOOST_LOG_TRIVIAL(debug) << "Found a variant with a high number of different haplotype calls. "
-                               << "I will require " << min_calls << " sample calls.";
+      print_log(log_severity::debug, "Found a variant with a high number of different haplotype calls. "
+                              , "I will require ", min_calls, " sample calls.");
 
       hap_call.calls.erase(std::remove_if(hap_call.calls.begin(),
                                           hap_call.calls.end(),
@@ -459,8 +459,8 @@ post_process_hap_calls(std::vector<gyper::HaplotypeCall> & hap_calls)
           {
             bad_calls.insert(haplotype_call);
 #ifndef NDEBUG
-            BOOST_LOG_TRIVIAL(debug) << "Heavy read/strand bias: " << max_bias << " / " << weight
-                                     << " " << rs_num.str();
+            print_log(log_severity::debug, "Heavy read/strand bias: ", max_bias, " / ", weight
+                                    , " ", rs_num.str());
 #endif // ifndef NDEBUG
             break;
           }
@@ -472,7 +472,7 @@ post_process_hap_calls(std::vector<gyper::HaplotypeCall> & hap_calls)
 
     if (bad_calls.size() > 0)
     {
-      BOOST_LOG_TRIVIAL(debug) << "Number of haplotypes with bad read or strand bias were " << bad_calls.size();
+      print_log(log_severity::debug, "Number of haplotypes with bad read or strand bias were ", bad_calls.size());
 
       auto & ca = hap_call.calls;
       ca.erase(std::remove_if(ca.begin(), ca.end(), [&bad_calls](uint16_t val){

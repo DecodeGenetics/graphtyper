@@ -10,8 +10,6 @@
 
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
-#include <boost/log/trivial.hpp>
-#include <boost/log/utility/setup/console.hpp>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/graph.hpp>
@@ -26,7 +24,7 @@
 
 TEST_CASE("Construct test graph (chr1) (not with absolute positions)")
 {
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: Construct test graph (chr1)";
+  gyper::print_log(gyper::log_severity::debug, __HERE__, " TEST CASE: Construct test graph (chr1)");
 
   create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr1", false);
 
@@ -73,7 +71,7 @@ TEST_CASE("Construct test graph (chr1)")
 {
   using namespace gyper;
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: Construct test graph (chr1) but with absolute positions.";
+  gyper::print_log(gyper::log_severity::debug, __HERE__, " TEST CASE: Construct test graph (chr1) but with absolute positions.");
   create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr1", true);
 
   REQUIRE(graph.ref_nodes.size() == 2);
@@ -120,7 +118,7 @@ TEST_CASE("Construct test graph (chr2)")
   using namespace gyper;
 
   Options::instance()->add_all_variants = false;
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Construct test graph (chr2).";
+  gyper::print_log(gyper::log_severity::debug, __HERE__, " Construct test graph (chr2).");
   create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr2", true);
 
   REQUIRE(graph.ref_nodes.size() == 3);
@@ -180,7 +178,7 @@ TEST_CASE("Construct test graph (chr3)")
   // AAAACAAAATAAAACAAAATAAAAGAAAACAAAATAAAACAAAATAAAAGAAAACATTATAAAACA
   // chr3 31 rs4 A G,GA
 
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST CASE: Construct test graph (chr3).";
+  gyper::print_log(gyper::log_severity::debug, "[", __HERE__, "] TEST CASE: Construct test graph (chr3).");
   create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr3", true);
 
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
@@ -236,8 +234,8 @@ TEST_CASE("Construct test graph (chr8) in a region that fully overlaps only a se
   //chr8 31 ATATATATATATATATTTTTTTTTTTT,A
   //chr8 39 ATATATATTTTTTTTTTT,A
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: Construct test graph (chr8) in a region "
-                           << "that fully overlaps only a second indel";
+  gyper::print_log(gyper::log_severity::debug, __HERE__, " TEST CASE: Construct test graph (chr8) in a region "
+                          , "that fully overlaps only a second indel");
 
   create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr8:1-56", true);
 
@@ -469,7 +467,7 @@ TEST_CASE("Construct test graph with anti events (chr9)")
   using namespace gyper;
   Options::instance()->add_all_variants = true;
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: Construct test graph (chr9).";
+  gyper::print_log(gyper::log_severity::debug, __HERE__, " TEST CASE: Construct test graph (chr9).");
   create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr9", true);
 
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
@@ -508,7 +506,7 @@ TEST_CASE("Construct test graph with anti events (chr10)")
   using namespace gyper;
   Options::instance()->add_all_variants = true;
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: Construct test graph (chr10).";
+  gyper::print_log(gyper::log_severity::debug, __HERE__, " TEST CASE: Construct test graph (chr10).");
   create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr10", true);
 
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
@@ -547,7 +545,7 @@ TEST_CASE("Construct test graph with anti events (chr11)")
   using namespace gyper;
   Options::instance()->add_all_variants = true;
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: Construct test graph (chr11).";
+  gyper::print_log(gyper::log_severity::debug, __HERE__, " TEST CASE: Construct test graph (chr11).");
   create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr11", true);
 
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;

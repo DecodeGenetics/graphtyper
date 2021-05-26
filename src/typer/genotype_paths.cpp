@@ -12,7 +12,7 @@
 #include <graphtyper/utilities/kmer_help_functions.hpp>
 #include <graphtyper/utilities/options.hpp>
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 #include <seqan/basic.h>
 #include <seqan/hts_io.h> // BamAlignmentRecord
@@ -961,8 +961,8 @@ GenotypePaths::check_no_variant_is_missing() const
 
     if (expected_orders.size() != path.var_order.size())
     {
-      BOOST_LOG_TRIVIAL(error) << "[genotype_paths] The number of expected orders did not match, got " <<
-        path.var_order.size() << " but expected " << expected_orders.size();
+      print_log(log_severity::error, "[genotype_paths] The number of expected orders did not match, got ",
+        path.var_order.size(), " but expected ", expected_orders.size());
       return false;
     }
 
@@ -979,7 +979,7 @@ GenotypePaths::check_no_variant_is_missing() const
 
     if (!all_orders_match(expected_orders, path.var_order) || !all_orders_match(path.var_order, expected_orders))
     {
-      BOOST_LOG_TRIVIAL(error) << "[genotype_paths] Orders did not match with the expected orders.";
+      print_log(log_severity::error, "[genotype_paths] Orders did not match with the expected orders.");
       return false;
     }
   }

@@ -5,7 +5,7 @@
 #include <set>
 #include <vector>
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 #include <graphtyper/graph/graph.hpp> // gyper::Graph
 #include <graphtyper/utilities/graph_help_functions.hpp>
@@ -104,8 +104,8 @@ Haplotype::check_for_duplicate_haplotypes()
   // Get unique genotypes
   if (duplicate_haplotypes.size() > 0)
   {
-    BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Found a duplicated haplotype, "
-                               << "i.e. two haplotypes with the same sequence.";
+    print_log(log_severity::warning, __HERE__, " Found a duplicated haplotype, "
+                              , "i.e. two haplotypes with the same sequence.");
     unique_gts.resize(gts.size());
 
     for (auto const & c : duplicate_haplotypes)

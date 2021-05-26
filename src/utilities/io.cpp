@@ -3,7 +3,7 @@
 #include <fstream>
 
 #include <boost/algorithm/string.hpp>
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filtering_streambuf.hpp>
 #include <boost/iostreams/copy.hpp>
@@ -30,7 +30,7 @@ get_sample_name_from_bam_header(std::string const & hts_filename,
 
   if (!open(hts_file, hts_filename.c_str()))
   {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not open " << hts_filename << " for reading";
+    print_log(log_severity::error, __HERE__, " Could not open ", hts_filename, " for reading");
     std::exit(1);
   }
 
@@ -70,7 +70,7 @@ get_sample_name_from_bam_header(std::string const & hts_filename,
       std::string new_sample = line_it.substr(pos_samp + 4, pos_samp_ends - pos_samp - 4);
 
 #ifndef NDEBUG
-      BOOST_LOG_TRIVIAL(debug) << __HERE__ << "  Added RG: '" << new_id << "' => '" << new_sample << "'";
+      print_log(log_severity::debug, __HERE__, "  Added RG: '", new_id, "' => '", new_sample, "'");
 #endif // NDEBUG
 
       auto find_it = std::find(samples.begin(), samples.end(), new_sample);
@@ -97,7 +97,7 @@ get_contig_to_lengths(std::string const & fai_filename)
 
   if (!fai.is_open())
   {
-    BOOST_LOG_TRIVIAL(error) << "Could not open fasta.fai at: " << fai_filename;
+    print_log(log_severity::error, "Could not open fasta.fai at: ", fai_filename);
     std::exit(1);
   }
 
@@ -113,7 +113,7 @@ get_contig_to_lengths(std::string const & fai_filename)
 
     if (find_it == line.end())
     {
-      BOOST_LOG_TRIVIAL(warning) << "[graphtyper::io] Could not parse contig line: " << line;
+      print_log(log_severity::warning, "[graphtyper::io] Could not parse contig line: ", line);
       continue;
     }
 
@@ -122,14 +122,14 @@ get_contig_to_lengths(std::string const & fai_filename)
 
     if (find2_it == line.end())
     {
-      BOOST_LOG_TRIVIAL(warning) << "[graphtyper::io] Could not parse contig line: " << line;
+      print_log(log_severity::warning, "[graphtyper::io] Could not parse contig line: ", line);
       continue;
     }
 
     std::string length(find_it + 1, find2_it);
 
     if (contig_to_lengths.count(contig) == 1)
-      BOOST_LOG_TRIVIAL(warning) << "[graphtyper::io] Duplicated contig in FAI: " << contig;
+      print_log(log_severity::warning, "[graphtyper::io] Duplicated contig in FAI: ", contig);
 
     contig_to_lengths[contig] = std::stoull(length);
   }
@@ -246,7 +246,7 @@ append_to_file(std::string && data, std::string const & file_name)
 
     if (!myfile.is_open())
     {
-      BOOST_LOG_TRIVIAL(error) << "[graphtyper::io] Cannot write to " << file_name;
+      print_log(log_severity::error, "[graphtyper::io] Cannot write to ", file_name);
       std::exit(1);
     }
 
@@ -271,7 +271,7 @@ write_to_file(std::string && data, std::string const & file_name)
 
     if (!myfile.is_open())
     {
-      BOOST_LOG_TRIVIAL(error) << "[graphtyper::io] Cannot write to " << file_name;
+      print_log(log_severity::error, "[graphtyper::io] Cannot write to ", file_name);
       std::exit(1);
     }
 
@@ -291,7 +291,7 @@ write_gzipped_to_file(std::stringstream & ss, std::string const & file_name, boo
 
   if (!compressed.is_open())
   {
-    BOOST_LOG_TRIVIAL(error) << "[graphtyper::io] Could not open file '" << file_name << "'";
+    print_log(log_severity::error, "[graphtyper::io] Could not open file '", file_name, "'");
     std::exit(3);
   }
 

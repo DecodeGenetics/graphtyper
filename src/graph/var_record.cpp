@@ -6,7 +6,7 @@
 #include <sstream>
 #include <vector>
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/var_record.hpp>
@@ -256,7 +256,7 @@ VarRecord::merge_all(VarRecord && prev_record)
 
   if (prev_record.pos + prev_record.ref.seq.size() == pos)
   {
-    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " merging all records";
+    print_log(log_severity::debug, __HERE__, " merging all records");
     // R A,B
     // S C,D,E
     // =>

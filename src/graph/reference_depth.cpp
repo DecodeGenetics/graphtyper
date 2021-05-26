@@ -3,7 +3,7 @@
 #include <sstream> // std::stringstream
 #include <vector> // std::vector
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/reference_depth.hpp>
@@ -132,8 +132,8 @@ ReferenceDepth::add_genotype_paths(GenotypePaths const & geno, long const sample
 
   if (sample_index >= static_cast<long>(depths.size()))
   {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << " Odd.. sample_index >= expected ("
-                             << sample_index << " >= " << depths.size() << ")";
+    print_log(log_severity::error, __HERE__, " Odd.. sample_index >= expected ("
+                            , sample_index, " >= ", depths.size(), ")");
     return;
     //std::exit(1);
   }
