@@ -22,6 +22,7 @@
 #include <graphtyper/graph/reference_depth.hpp>
 #include <graphtyper/graph/var_record.hpp>
 #include <graphtyper/typer/vcf.hpp>
+#include <graphtyper/utilities/filesystem.hpp>
 #include <graphtyper/utilities/graph_help_functions.hpp>
 #include <graphtyper/utilities/options.hpp> // gyper::options::instance()
 #include <graphtyper/utilities/system.hpp>
@@ -776,36 +777,10 @@ Vcf::write_header(bool const is_dropping_genotypes)
       // make prefix
       std::string const prefix(bgzf_stream.filename.begin(), find_it);
 
-      // truncate the file by 28 bytes
-      {
-        std::ostringstream ss_cmd;
-        ss_cmd << "truncate --size -28 " << bgzf_stream.filename;
-        std::string cmd = ss_cmd.str();
-        int ret = system(cmd.c_str());
-
-        if (ret != 0)
-        {
-          BOOST_LOG_TRIVIAL(error) << __HERE__ << " This command failed '" << cmd << "'";
-          std::exit(ret);
-        }
-      }
-
-      // get size of file, store in .samples_byte_range
-      {
-        std::ostringstream ss_cmd;
-        ss_cmd << "stat -c '%s' " << bgzf_stream.filename << " | awk 'NR==1{printf $1 + 1\" \"}'"
-               << " > "
-               << prefix << ".samples_byte_range";
-
-        std::string cmd = ss_cmd.str();
-        int ret = system(cmd.c_str());
-
-        if (ret != 0)
-        {
-          BOOST_LOG_TRIVIAL(error) << __HERE__ << " This command failed '" << cmd << "'";
-          std::exit(ret);
-        }
-      }
+      // truncate the file by 28 bytes (strip bgzf EOF marker)
+      size_t byte_range_begin = filesystem::file_size(bgzf_stream.filename) - 28;
+      filesystem::resize_file(bgzf_stream.filename, byte_range_begin);
+      ++byte_range_begin; // beginning is behind end of current file region
 
       // append 0-level compressed data
       bgzf_stream.open(bgzf_stream.filename, "a0", bgzf_stream.n_threads);
@@ -815,37 +790,15 @@ Vcf::write_header(bool const is_dropping_genotypes)
 
       bgzf_stream.close();
 
-      // truncate the file by 28 bytes
-      {
-        std::ostringstream ss_cmd;
-        ss_cmd << "truncate --size -28 " << bgzf_stream.filename;
-        std::string cmd = ss_cmd.str();
-        int ret = system(cmd.c_str());
+      // truncate the file by 28 bytes (strip bgzf EOF marker)
+      size_t byte_range_end = filesystem::file_size(bgzf_stream.filename) - 28;
+      filesystem::resize_file(bgzf_stream.filename, byte_range_end);
 
-        if (ret != 0)
-        {
-          BOOST_LOG_TRIVIAL(error) << __HERE__ << " This command failed '" << cmd << "'";
-          std::exit(ret);
-        }
-      }
+      // store byte_range on-disk
+      std::ofstream byte_range_file{prefix + ".samples_byte_range", std::ios::binary};
+      byte_range_file << byte_range_begin << ' ' << byte_range_end << '\n';
 
-      // get size of file, store in .samples_byte_range
-      {
-        std::ostringstream ss_cmd;
-        ss_cmd << "stat -c '%s' " << bgzf_stream.filename
-               << " >> "
-               << prefix << ".samples_byte_range";
-
-        std::string cmd = ss_cmd.str();
-        int ret = system(cmd.c_str());
-
-        if (ret != 0)
-        {
-          BOOST_LOG_TRIVIAL(error) << __HERE__ << " This command failed '" << cmd << "'";
-          std::exit(ret);
-        }
-      }
-
+      // resume regular operations
       bgzf_stream.open(bgzf_stream.filename, "a", bgzf_stream.n_threads);
     }
     else
