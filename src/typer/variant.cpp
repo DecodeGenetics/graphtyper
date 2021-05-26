@@ -6,7 +6,7 @@
 
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 #include <boost/functional/hash.hpp> // boost::hash_range
 #include <boost/serialization/map.hpp>
 #include <boost/serialization/vector.hpp>
@@ -440,8 +440,8 @@ Variant::generate_infos()
 
   if (is_stats && stats.per_allele.size() != seqs.size())
   {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << " stats.per_allele.size() != seqs.size(), "
-                             << stats.per_allele.size() << " != " << seqs.size();
+    print_log(log_severity::error, __HERE__, " stats.per_allele.size() != seqs.size(), "
+                            , stats.per_allele.size(), " != ", seqs.size());
     std::exit(1);
   }
 
@@ -1009,14 +1009,14 @@ Variant::generate_infos()
 #ifndef NDEBUG
       if (is_good_alt[a] == 0)
       {
-        BOOST_LOG_TRIVIAL(info) << __HERE__ << " In variant=" << to_string(true) // skip calls
-                                << " bad alt="
-                                << std::string(seqs[a + 1].begin(), seqs[a + 1].end())
-                                << " MaxAAS=" << per_al.maximum_alt_support
-                                << " MaxAASR=" << per_al.maximum_alt_support_ratio
-                                << " AAScore=" << aa_score[a]
-                                << " ABHom=" << info_abhom
-                                << " QDAlt=" << qd_alt[a];
+        print_log(log_severity::info, __HERE__, " In variant=", to_string(true) // skip calls
+                               , " bad alt="
+                               , std::string(seqs[a + 1].begin(), seqs[a + 1].end())
+                               , " MaxAAS=", per_al.maximum_alt_support
+                               , " MaxAASR=", per_al.maximum_alt_support_ratio
+                               , " AAScore=", aa_score[a]
+                               , " ABHom=", info_abhom
+                               , " QDAlt=", qd_alt[a]);
       }
 #endif // NDEBUG
     }
@@ -1199,7 +1199,7 @@ Variant::normalize()
 {
   if (seqs.size() < 2)
   {
-    BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Tried to normalize variant with " << seqs.size() << " alleles";
+    print_log(log_severity::warning, __HERE__, " Tried to normalize variant with ", seqs.size(), " alleles");
     return 0;
   }
 
@@ -1212,7 +1212,7 @@ Variant::normalize()
 
     if (seq.size() == 0)
     {
-      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Tried to normalize variant with size 0: " << to_string();
+      print_log(log_severity::warning, __HERE__, " Tried to normalize variant with size 0: ", to_string());
       return 0;
     }
 
@@ -1410,7 +1410,7 @@ Variant::determine_variant_type() const
 #ifndef NDEBUG
     if (it->size() == 0)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " " << this->to_string();
+      print_log(log_severity::error, __HERE__, " ", this->to_string());
     }
 
     assert(it->size() != 0);
@@ -1670,9 +1670,9 @@ break_down_variant(Variant && var,
   else if (!is_no_variant_overlapping)
   {
     // Use the skyr
-    BOOST_LOG_TRIVIAL(debug) << "Using the skyr";
+    print_log(log_severity::debug, "Using the skyr");
     std::vector<Variant> new_broken_down_vars = break_down_skyr(std::move(var), reach);
-    BOOST_LOG_TRIVIAL(debug) << "skyr finished.";
+    print_log(log_severity::debug, "skyr finished.");
 
     std::move(new_broken_down_vars.begin(),
               new_broken_down_vars.end(),
@@ -2144,7 +2144,7 @@ break_down_skyr(Variant && var, long const reach)
     {
       if (seq.size() == 0)
       {
-        BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Variant with size 0: " << new_var.to_string();
+        print_log(log_severity::warning, __HERE__, " Variant with size 0: ", new_var.to_string());
       }
     }
 #endif // NDEBUG

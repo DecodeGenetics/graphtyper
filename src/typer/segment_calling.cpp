@@ -7,7 +7,7 @@
 
 #include <seqan/sequence.h> // seqan::Dna5String
 
-#include <boost/log/trivial.hpp> // BOOST_LOG_TRIVIAL macro
+#include <graphtyper/utilities/logging.hpp> // BOOST_LOG_TRIVIAL macro
 
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/graph.hpp>
@@ -192,7 +192,7 @@ remove_out_of_order_variants(
   if (exon_explain_map.size() == 0)
     return;
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Removing out of order variants.";
+  print_log(log_severity::debug, __HERE__, " Removing out of order variants.");
 
   // Find all unique variants
   std::vector<uint32_t> uniq_variants;
@@ -260,7 +260,7 @@ remove_out_of_order_variants(
     if (std::find(longest_uniq_variants.begin(), longest_uniq_variants.end(), it->first) == longest_uniq_variants.end())
     {
       // Remove the variant if it is not found in the longest unique variants vector
-      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Removing from exon " << it->first;
+      print_log(log_severity::debug, __HERE__, " Removing from exon ", it->first);
       exon_explain_map.erase(it++);
     }
     else
@@ -275,7 +275,7 @@ remove_out_of_order_variants(
     if (std::find(longest_uniq_variants.begin(), longest_uniq_variants.end(), it->first) == longest_uniq_variants.end())
     {
       // Remove the variant if it is not found in the longest unique variants vector
-      BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Removing from intron " << it->first;
+      print_log(log_severity::debug, "[graphtyper::segment_calling] Removing from intron ", it->first);
       intron_explain_map.erase(it++);
     }
     else
@@ -322,7 +322,7 @@ determine_reference_index(std::map<uint32_t,
                           std::map<uint32_t, std::vector<std::bitset<gyper::MAX_NUMBER_OF_HAPLOTYPES> > > const & intron_explain_map
                           )
 {
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Determining reference index from explain maps.";
+  print_log(log_severity::debug, "[graphtyper::segment_calling] Determining reference index from explain maps.");
   std::vector<uint32_t> ref_counts(intron_explain_map.begin()->second.size(), 0u);
 
   for (auto it = exon_explain_map.cbegin(); it != exon_explain_map.cend(); ++it)
@@ -365,9 +365,9 @@ determine_reference_index(std::map<uint32_t,
 
   if (max_ref_counts < static_cast<int64_t>(exon_explain_map.size()) + static_cast<int64_t>(intron_explain_map.size()))
   {
-    BOOST_LOG_TRIVIAL(warning) << "[graphtyper::segment_calling] No path is purely reference. " << max_ref_counts <<
+    print_log(log_severity::warning, "[graphtyper::segment_calling] No path is purely reference. ", max_ref_counts,
       " out of "
-                               << exon_explain_map.size() + intron_explain_map.size();
+                              , exon_explain_map.size() + intron_explain_map.size());
   }
 
   return max_ref_counts_index;
@@ -420,7 +420,7 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
                 std::vector<std::string> const & samples)
 {
   assert(samples.size() > 0);
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Segment VCF is at " << segment_path;
+  print_log(log_severity::debug, "[graphtyper::segment_calling] Segment VCF is at ", segment_path);
   Vcf segment_vcf(WRITE_BGZF_MODE, segment_path);
 
   for (auto const & sample : samples)
@@ -430,8 +430,8 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
   for (auto & haplototype : writer.haplotypes)
     haplototype.update_max_log_score();
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Gathering segments from "
-                           << segment_fasta_files.size() << " segments.";
+  print_log(log_severity::debug, __HERE__, " Gathering segments from "
+                          , segment_fasta_files.size(), " segments.");
   std::vector<Segment> segments;
   using THapPaths = std::vector<GenotypePaths>;
 
@@ -471,7 +471,7 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
     }
   }
 
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Iterating paths of segments. ";
+  print_log(log_severity::debug, "[graphtyper::segment_calling] Iterating paths of segments. ");
 
   for (auto haplotype_paths_it = all_haplotype_paths.cbegin();
        haplotype_paths_it != all_haplotype_paths.cend();
@@ -491,10 +491,10 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
         // Type of it->first is std::string
         // Type of it->second is std::vector<std::vector<GenotypePaths> >
         if (it->second.size() > 0)
-          BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Name = " << it->first;
+          print_log(log_severity::debug, "[graphtyper::segment_calling] Name = ", it->first);
 
-        BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Number of genotype paths = "
-                                 << it->second.size();
+        print_log(log_severity::debug, "[graphtyper::segment_calling] Number of genotype paths = "
+                                , it->second.size());
 
         std::size_t const k = std::distance(all_haplotype_paths.cbegin(), haplotype_paths_it);
         // Previous path explanation
@@ -503,31 +503,31 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
         for (unsigned j = 0; j < it->second.size(); ++j)
         {
           GenotypePaths const & path = it->second[j];
-          BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] INFO: "
+          print_log(log_severity::debug, "[graphtyper::segment_calling] INFO: "
                                    << it->first
                                    << ", index "
                                    << j << ", long exon? "
-                                   << static_cast<uint16_t>(has_long_exon[k][j]);
+                                  , static_cast<uint16_t>(has_long_exon[k][j]));
 
           if (it->second[j].paths.size() == 0)
           {
             if (has_long_exon[k][j])
             {
-              BOOST_LOG_TRIVIAL(warning) << __HERE__ << " No path found for a long exon sequence";
+              print_log(log_severity::warning, __HERE__, " No path found for a long exon sequence");
             }
             else
             {
-              BOOST_LOG_TRIVIAL(debug) << __HERE__ << " No path found for a short sequence or an intron";
+              print_log(log_severity::debug, __HERE__, " No path found for a short sequence or an intron");
             }
           }
           else if (it->second[j].paths.size() == 1)
           {
-            BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Unique path found: "
+            print_log(log_severity::debug, __HERE__, " Unique path found: "
                                      << absolute_pos.get_contig_position(it->second[j].paths[0].start_ref_reach_pos()).
               second << "-"
                                      << absolute_pos.get_contig_position(it->second[j].paths[0].end_ref_reach_pos()).
               second << " "
-                                     << static_cast<uint64_t>(it->second[j].paths[0].mismatches);
+                                    , static_cast<uint64_t>(it->second[j].paths[0].mismatches));
           }
           else if (it->second[j].paths.size() > 1)
           {
@@ -588,7 +588,7 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
     for (auto & i : intron_explain_map)
       i.second.resize(hap_ids.size());
 
-    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Done creating explain maps.";
+    print_log(log_severity::debug, "[graphtyper::segment_calling] Done creating explain maps.");
 
     // DEBUG
     // print_explain_map(exon_explain_map);
@@ -599,7 +599,7 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
     // Remove variants which only a small portion overlaps
     if (intron_explain_map.size() == 0)
     {
-      BOOST_LOG_TRIVIAL(error) << "Could not align any introns to the graph. Did you align to the correct graph?";
+      print_log(log_severity::error, "Could not align any introns to the graph. Did you align to the correct graph?");
       std::exit(1);
     }
 
@@ -607,22 +607,22 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
     remove_insignificant_variants(exon_explain_map);
     remove_insignificant_variants(intron_explain_map);
 
-    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Done removing out of order and insignificant variants";
+    print_log(log_severity::debug, "[graphtyper::segment_calling] Done removing out of order and insignificant variants");
 
     // This condition is required to avoid segfault!
     if (exon_explain_map.size() > 0)
     {
-      BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] exon_explain_map sequences.size() = "
-                               << exon_explain_map.begin()->second.size();
+      print_log(log_severity::debug, "[graphtyper::segment_calling] exon_explain_map sequences.size() = "
+                              , exon_explain_map.begin()->second.size());
       add_start_on_explain_map(intron_explain_map);
       add_end_on_explain_map(intron_explain_map);
     }
     else
     {
-      BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] exon_explain_map sequences is empty";
+      print_log(log_severity::debug, "[graphtyper::segment_calling] exon_explain_map sequences is empty");
     }
 
-    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] intron_explain_map sequences.size() = " <<
+    print_log(log_severity::debug, "[graphtyper::segment_calling] intron_explain_map sequences.size() = ",
       intron_explain_map.begin()->second.size();
 
     //// DEBUG
@@ -644,10 +644,10 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
     put_reference_in_front(exon_explain_map, hap_ids, ref_index, false); // Last parameter is change hap_ids
     put_reference_in_front(intron_explain_map, hap_ids, ref_index, true);
 
-    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Generating scores with reference " << hap_ids[0];
+    print_log(log_severity::debug, "[graphtyper::segment_calling] Generating scores with reference ", hap_ids[0]);
 
     // Create segment for these results
-    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Creating a new segment.";
+    print_log(log_severity::debug, "[graphtyper::segment_calling] Creating a new segment.");
     assert(haplotype_paths_it->size() > 0);
     assert(haplotype_paths_it->begin()->second.size() > 0);
     unsigned s = 0;
@@ -660,7 +660,7 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
 
       if (s == haplotype_paths_it->begin()->second.size())
       {
-        BOOST_LOG_TRIVIAL(warning) << "[graphtyper::segment_calling] Could not find a segment which matched";
+        print_log(log_severity::warning, "[graphtyper::segment_calling] Could not find a segment which matched");
         --s;
         break;
       }
@@ -682,7 +682,7 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
     int64_t seq_size = static_cast<int64_t>(longest_path_end.end_correct_pos()) -
                        static_cast<int64_t>(longest_path_start.start_correct_pos()) + 1;
     uint32_t segment_start = longest_path_start.start_correct_pos();
-    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Segment sequence size = " << seq_size;
+    print_log(log_severity::debug, __HERE__, " Segment sequence size = ", seq_size);
 
     if (seq_size < 0)
     {
@@ -691,7 +691,7 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
       segment_start = longest_path_end.start_correct_pos();
     }
 
-    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Number of hap_ids is " << hap_ids.size();
+    print_log(log_severity::debug, __HERE__, " Number of hap_ids is ", hap_ids.size());
 
     Segment seg(segment_start, static_cast<uint32_t>(seq_size), hap_ids);
     std::vector<std::vector<uint32_t> > hap_scores(samples.size());
@@ -702,14 +702,14 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
     {
       for (uint32_t s = 0; s < samples.size(); ++s)
       {
-        BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Sample name is " << samples[s];
+        print_log(log_severity::debug, __HERE__, " Sample name is ", samples[s]);
         // std::cout << "derp function starting" << std::endl;
         std::vector<uint32_t> hap_score = writer.explain_map_to_haplotype_scores(s, exon_explain_map);
         // std::cout << "derp function done" << std::endl;
         assert(hap_score.size() > 0);
         auto max_score_it = std::max_element(hap_score.begin(), hap_score.end());
         uint32_t const max_score = *max_score_it;
-        BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Highest exon score is " << max_score;
+        print_log(log_severity::debug, "[graphtyper::segment_calling] Highest exon score is ", max_score);
         // std::cout << "Best index should be " << to_pair(std::distance(hap_score.begin(), max_score_it)).first
         //           << "/" << to_pair(std::distance(hap_score.begin(), max_score_it)).second << std::endl;
         std::vector<std::pair<uint32_t, uint32_t> > best_indexes;
@@ -721,17 +721,17 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
         }
 
         assert(best_indexes.size() > 0);
-        BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Number of best indexes are " << best_indexes.size();
+        print_log(log_severity::debug, "[graphtyper::segment_calling] Number of best indexes are ", best_indexes.size());
 
         if (best_indexes.size() <= 100)
         {
           for (auto const & best_index : best_indexes)
-            BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Best alleles: " << hap_ids[best_index.first] <<
-              "/" << hap_ids[best_index.second];
+            print_log(log_severity::debug, "[graphtyper::segment_calling] Best alleles: ", hap_ids[best_index.first],
+              "/", hap_ids[best_index.second]);
 
           if (best_indexes.size() > 1)
           {
-            BOOST_LOG_TRIVIAL(debug) <<
+            print_log(log_severity::debug,
               "[graphtyper::segment_calling] The best exon score is not unique, but there are less than 100 best exon scores";
 
             // Add intron scores
@@ -758,8 +758,8 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
             }
 
             assert(second_max_intron_score <= max_intron_score);
-            BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Max and second max intron score is "
-                                     << max_intron_score << ", " << second_max_intron_score;
+            print_log(log_severity::debug, "[graphtyper::segment_calling] Max and second max intron score is "
+                                    , max_intron_score, ", ", second_max_intron_score);
 
             // Increase scores of alleles with the most likely introns
             if (max_intron_score > 0)
@@ -770,9 +770,9 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
 
                 if (intron_scores[i] == max_intron_score)
                 {
-                  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Increasing scores of "
+                  print_log(log_severity::debug, "[graphtyper::segment_calling] Increasing scores of "
                                            << hap_ids[best_indexes[i].first] << "/"
-                                           << hap_ids[best_indexes[i].second];
+                                          , hap_ids[best_indexes[i].second]);
 
                   hap_score[to_index(best_indexes[i].first, best_indexes[i].second)] +=
                     std::max(10u, (max_intron_score - second_max_intron_score) / 2);
@@ -782,16 +782,16 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
           }
           else if (best_indexes.size() == 1)
           {
-            BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Unique best exon score";
+            print_log(log_severity::debug, "[graphtyper::segment_calling] Unique best exon score");
           }
           else
           {
-            BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] No best exon score";
+            print_log(log_severity::debug, "[graphtyper::segment_calling] No best exon score");
           }
         }
         else
         {
-          BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] There are more than 100 best exon scores";
+          print_log(log_severity::debug, "[graphtyper::segment_calling] There are more than 100 best exon scores");
         }
 
         // std::cout << "Inserting scores..." << std::endl;
@@ -803,20 +803,20 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
     {
       for (uint32_t s = 0; s < samples.size(); ++s)
       {
-        BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Sample name is " << samples[s];
+        print_log(log_severity::debug, "[graphtyper::segment_calling] Sample name is ", samples[s]);
         assert(intron_explain_map.size() > 0);
         std::vector<uint32_t> hap_score = writer.explain_map_to_haplotype_scores(s, intron_explain_map);
         assert(hap_score.size() > 0);
         auto max_it = std::max_element(hap_score.begin(), hap_score.end());
-        BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Highest total score is " << *max_it;
+        print_log(log_severity::debug, "[graphtyper::segment_calling] Highest total score is ", *max_it);
 
         for (unsigned k = 0; k < hap_score.size(); ++k)
         {
           if (hap_score[k] == *max_it)
           {
             std::pair<uint16_t, uint16_t> calls =  gyper::to_pair(k);
-            BOOST_LOG_TRIVIAL(debug) << "[graphtyper::segment_calling] Call with highest total score is "
-                                     << hap_ids[calls.first] << "/" << hap_ids[calls.second];
+            print_log(log_severity::debug, "[graphtyper::segment_calling] Call with highest total score is "
+                                    , hap_ids[calls.first], "/", hap_ids[calls.second]);
           }
         }
 

@@ -4,7 +4,7 @@
 #include <graphtyper/utilities/hts_reader.hpp>
 
 #include <boost/algorithm/string.hpp>
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 #include <htslib/hfile.h>
 #include <htslib/hts.h>
@@ -26,7 +26,7 @@ HtsReader::open(std::string const & path, std::string const & region, std::strin
 
   if (!fp)
   {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not open BAM/CRAM file " << path;
+    print_log(log_severity::error, __HERE__, " Could not open BAM/CRAM file ", path);
     std::exit(1);
   }
 
@@ -51,7 +51,7 @@ HtsReader::open(std::string const & path, std::string const & region, std::strin
 
         if (pos_samp == std::string::npos || pos_id == std::string::npos)
         {
-          BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not parse RG and sample from header line: " << line_it;
+          print_log(log_severity::error, __HERE__, " Could not parse RG and sample from header line: ", line_it);
           std::exit(1);
         }
 
@@ -69,7 +69,7 @@ HtsReader::open(std::string const & path, std::string const & region, std::strin
 
         std::string new_id = line_it.substr(pos_id + 4, pos_id_ends - pos_id - 4);
         std::string new_sample = line_it.substr(pos_samp + 4, pos_samp_ends - pos_samp - 4);
-        BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Added RG: '" << new_id << "' => '" << new_sample << "'";
+        print_log(log_severity::debug, __HERE__, " Added RG: '", new_id, "' => '", new_sample, "'");
         rg2index[new_id] = rg2sample_i.size();
         auto find_it = std::find(samples.begin(), samples.end(), new_sample);
 
@@ -110,7 +110,7 @@ HtsReader::open(std::string const & path, std::string const & region, std::strin
 
     if (!hts_index)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Failed to load index at '" << path << "'";
+      print_log(log_severity::error, __HERE__, " Failed to load index at '", path, "'");
       std::exit(1);
     }
 
@@ -118,7 +118,7 @@ HtsReader::open(std::string const & path, std::string const & region, std::strin
 
     if (!hts_iter)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Failed to query region '" << region << "'";
+      print_log(log_severity::error, __HERE__, " Failed to query region '", region, "'");
       std::exit(1);
     }
 
@@ -160,7 +160,7 @@ HtsReader::set_reference(std::string const & reference_path)
 
   if (ret2 != 0)
   {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not open reference FASTA file with filename " << reference_path;
+    print_log(log_severity::error, __HERE__, " Could not open reference FASTA file with filename ", reference_path);
     std::exit(1);
   }
 }
@@ -199,8 +199,8 @@ HtsReader::get_next_read_in_order(bam1_t * old_record)
   {
     if (ret < -1)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " htslib failed BAM/CRAM reading of " << filename
-                               << " and returned " << ret;
+      print_log(log_severity::error, __HERE__, " htslib failed BAM/CRAM reading of ", filename
+                              , " and returned ", ret);
       std::exit(1);
     }
 
@@ -270,8 +270,8 @@ HtsReader::get_next_read_in_order()
   {
     if (ret < -1)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " htslib failed BAM/CRAM reading of " << filename
-                               << " and returned " << ret;
+      print_log(log_severity::error, __HERE__, " htslib failed BAM/CRAM reading of ", filename
+                              , " and returned ", ret);
       std::exit(1);
     }
 
@@ -332,8 +332,8 @@ HtsReader::get_next_read()
   {
     if (ret < -1)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " htslib failed BAM/CRAM reading of " << filename
-                               << " and returned " << ret;
+      print_log(log_severity::error, __HERE__, " htslib failed BAM/CRAM reading of ", filename
+                              , " and returned ", ret);
       std::exit(1);
     }
 
@@ -360,8 +360,8 @@ HtsReader::get_next_read(bam1_t * old_record)
   {
     if (ret < -1)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " htslib failed BAM/CRAM reading of " << filename
-                               << " and returned " << ret;
+      print_log(log_severity::error, __HERE__, " htslib failed BAM/CRAM reading of ", filename
+                              , " and returned ", ret);
       std::exit(1);
     }
 
@@ -397,7 +397,7 @@ HtsReader::get_sample_and_rg_index(long & sample_i, long & rg_i, bam1_t * rec) c
 
     if (!rg_tag)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Unable to find RG tag in read in file " << filename;
+      print_log(log_severity::error, __HERE__, " Unable to find RG tag in read in file ", filename);
       std::exit(1);
     }
 
@@ -406,8 +406,8 @@ HtsReader::get_sample_and_rg_index(long & sample_i, long & rg_i, bam1_t * rec) c
 
     if (find_rg_it == rg2index.end())
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Unable to find read group " << read_group << " in "
-                               << filename;
+      print_log(log_severity::error, __HERE__, " Unable to find read group ", read_group, " in "
+                              , filename);
       std::exit(1);
     }
 

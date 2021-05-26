@@ -14,7 +14,7 @@
 #include <seqan/seq_io.h>
 #include <seqan/hts_io.h>
 
-#include <boost/log/trivial.hpp> // BOOST_LOG_TRIVIAL
+#include <graphtyper/utilities/logging.hpp> // BOOST_LOG_TRIVIAL
 
 #include <parallel_hashmap/phmap.h>
 
@@ -73,31 +73,31 @@ check_haplotypes(std::map<gyper::Event, std::unordered_map<gyper::Event, int8_t,
 
       if (other_haps.count(other_event) == 0)
       {
-        BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Missing event link "
-                                   << event.to_string() << " "
-                                   << other_event.to_string();
+        print_log(gyper::log_severity::warning, __HERE__, " Missing event link "
+                                  , event.to_string(), " "
+                                  , other_event.to_string());
         is_ok = false;
       }
     }
 
     if (count != static_cast<long>(other_haps.size()))
     {
-      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " count mismatch " << count << " != " << other_haps.size();
-      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " " << event.to_string();
+      print_log(gyper::log_severity::warning, __HERE__, " count mismatch ", count, " != ", other_haps.size());
+      print_log(gyper::log_severity::warning, __HERE__, " ", event.to_string());
 
       for (auto event_it2 = std::next(event_it);
            event_it2 != haplotypes.end() && event_it2->first.pos < (event.pos + 100l);
            ++event_it2)
       {
         gyper::Event const & other_event = event_it2->first;
-        BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << other_event.to_string();
+        print_log(gyper::log_severity::info, __HERE__, " ", other_event.to_string());
       }
 
       for (auto const & o : other_haps)
       {
-        BOOST_LOG_TRIVIAL(info) << __HERE__ << " "
-                                << o.first.to_string() << " "
-                                << static_cast<long>(o.second);
+        print_log(gyper::log_severity::info, __HERE__, " "
+                               , o.first.to_string(), " "
+                               , static_cast<long>(o.second));
       }
 
       is_ok = false;
@@ -335,11 +335,11 @@ call_segments(std::vector<std::string> const & hts_paths,
               std::string const & segment)
 {
 
-  BOOST_LOG_TRIVIAL(info) << __HERE__ << " Start calling segments.";
+  print_log(log_severity::info, __HERE__, " Start calling segments.");
 
   if (hts_paths.size() == 0)
   {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << " No input BAM/CRAM files.";
+    print_log(log_severity::error, __HERE__, " No input BAM/CRAM files.");
     std::exit(1);
   }
 
@@ -380,7 +380,7 @@ call_segments(std::vector<std::string> const & hts_paths,
     }
   }
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Number of pools = " << spl_hts_paths.size();
+  print_log(log_severity::debug, __HERE__, " Number of pools = ", spl_hts_paths.size());
   long const NUM_POOLS = spl_hts_paths.size();
   paths.resize(NUM_POOLS);
 
@@ -425,7 +425,7 @@ call_segments(std::vector<std::string> const & hts_paths,
     }
 
     std::string thread_info = call_station.join();
-    BOOST_LOG_TRIVIAL(info) << "Finished calling. Thread work: " << thread_info;
+    print_log(log_severity::info, "Finished calling. Thread work: ", thread_info);
   }
 
   //BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Estimating the likelihoods of few different segments.";
@@ -456,7 +456,7 @@ call(std::vector<std::string> const & hts_paths,
 {
   if (hts_paths.size() == 0)
   {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << " No input BAM/CRAM files.";
+    print_log(log_severity::error, __HERE__, " No input BAM/CRAM files.");
     std::exit(1);
   }
 
@@ -611,7 +611,7 @@ call(std::vector<std::string> const & hts_paths,
     assert(cov_it == avg_cov_by_readlen.end());
   }
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Number of pools = " << spl_hts_paths.size();
+  print_log(log_severity::debug, __HERE__, " Number of pools = ", spl_hts_paths.size());
   long const NUM_POOLS = spl_hts_paths.size();
   paths.resize(NUM_POOLS);
 
@@ -654,7 +654,7 @@ call(std::vector<std::string> const & hts_paths,
                                allele_hap_gts_ptr);
 
     std::string thread_info = call_station.join();
-    BOOST_LOG_TRIVIAL(info) << "Finished calling. Thread work: " << thread_info;
+    print_log(log_severity::info, "Finished calling. Thread work: ", thread_info);
   }
 
   if (is_writing_hap)
@@ -778,7 +778,7 @@ run_first_pass(bam1_t * hts_rec,
 
     if (ref_offset >= REF_SIZE)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Unexpected ref_offset = " << ref_offset;
+      print_log(log_severity::error, __HERE__, " Unexpected ref_offset = ", ref_offset);
       std::exit(1);
     }
 
@@ -851,10 +851,10 @@ run_first_pass(bam1_t * hts_rec,
 #ifndef NDEBUG
           if (debug_event_type == 'X' && new_snp_event.pos == debug_event_pos)
           {
-            BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << new_snp_event.to_string()
-                                    << " in file_i=" << file_i
-                                    << " core.pos=" << core.pos
-                                    << " read=" << read.name;
+            print_log(log_severity::info, __HERE__, " ", new_snp_event.to_string()
+                                   , " in file_i=", file_i
+                                   , " core.pos=", core.pos
+                                   , " read=", read.name);
           }
 #endif // NDEBUG
 
@@ -947,7 +947,7 @@ run_first_pass(bam1_t * hts_rec,
 
 #ifndef NDEBUG
           if (read.name == debug_read_name)
-            BOOST_LOG_TRIVIAL(info) << __HERE__ << " new ins=" << indel_event_it->first.to_string();
+            print_log(log_severity::info, __HERE__, " new ins=", indel_event_it->first.to_string());
 #endif // NDEBUG
 
           auto & event_support = indel_event_it->second;
@@ -994,7 +994,7 @@ run_first_pass(bam1_t * hts_rec,
                                                           ref_offset);
 #ifndef NDEBUG
           if (read.name == debug_read_name)
-            BOOST_LOG_TRIVIAL(info) << __HERE__ << " new del=" << indel_event_it->first.to_string();
+            print_log(log_severity::info, __HERE__, " new del=", indel_event_it->first.to_string());
 #endif // NDEBUG
 
           auto & event_support = indel_event_it->second;
@@ -1069,8 +1069,8 @@ run_first_pass(bam1_t * hts_rec,
 #ifndef NDEBUG
     if (hts_rec->core.pos < prev_pos)
     {
-      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " file_i=" << file_i << " is not sorted. "
-                                 << hts_rec->core.pos << " < " << prev_pos;
+      print_log(log_severity::warning, __HERE__, " file_i=", file_i, " is not sorted. "
+                                , hts_rec->core.pos, " < ", prev_pos);
       assert(hts_rec->core.pos >= prev_pos);
     }
 #endif
@@ -1133,8 +1133,8 @@ run_first_pass(bam1_t * hts_rec,
 #ifndef NDEBUG
           if (debug_event_type == 'X' && snp.pos == debug_event_pos)
           {
-            BOOST_LOG_TRIVIAL(info) << __HERE__ << " debug snp has good support " << snp.to_string() << " "
-                                    << info.to_string() << " file_i=" << file_i;
+            print_log(log_severity::info, __HERE__, " debug snp has good support ", snp.to_string(), " "
+                                   , info.to_string(), " file_i=", file_i);
           }
 #endif // DEBUG
           ++snp_it;
@@ -1144,8 +1144,8 @@ run_first_pass(bam1_t * hts_rec,
 #ifndef NDEBUG
           if (debug_event_type == 'X' && snp.pos == debug_event_pos)
           {
-            BOOST_LOG_TRIVIAL(info) << __HERE__ << " debug snp has bad support " << snp.to_string() << " "
-                                    << info.to_string() << " file_i=" << file_i;
+            print_log(log_severity::info, __HERE__, " debug snp has bad support ", snp.to_string(), " "
+                                   , info.to_string(), " file_i=", file_i);
           }
 #endif // DEBUG
 
@@ -1204,13 +1204,13 @@ run_first_pass(bam1_t * hts_rec,
 #ifndef NDEBUG
       if (debug_event_type == indel.type && debug_event_pos == indel.pos && debug_event_size == indel.sequence.size())
       {
-        BOOST_LOG_TRIVIAL(info) << __HERE__ << "Indel [pos,pos+span], size [begin,end]: "
-                                << indel.to_string() << " ["
-                                << region_begin << " "
-                                <<  indel.pos << "," << (indel.pos + indel_info.span)
-                                << "] " << indel.sequence.size() << " " << correction
-                                << " [" << naive_begin << "," << naive_end << "]"
-                                << " count=" << count << " depth=" << depth;
+        print_log(log_severity::info, __HERE__, "Indel [pos,pos+span], size [begin,end]: "
+                               , indel.to_string(), " ["
+                               , region_begin, " "
+                               ,  indel.pos, ",", (indel.pos + indel_info.span)
+                               , "] ", indel.sequence.size(), " ", correction
+                               , " [", naive_begin, ",", naive_end, "]"
+                               , " count=", count, " depth=", depth);
       }
 #endif // NDEBUG
 
@@ -1262,9 +1262,9 @@ run_first_pass(bam1_t * hts_rec,
 #ifndef NDEBUG
         if (debug_event_type == indel.type && debug_event_pos == indel.pos && debug_event_size == indel.sequence.size())
         {
-          BOOST_LOG_TRIVIAL(info) << __HERE__ << " Indel has good support in file_i,log_qual="
-                                  << file_i << "," << log_qual << "," << count << "," << anti_count_d
-                                  << " cov=" << cov;
+          print_log(log_severity::info, __HERE__, " Indel has good support in file_i,log_qual="
+                                 , file_i, ",", log_qual, ",", count, ",", anti_count_d
+                                 , " cov=", cov);
         }
 #endif // NDEBUG
 
@@ -1289,9 +1289,9 @@ run_first_pass(bam1_t * hts_rec,
 #ifndef NDEBUG
         if (debug_event_type == indel.type && debug_event_pos == indel.pos && debug_event_size == indel.sequence.size())
         {
-          BOOST_LOG_TRIVIAL(info) << __HERE__ << " Indel has realignment support in file_i,log_qual,count,acount="
-                                  << file_i << "," << log_qual << "," << count << "," << anti_count_d
-                                  << " cov=" << cov;
+          print_log(log_severity::info, __HERE__, " Indel has realignment support in file_i,log_qual,count,acount="
+                                 , file_i, ",", log_qual, ",", count, ",", anti_count_d
+                                 , " cov=", cov);
         }
 #endif // NDEBUG
 
@@ -1308,9 +1308,9 @@ run_first_pass(bam1_t * hts_rec,
 #ifndef NDEBUG
         if (debug_event_type == indel.type && debug_event_pos == indel.pos && debug_event_size == indel.sequence.size())
         {
-          BOOST_LOG_TRIVIAL(info) << __HERE__ << " erasing indel with bad support in file_i,log_qual,count,acount="
-                                  << file_i << "," << log_qual << "," << count << "," << anti_count_d
-                                  << " cov=" << cov;
+          print_log(log_severity::info, __HERE__, " erasing indel with bad support in file_i,log_qual,count,acount="
+                                 , file_i, ",", log_qual, ",", count, ",", anti_count_d
+                                 , " cov=", cov);
         }
 #endif // NDEBUG
         it = bucket.events.erase(it);
@@ -1554,7 +1554,7 @@ run_first_pass_lr(bam1_t * hts_rec,
 
     if (ref_offset >= REF_SIZE)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Unexpected ref_offset = " << ref_offset;
+      print_log(log_severity::error, __HERE__, " Unexpected ref_offset = ", ref_offset);
       std::exit(1);
     }
 
@@ -1616,8 +1616,8 @@ run_first_pass_lr(bam1_t * hts_rec,
 
           if (read_pos >= static_cast<long>(read.sequence.size()))
           {
-            BOOST_LOG_TRIVIAL(warning) << __HERE__ << " read_pos >= sequence.size() : "
-                                       << read_pos << " >= " << read.sequence.size();
+            print_log(log_severity::warning, __HERE__, " read_pos >= sequence.size() : "
+                                      , read_pos, " >= ", read.sequence.size());
             break;
           }
 
@@ -1703,7 +1703,7 @@ run_first_pass_lr(bam1_t * hts_rec,
 
 #ifndef NDEBUG
           if (read.name == debug_read_name)
-            BOOST_LOG_TRIVIAL(info) << __HERE__ << " new ins=" << indel_event_it->first.to_string();
+            print_log(log_severity::info, __HERE__, " new ins=", indel_event_it->first.to_string());
 #endif // NDEBUG
 
           auto & event_support = indel_event_it->second;
@@ -1747,7 +1747,7 @@ run_first_pass_lr(bam1_t * hts_rec,
                                                         ref_offset);
 #ifndef NDEBUG
         if (read.name == debug_read_name)
-          BOOST_LOG_TRIVIAL(info) << __HERE__ << " new del=" << indel_event_it->first.to_string();
+          print_log(log_severity::info, __HERE__, " new del=", indel_event_it->first.to_string());
 #endif // NDEBUG
 
         auto & event_support = indel_event_it->second;
@@ -1795,8 +1795,8 @@ run_first_pass_lr(bam1_t * hts_rec,
 
     if (hts_rec->core.pos < prev_pos)
     {
-      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " file_i=" << file_i << " is not sorted. "
-                                 << hts_rec->core.pos << " < " << prev_pos;
+      print_log(log_severity::warning, __HERE__, " file_i=", file_i, " is not sorted. "
+                                , hts_rec->core.pos, " < ", prev_pos);
       assert(hts_rec->core.pos >= prev_pos);
 
       while (hts_rec && hts_rec->core.pos < prev_pos)
@@ -1857,13 +1857,13 @@ run_first_pass_lr(bam1_t * hts_rec,
 #ifndef NDEBUG
       if (debug_event_type == indel.type && debug_event_pos == indel.pos && debug_event_size == indel.sequence.size())
       {
-        BOOST_LOG_TRIVIAL(info) << __HERE__ << "Indel [pos,pos+span], size [begin,end]: "
+        print_log(log_severity::info, __HERE__, "Indel [pos,pos+span], size [begin,end]: "
                                 << indel.to_string() << " ["
                                 << region_begin << " "
                                 <<  indel.pos << "," << (indel.pos + indel_info.span)
                                 << "] " << indel.sequence.size() << " " << correction
                                 << " [" << naive_begin << "," << naive_end << "]"
-                                << " count=" << count << " depth=" << depth;
+                               , " count=", count, " depth=", depth);
       }
 #endif // NDEBUG
 
@@ -1915,9 +1915,9 @@ run_first_pass_lr(bam1_t * hts_rec,
 #ifndef NDEBUG
         if (debug_event_type == indel.type && debug_event_pos == indel.pos && debug_event_size == indel.sequence.size())
         {
-          BOOST_LOG_TRIVIAL(info) << __HERE__ << " Indel has good support in file_i,log_qual="
+          print_log(log_severity::info, __HERE__, " Indel has good support in file_i,log_qual="
                                   << file_i << "," << log_qual << "," << count << "," << anti_count_d
-                                  << " cov=" << cov;
+                                 , " cov=", cov);
         }
 #endif // NDEBUG
 
@@ -1940,9 +1940,9 @@ run_first_pass_lr(bam1_t * hts_rec,
 #ifndef NDEBUG
         if (debug_event_type == indel.type && debug_event_pos == indel.pos && debug_event_size == indel.sequence.size())
         {
-          BOOST_LOG_TRIVIAL(info) << __HERE__ << " Indel has realignment support in file_i,log_qual,count,acount="
+          print_log(log_severity::info, __HERE__, " Indel has realignment support in file_i,log_qual,count,acount="
                                   << file_i << "," << log_qual << "," << count << "," << anti_count_d
-                                  << " cov=" << cov;
+                                 , " cov=", cov);
         }
 #endif // NDEBUG
 
@@ -1959,9 +1959,9 @@ run_first_pass_lr(bam1_t * hts_rec,
 #ifndef NDEBUG
         if (debug_event_type == indel.type && debug_event_pos == indel.pos && debug_event_size == indel.sequence.size())
         {
-          BOOST_LOG_TRIVIAL(info) << __HERE__ << " erasing indel with bad support in file_i,log_qual,count,acount="
+          print_log(log_severity::info, __HERE__, " erasing indel with bad support in file_i,log_qual,count,acount="
                                   << file_i << "," << log_qual << "," << count << "," << anti_count_d
-                                  << " cov=" << cov;
+                                 , " cov=", cov);
         }
 #endif // NDEBUG
         it = bucket.events.erase(it);
@@ -2019,8 +2019,8 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
         debug_event_pos == indel.pos &&
         debug_event_size == indel.sequence.size())
     {
-      BOOST_LOG_TRIVIAL(info) << __HERE__ << " Realignment to indel=" << indel.to_string() << " span="
-                              << indel_info.span;
+      print_log(log_severity::info, __HERE__, " Realignment to indel=", indel.to_string(), " span="
+                             , indel_info.span);
     }
 #endif // NDEBUG
 
@@ -2074,7 +2074,7 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
 #ifndef NDEBUG
         if (read.name == debug_read_name)
         {
-          BOOST_LOG_TRIVIAL(info) << __HERE__ << " Found read=" << debug_read_name;
+          print_log(log_severity::info, __HERE__, " Found read=", debug_read_name);
         }
 #endif // NDEBUG
 
@@ -2117,7 +2117,7 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
 #ifndef NDEBUG
               if (read.name == debug_read_name)
               {
-                BOOST_LOG_TRIVIAL(info) << __HERE__ << " Applied event " << it->event_it->first.to_string();
+                print_log(log_severity::info, __HERE__, " Applied event ", it->event_it->first.to_string());
               }
 #endif // NDEBUG
 
@@ -2130,7 +2130,7 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
               if (read.name == debug_read_name)
               {
                 apply_indel_event(new_ref, ref_pos, indel_event, begin_padded + region_begin, true);
-                BOOST_LOG_TRIVIAL(info) << __HERE__ << " Could not apply event " << it->event_it->first.to_string();
+                print_log(log_severity::info, __HERE__, " Could not apply event ", it->event_it->first.to_string());
               }
 #endif // NDEBUG
 
@@ -2183,9 +2183,9 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
         {
           //if (clip.first > 0 || clip.second < static_cast<long>(read.sequence.size()))
           {
-            BOOST_LOG_TRIVIAL(debug) << __HERE__ << " name=" << read.name << " pos=" << read.alignment.pos
-                                     << " begin,end_clip="  << ar.clip_begin << "," << ar.clip_end
-                                     << " old_score=" << old_score << " new_score=" << ar.score;
+            print_log(log_severity::debug, __HERE__, " name=", read.name, " pos=", read.alignment.pos
+                                    , " begin,end_clip=" , ar.clip_begin, ",", ar.clip_end
+                                    , " old_score=", old_score, " new_score=", ar.score);
           }
         }
 #endif // NDEBUG
@@ -2216,8 +2216,8 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
 #ifndef NDEBUG
             if (read.name == debug_read_name)
             {
-              BOOST_LOG_TRIVIAL(debug) << __HERE__ << " SAME SCORE " << old_score
-                                       << " read=" << read.to_string();
+              print_log(log_severity::debug, __HERE__, " SAME SCORE ", old_score
+                                      , " read=", read.to_string());
             }
 #endif // NDEBUG
 
@@ -2244,12 +2244,12 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
           if (read.alignment.pos > (_next_alignment_pos + 300) ||
               _next_alignment_pos > (read.alignment.pos + 300))
           {
-            BOOST_LOG_TRIVIAL(warning) << __HERE__ << " change pos from="
-                                       << read.alignment.pos << " to="
-                                       << _next_alignment_pos
-                                       << " ("
-                                       << ref_pos[ar.database_begin] << " + " << region_begin << " + " << begin_padded
-                                       << ")";
+            print_log(log_severity::warning, __HERE__, " change pos from="
+                                      , read.alignment.pos, " to="
+                                      , _next_alignment_pos
+                                      , " ("
+                                      , ref_pos[ar.database_begin], " + ", region_begin, " + ", begin_padded
+                                      , ")");
           }
         }
 #endif // NDEBUG
@@ -2293,7 +2293,7 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
 
   /*
 #ifndef NDEBUG
-  BOOST_LOG_TRIVIAL(info) << __HERE__ << " alignment counter = " << _alignment_counter;
+  print_log(log_severity::info, __HERE__, " alignment counter = ", _alignment_counter);
 #endif // NDEBUG
   */
   // Print counts etc
@@ -2320,12 +2320,12 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
         debug_event_pos == indel.pos &&
         debug_event_size == indel.sequence.size())
     {
-      BOOST_LOG_TRIVIAL(info) << __HERE__ << " Realignment results for indel=" << indel.to_string() << " "
-                              << indel_info.hq_count << "," << indel_info.anti_count
-                              << " log_qual=" << indel_info.log_qual(10)
-                              << " info=" << indel_info.to_string()
-                              << " is_good_count=" << is_good_count
-                              << " is_good_info=" << indel_info.is_good_indel();
+      print_log(log_severity::info, __HERE__, " Realignment results for indel=", indel.to_string(), " "
+                             , indel_info.hq_count, ",", indel_info.anti_count
+                             , " log_qual=", indel_info.log_qual(10)
+                             , " info=", indel_info.to_string()
+                             , " is_good_count=", is_good_count
+                             , " is_good_info=", indel_info.is_good_indel());
     }
 #endif // NDEBUG
 
@@ -2399,7 +2399,7 @@ read_hts_and_return_realignment_indels(bam1_t * hts_rec,
 
     if (ref_offset < 0 || ref_offset >= REF_SIZE)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Unexpected ref_offset = " << ref_offset;
+      print_log(log_severity::error, __HERE__, " Unexpected ref_offset = ", ref_offset);
       std::exit(1);
     }
 
@@ -2414,7 +2414,7 @@ read_hts_and_return_realignment_indels(bam1_t * hts_rec,
 #ifndef NDEBUG
     if (read.name == debug_read_name)
     {
-      BOOST_LOG_TRIVIAL(info) << __HERE__ << " Found debug read=" << debug_read_name;
+      print_log(log_severity::info, __HERE__, " Found debug read=", debug_read_name);
     }
 #endif // NDEBUG
 
@@ -2443,9 +2443,9 @@ read_hts_and_return_realignment_indels(bam1_t * hts_rec,
       if (ref_offset >= REF_SIZE)
       {
 #ifndef NDEBUG
-        BOOST_LOG_TRIVIAL(warning) << __HERE__ << " While processing read="
-                                   << reinterpret_cast<char *>(hts_rec->data)
-                                   << " went beyond the region if interest";
+        print_log(log_severity::warning, __HERE__, " While processing read="
+                                  , reinterpret_cast<char *>(hts_rec->data)
+                                  , " went beyond the region if interest");
 #endif // NDEBUG
         break;
       }
@@ -2533,9 +2533,9 @@ read_hts_and_return_realignment_indels(bam1_t * hts_rec,
         if (ref_offset + count >= REF_SIZE)
         {
 #ifndef NDEBUG
-          BOOST_LOG_TRIVIAL(warning) << __HERE__ << " While processing read="
-                                     << reinterpret_cast<char *>(hts_rec->data)
-                                     << " went beyond the region if interest";
+          print_log(log_severity::warning, __HERE__, " While processing read="
+                                    , reinterpret_cast<char *>(hts_rec->data)
+                                    , " went beyond the region if interest");
 #endif // NDEBUG
           break;
         }
@@ -2656,8 +2656,8 @@ parallel_first_pass(std::vector<std::string> * hts_paths_ptr,
     // Add sample
     if (hts_reader.samples.size() > 1)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " We found file with multiple samples, sorry, "
-                               << "this is currently not supported.";
+      print_log(log_severity::error, __HERE__, " We found file with multiple samples, sorry, "
+                              , "this is currently not supported.");
       std::exit(1);
     }
 
@@ -2718,8 +2718,8 @@ parallel_first_pass_lr(std::vector<std::string> * hts_paths_ptr,
     // Add sample
     if (hts_reader.samples.size() > 1)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " We found file with multiple samples, sorry, "
-                               << "this is currently not supported.";
+      print_log(log_severity::error, __HERE__, " We found file with multiple samples, sorry, "
+                              , "this is currently not supported.");
       std::exit(1);
     }
 
@@ -2857,8 +2857,8 @@ parallel_second_pass(std::string const * hts_path_ptr,
     });
 
 #ifndef NDEBUG
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Nearby realignment indels="
-                           << nearby_good_events.size();
+  print_log(log_severity::debug, __HERE__, " Nearby realignment indels="
+                          , nearby_good_events.size());
 #endif // NDEBUG
 
   realign_to_indels(indel_to_realign, //realignment_indels,
@@ -2869,7 +2869,7 @@ parallel_second_pass(std::string const * hts_path_ptr,
                     reference_sequence);
 
 #ifndef NDEBUG
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Realignment DONE.";
+  print_log(log_severity::debug, __HERE__, " Realignment DONE.");
 #endif // NDEBUG
 }
 
@@ -2916,13 +2916,13 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
   }
 
 #ifndef NDEBUG
-  BOOST_LOG_TRIVIAL(info) << __HERE__ << " First discovery pass starting.";
+  print_log(log_severity::info, __HERE__, " First discovery pass starting.");
 #endif // NDEBUG
 
   long const NUM_POOLS{static_cast<long>(spl_hts_paths.size())};
 
 #ifndef NDEBUG
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Number of pools = " << NUM_POOLS;
+  print_log(log_severity::debug, __HERE__, " Number of pools = ", NUM_POOLS);
 #endif // NDEBUG
 
   Tindel_events indel_events;
@@ -3002,8 +3002,8 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
               debug_event_pos == indel_event.first.pos &&
               debug_event_size == indel_event.first.sequence.size())
           {
-            BOOST_LOG_TRIVIAL(info) << __HERE__ << " Indel=" << indel_event.first.to_string()
-                                    << " good_support=" << indel_event.second.has_indel_good_support;
+            print_log(log_severity::info, __HERE__, " Indel=", indel_event.first.to_string()
+                                   , " good_support=", indel_event.second.has_indel_good_support);
           }
 #endif
 
@@ -3031,7 +3031,7 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
 
   // FIRST PASS ENDS
 #ifndef NDEBUG
-  BOOST_LOG_TRIVIAL(info) << __HERE__ << " First pass DONE. Starting second pass.";
+  print_log(log_severity::info, __HERE__, " First pass DONE. Starting second pass.");
 #endif // NDEBUG
 
   // SECOND PASS BEGINS
@@ -3055,9 +3055,9 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
             debug_event_pos == it->first.pos &&
             debug_event_size == it->first.sequence.size())
         {
-          BOOST_LOG_TRIVIAL(info) << __HERE__ << " realignment indel=" << it->first.to_string()
-                                  << " qual,file_i="
-                                  << it->second.max_log_qual << " " << it->second.max_log_qual_file_i;
+          print_log(log_severity::info, __HERE__, " realignment indel=", it->first.to_string()
+                                 , " qual,file_i="
+                                 , it->second.max_log_qual, " ", it->second.max_log_qual_file_i);
         }
 #endif // NDEBUG
 
@@ -3227,7 +3227,7 @@ streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
                           std::string const & region_str,
                           gyper::Vcf & vcf)
 {
-  BOOST_LOG_TRIVIAL(info) << "Start lr WIP on region " << region_str;
+  print_log(log_severity::info, "Start lr WIP on region ", region_str);
 
   long const NUM_FILES = hts_paths.size();
   GenomicRegion genomic_region(region_str);
@@ -3262,13 +3262,13 @@ streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
   }
 
 #ifndef NDEBUG
-  BOOST_LOG_TRIVIAL(info) << __HERE__ << " First pass starting.";
+  print_log(log_severity::info, __HERE__, " First pass starting.");
 #endif // NDEBUG
 
   long const NUM_POOLS{static_cast<long>(spl_hts_paths.size())};
 
 #ifndef NDEBUG
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Number of pools = " << NUM_POOLS;
+  print_log(log_severity::debug, __HERE__, " Number of pools = ", NUM_POOLS);
 #endif // NDEBUG
 
   //Tindel_events indel_events;
@@ -3418,7 +3418,7 @@ streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
     }
   }
 
-  BOOST_LOG_TRIVIAL(info) << __HERE__ << " Number of events: " << snp_events.size();
+  print_log(log_severity::info, __HERE__, " Number of events: ", snp_events.size());
 
   for (auto snp_event_it = snp_events.begin(); snp_event_it != snp_events.end(); ++snp_event_it)
   {
@@ -3573,7 +3573,7 @@ streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
   vcf.sample_names = std::move(new_sample_names);
 
 #ifndef NDEBUG
-  BOOST_LOG_TRIVIAL(info) << __HERE__ << " WIP done";
+  print_log(log_severity::info, __HERE__, " WIP done");
 #endif // NDEBUG
 }
 

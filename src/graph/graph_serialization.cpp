@@ -3,7 +3,7 @@
 
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/graph.hpp>
@@ -20,8 +20,7 @@ save_graph(std::string const & graph_path)
 
   if (!ofs.is_open())
   {
-    BOOST_LOG_TRIVIAL(fatal) << "[graphtyper::constructor] Could not save graph at '" <<
-      graph_path << "'";
+    print_log(log_severity::error, "[graphtyper::constructor] Could not save graph at '", graph_path, "'");
     std::exit(1);
   }
 
@@ -39,8 +38,7 @@ load_graph(std::string const & graph_path)
 
   if (!ifs.is_open())
   {
-    BOOST_LOG_TRIVIAL(fatal) << "[graphtyper::constructor] Could not load graph at '" <<
-      graph_path << "'";
+    print_log(log_severity::error, "[graphtyper::constructor] Could not load graph at '", graph_path, "'");
     std::exit(1);
   }
 
@@ -62,8 +60,7 @@ load_secondary_graph(std::string const & graph_path)
 
   if (!ifs.is_open())
   {
-    BOOST_LOG_TRIVIAL(fatal) << "[graphtyper::constructor] Could not load graph at '" <<
-      graph_path << "'";
+    print_log(log_severity::error, "[graphtyper::constructor] Could not load graph at '", graph_path, "'");
     std::exit(1);
   }
 

@@ -15,7 +15,7 @@
 
 #include <paw/parser.hpp>
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 #include <graphtyper/utilities/bamshrink.hpp>
 #include <graphtyper/utilities/options.hpp>
@@ -737,14 +737,14 @@ removeAdapters(BamAlignmentRecord & recordForward,
 #ifndef NDEBUG
   if (!cigarAndSeqMatch(recordForward))
   {
-    BOOST_LOG_TRIVIAL(warning) << __HERE__ << " The cigar string and sequence length don't match "
-                               << "for the forward read.";
+    print_log(gyper::log_severity::warning, __HERE__, " The cigar string and sequence length don't match "
+                              , "for the forward read.");
   }
 
   if (!cigarAndSeqMatch(recordReverse))
   {
-    BOOST_LOG_TRIVIAL(warning) << __HERE__ << " The cigar string and sequence length don't match "
-                               << "for the reverse read!";
+    print_log(gyper::log_severity::warning, __HERE__, " The cigar string and sequence length don't match "
+                              , "for the reverse read!");
   }
 #endif // ifndef NDEBUG
 
@@ -770,7 +770,7 @@ qualityFilterSlice2(Options const & opts,
 {
   if (!loadIndex(bamFileIn, opts.bamIndex.c_str()))
   {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not read index file " << opts.bamIndex;
+    print_log(gyper::log_severity::error, __HERE__, " Could not read index file ", opts.bamIndex);
     std::exit(1);
   }
 
@@ -780,11 +780,16 @@ qualityFilterSlice2(Options const & opts,
                  chr_start_end.i2 - (opts.maxFragLen - 100),
                  chr_start_end.i3 + (opts.maxFragLen - 100)))
   {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not set region to "
-                             << chr_start_end.i1 << ":"
-                             << (chr_start_end.i2 + 1) << "-"
-                             << (chr_start_end.i3 + 1)
-                             << " when using index " << opts.bamIndex;
+    print_log(gyper::log_severity::error,
+              __HERE__,
+              " Could not set region to ",
+              chr_start_end.i1,
+              ":",
+              (chr_start_end.i2 + 1),
+              "-",
+              (chr_start_end.i3 + 1),
+              " when using index ",
+              opts.bamIndex);
     std::exit(1);
   }
 
@@ -991,7 +996,7 @@ qualityFilterSlice2(Options const & opts,
 #ifndef NDEBUG
           if (it->beginPos < prev_pos)
           {
-            BOOST_LOG_TRIVIAL(warning) << __HERE__ << " output not sorted! " << it->beginPos << " < " << prev_pos;
+            print_log(gyper::log_severity::warning, __HERE__, " output not sorted! ", it->beginPos, " < ", prev_pos);
           }
 
           prev_pos = it->beginPos;
@@ -1147,8 +1152,8 @@ qualityFilterSlice2(Options const & opts,
 #ifndef NDEBUG
       if (rec.beginPos < prev_pos)
       {
-        BOOST_LOG_TRIVIAL(warning) << __HERE__ << " output not sorted! " << rec.beginPos
-                                   << " < " << prev_pos;
+        print_log(gyper::log_severity::warning, __HERE__, " output not sorted! ", rec.beginPos
+                                  , " < ", prev_pos);
       }
 
       prev_pos = rec.beginPos;
@@ -1178,7 +1183,7 @@ readIntervals(Options const & opts)
 
   if (intFile.fail())
   {
-    BOOST_LOG_TRIVIAL(error) << "Unable to locate interval file at: " << opts.intervalFile << "\n";
+    print_log(gyper::log_severity::error, "Unable to locate interval file at: ", opts.intervalFile);
     std::exit(1);
   }
 
@@ -1213,7 +1218,7 @@ readIntervals(Options const & opts)
     if (chr_start_end.i1 == intervalString[length(intervalString) - 1].i1 &&
         chr_start_end.i2 < intervalString[length(intervalString) - 1].i2)
     {
-      BOOST_LOG_TRIVIAL(error) << "The input intervals are not sorted.";
+      print_log(gyper::log_severity::error, "The input intervals are not sorted.");
       std::exit(1);
     }
 
@@ -1254,7 +1259,7 @@ main(bamshrink::Options & opts)
 
     if (length(intervalString) == 0)
     {
-      BOOST_LOG_TRIVIAL(error) << "The interval file \"" << opts.intervalFile << "\" contained no intervals!";
+      print_log(gyper::log_severity::error, "The interval file \"", opts.intervalFile, "\" contained no intervals!");
       return 1;
     }
   }
@@ -1269,7 +1274,7 @@ main(bamshrink::Options & opts)
 
     if (find_colon_it == end_it or find_dash_it == end_it)
     {
-      BOOST_LOG_TRIVIAL(error) << "Could not parse interval '" << opts.interval << "'";
+      print_log(gyper::log_severity::error, "Could not parse interval '", opts.interval, "'");
       return 1;
     }
 
@@ -1289,7 +1294,7 @@ main(bamshrink::Options & opts)
 
   if (length(intervalString) == 0)
   {
-    BOOST_LOG_TRIVIAL(error) << "[graphtyper::bamshrink] Some intervals are required to extract reads from.";
+    print_log(gyper::log_severity::error, "[graphtyper::bamshrink] Some intervals are required to extract reads from.");
     std::exit(1);
   }
 
@@ -1361,7 +1366,7 @@ bamshrink(seqan::String<seqan::Triple<seqan::CharString, int, int> > const & int
 {
   if (seqan::length(intervals) == 0)
   {
-    BOOST_LOG_TRIVIAL(warning) << "No intervals to read regions from. Aborting bamshrink.";
+    print_log(log_severity::warning, "No intervals to read regions from. Aborting bamshrink.");
     return;
   }
 
@@ -1456,7 +1461,7 @@ bamshrink(std::string const chrom,
   interval.i2 = begin;
   interval.i3 = end;
   seqan::appendValue(intervals, interval);
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Bamshrink is copying file " << path_in;
+  print_log(log_severity::debug, __HERE__, " Bamshrink is copying file ", path_in);
   bamshrink(intervals, path_in, sam_index_in, path_out, avg_cov_by_readlen, ref_fn.c_str());
 }
 

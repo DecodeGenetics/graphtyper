@@ -19,7 +19,7 @@
 
 #include <paw/station.hpp>
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -121,7 +121,7 @@ run_bamshrink(std::vector<std::string> const & sams,
   std::string const thread_info = bamshrink_station.join();
 
   // DO NOT CHANGE THIS LOG LINE (we parse it externally)
-  BOOST_LOG_TRIVIAL(info) << "Finished copying data. Thread work: " << thread_info;
+  print_log(log_severity::info, "Finished copying data. Thread work: ", thread_info);
   // PLEEEASE
 
   return output_paths;
@@ -176,7 +176,7 @@ run_bamshrink_multi(std::vector<std::string> const & sams,
   }
 
   std::string thread_info = bamshrink_station.join();
-  BOOST_LOG_TRIVIAL(info) << "Finished copying data. Thread work: " << thread_info;
+  print_log(log_severity::info, "Finished copying data. Thread work: ", thread_info);
   return output_paths;
 }
 
@@ -188,7 +188,7 @@ run_samtools_merge(std::vector<std::string> & shrinked_sams, std::string const &
       Options::const_instance()->max_files_open > static_cast<long>(shrinked_sams.size()) &&
       (static_cast<long>(shrinked_sams.size()) / static_cast<long>(Options::const_instance()->threads)) >= 200l)
   {
-    BOOST_LOG_TRIVIAL(info) << "Merging input files.";
+    print_log(log_severity::info, "Merging input files.");
 
     long const CHUNK_SIZE =
       std::min(10l, static_cast<long>(shrinked_sams.size() / Options::const_instance()->threads / 100l));
@@ -246,21 +246,21 @@ run_samtools_merge(std::vector<std::string> & shrinked_sams, std::string const &
       }
 
       std::string thread_info = merge_station.join();
-      BOOST_LOG_TRIVIAL(info) << "Finished merging. Thread work: " << thread_info;
+      print_log(log_severity::info, "Finished merging. Thread work: ", thread_info);
     }
 
 #ifndef NDEBUG
-    BOOST_LOG_TRIVIAL(debug) << "Number of merged files are " << new_shrinked_sams.size() << "\n";
+    print_log(log_severity::debug, "Number of merged files are ", new_shrinked_sams.size());
 #endif // NDEBUG
     shrinked_sams = std::move(new_shrinked_sams);
   }
   else
   {
-    BOOST_LOG_TRIVIAL(info) << "Skipping merging step. Max files open are " <<
-      Options::const_instance()->max_files_open;
+    print_log(log_severity::info, "Skipping merging step. Max files open are ",
+      Options::const_instance()->max_files_open);
 
-    BOOST_LOG_TRIVIAL(info) << "Number of bamShrinked files are " << shrinked_sams.size()
-                            << " running across " << Options::const_instance()->threads << " threads.";
+    print_log(log_severity::info, "Number of bamShrinked files are ", shrinked_sams.size()
+                           , " running across ", Options::const_instance()->threads, " threads.");
   }
 }
 
@@ -274,7 +274,7 @@ genotype_only_with_a_vcf(std::string const & ref_path,
                          std::string const & tmp)
 {
   // Iteration 1
-  BOOST_LOG_TRIVIAL(info) << "Genotyping using an input VCF.";
+  print_log(log_severity::info, "Genotyping using an input VCF.");
   std::string const output_vcf = tmp + "/it1/final.vcf.gz";
   std::string const out_dir = tmp + "/it1";
   gyper::Options const & copts = *(Options::const_instance());
@@ -318,7 +318,7 @@ genotype_only_with_a_vcf(std::string const & ref_path,
                         is_writing_hap);
   }
 
-  BOOST_LOG_TRIVIAL(info) << "Merging output VCFs.";
+  print_log(log_severity::info, "Merging output VCFs.");
 
   // VCF merge and break_down
   // Append _calls.vcf.gz
@@ -362,14 +362,14 @@ genotype(std::string ref_path,
   gyper::Options const & copts = *(Options::const_instance());
 
   long const NUM_SAMPLES = sams.size();
-  BOOST_LOG_TRIVIAL(info) << "Genotyping region " << region.to_string();
-  BOOST_LOG_TRIVIAL(info) << "Path to genome is '" << ref_path << "'";
-  BOOST_LOG_TRIVIAL(info) << "Running with up to " << copts.threads << " threads.";
-  BOOST_LOG_TRIVIAL(info) << "Input contains " << NUM_SAMPLES << " BAM/CRAM files.";
+  print_log(log_severity::info, "Genotyping region ", region.to_string());
+  print_log(log_severity::info, "Path to genome is '", ref_path, "'");
+  print_log(log_severity::info, "Running with up to ", copts.threads, " threads.");
+  print_log(log_severity::info, "Input contains ", NUM_SAMPLES, " BAM/CRAM files.");
 
   std::string tmp = create_temp_dir(region);
 
-  BOOST_LOG_TRIVIAL(info) << "Temporary folder is " << tmp;
+  print_log(log_severity::info, "Temporary folder is ", tmp);
 
   // Create directories
   mkdir(output_path.c_str(), 0755);
@@ -380,7 +380,7 @@ genotype(std::string ref_path,
   // Copy reference genome to temporary directory
   if (is_copy_reference)
   {
-    BOOST_LOG_TRIVIAL(info) << "Copying reference genome FASTA and its index to temporary folder.";
+    print_log(log_severity::info, "Copying reference genome FASTA and its index to temporary folder.");
 
     filesystem::copy_file(ref_path, tmp + "/genome.fa", filesystem::copy_options::overwrite_existing);
     filesystem::copy_file(ref_path + ".fai", tmp + "/genome.fa.fai", filesystem::copy_options::overwrite_existing);
@@ -396,7 +396,7 @@ genotype(std::string ref_path,
   }
   else
   {
-    BOOST_LOG_TRIVIAL(info) << "Running bamShrink, which copies read data to tempory disk.";
+    print_log(log_severity::info, "Running bamShrink, which copies read data to tempory disk.");
     std::string bamshrink_ref_path;
 
     if (copts.force_use_input_ref_for_cram_reading)
@@ -421,13 +421,13 @@ genotype(std::string ref_path,
 
   if (copts.primer_bedpe.size() > 0)
   {
-    BOOST_LOG_TRIVIAL(info) << "Reading primers from " << copts.primer_bedpe;
+    print_log(log_severity::info, "Reading primers from ", copts.primer_bedpe);
     primers = std::unique_ptr<Primers>(new Primers(copts.primer_bedpe));
   }
 
   if (copts.vcf.size() > 0)
   {
-    BOOST_LOG_TRIVIAL(info) << "Genotyping a input VCF";
+    print_log(log_severity::info, "Genotyping a input VCF");
     genotype_only_with_a_vcf(ref_path, shrinked_sams, region, padded_region, primers.get(), tmp);
   }
   else
@@ -437,7 +437,7 @@ genotype(std::string ref_path,
 
     // Iteration 1
     {
-      BOOST_LOG_TRIVIAL(info) << "Initial variant discovery step starting.";
+      print_log(log_severity::info, "Initial variant discovery step starting.");
       std::string const output_vcf = tmp + "/it1/final.vcf.gz";
       std::string const out_dir = tmp + "/it1";
       mkdir(out_dir.c_str(), 0755);
@@ -465,10 +465,10 @@ genotype(std::string ref_path,
 
       if (copts.prior_vcf.size() > 0)
       {
-        BOOST_LOG_TRIVIAL(info) << "Inserting prior variant sites.";
+        print_log(log_severity::info, "Inserting prior variant sites.");
         std::vector<Variant> prior_variants = get_variants_using_tabix(copts.prior_vcf, region);
 
-        BOOST_LOG_TRIVIAL(info) << "Found " << prior_variants.size() << " prior variants.";
+        print_log(log_severity::info, "Found ", prior_variants.size(), " prior variants.");
         std::move(prior_variants.begin(), prior_variants.end(), std::back_inserter(final_vcf.variants));
       }
 
@@ -504,7 +504,7 @@ genotype(std::string ref_path,
     // Iteration FIRST_CALLONLY_ITERATION-LAST_ITERATION
     for (long i{FIRST_CALLONLY_ITERATION}; i <= LAST_ITERATION; ++i)
     {
-      BOOST_LOG_TRIVIAL(info) << "Call step " << (i - FIRST_CALLONLY_ITERATION + 1) << " is starting.";
+      print_log(log_severity::info, "Call step ", (i - FIRST_CALLONLY_ITERATION + 1), " is starting.");
       std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > ph;
 
       if (i == LAST_ITERATION)
@@ -535,7 +535,7 @@ genotype(std::string ref_path,
       std::string const haps_output_vcf = out_dir + "/final.vcf.gz";
 
       Options::instance()->add_all_variants = true;
-      BOOST_LOG_TRIVIAL(info) << " - Graph construction " << (i - FIRST_CALLONLY_ITERATION + 1) << " is starting.";
+      print_log(log_severity::info, " - Graph construction ", (i - FIRST_CALLONLY_ITERATION + 1), " is starting.");
       construct_graph(ref_path, prev_out_vcf, padded_region.to_string(), false, false);
 
       Options::instance()->add_all_variants = false;
@@ -560,10 +560,10 @@ genotype(std::string ref_path,
       }
 
       {
-        BOOST_LOG_TRIVIAL(info) << " - Index construction " << (i - FIRST_CALLONLY_ITERATION + 1) << " is starting.";
+        print_log(log_severity::info, " - Index construction ", (i - FIRST_CALLONLY_ITERATION + 1), " is starting.");
         PHIndex ph_index = index_graph(gyper::graph);
 
-        BOOST_LOG_TRIVIAL(info) << " - Read alignment " << (i - FIRST_CALLONLY_ITERATION + 1) << " is starting.";
+        print_log(log_severity::info, " - Read alignment ", (i - FIRST_CALLONLY_ITERATION + 1), " is starting.");
         paths = gyper::call(shrinked_sams,
                             avg_cov_by_readlen,
                             "", // graph_path
@@ -591,7 +591,7 @@ genotype(std::string ref_path,
       }
     }
 
-    BOOST_LOG_TRIVIAL(info) << "Merging output VCFs.";
+    print_log(log_severity::info, "Merging output VCFs.");
 
     // Merge VCFs and break/decompose the variants into SNPs and indels
     {
@@ -617,7 +617,7 @@ genotype(std::string ref_path,
       }
     }
 
-    BOOST_LOG_TRIVIAL(info) << "Copying results to output directory.";
+    print_log(log_severity::info, "Copying results to output directory.");
 
     // Copy sites to system
     {
@@ -645,8 +645,8 @@ genotype(std::string ref_path,
   // Check if tabix file exists
   if (!is_file(tmp + "/graphtyper.vcf.gz.tbi") && !is_file(tmp + "/graphtyper.vcf.gz.csi"))
   {
-    BOOST_LOG_TRIVIAL(warning) << "Tabix creation appears to have failed, "
-                               << "I will retry sorting the VCF by reading it in whole.";
+    print_log(log_severity::warning, "Tabix creation appears to have failed, "
+                              , "I will retry sorting the VCF by reading it in whole.");
 
     bool const no_sort{false};
     bool const sites_only{false};
@@ -689,12 +689,12 @@ genotype(std::string ref_path,
 
   if (!copts.no_cleanup)
   {
-    BOOST_LOG_TRIVIAL(info) << "Cleaning up temporary files.";
+    print_log(log_severity::info, "Cleaning up temporary files.");
     remove_file_tree(tmp.c_str());
   }
   else
   {
-    BOOST_LOG_TRIVIAL(info) << "Temporary files left: " << tmp;
+    print_log(log_severity::info, "Temporary files left: ", tmp);
   }
 
   {
@@ -705,7 +705,7 @@ genotype(std::string ref_path,
        << std::setw(9) << std::setfill('0') << region.end
        << ".vcf.gz";
 
-    BOOST_LOG_TRIVIAL(info) << "Finished! Output written at: " << ss.str();
+    print_log(log_severity::info, "Finished! Output written at: ", ss.str());
   }
 }
 

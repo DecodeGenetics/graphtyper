@@ -19,7 +19,7 @@
 
 #include <paw/station.hpp>
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -49,14 +49,14 @@ genotype_lr(std::string ref_path,
   gyper::Options const & copts = *(Options::const_instance());
 
   long const NUM_SAMPLES = sams.size();
-  BOOST_LOG_TRIVIAL(info) << "Genotyping region " << region.to_string();
-  BOOST_LOG_TRIVIAL(info) << "Path to genome is '" << ref_path << "'";
-  BOOST_LOG_TRIVIAL(info) << "Running with up to " << copts.threads << " threads.";
-  BOOST_LOG_TRIVIAL(info) << "Copying data from " << NUM_SAMPLES << " input SAM/BAM/CRAMs to local disk.";
+  print_log(log_severity::info, "Genotyping region ", region.to_string());
+  print_log(log_severity::info, "Path to genome is '", ref_path, "'");
+  print_log(log_severity::info, "Running with up to ", copts.threads, " threads.");
+  print_log(log_severity::info, "Copying data from ", NUM_SAMPLES, " input SAM/BAM/CRAMs to local disk.");
 
   std::string tmp = create_temp_dir(region);
 
-  BOOST_LOG_TRIVIAL(info) << "Temporary folder is " << tmp;
+  print_log(log_severity::info, "Temporary folder is ", tmp);
 
   // Create directories
   mkdir(output_path.c_str(), 0755);
@@ -67,7 +67,7 @@ genotype_lr(std::string ref_path,
   // Copy reference genome to temporary directory
   if (is_copy_reference)
   {
-    BOOST_LOG_TRIVIAL(info) << "Copying reference genome FASTA and its index to temporary folder.";
+    print_log(log_severity::info, "Copying reference genome FASTA and its index to temporary folder.");
 
     filesystem::copy_file(ref_path, tmp + "/genome.fa");
     filesystem::copy_file(ref_path + ".fai", tmp + "/genome.fa.fai");
@@ -88,7 +88,7 @@ genotype_lr(std::string ref_path,
 
   // Iteration 1
   {
-    BOOST_LOG_TRIVIAL(info) << "Initial variant discovery step starting.";
+    print_log(log_severity::info, "Initial variant discovery step starting.");
     std::string const output_vcf = tmp + "/graphtyper.vcf.gz";
     std::string const out_dir = tmp + "/it1";
     mkdir(out_dir.c_str(), 0755);
@@ -123,8 +123,8 @@ genotype_lr(std::string ref_path,
   // Check if tabix file exists
   if (!is_file(tmp + "/graphtyper.vcf.gz.tbi") && !is_file(tmp + "/graphtyper.vcf.gz.csi"))
   {
-    BOOST_LOG_TRIVIAL(warning) << "Tabix creation appears to have failed, "
-                               << "I will retry sorting the VCF by reading it in whole.";
+    print_log(log_severity::warning, "Tabix creation appears to have failed, "
+                              , "I will retry sorting the VCF by reading it in whole.");
 
     bool const no_sort{false};
     bool const sites_only{false};
@@ -153,12 +153,12 @@ genotype_lr(std::string ref_path,
 
   if (!copts.no_cleanup)
   {
-    BOOST_LOG_TRIVIAL(info) << "Cleaning up temporary files.";
+    print_log(log_severity::info, "Cleaning up temporary files.");
     remove_file_tree(tmp.c_str());
   }
   else
   {
-    BOOST_LOG_TRIVIAL(info) << "Temporary files left: " << tmp;
+    print_log(log_severity::info, "Temporary files left: ", tmp);
   }
 
   {
@@ -169,7 +169,7 @@ genotype_lr(std::string ref_path,
        << std::setw(9) << std::setfill('0') << region.end
        << ".vcf.gz";
 
-    BOOST_LOG_TRIVIAL(info) << "Finished! Output written at: " << ss.str();
+    print_log(log_severity::info, "Finished! Output written at: ", ss.str());
   }
 }
 

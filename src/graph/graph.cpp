@@ -12,7 +12,7 @@
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/serialization/vector.hpp>
 #include <boost/serialization/unordered_map.hpp>
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/graph_utils.hpp> // count_mismatches, count_mismatches_backward, add_node_dna_to_sequence
@@ -89,9 +89,9 @@ Graph::add_genomic_region(std::vector<char> && reference_sequence,
 
   if (Options::instance()->add_all_variants)
   {
-    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Constructing graph of "
-                             << var_records.size()
-                             << " variants by finding all possible paths";
+    print_log(log_severity::debug, __HERE__, " Constructing graph of "
+                            , var_records.size()
+                            , " variants by finding all possible paths");
 
     long constexpr MAX_VAR_MERGE_DIST{10}; // -1 to turn off, TODO make an option
     long constexpr MAX_INDEL_MERGE_DIST{2}; // -1 to turn off, TODO make an option
@@ -155,13 +155,13 @@ Graph::add_genomic_region(std::vector<char> && reference_sequence,
 
         if (next.alts.size() >= (MAX_NUMBER_OF_HAPLOTYPES - 1))
         {
-          BOOST_LOG_TRIVIAL(warning) << __HERE__
-                                     << " Found a variant with too many alleles! pos=" << next.pos
-                                     << " ref_size=" << next.ref.seq.size()
-                                     << " ("
-                                     << (next.alts.size() + 1)
-                                     << " >= "
-                                     << (MAX_NUMBER_OF_HAPLOTYPES - 1) << ". I will need to remove some alleles.";
+          print_log(log_severity::warning, __HERE__
+                                    , " Found a variant with too many alleles! pos=", next.pos
+                                    , " ref_size=", next.ref.seq.size()
+                                    , " ("
+                                    , (next.alts.size() + 1)
+                                    , " >= "
+                                    , (MAX_NUMBER_OF_HAPLOTYPES - 1), ". I will need to remove some alleles.");
 
           next.alts.resize(MAX_NUMBER_OF_HAPLOTYPES - 1);
         }
@@ -173,9 +173,9 @@ Graph::add_genomic_region(std::vector<char> && reference_sequence,
   }
   else
   {
-    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Constructing graph of "
-                             << var_records.size()
-                             << " variants.";
+    print_log(log_severity::debug, __HERE__, " Constructing graph of "
+                            , var_records.size()
+                            , " variants.");
 
     if (is_sv_graph)
     {
@@ -275,7 +275,7 @@ Graph::add_genomic_region(std::vector<char> && reference_sequence,
   {
     if (var_record.alts.size() >= (MAX_NUMBER_OF_HAPLOTYPES - 1))
     {
-      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Found a variant with too many alleles.";
+      print_log(log_severity::warning, __HERE__, " Found a variant with too many alleles.");
       var_record.alts.resize(MAX_NUMBER_OF_HAPLOTYPES - 2);
     }
   }
@@ -329,19 +329,19 @@ Graph::add_genomic_region(std::vector<char> && reference_sequence,
     print();
 
     if (reference.size() != reference_sequence.size())
-      BOOST_LOG_TRIVIAL(info) << __HERE__ << " reference size not the same: "
-                              << reference.size() << " != "
-                              << reference_sequence.size();
+      print_log(log_severity::info, __HERE__, " reference size not the same: "
+                             , reference.size(), " != "
+                             , reference_sequence.size());
 
     for (long i{0}; i < static_cast<long>(std::min(reference.size(), reference_sequence.size())); ++i)
     {
       if (reference[i] != reference_sequence[i])
       {
-        BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << i << " " << reference[i] << " != " << reference_sequence[i];
+        print_log(log_severity::info, __HERE__, " ", i, " ", reference[i], " != ", reference_sequence[i]);
       }
       else
       {
-        BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << i << " " << reference[i] << " == " << reference_sequence[i];
+        print_log(log_severity::info, __HERE__, " ", i, " ", reference[i], " == ", reference_sequence[i]);
       }
     }
   }
@@ -684,9 +684,9 @@ Graph::break_apart_haplotypes(std::vector<Genotype> gts,
 
       if (gt.num > MAX_NUMBER_OF_HAPLOTYPES)
       {
-        BOOST_LOG_TRIVIAL(warning) << __HERE__ << " There is a single genotype with " << gt.num
+        print_log(log_severity::warning, __HERE__, " There is a single genotype with ", gt.num
                                    << " variant sequences, more than the maximum number of "
-                                   << "haplotypes.";
+                                  , "haplotypes.");
       }
 
       new_hap.add_genotype(Genotype(gt));
@@ -1239,12 +1239,12 @@ Graph::get_locations_of_a_position(uint32_t pos, Path const & path) const
 #ifndef NDEBUG
   if (locs.size() == 0)
   {
-    BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Found no location for position "
-                               << pos << " (start "
-                               << ref_nodes[0].get_label().order
-                               << ", end "
-                               << ref_nodes.back().get_label().reach() << ") "
-                               << ref_nodes.size() << ", is_special=" << IS_SPECIAL;
+    print_log(log_severity::warning, __HERE__, " Found no location for position "
+                              ,pos, " (start "
+                              , ref_nodes[0].get_label().order
+                              , ", end "
+                              , ref_nodes.back().get_label().reach(), ") "
+                              , ref_nodes.size(), ", is_special=", IS_SPECIAL);
     //assert(false);
   }
 #endif
@@ -1945,10 +1945,10 @@ Graph::check_ACGTN_only() const
 
       default:
       {
-        BOOST_LOG_TRIVIAL(warning) << "[" << __HERE__ << "] Reference node " << r
-                                   << " has a " << c << " (int=" << ((int)c) << ") at "
-                                   << genomic_region.get_contig_position(label.order, *this).first << ":"
-                                   << genomic_region.get_contig_position(label.order, *this).second << " + " << i;
+        print_log(log_severity::warning, "[", __HERE__, "] Reference node ", r
+                                  , " has a ", c, " (int=", ((int)c), ") at "
+                                  , genomic_region.get_contig_position(label.order, *this).first, ":"
+                                  , genomic_region.get_contig_position(label.order, *this).second, " + ", i);
         no_non_ACGTN_errors = false;
       }
       }
@@ -1984,9 +1984,9 @@ Graph::check_ACGTN_only() const
 
       default:
       {
-        BOOST_LOG_TRIVIAL(warning) << "[" << __HERE__ << "] Variant node " << v
-                                   << " has a " << c << " (int=" << ((int)c) << ") at "
-                                   << label.order << " + " << i;
+        print_log(log_severity::warning, "[", __HERE__, "] Variant node ", v
+                                  , " has a ", c, " (int=", ((int)c), ") at "
+                                  , label.order, " + ", i);
         no_non_ACGTN_errors = false;
       }
       }
@@ -2006,7 +2006,7 @@ Graph::check_empty_variant_dna() const
   {
     if (var_nodes[v].get_label().dna.size() == 0)
     {
-      BOOST_LOG_TRIVIAL(warning) << "[" << __HERE__ << "] Variant node " << v << " has an empty dna sequence.";
+      print_log(log_severity::warning, "[", __HERE__, "] Variant node ", v, " has an empty dna sequence.");
       no_empty_variant_dna = false;
     }
   }
@@ -2079,11 +2079,11 @@ Graph::check_if_order_follows_reference() const
 
     if (ref_nodes[r - 1].get_label().order + ref_nodes[r - 1].get_label().dna.size() != var_nodes[v].get_label().order)
     {
-      BOOST_LOG_TRIVIAL(warning) << "[" << __HERE__ << "] Variant orders do not match "
-                                 << ref_nodes[r - 1].get_label().order + ref_nodes[r - 1].get_label().dna.size()
-                                 << " and "
-                                 << std::string(std::begin(var_nodes[v].get_label().dna),
-                     std::end(var_nodes[v].get_label().dna));
+      print_log(log_severity::warning,
+                "[", __HERE__, "] Variant orders do not match ",
+                ref_nodes[r - 1].get_label().order + ref_nodes[r - 1].get_label().dna.size(),
+                " and ",
+                std::string(std::begin(var_nodes[v].get_label().dna), std::end(var_nodes[v].get_label().dna)));
       order_follows_reference = false;
     }
 
@@ -2091,10 +2091,10 @@ Graph::check_if_order_follows_reference() const
         ref_nodes[r].get_label().order
         )
     {
-      BOOST_LOG_TRIVIAL(warning) << "[" << __HERE__ << "] Reference orders do not match "
-                                 << (var_nodes[v].get_label().order + var_nodes[v].get_label().dna.size())
-                                 << " and "
-                                 << ref_nodes[r].get_label().order;
+      print_log(log_severity::warning, "[", __HERE__, "] Reference orders do not match "
+                                , (var_nodes[v].get_label().order + var_nodes[v].get_label().dna.size())
+                                , " and "
+                                , ref_nodes[r].get_label().order);
       order_follows_reference = false;
     }
 

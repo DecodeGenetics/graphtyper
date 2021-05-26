@@ -7,8 +7,6 @@
 #include <iostream>
 #include <fstream>
 
-#include <boost/log/trivial.hpp>
-
 #include <graphtyper/graph/graph_serialization.hpp>
 #include <graphtyper/graph/constructor.hpp>
 #include <graphtyper/index/indexer.hpp>
@@ -20,7 +18,7 @@
 
 TEST_CASE("Test index chr1")
 {
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Test index chr1";
+  gyper::print_log(gyper::log_severity::debug, "[", __HERE__, "] Test index chr1");
 
   using namespace gyper;
 
@@ -92,7 +90,7 @@ TEST_CASE("Test index chr1")
 
 TEST_CASE("Test index chr2")
 {
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Test index chr2";
+  gyper::print_log(gyper::log_severity::debug, "[", __HERE__, "] Test index chr2");
 
   using namespace gyper;
 
@@ -163,7 +161,7 @@ TEST_CASE("Test index chr2")
 
 TEST_CASE("Test index chr3")
 {
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Test index chr3";
+  gyper::print_log(gyper::log_severity::debug, __HERE__, " Test index chr3");
 
   // AAAACAAAATAAAACAAAATAAAAGAAAACAAAATAAAACAAAATAAAAGAAAACATTATAAAACA
   // chr3 31 rs4 A G,GA
@@ -228,7 +226,7 @@ TEST_CASE("Test index chr3")
 
 TEST_CASE("Test index chr4")
 {
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Test index chr4";
+  gyper::print_log(gyper::log_severity::debug, __HERE__, " Test index chr4");
 
   using namespace gyper;
 
@@ -267,7 +265,7 @@ TEST_CASE("Test index chr4")
 
 TEST_CASE("Test index chr5")
 {
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Test index chr5";
+  gyper::print_log(gyper::log_severity::debug, __HERE__, " Test index chr5");
 
   using namespace gyper;
 

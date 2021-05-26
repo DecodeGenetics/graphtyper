@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 #include <boost/functional/hash.hpp> // boost::hash_range
 
 #include <graphtyper/typer/variant_candidate.hpp>

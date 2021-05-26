@@ -3,7 +3,7 @@
 
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 #include <boost/serialization/vector.hpp>
 
 #include <graphtyper/graph/haplotype_calls.hpp>

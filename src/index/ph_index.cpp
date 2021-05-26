@@ -1,7 +1,7 @@
 #include <string>
 #include <vector>
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 #include <parallel_hashmap/phmap.h>
 
@@ -168,7 +168,7 @@ PHIndex::check() const
 
   if (ref_seq.size() < gyper::K)
   {
-    BOOST_LOG_TRIVIAL(warning) << "[" << __HERE__ << "] The graph is too small for any K-mers to be extracted.";
+    print_log(log_severity::warning, "[", __HERE__, "] The graph is too small for any K-mers to be extracted.");
     return true;
   }
 
@@ -176,7 +176,7 @@ PHIndex::check() const
       return c == 'N';
     }))
   {
-    BOOST_LOG_TRIVIAL(warning) << "[" << __HERE__ << "] The reference contains only Ns.";
+    print_log(log_severity::warning, "[", __HERE__, "] The reference contains only Ns.");
     return true;
   }
 
@@ -189,7 +189,7 @@ PHIndex::check() const
   keys.reserve(MAX_KEYS);
   std::size_t num_keys_full = 0;
 
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] Checking index";
+  print_log(log_severity::debug, "[", __HERE__, "] Checking index");
 
   while (std::distance(final_it, ref_seq.end()) >= STEP_SIZE)
   {
@@ -214,9 +214,9 @@ PHIndex::check() const
           if (labels[i].size() == 0)
           {
             assert(keys[i].size() == 1);
-            BOOST_LOG_TRIVIAL(error) << "[" << __HERE__ << "] Could not find kmer at position "
-                                     << std::string(start_it, final_it) << " "
-                                     << (i + std::distance(ref_seq.begin(), start_it));
+            print_log(log_severity::error, "[", __HERE__, "] Could not find kmer at position "
+                                    ,std::string(start_it, final_it), " "
+                                    , (i + std::distance(ref_seq.begin(), start_it)));
             no_errors = false;
           }
         }
@@ -236,14 +236,14 @@ PHIndex::check() const
     if (labels[i].size() == 0)
     {
       assert(keys[i].size() == 1);
-      BOOST_LOG_TRIVIAL(error) << "[" << __HERE__ << "] Could not find kmer at position "
-                               << to_dna_str(keys[i][0]) << " "
-                               << (std::distance(ref_seq.begin(), start_it)) << " with i=" << i;
+      print_log(log_severity::error, "[", __HERE__, "] Could not find kmer at position "
+                              , to_dna_str(keys[i][0]), " "
+                              , (std::distance(ref_seq.begin(), start_it)), " with i=", i);
       no_errors = false;
     }
   }
 
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] DONE Checking index";
+  print_log(log_severity::debug, "[", __HERE__, "] DONE Checking index");
   return no_errors;
 }
 

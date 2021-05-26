@@ -3,7 +3,7 @@
 #include <sstream>
 #include <vector>
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/constructor.hpp>
@@ -56,7 +56,7 @@ parse_interval(std::string const & line)
     interval.append(1, c);
   }
 
-  BOOST_LOG_TRIVIAL(info) << "Parsed interval: " << interval;
+  print_log(gyper::log_severity::info, "Parsed interval: ", interval);
   return interval;
 }
 
@@ -76,10 +76,10 @@ genotype_camou(std::string const & interval_fn,
 {
   long const NUM_SAMPLES = sams.size();
 
-  BOOST_LOG_TRIVIAL(info) << "Path to FASTA reference genome is '" << ref_fn << "'";
-  BOOST_LOG_TRIVIAL(info) << "Path to interval BED file is '" << interval_fn << "'";
-  BOOST_LOG_TRIVIAL(info) << "Running with up to " << Options::const_instance()->threads << " threads.";
-  BOOST_LOG_TRIVIAL(info) << "Copying data from " << NUM_SAMPLES << " input SAM/BAM/CRAMs to local disk.";
+  print_log(log_severity::info, "Path to FASTA reference genome is '", ref_fn, "'");
+  print_log(log_severity::info, "Path to interval BED file is '", interval_fn, "'");
+  print_log(log_severity::info, "Running with up to ", Options::const_instance()->threads, " threads.");
+  print_log(log_severity::info, "Copying data from ", NUM_SAMPLES, " input SAM/BAM/CRAMs to local disk.");
 
 #ifdef GT_DEV
   Options::instance()->is_one_genotype_per_haplotype = true;
@@ -93,7 +93,7 @@ genotype_camou(std::string const & interval_fn,
 
     if (!interval_f.is_open())
     {
-      BOOST_LOG_TRIVIAL(error) << "Could not open BED file " << interval_fn;
+      print_log(log_severity::error, "Could not open BED file ", interval_fn);
       std::exit(1);
     }
 
@@ -109,18 +109,18 @@ genotype_camou(std::string const & interval_fn,
 
   if (num_intervals == 0)
   {
-    BOOST_LOG_TRIVIAL(error) << "Found no intervals in " << interval_fn;
+    print_log(log_severity::error, "Found no intervals in ", interval_fn);
     std::exit(1);
   }
 
   GenomicRegion genomic_region_bams(intervals[0]);
   --genomic_region_bams.begin; // To make it unique
-  BOOST_LOG_TRIVIAL(info) << "Camou genotyping from " << num_intervals << " intervals.";
+  print_log(log_severity::info, "Camou genotyping from ", num_intervals, " intervals.");
 
   Options::instance()->ploidy = 2 * num_intervals;
   std::string tmp_bams = create_temp_dir(genomic_region_bams);
 
-  BOOST_LOG_TRIVIAL(info) << "Temporary folder is " << tmp_bams;
+  print_log(log_severity::info, "Temporary folder is ", tmp_bams);
 
 
   std::vector<std::string> shrinked_sams;
@@ -142,7 +142,7 @@ genotype_camou(std::string const & interval_fn,
   {
     bool is_writing_calls_vcf{false};
 
-    BOOST_LOG_TRIVIAL(info) << "Genotyping interval " << interval;
+    print_log(log_severity::info, "Genotyping interval ", interval);
     GenomicRegion genomic_region(interval);
     std::string tmp = create_temp_dir(genomic_region);
 
@@ -157,7 +157,7 @@ genotype_camou(std::string const & interval_fn,
     {
       {
         // Iteration 1
-        BOOST_LOG_TRIVIAL(info) << "Camou variant discovery step starting.";
+        print_log(log_severity::info, "Camou variant discovery step starting.");
         std::string const out_dir = tmp + "/it1";
         std::string const haps_output_vcf = out_dir + "/haps.vcf.gz";
         std::string const discovery_output_vcf = out_dir + "/discovery.vcf.gz";
@@ -165,7 +165,7 @@ genotype_camou(std::string const & interval_fn,
         mkdir(out_dir.c_str(), 0755);
         construct_graph(ref_fn, "", padded_genomic_region.to_string(), false, false);
         absolute_pos.calculate_offsets(gyper::graph.contigs);
-        BOOST_LOG_TRIVIAL(info) << "Graph construction complete.";
+        print_log(log_severity::info, "Graph construction complete.");
 
 #ifndef NDEBUG
         // Save graph in debug mode
@@ -176,7 +176,7 @@ genotype_camou(std::string const & interval_fn,
 
         {
           PHIndex ph_index = index_graph(gyper::graph);
-          BOOST_LOG_TRIVIAL(info) << "Index construction complete.";
+          print_log(log_severity::info, "Index construction complete.");
           std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > ph;
 
           paths = gyper::call(shrinked_sams,
@@ -192,7 +192,7 @@ genotype_camou(std::string const & interval_fn,
                               is_writing_hap);
         }
 
-        BOOST_LOG_TRIVIAL(info) << "Variant calling complete.";
+        print_log(log_severity::info, "Variant calling complete.");
 
         // Append _variant_map
         for (auto & path : paths)
@@ -215,7 +215,7 @@ genotype_camou(std::string const & interval_fn,
 
       // Iteration 2
       {
-        BOOST_LOG_TRIVIAL(info) << "Starting genotyping step.";
+        print_log(log_severity::info, "Starting genotyping step.");
 
         is_writing_calls_vcf = true;
 
@@ -261,7 +261,7 @@ genotype_camou(std::string const & interval_fn,
     }
     else
     {
-      BOOST_LOG_TRIVIAL(info) << "Starting genotyping step with input VCF.";
+      print_log(log_severity::info, "Starting genotyping step with input VCF.");
 
       is_writing_calls_vcf = true;
 
@@ -328,12 +328,12 @@ genotype_camou(std::string const & interval_fn,
 
     if (!Options::instance()->no_cleanup)
     {
-      BOOST_LOG_TRIVIAL(info) << "Cleaning up temporary files for this interval.";
+      print_log(log_severity::info, "Cleaning up temporary files for this interval.");
       remove_file_tree(tmp.c_str());
     }
     else
     {
-      BOOST_LOG_TRIVIAL(info) << "Temporary files left: " << tmp;
+      print_log(log_severity::info, "Temporary files left: ", tmp);
     }
 
     std::ostringstream ss;
@@ -345,20 +345,20 @@ genotype_camou(std::string const & interval_fn,
        << ".vcf.gz";
 
     graph = Graph();
-    BOOST_LOG_TRIVIAL(info) << "Finished " << genomic_region.to_string() << "! Output written at: " << ss.str();
+    print_log(log_severity::info, "Finished ", genomic_region.to_string(), "! Output written at: ", ss.str());
   }
 
   if (!Options::instance()->no_cleanup)
   {
-    BOOST_LOG_TRIVIAL(info) << "Cleaning up temporary files for reads.";
+    print_log(log_severity::info, "Cleaning up temporary files for reads.");
     remove_file_tree(tmp_bams.c_str());
   }
   else
   {
-    BOOST_LOG_TRIVIAL(info) << "Temporary files left: " << tmp_bams;
+    print_log(log_severity::info, "Temporary files left: ", tmp_bams);
   }
 
-  BOOST_LOG_TRIVIAL(info) << "Finished all " << num_intervals << " intervals.";
+  print_log(log_severity::info, "Finished all ", num_intervals, " intervals.");
 }
 
 
