@@ -3510,27 +3510,26 @@ streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
           }
         }
 
+        long const call_total_depth = new_call.get_unique_depth();
+
         // PHRED
         //auto max_it = std::max_element(base_count.acgt_qualsum.begin(), base_count.acgt_qualsum.end());
         //assert(max_it != base_count.acgt_qualsum.end());
         long i{0};
-
+        long constexpr ERROR_PHRED{25}; // Penalty of non-support
+        // TODO use base_count.acgt_qualsum when calculating PL
         for (long y{0}; y < cnum; ++y)
         {
           for (long x{0}; x <= y; ++x, ++i)
           {
             assert(i < static_cast<long>(new_phred.size()));
             assert(i < static_cast<long>(new_call.phred.size()));
+            assert(new_phred[i] == 0); // not previously set
 
             if (x == y)
             {
               long const x_idx = seq_base2index[y];
-
-              for (long u{0}; u < 4; ++u)
-              {
-                if (u == x_idx)
-                  new_phred[i] += (3 * base_count.acgt_qualsum[u]) / 2;
-              }
+              new_phred[i] = ERROR_PHRED * (call_total_depth - base_count.acgt[x_idx]);
             }
             else
             {
@@ -3538,22 +3537,20 @@ streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
               long const y_idx = seq_base2index[y];
               assert(x_idx != y_idx);
 
-              for (long u{0}; u < 4; ++u)
-              {
-                if (u == x_idx || u == y_idx)
-                  new_phred[i] += (3 * (base_count.acgt_qualsum[u] - 2 * base_count.acgt[u])) / 2;
-              }
+              new_phred[i] = ERROR_PHRED * (call_total_depth - base_count.acgt[x_idx] - base_count.acgt[y_idx])
+                + 3 * (base_count.acgt[x_idx] + base_count.acgt[y_idx]);
             }
           }
         }
 
-        auto max_it = std::max_element(new_phred.begin(), new_phred.end());
-        assert(max_it != new_phred.end());
-        long const max_score = *max_it;
+        // Normalize phred score such that there is at least PHRED likelihood score equal to 0
+        auto min_it = std::min_element(new_phred.begin(), new_phred.end());
+        assert(min_it != new_phred.end());
+        long const min_score = *min_it; // find the smallest score
 
         for (i = 0; i < pl_len; ++i)
         {
-          long const pl = max_score - new_phred[i];
+          long const pl = new_phred[i] - min_score; // substract the lowest PL to get a 0
           new_call.phred[i] = pl < 255 ? pl : 255;
         }
       }
