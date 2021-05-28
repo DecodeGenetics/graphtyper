@@ -2,6 +2,7 @@ cmake_minimum_required (VERSION 3.2)
 project (graphtyper)
 
 include(ExternalProject)
+include(CheckIncludeFileCXX)
 
 # The version number
 set (graphtyper_VERSION_MAJOR 2)
@@ -173,6 +174,17 @@ find_package(Threads)
 
 ## SeqAn
 include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/seqan/include)
+
+## CEREAL
+if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cereal)
+    include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/cereal/include)
+    message (STATUS "Cereal submofule found. Adding it to INCLUDES.")
+endif()
+check_include_file_cxx (cereal/cereal.hpp _HAVE_CEREAL)
+if (NOT _HAVE_CEREAL)
+    message (FATAL_ERROR "Cereal has not been found but is required.")
+endif()
+
 
 ## Executables go to a "bin" folder.
 set(EXECUTABLE_OUTPUT_PATH ../bin)
