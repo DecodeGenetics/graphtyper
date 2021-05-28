@@ -5,8 +5,8 @@
 #include <string> // std::string
 #include <vector> // std::vector
 
-#include <boost/serialization/access.hpp>
-#include <boost/serialization/utility.hpp>
+#include <cereal/access.hpp>
+#include <cereal/types/utility.hpp>
 
 #include <graphtyper/graph/read_strand.hpp>
 
@@ -55,7 +55,7 @@ struct VarStatsPerAllele
 
 class VarStats
 {
-  friend class boost::serialization::access;
+  friend class cereal::access;
 
 public:
   /** Stats per allele (excluding ReadStrand) */

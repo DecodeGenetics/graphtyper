@@ -8,8 +8,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
+#include <cereal/archives/binary.hpp>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/graph.hpp>

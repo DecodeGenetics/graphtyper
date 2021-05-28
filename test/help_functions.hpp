@@ -3,8 +3,7 @@
 
 #include <catch.hpp>
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
+#include <cereal/archives/binary.hpp>
 
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/utilities/logging.hpp>
@@ -42,7 +41,7 @@ create_test_graph(std::string const & fasta,
   {
     std::ofstream ofs(graph_path.str().c_str(), std::ios::binary);
     REQUIRE(ofs.is_open());
-    boost::archive::binary_oarchive oa(ofs);
+    cereal::BinaryOutputArchive oa(ofs);
     oa << gyper::graph;
   }
 
@@ -51,7 +50,7 @@ create_test_graph(std::string const & fasta,
     gyper::Graph new_graph;
     std::ifstream ifs(graph_path.str().c_str(), std::ios::binary);
     REQUIRE(ifs.is_open());
-    boost::archive::binary_iarchive ia(ifs);
+    cereal::BinaryInputArchive ia(ifs);
     ia >> new_graph;
 
     REQUIRE(new_graph.size() == gyper::graph.size());

@@ -5,7 +5,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include <boost/serialization/access.hpp>
+#include <cereal/access.hpp>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/absolute_position.hpp>
@@ -44,7 +44,7 @@ struct Contig
 
 class Graph
 {
-  friend class boost::serialization::access; // boost is my friend, allow him to see my privates
+  friend class cereal::access; // boost is my friend, allow him to see my privates
 
 public:
   bool is_sv_graph{false};

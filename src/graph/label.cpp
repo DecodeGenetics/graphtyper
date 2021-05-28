@@ -1,8 +1,7 @@
 #include <assert.h>
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
-#include <boost/serialization/vector.hpp>
+#include <cereal/archives/binary.hpp>
+#include <cereal/types/vector.hpp>
 
 #include <graphtyper/graph/label.hpp>
 #include <graphtyper/graph/var_record.hpp>
@@ -69,7 +68,7 @@ Label::serialize(Archive & ar, const unsigned int)
  * EXPLICIT INSTANTIATIONS *
  ***************************/
 
-template void Label::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &, const unsigned int);
-template void Label::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &, const unsigned int);
+template void Label::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &, const unsigned int);
+template void Label::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputArchive &, const unsigned int);
 
 } // namespace gyper

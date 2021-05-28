@@ -4,7 +4,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include <boost/serialization/access.hpp>
+#include <cereal/access.hpp>
 
 
 namespace gyper

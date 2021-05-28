@@ -3,7 +3,7 @@
 #include <cstdint> // int32_t
 #include <string> // std::string
 
-#include <boost/serialization/access.hpp>
+#include <cereal/access.hpp>
 
 #include <graphtyper/graph/alu_sequences.hpp>
 
@@ -29,7 +29,7 @@ enum INVTYPE
 
 class SV
 {
-  friend class boost::serialization::access; // boost is my friend
+  friend class cereal::access; // boost is my friend
 
 public:
   SVTYPE type = NOT_SV;

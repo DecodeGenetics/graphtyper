@@ -3,7 +3,7 @@
 #include <cstdint> // uint8_t, uint16_t
 #include <vector> // std::vector
 
-#include <boost/serialization/access.hpp>
+#include <cereal/access.hpp>
 
 
 namespace gyper
@@ -15,7 +15,7 @@ class ReferenceDepth;
 
 class SampleCall
 {
-  friend class boost::serialization::access;
+  friend class cereal::access;
 
 public:
   SampleCall() = default;

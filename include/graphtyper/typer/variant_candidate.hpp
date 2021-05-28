@@ -6,7 +6,7 @@
 
 #include <graphtyper/typer/variant.hpp>
 
-#include <boost/serialization/access.hpp>
+#include <cereal/access.hpp>
 
 
 namespace gyper
@@ -19,7 +19,7 @@ so I ended up repeating some code in both classes.
 
 class VariantCandidate
 {
-  friend class boost::serialization::access;
+  friend class cereal::access;
 
 public:
   uint32_t abs_pos = 0;

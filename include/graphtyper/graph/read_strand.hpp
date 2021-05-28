@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-#include <boost/serialization/access.hpp>
+#include <cereal/access.hpp>
 
 
 namespace gyper
@@ -10,7 +10,7 @@ namespace gyper
 
 class ReadStrand
 {
-  friend class boost::serialization::access;
+  friend class cereal::access;
 
 public:
   uint32_t r1_forward{0u};
