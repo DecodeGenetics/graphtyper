@@ -8,10 +8,10 @@
 #include <seqan/sequence.h>
 #include <seqan/stream.h>
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
-#include <boost/serialization/vector.hpp>
-#include <boost/serialization/unordered_map.hpp>
+#include <cereal/archives/binary.hpp>
+#include <cereal/types/vector.hpp>
+#include <cereal/types/string.hpp>
+#include <cereal/types/unordered_map.hpp>
 #include <graphtyper/utilities/logging.hpp>
 
 #include <graphtyper/graph/graph.hpp>
@@ -2273,8 +2273,8 @@ Graph::print() const
  * EXPLICIT INSTANTIATIONS *
  ***************************/
 
-template void Graph::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &, const unsigned int);
-template void Graph::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &, const unsigned int);
+template void Graph::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &, const unsigned int);
+template void Graph::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputArchive &, const unsigned int);
 
 /**
  * GLOBAL INSTANCE

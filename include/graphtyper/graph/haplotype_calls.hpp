@@ -3,7 +3,7 @@
 #include <iostream>
 #include <vector>
 
-#include <boost/serialization/access.hpp>
+#include <cereal/access.hpp>
 
 #include <graphtyper/graph/haplotype.hpp>
 #include <graphtyper/typer/vcf_writer.hpp>
@@ -15,7 +15,7 @@ namespace gyper
 
 class HaplotypeCall
 {
-  friend class boost::serialization::access;
+  friend class cereal::access;
 
 public:
   std::vector<uint16_t> calls;
@@ -37,7 +37,7 @@ private:
 
 class HaplotypeCalls
 {
-  friend class boost::serialization::access;
+  friend class cereal::access;
 
 public:
   HaplotypeCalls() = default;

@@ -2,10 +2,9 @@
 #include <iostream>
 #include <numeric>
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
+#include <cereal/archives/binary.hpp>
 #include <graphtyper/utilities/logging.hpp>
-#include <boost/serialization/vector.hpp>
+#include <cereal/types/vector.hpp>
 
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/haplotype.hpp> // AlleleCoverage
@@ -223,9 +222,9 @@ SampleCall::serialize(Archive & ar, unsigned const int /*version*/)
 }
 
 
-template void SampleCall::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &,
+template void SampleCall::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &,
                                                                      const unsigned int);
-template void SampleCall::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &,
+template void SampleCall::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputArchive &,
                                                                      const unsigned int);
 
 

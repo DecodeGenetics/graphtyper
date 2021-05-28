@@ -6,7 +6,7 @@
 #include <unordered_set> // std::unordered_map
 #include <vector> // std::vector
 
-#include <boost/serialization/access.hpp>
+#include <cereal/access.hpp>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/genotype.hpp>
@@ -35,7 +35,7 @@ enum VCF_FILE_MODE
 
 class Vcf
 {
-  friend class boost::serialization::access;
+  friend class cereal::access;
 
 public:
   Vcf();

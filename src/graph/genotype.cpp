@@ -1,9 +1,8 @@
 #include <utility>
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
-#include <boost/serialization/vector.hpp>
-#include <boost/serialization/utility.hpp>
+#include <cereal/archives/binary.hpp>
+#include <cereal/types/vector.hpp>
+#include <cereal/types/utility.hpp>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/genotype.hpp>
@@ -40,9 +39,9 @@ Genotype::serialize(Archive & ar, const unsigned int /*version*/)
  * EXPLICIT INSTANTIATIONS *
  ***************************/
 
-template void Genotype::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &,
+template void Genotype::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &,
                                                                    const unsigned int);
-template void Genotype::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &,
+template void Genotype::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputArchive &,
                                                                    const unsigned int);
 
 } // namespace gyper

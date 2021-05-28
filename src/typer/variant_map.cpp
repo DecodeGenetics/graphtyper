@@ -6,13 +6,13 @@
 #include <unordered_map>
 #include <utility>
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
+#include <cereal/archives/binary.hpp>
 #include <graphtyper/utilities/logging.hpp>
-#include <boost/serialization/map.hpp>
-#include <boost/serialization/set.hpp>
-#include <boost/serialization/vector.hpp>
-#include <boost/serialization/unordered_map.hpp>
+#include <cereal/types/map.hpp>
+#include <cereal/types/set.hpp>
+#include <cereal/types/string.hpp>
+#include <cereal/types/vector.hpp>
+#include <cereal/types/unordered_map.hpp>
 
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/graph.hpp>
@@ -636,7 +636,7 @@ save_variant_map(std::string const & path, VariantMap const & map)
     std::exit(1);
   }
 
-  boost::archive::binary_oarchive oa(ofs);
+  cereal::BinaryOutputArchive oa(ofs);
   oa << map;
 }
 
@@ -654,7 +654,7 @@ load_variant_map(std::string const & path)
     std::exit(1);
   }
 
-  boost::archive::binary_iarchive ia(ifs);
+  cereal::BinaryInputArchive ia(ifs);
   ia >> map;
   return map;
 }

@@ -3,7 +3,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include <boost/serialization/access.hpp>
+#include <cereal/access.hpp>
 
 #include <graphtyper/graph/label.hpp>
 
@@ -16,7 +16,7 @@ class Alt;
 
 class RefNode
 {
-  friend class boost::serialization::access;
+  friend class cereal::access;
 
 public:
   Label label{};
@@ -41,7 +41,7 @@ private:
 
 class VarNode
 {
-  friend class boost::serialization::access;
+  friend class cereal::access;
 
 public:
   Label label{};

@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include <boost/serialization/access.hpp>
+#include <cereal/access.hpp>
 
 
 namespace gyper
@@ -17,7 +17,7 @@ class Graph;
 
 class GenomicRegion
 {
-  friend class boost::serialization::access;
+  friend class cereal::access;
 
 public:
   std::string chr;

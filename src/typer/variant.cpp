@@ -4,12 +4,12 @@
 #include <sstream> // std::stringstream
 #include <vector> // std::vector
 
-#include <boost/archive/binary_iarchive.hpp>
-#include <boost/archive/binary_oarchive.hpp>
+#include <cereal/archives/binary.hpp>
 #include <graphtyper/utilities/logging.hpp>
 #include <boost/functional/hash.hpp> // boost::hash_range
-#include <boost/serialization/map.hpp>
-#include <boost/serialization/vector.hpp>
+#include <cereal/types/map.hpp>
+#include <cereal/types/string.hpp>
+#include <cereal/types/vector.hpp>
 
 #include <seqan/basic.h>
 #include <seqan/sequence.h>
@@ -2248,9 +2248,9 @@ Variant::serialize(Archive & ar, unsigned const int /*version*/)
 }
 
 
-template void Variant::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &,
+template void Variant::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &,
                                                                   const unsigned int);
-template void Variant::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &,
+template void Variant::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputArchive &,
                                                                   const unsigned int);
 
 

@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <vector>
 
-#include <boost/serialization/access.hpp>
+#include <cereal/access.hpp>
 
 #include <graphtyper/constants.hpp>
 
@@ -16,7 +16,7 @@ class Graph;
 class KmerLabel
 {
 private:
-  friend class boost::serialization::access;
+  friend class cereal::access;
 
 public:
   uint32_t start_index{0}; /** \brief The index where the variant starts on the reference genome. */
