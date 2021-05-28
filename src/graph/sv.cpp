@@ -180,7 +180,7 @@ reformat_sv_vcf_records(std::vector<Variant> & variants, ReferenceDepth const & 
 #ifndef NDEBUG
         if (new_var.infos.count(id) == 0)
         {
-          BOOST_LOG_TRIVIAL(error) << "[graphtyper::graph::sv] Unable to find ID " << id << ".";
+          print_log(log_severity::error, "[graphtyper::graph::sv] Unable to find ID ", id, ".");
           std::exit(1);
         }
 #endif // NDEBUG

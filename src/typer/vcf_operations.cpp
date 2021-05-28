@@ -3,7 +3,7 @@
 #include <sstream> // std::ostringstream
 #include <vector> // std::vector
 
-#include <boost/log/trivial.hpp> // BOOST_LOG_TRIVIAL
+#include <graphtyper/utilities/logging.hpp> // BOOST_LOG_TRIVIAL
 
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/genomic_region.hpp>
@@ -36,7 +36,7 @@ vcf_merge_and_return(gyper::Vcf & vcf, std::vector<std::string> & vcfs, std::str
 
   vcf.open(WRITE_MODE, output); // Change to write mode
   vcf.open_for_writing(copts.threads);
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Read " << vcf.variants.size() << " variants.";
+  print_log(log_severity::debug, __HERE__, " Read ", vcf.variants.size(), " variants.");
 
   std::vector<gyper::Vcf> next_vcfs(vcfs.size() - 1);
   n_batch = 1;
@@ -65,9 +65,10 @@ vcf_merge_and_return(gyper::Vcf & vcf, std::vector<std::string> & vcfs, std::str
 
     if (uniq_it != sample_names_cp.end())
     {
-      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Sample names are not unique. "
-                                 << "The output VCF file will contain duplicated sample "
-                                 << "names (which is against the VCF specs).";
+      print_log(log_severity::warning,
+                __HERE__,
+                " Sample names are not unique. The output VCF file will contain duplicated sample names (which is "
+                "against the VCF specs).");
     }
   }
 
@@ -95,7 +96,7 @@ vcf_merge_and_return(gyper::Vcf & vcf, std::vector<std::string> & vcfs, std::str
     // Trigger read next batch
     if (next_vcfs.size() > 0 && (v - v_next) == static_cast<long>(next_vcfs[0].variants.size()))
     {
-      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Updating next_vcfs";
+      print_log(log_severity::debug, __HERE__, " Updating next_vcfs");
 
       v_next += static_cast<long>(next_vcfs[0].variants.size());
 
@@ -108,7 +109,7 @@ vcf_merge_and_return(gyper::Vcf & vcf, std::vector<std::string> & vcfs, std::str
 
         if (!ret)
         {
-          BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not find file " << vcf_fn;
+          print_log(log_severity::error, __HERE__, " Could not find file ", vcf_fn);
           std::exit(1);
         }
       }
@@ -133,8 +134,8 @@ vcf_merge_and_return(gyper::Vcf & vcf, std::vector<std::string> & vcfs, std::str
 
     if (var.calls.size() != vcf.sample_names.size())
     {
-      BOOST_LOG_TRIVIAL(error) << "Number of calls a variant had did not matches the number of samples "
-                               << var.calls.size() << " vs. " << vcf.sample_names.size();
+      print_log(log_severity::error, "Number of calls a variant had did not matches the number of samples "
+                              , var.calls.size(), " vs. ", vcf.sample_names.size());
       std::exit(1);
     }
   }
@@ -192,8 +193,8 @@ vcf_merge(std::vector<std::string> & vcfs, std::string const & output)
     }
   }
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Total number of samples read is "
-                           << vcf.sample_names.size();
+  print_log(log_severity::debug, __HERE__, " Total number of samples read is "
+                          , vcf.sample_names.size());
 
   vcf.write_header(); // Now that we know all the sample names we can write the header
 
@@ -213,8 +214,8 @@ vcf_merge(std::vector<std::string> & vcfs, std::string const & output)
 
       if (!SUCCESS)
       {
-        BOOST_LOG_TRIVIAL(error) << __HERE__ << " There was a problem reading "
-                                 << next_vcf.filename << ".";
+        print_log(log_severity::error, __HERE__, " There was a problem reading "
+                                , next_vcf.filename, ".");
         std::exit(1);
       }
 
@@ -235,9 +236,12 @@ vcf_merge(std::vector<std::string> & vcfs, std::string const & output)
 
     if (var.calls.size() != vcf.sample_names.size())
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Number of calls "
-                               << "a variant had did not matches the number of samples "
-                               << var.calls.size() << " vs. " << vcf.sample_names.size();
+      print_log(log_severity::error,
+                __HERE__,
+                " Number of calls a variant had did not matches the number of samples ",
+                var.calls.size(),
+                " vs. ",
+                vcf.sample_names.size());
       std::exit(1);
     }
 
@@ -281,7 +285,7 @@ vcf_merge_and_filter(std::vector<std::string> const & vcfs,
 {
   if (vcfs.size() == 0)
   {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << " No input VCFs";
+    print_log(log_severity::error, __HERE__, " No input VCFs");
     std::exit(1);
   }
 
@@ -300,7 +304,7 @@ vcf_merge_and_filter(std::vector<std::string> const & vcfs,
 
   vcf.open(WRITE_MODE, output); // Change to write mode
   vcf.open_for_writing(copts.threads);
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Read " << vcf.variants.size() << " variants.";
+  print_log(log_severity::debug, __HERE__, " Read ", vcf.variants.size(), " variants.");
 
   // Add map from hap_id to variant index
   std::unordered_map<int32_t, long> hap_id2var_id;
@@ -340,7 +344,7 @@ vcf_merge_and_filter(std::vector<std::string> const & vcfs,
     // Trigger read next batch
     if (next_vcfs.size() > 0 && (v - v_next) == static_cast<long>(next_vcfs[0].variants.size()))
     {
-      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Updating next_vcfs";
+      print_log(log_severity::debug, __HERE__, " Updating next_vcfs");
 
       v_next += static_cast<long>(next_vcfs[0].variants.size());
 
@@ -353,7 +357,7 @@ vcf_merge_and_filter(std::vector<std::string> const & vcfs,
 
         if (!ret)
         {
-          BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not find file " << vcf_fn;
+          print_log(log_severity::error, __HERE__, " Could not find file ", vcf_fn);
           std::exit(1);
         }
       }
@@ -510,7 +514,7 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
 
   vcf.open(WRITE_MODE, output); // Change to write mode
   vcf.open_for_writing(copts.threads);
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Read " << vcf.variants.size() << " variants.";
+  print_log(log_severity::debug, __HERE__, " Read ", vcf.variants.size(), " variants.");
 
   std::vector<gyper::Vcf> next_vcfs(vcfs.size() - 1);
   n_batch = 1;
@@ -539,9 +543,10 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
 
     if (uniq_it != sample_names_cp.end())
     {
-      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Sample names are not unique. "
-                                 << "The output VCF file will contain duplicated sample "
-                                 << "names (which is against the VCF specs).";
+      print_log(log_severity::warning,
+                __HERE__,
+                " Sample names are not unique. The output VCF file will contain duplicated sample names (which is "
+                "against the VCF specs).");
     }
   }
 
@@ -572,7 +577,7 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
     // Trigger read next batch
     if (next_vcfs.size() > 0 && (v - v_next) == static_cast<long>(next_vcfs[0].variants.size()))
     {
-      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Updating next_vcfs";
+      print_log(log_severity::debug, __HERE__, " Updating next_vcfs");
 
       v_next += static_cast<long>(next_vcfs[0].variants.size());
 
@@ -585,7 +590,7 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
 
         if (!ret)
         {
-          BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not find file " << vcf_fn;
+          print_log(log_severity::error, __HERE__, " Could not find file ", vcf_fn);
           std::exit(1);
         }
       }
@@ -611,8 +616,8 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
 
     if (var.calls.size() != vcf.sample_names.size())
     {
-      BOOST_LOG_TRIVIAL(error) << "Number of calls a variant had did not matches the number of samples "
-                               << var.calls.size() << " vs. " << vcf.sample_names.size();
+      print_log(log_severity::error, "Number of calls a variant had did not matches the number of samples "
+                              , var.calls.size(), " vs. ", vcf.sample_names.size());
       std::exit(1);
     }
 
@@ -659,8 +664,8 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
             return is_good == 0;
           }))
         {
-          BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Removed variant=" << new_var.to_string(true)
-                                   << " because every alt was bad";
+          print_log(log_severity::debug, __HERE__, " Removed variant=", new_var.to_string(true)
+                                  , " because every alt was bad");
           it = new_variants.erase(it);
         }
         else
@@ -678,8 +683,8 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
       }
       else
       {
-        BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Removed a variant which moved " << normalize_distance
-                                   << " bp during normalization.";
+        print_log(log_severity::warning, __HERE__, " Removed a variant which moved ", normalize_distance
+                                  , " bp during normalization.");
         it = new_variants.erase(it);
       }
     }
@@ -758,7 +763,7 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
                 bool const WRITE_TBI,
                 std::string const & region)
 {
-  BOOST_LOG_TRIVIAL(info) << __HERE__ << " running vcf_concatenate.";
+  print_log(log_severity::info, __HERE__, " running vcf_concatenate.");
 
   gyper::Vcf vcf;
 
@@ -768,13 +773,13 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
     vcf.open_for_writing();
     vcf.write_header();
     vcf.close_vcf_file();
-    BOOST_LOG_TRIVIAL(warning) << __HERE__ << " nothing to do.";
+    print_log(log_severity::warning, __HERE__, " nothing to do.");
     return;
   }
 
   if (SKIP_SORT)
   {
-    BOOST_LOG_TRIVIAL(info) << __HERE__ << " running vcf_concatenate without sort.";
+    print_log(log_severity::info, __HERE__, " running vcf_concatenate without sort.");
     vcf.open(WRITE_MODE, output);
     vcf.open_for_writing();
 
@@ -791,7 +796,7 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
       // Skip if the filename contains '*'
       if (std::count(vcfs[i].begin(), vcfs[i].end(), '*') > 0)
       {
-        BOOST_LOG_TRIVIAL(warning) << __HERE__ << " skipped VCF: " << vcfs[i];
+        print_log(log_severity::warning, __HERE__, " skipped VCF: ", vcfs[i]);
         continue;
       }
 
@@ -817,11 +822,13 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
       }
       else if (next_vcf.sample_names.size() != vcf.sample_names.size())
       {
-        BOOST_LOG_TRIVIAL(error) << "[graphtyper::vcf_operations] The VCF file "
-                                 << vcfs[i]
-                                 << " has different amount of samples! ("
-                                 << next_vcf.sample_names.size()
-                                 << " but not " << vcf.sample_names.size() << ")\n";
+        print_log(log_severity::error,
+                  "[graphtyper::vcf_operations] The VCF file ",
+                  vcfs[i],
+                  " has different amount of samples! (",
+                  next_vcf.sample_names.size(),
+                  " but not ",
+                  vcf.sample_names.size(), ")");
         std::exit(1);
       }
 
@@ -846,7 +853,7 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
         ++n_read;
       }
 
-      BOOST_LOG_TRIVIAL(info) << __HERE__ << " read " << n_read << " records.";
+      print_log(log_severity::info, __HERE__, " read ", n_read, " records.");
       next_vcf.close_vcf_file();
     }
 
@@ -860,7 +867,7 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
     if (SITES_ONLY)
       vcf.sample_names.clear();
 
-    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Total number of samples read is " << vcf.sample_names.size();
+    print_log(log_severity::debug, __HERE__, " Total number of samples read is ", vcf.sample_names.size());
 
     for (long i{0}; i < static_cast<long>(vcfs.size()); ++i)
     {
@@ -888,11 +895,15 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
       // Merge with the other VCF
       if (next_vcf.sample_names.size() != vcf.sample_names.size())
       {
-        BOOST_LOG_TRIVIAL(error) << __HERE__ << " The VCF file "
-                                 << vcfs[i]
-                                 << " has unexpected number of sample names! ("
-                                 << next_vcf.sample_names.size()
-                                 << " but not " << vcf.sample_names.size() << ")";
+        print_log(log_severity::error,
+                  __HERE__,
+                  " The VCF file ",
+                  vcfs[i],
+                  " has unexpected number of sample names! (",
+                  next_vcf.sample_names.size(),
+                  " but not ",
+                  vcf.sample_names.size(),
+                  ")");
         std::exit(1);
       }
 
@@ -932,8 +943,8 @@ vcf_break_down(std::string const & vcf, std::string const & output, std::string 
 
   // Read the sample names and add them
   vcf_in.read_samples();
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Total number of samples read is "
-                           << vcf_in.sample_names.size();
+  print_log(log_severity::debug, __HERE__, " Total number of samples read is "
+                          , vcf_in.sample_names.size());
 
   // Copy sample names
   std::copy(vcf_in.sample_names.begin(),
@@ -975,11 +986,12 @@ vcf_break_down(std::string const & vcf, std::string const & output, std::string 
     // Make sure the number of calls matches the number of samples
     if (vcf_in.variants[0].calls.size() != vcf_in.sample_names.size())
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__
-                               << " The number of calls, "
-                               << vcf_in.variants[0].calls.size()
-                               << " did not match the number of samples, "
-                               << vcf_in.sample_names.size();
+      print_log(log_severity::error,
+                __HERE__,
+                " The number of calls, ",
+                vcf_in.variants[0].calls.size(),
+                " did not match the number of samples, ",
+                vcf_in.sample_names.size());
 
       std::exit(1);
     }

@@ -7,7 +7,7 @@
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/alt.hpp>
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 
 namespace gyper

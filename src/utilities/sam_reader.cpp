@@ -3,7 +3,7 @@
 
 #include <seqan/hts_io.h>
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/utilities/options.hpp>
@@ -137,9 +137,9 @@ SamReader::insert_reads(TReads & reads, seqan::BamAlignmentRecord && record)
     {
       if (seqan::hasFlagFirst(results_it->second))
       {
-        BOOST_LOG_TRIVIAL(warning) << "[graphtyper::sam_reader] "
-                                   << "Two first-in-pair reads with identical read name found. "
-                                   << "Are you reading the same region more than once?";
+        print_log(log_severity::warning,
+                  "[graphtyper::sam_reader] Two first-in-pair reads with identical read name found. "
+                  "Are you reading the same region more than once?");
       }
       else
       {
@@ -150,9 +150,9 @@ SamReader::insert_reads(TReads & reads, seqan::BamAlignmentRecord && record)
     {
       if (!seqan::hasFlagFirst(results_it->second))
       {
-        BOOST_LOG_TRIVIAL(warning) << "[graphtyper::sam_reader] "
-                                   << "Two second-in-pair reads with identical read name found. "
-                                   << "Are you reading the same region more than once?";
+        print_log(log_severity::warning,
+                  "[graphtyper::sam_reader] Two second-in-pair reads with identical read name found. "
+                  "Are you reading the same region more than once?");
       }
       else
       {

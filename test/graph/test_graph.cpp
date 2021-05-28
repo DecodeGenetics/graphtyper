@@ -7,15 +7,12 @@
 #include <iostream>
 #include <fstream>
 
-#include <boost/log/trivial.hpp>
-#include <boost/log/utility/setup/console.hpp>
-#include <boost/log/utility/setup/common_attributes.hpp>
-#include <boost/log/utility/setup/formatter_parser.hpp>
 
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/label.hpp>
 #include <graphtyper/graph/var_record.hpp>
+#include <graphtyper/utilities/logging.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
 #include <graphtyper/utilities/options.hpp>
 
@@ -38,7 +35,7 @@ TEST_CASE("Get the reference sequence of a graph")
 {
   using namespace gyper;
 
-  BOOST_LOG_TRIVIAL(debug) << "TEST_CASE: Get the reference sequence of a graph.";
+  gyper::print_log(gyper::log_severity::debug, "TEST_CASE: Get the reference sequence of a graph.");
 
   std::vector<char> reference_sequence;
   char testdata[] = "SGTACGEEF";
@@ -108,7 +105,7 @@ TEST_CASE("Graph with a reference only.")
 {
   using namespace gyper;
 
-  BOOST_LOG_TRIVIAL(debug) << "TEST_CASE: Graph with a reference only.";
+  gyper::print_log(gyper::log_severity::debug, "TEST_CASE: Graph with a reference only.");
 
   std::vector<char> reference_sequence;
   char testdata[] = "ACCGGGAAAA";
@@ -144,7 +141,7 @@ TEST_CASE("Graph with two variant records.")
 {
   using namespace gyper;
 
-  BOOST_LOG_TRIVIAL(debug) << "TEST_CASE: Graph with two variant records.";
+  gyper::print_log(gyper::log_severity::debug, "TEST_CASE: Graph with two variant records.");
 
   std::vector<char> reference_sequence;
   char testdata[] = "ACCGGGAAAA";
@@ -310,8 +307,8 @@ TEST_CASE("The reference can contain Ns. Note however that variants cannot overl
 {
   using namespace gyper;
 
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST_CASE: The reference can contain Ns. "
-                           << "Note however that variants cannot overlap the N.";
+  gyper::print_log(gyper::log_severity::debug, "[", __HERE__, "] TEST_CASE: The reference can contain Ns. "
+                          , "Note however that variants cannot overlap the N.");
 
   std::vector<char> reference_sequence;
   char testdata[] = "ACCGNGAAAA";
@@ -405,7 +402,7 @@ TEST_CASE("The reference can start with Ns.")
 {
   using namespace gyper;
 
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST CASE: The reference can start with Ns.";
+  gyper::print_log(gyper::log_severity::debug, "[", __HERE__, "] TEST CASE: The reference can start with Ns.");
   std::vector<char> reference_sequence;
   char testdata[] = "NNCGGGAAAA";
   reference_sequence.insert(reference_sequence.end(), testdata, testdata + 10);
@@ -482,7 +479,7 @@ TEST_CASE("We can start at any location of the reference.")
 {
   using namespace gyper;
 
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST CASE: We can start at any location of the reference.";
+  gyper::print_log(gyper::log_severity::debug, "[", __HERE__, "] TEST CASE: We can start at any location of the reference.");
   std::vector<char> reference_sequence;
   char testdata[] = "CCGGTAAAT";
   reference_sequence.insert(reference_sequence.end(), testdata, testdata + 9);
@@ -563,7 +560,7 @@ TEST_CASE("Variants can overlap", "[graph]")
 {
   using namespace gyper;
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: Variants can overlap.";
+  gyper::print_log(gyper::log_severity::debug, __HERE__, " TEST CASE: Variants can overlap.");
   std::vector<char> reference_sequence;
   char testdata[] = "ACGGTAA";
   reference_sequence.insert(reference_sequence.end(), testdata, testdata + 7);
@@ -640,8 +637,8 @@ TEST_CASE("Variants can overlap. Case where the second variant reaches further."
 {
   using namespace gyper;
 
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST CASE: Variants can overlap. "
-                           << "Case where the second variant reaches further.";
+  gyper::print_log(gyper::log_severity::debug, "[", __HERE__, "] TEST CASE: Variants can overlap. "
+                          , "Case where the second variant reaches further.");
 
   std::vector<char> reference_sequence;
   char testdata[] = "ACGGTAA";
@@ -882,9 +879,9 @@ TEST_CASE(
 {
   using namespace gyper;
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: "
-                           << "When merging a deletion covering multiple short variants, all "
-                           << "combinations of the variants need to be added.";
+  gyper::print_log(gyper::log_severity::debug, __HERE__, " TEST CASE: "
+                          , "When merging a deletion covering multiple short variants, all "
+                          , "combinations of the variants need to be added.");
 
   Options::instance()->add_all_variants = true;
   std::vector<char> reference_sequence;
@@ -1011,8 +1008,8 @@ TEST_CASE("Same as above but with bases in between the variants.", "[test2]")
 {
   using namespace gyper;
 
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST CASE: "
-                           << "Same as above but with bases in between the variants.";
+  gyper::print_log(gyper::log_severity::debug, "[", __HERE__, "] TEST CASE: "
+                          , "Same as above but with bases in between the variants.");
 
   Options::instance()->add_all_variants = true;
   std::vector<char> reference_sequence;
@@ -1125,7 +1122,7 @@ TEST_CASE("Four variants joined", "[test2]")
 {
   using namespace gyper;
 
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST CASE: Four variants joined.";
+  gyper::print_log(gyper::log_severity::debug, "[", __HERE__, "] TEST CASE: Four variants joined.");
 
   Options::instance()->add_all_variants = true;
   std::vector<char> reference_sequence;
@@ -1245,7 +1242,7 @@ TEST_CASE("Variants of any number can be joined, here 3 are tested.", "[test]")
 {
   using namespace gyper;
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: Variants of any number can be joined, here 3 are tested.";
+  gyper::print_log(gyper::log_severity::debug, __HERE__, " TEST CASE: Variants of any number can be joined, here 3 are tested.");
 
   Options::instance()->add_all_variants = true;
   std::vector<char> reference_sequence;
@@ -1450,7 +1447,7 @@ TEST_CASE("Variant overlapping a N on the reference genome")
   reference_sequence.insert(reference_sequence.end(), testdata, testdata + 86);
 
   {
-    BOOST_LOG_TRIVIAL(info) << __HERE__ << " The reference allele has an N.";
+    gyper::print_log(gyper::log_severity::info, __HERE__, " The reference allele has an N.");
     std::vector<gyper::VarRecord> records;
 
     {
@@ -1474,7 +1471,7 @@ TEST_CASE("Variant overlapping a N on the reference genome")
   }
 
   {
-    BOOST_LOG_TRIVIAL(info) << __HERE__ << " An alternative allele has an N.";
+    gyper::print_log(gyper::log_severity::info, __HERE__, " An alternative allele has an N.");
 
     std::vector<gyper::VarRecord> records;
 
@@ -2049,7 +2046,7 @@ TEST_CASE("We cant have two events that sum up to the reference")
 
     for (auto const & var_node_seq : var_dna)
     {
-      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " " << std::string(var_node_seq.begin(), var_node_seq.end());
+      gyper::print_log(gyper::log_severity::debug, __HERE__, " ", std::string(var_node_seq.begin(), var_node_seq.end()));
     }
 
     REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("CT")) != var_dna.end());
@@ -2120,7 +2117,7 @@ TEST_CASE("anti events test case")
 
     for (auto const & var_node_seq : var_dna)
     {
-      BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << std::string(var_node_seq.begin(), var_node_seq.end());
+      gyper::print_log(gyper::log_severity::info, __HERE__, " ", std::string(var_node_seq.begin(), var_node_seq.end()));
     }
 
     REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("AG")) != var_dna.end());
@@ -2234,7 +2231,7 @@ TEST_CASE("anti events test case 2 - more complex test")
 
     for (auto const & var_node_seq : var_dna)
     {
-      BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << std::string(var_node_seq.begin(), var_node_seq.end());
+      gyper::print_log(gyper::log_severity::info, __HERE__, " ", std::string(var_node_seq.begin(), var_node_seq.end()));
     }
 
     REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("ATTTTTTTTTTTTTTTTTTTTTTG")) != var_dna.end());
@@ -2329,7 +2326,7 @@ TEST_CASE("parity events test case")
 
     for (auto const & var_node_seq : var_dna)
     {
-      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " " << std::string(var_node_seq.begin(), var_node_seq.end());
+      gyper::print_log(gyper::log_severity::debug, __HERE__, " ", std::string(var_node_seq.begin(), var_node_seq.end()));
     }
 
     REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("ATTTTTTTT")) != var_dna.end());

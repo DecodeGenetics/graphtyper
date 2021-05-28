@@ -8,7 +8,7 @@
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/graph.hpp>
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 namespace gyper
 {

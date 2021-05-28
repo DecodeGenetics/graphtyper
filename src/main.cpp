@@ -9,12 +9,7 @@
 
 #include <paw/parser.hpp>
 
-#include <boost/log/trivial.hpp>
-#include <boost/log/utility/setup/console.hpp>
-#include <boost/log/utility/setup/common_attributes.hpp>
-#include <boost/log/utility/setup/formatter_parser.hpp>
-#include <boost/log/sinks/text_file_backend.hpp>
-#include <boost/log/utility/setup/file.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/constructor.hpp>
@@ -29,13 +24,12 @@
 #include <graphtyper/utilities/genotype_sv.hpp>
 #include <graphtyper/utilities/io.hpp> // gyper::get_contig_to_lengths
 #include <graphtyper/utilities/options.hpp>
+#include <graphtyper/utilities/logging.hpp>
 #include <graphtyper/utilities/system.hpp>
 
 
 namespace
 {
-
-boost::shared_ptr<boost::log::sinks::synchronous_sink<boost::log::sinks::text_file_backend> > sink;
 
 void
 add_region(std::unordered_map<std::string, long> const & contig2length,
@@ -48,7 +42,7 @@ add_region(std::unordered_map<std::string, long> const & contig2length,
 
   if (find_it == contig2length.end())
   {
-    BOOST_LOG_TRIVIAL(warning) << "Unable to find contig: " << region.chr << " in reference.";
+    print_log(gyper::log_severity::warning, "Unable to find contig: ", region.chr, " in reference.");
     return;
   }
 
@@ -95,7 +89,7 @@ get_regions(std::string const & ref_fn,
 
   if (regions.size() == 0)
   {
-    BOOST_LOG_TRIVIAL(error) << "No regions specified. Either use --region or --region_file option to specify regions.";
+    print_log(gyper::log_severity::error, "No regions specified. Either use --region or --region_file option to specify regions.");
     std::exit(1);
   }
 
@@ -114,7 +108,7 @@ get_sams(std::string const & opts_sam, std::string const & opts_sams_file)
 
     if (!sam_in.is_open())
     {
-      BOOST_LOG_TRIVIAL(error) << "Could not open sam file '" << opts_sam << "'";
+      print_log(gyper::log_severity::error, "Could not open sam file '", opts_sam, "'");
       std::exit(1);
     }
 
@@ -127,7 +121,7 @@ get_sams(std::string const & opts_sam, std::string const & opts_sams_file)
 
     if (!file_in.is_open())
     {
-      BOOST_LOG_TRIVIAL(error) << "Could not open file with SAM/BAM/CRAM paths '" << opts_sams_file << "'";
+      print_log(gyper::log_severity::error, "Could not open file with SAM/BAM/CRAM paths '", opts_sams_file, "'");
       std::exit(1);
     }
 
@@ -137,8 +131,11 @@ get_sams(std::string const & opts_sam, std::string const & opts_sams_file)
     {
       if (std::find(line.cbegin(), line.cend(), '\0') != line.cend())
       {
-        BOOST_LOG_TRIVIAL(error) << __HERE__ << " Unexpectedly found NULL in input file with SAM/BAM/CRAM paths --sams="
-                                 << opts_sams_file << ". The file should be uncompressed and contain only file paths.";
+        print_log(gyper::log_severity::error,
+                  __HERE__,
+                  " Unexpectedly found NULL in input file with SAM/BAM/CRAM paths --sams=",
+                  opts_sams_file,
+                  ". The file should be uncompressed and contain only file paths.");
         std::exit(1);
       }
 
@@ -148,7 +145,7 @@ get_sams(std::string const & opts_sam, std::string const & opts_sams_file)
 
   if (sams.size() == 0)
   {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << " No SAM/BAM/CRAM files where given as input.";
+    print_log(gyper::log_severity::error, __HERE__, " No SAM/BAM/CRAM files where given as input.");
     std::exit(1);
   }
 
@@ -171,7 +168,7 @@ get_avg_cov_by_readlen(std::string const & avg_cov_by_readlen_fn, long const exp
 
     if (!ifs.is_open())
     {
-      BOOST_LOG_TRIVIAL(error) << "Could not open avgCovByReadlen file " << avg_cov_by_readlen_fn;
+      print_log(gyper::log_severity::error, "Could not open avgCovByReadlen file ", avg_cov_by_readlen_fn);
       std::exit(1);
     }
 
@@ -185,8 +182,8 @@ get_avg_cov_by_readlen(std::string const & avg_cov_by_readlen_fn, long const exp
 
     if (static_cast<long>(avg_cov_by_readlen.size()) != expected_num)
     {
-      BOOST_LOG_TRIVIAL(error) << "avg_cov_by_readlen file should have the same number of lines as there are SAMs. "
-                               << avg_cov_by_readlen.size() << " != " << expected_num << "\n";
+      print_log(gyper::log_severity::error, "avg_cov_by_readlen file should have the same number of lines as there are SAMs. "
+                              , avg_cov_by_readlen.size(), " != ", expected_num);
       std::exit(1);
     }
   }
@@ -207,7 +204,7 @@ get_sam_index_paths(std::string const & sam_index_fn, std::vector<std::string> c
 
     if (!sam_index_f.is_open())
     {
-      BOOST_LOG_TRIVIAL(error) << "Could not open sam_index_fn " << sam_index_fn;
+      print_log(gyper::log_severity::error, "Could not open sam_index_fn ", sam_index_fn);
       std::exit(1);
     }
 
@@ -232,8 +229,8 @@ get_sam_index_paths(std::string const & sam_index_fn, std::vector<std::string> c
 
   if (sam_index_paths.size() != sams_fn.size())
   {
-    BOOST_LOG_TRIVIAL(error) << "ERROR: Number if sam_index paths doesn't match the number of BAM/CRAMs "
-                             << sam_index_paths.size() << " vs. " << sams_fn.size();
+    print_log(gyper::log_severity::error, "ERROR: Number if sam_index paths doesn't match the number of BAM/CRAMs "
+                            , sam_index_paths.size(), " vs. ", sams_fn.size());
     std::exit(1);
   }
 
@@ -246,50 +243,20 @@ setup_logger()
 {
   gyper::Options & opts = *(gyper::Options::instance());
 
-  if (opts.vverbose)
-  {
-    boost::log::core::get()->set_filter
-    (
-      boost::log::trivial::severity >= boost::log::trivial::debug
-    );
-  }
-  else if (opts.verbose)
-  {
-    boost::log::core::get()->set_filter
-    (
-      boost::log::trivial::severity >= boost::log::trivial::info
-    );
-  }
-  else
-  {
-    boost::log::core::get()->set_filter
-    (
-      boost::log::trivial::severity >= boost::log::trivial::warning
-    );
-  }
+  gyper::log_severity severity{};
 
-  boost::log::add_common_attributes();
-  boost::log::register_simple_formatter_factory<boost::log::trivial::severity_level, char>("Severity");
-  std::string log_format = "[%TimeStamp%] <%Severity%> %Message%";
+  if (opts.vverbose)
+    severity = gyper::log_severity::debug;
+  else if (opts.verbose)
+    severity = gyper::log_severity::info;
+  else
+    severity = gyper::log_severity::warning;
+
 
   if (opts.log.size() == 0 || opts.log == "-")
-  {
-    // Create a console sink log
-    boost::log::add_console_log(std::clog,
-                                boost::log::keywords::auto_flush = true,
-                                boost::log::keywords::format = log_format
-                                );
-  }
+    gyper::log_singleton = std::unique_ptr<gyper::log_singleton_t>{new gyper::log_singleton_t{severity, std::clog}};
   else
-  {
-    // Create a file sink
-    sink = boost::log::add_file_log
-           (
-      boost::log::keywords::file_name = opts.log,
-      boost::log::keywords::auto_flush = true,
-      boost::log::keywords::format = log_format
-           );
-  }
+    gyper::log_singleton = std::unique_ptr<gyper::log_singleton_t>{new gyper::log_singleton_t{severity, opts.log}};
 }
 
 
@@ -373,14 +340,14 @@ subcmd_construct(paw::Parser & parser)
   setup_logger();
 
   region.erase(std::remove(region.begin(), region.end(), ','), region.end());
-  BOOST_LOG_TRIVIAL(info) << "Constructing a graph for region " << region;
+  print_log(gyper::log_severity::info, "Constructing a graph for region ", region);
 
   gyper::check_file_exists(ref_fn);
   gyper::check_file_exists_or_empty(vcf_fn);
 
   gyper::construct_graph(ref_fn, vcf_fn, region, is_sv_graph, use_tabix);
   gyper::save_graph(graph_fn);
-  BOOST_LOG_TRIVIAL(info) << "Graph saved at " << graph_fn;
+  print_log(gyper::log_severity::info, "Graph saved at ", graph_fn);
   return 0;
 }
 
@@ -695,7 +662,7 @@ subcmd_genotype(paw::Parser & parser)
   opts.filter_on_proper_pairs = !no_filter_on_proper_pairs;
   opts.filter_on_read_bias = !no_filter_on_read_bias;
   opts.filter_on_strand_bias = !no_filter_on_strand_bias;
-  BOOST_LOG_TRIVIAL(info) << "Running the 'genotype' subcommand.";
+  print_log(gyper::log_severity::info, "Running the 'genotype' subcommand.");
 
 #ifndef NDEBUG
   // Create stats directory if it doesn't exist
@@ -866,7 +833,7 @@ subcmd_genotype_hla(paw::Parser & parser)
   parser.finalize();
   setup_logger();
 
-  BOOST_LOG_TRIVIAL(info) << "Running the 'genotype_hla' subcommand.";
+  print_log(gyper::log_severity::info, "Running the 'genotype_hla' subcommand.");
 
 #ifndef NDEBUG
   // Create stats directory if it doesn't exist
@@ -1018,7 +985,7 @@ subcmd_genotype_sv(paw::Parser & parser)
   parser.finalize();
   setup_logger();
 
-  BOOST_LOG_TRIVIAL(info) << "Running the 'genotype_sv' subcommand.";
+  print_log(gyper::log_severity::info, "Running the 'genotype_sv' subcommand.");
 
 #ifndef NDEBUG
   // Create stats directory if it doesn't exist
@@ -1152,7 +1119,7 @@ subcmd_genotype_lr(paw::Parser & parser)
   parser.finalize();
   setup_logger();
 
-  BOOST_LOG_TRIVIAL(info) << "Running the 'genotype_lr' subcommand.";
+  print_log(gyper::log_severity::info, "Running the 'genotype_lr' subcommand.");
 
 #ifndef NDEBUG
   // Create stats directory if it doesn't exist
@@ -1340,7 +1307,7 @@ subcmd_vcf_merge(paw::Parser & parser)
 
     if (!files.is_open())
     {
-      BOOST_LOG_TRIVIAL(error) << "Could not open file '" << file_list << "'\n";
+      print_log(gyper::log_severity::error, "Could not open file '", file_list, "'");
       return 1;
     }
 
@@ -1363,9 +1330,6 @@ main(int argc, char ** argv)
   paw::Parser parser(argc, argv);
   parser.set_name("GraphTyper");
   parser.set_version(graphtyper_VERSION_MAJOR, graphtyper_VERSION_MINOR, graphtyper_VERSION_PATCH);
-
-  // logger
-  boost::shared_ptr<boost::log::sinks::synchronous_sink<boost::log::sinks::text_file_backend> > sink;
 
   try
   {
@@ -1440,9 +1404,6 @@ main(int argc, char ** argv)
     std::cerr << e.what();
     return 1;
   }
-
-  if (sink)
-    sink->flush();
 
   return ret;
 }

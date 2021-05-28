@@ -10,7 +10,7 @@
 
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 
 namespace
@@ -57,8 +57,9 @@ has_matching_longest_prefix(std::vector<char> const & ref, std::vector<gyper::Al
         // Detect if there are duplicate alt alleles
         if (alts[i].seq == alts[j].seq)
         {
-          BOOST_LOG_TRIVIAL(error) << __HERE__ << " Duplicated alt. alleles detected. "
-                                   << "Aborting constructing graph.";
+          print_log(gyper::log_severity::error,
+                    __HERE__,
+                    " Duplicated alt. alleles detected. Aborting constructing graph.");
           std::exit(1);
         }
 
@@ -243,11 +244,11 @@ GenomicRegion::check_if_var_records_match_reference_genome(std::vector<VarRecord
 
     if (reference_ref.size() > 0 && !prefix_match(record.ref.seq, reference_ref))
     {
-      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Record @ position " << pos
-                                 << " (REF = "
-                                 << std::string(record.ref.seq.begin(), record.ref.seq.end()) << ')'
-                                 << " did not match the reference genome ("
-                                 << std::string(reference_ref.begin(), reference_ref.end()) << ")";
+      print_log(log_severity::warning, __HERE__, " Record @ position ", pos
+                                , " (REF = "
+                                , std::string(record.ref.seq.begin(), record.ref.seq.end()), ')'
+                                , " did not match the reference genome ("
+                                , std::string(reference_ref.begin(), reference_ref.end()), ")");
     }
   }
 }

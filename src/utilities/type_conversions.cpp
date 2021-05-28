@@ -3,7 +3,7 @@
 
 #include <graphtyper/utilities/type_conversions.hpp>
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 #include <seqan/basic.h>
 #include <seqan/sequence.h>
@@ -35,7 +35,7 @@ to_uint64(char const c)
     return 3ul;
 
   default:
-    BOOST_LOG_TRIVIAL(warning) << "[graphtyper::type_conversions] Invalid character " << c;
+    print_log(log_severity::warning, "[graphtyper::type_conversions] Invalid character ", c);
     std::exit(1);
     return 0ul;
   }
@@ -115,7 +115,7 @@ to_uint16(char const c)
     return 3u;
 
   default:
-    BOOST_LOG_TRIVIAL(warning) << "[graphtyper::type_conversions] Invalid character " << c;
+    print_log(log_severity::warning, "[graphtyper::type_conversions] Invalid character ", c);
     return 4ul;
   }
 }

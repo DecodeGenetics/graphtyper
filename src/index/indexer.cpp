@@ -2,7 +2,7 @@
 #include <fstream>
 #include <iostream>
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/graph_serialization.hpp>
@@ -146,7 +146,7 @@ insert_variant_label(PHIndex & ph_index,
         {
           if (var_node.anti_events.count(event) == 1)
           {
-            BOOST_LOG_TRIVIAL(info) << __HERE__ << " bad event " << event.to_string();
+            print_log(log_severity::info, __HERE__, " bad event ", event.to_string());
             is_ok = false;
           }
         }*/
@@ -267,14 +267,14 @@ index_graph(Graph const & graph)
 
   TNodeIndex r{0}; // Reference node index
   TEntryList mers;
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " The number of reference nodes are "
-                           << graph.ref_nodes.size();
+  print_log(log_severity::debug, __HERE__, " The number of reference nodes are "
+                          , graph.ref_nodes.size());
 
   while (r < graph.ref_nodes.size() - 1)
   {
     if (graph.ref_nodes[r].get_label().order >= goal_order)
     {
-      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Indexing progress: " << goal << '%';
+      print_log(log_severity::debug, __HERE__, " Indexing progress: ", goal, '%');
       goal_order += (end_order - start_order) / 5;
       goal += 20;
     }
@@ -294,12 +294,12 @@ index_graph(Graph const & graph)
   }
 
   index_reference_label(ph_index, mers, graph.ref_nodes.back().get_label());
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Indexing progress: 100%";
+  print_log(log_severity::debug, __HERE__, " Indexing progress: 100%");
   mers.clear();
 
   // Commit the rest of the buffer before closing
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Writing index to disk...";
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Done indexing graph.";
+  print_log(log_severity::debug, __HERE__, " Writing index to disk...");
+  print_log(log_severity::debug, __HERE__, " Done indexing graph.");
   return ph_index;
 }
 
@@ -311,7 +311,7 @@ index_graph(std::string const & graph_path)
 
   if (graph.size() == 0)
   {
-    BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Trying to index empty graph.";
+    print_log(log_severity::warning, __HERE__, " Trying to index empty graph.");
     PHIndex ph_index; // Make empty index
     return ph_index;
   }

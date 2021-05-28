@@ -16,7 +16,7 @@
 #include <graphtyper/constants.hpp>
 #include <graphtyper/utilities/system.hpp>
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 
 namespace
@@ -113,14 +113,14 @@ remove_file_tree(std::string const & path)
   // if path does not exists or is not dir - exit with status -1
   if (S_ISDIR(stat_path.st_mode) == 0)
   {
-    BOOST_LOG_TRIVIAL(error) << "'" << path << "' is not directory.";
+    print_log(log_severity::error, "'", path, "' is not directory.");
     std::exit(1);
   }
 
   // if not possible to read the directory for this user
   if ((dir = opendir(path.c_str())) == NULL)
   {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << " Can't open directory '" << path << "'";
+    print_log(log_severity::error, __HERE__, " Can't open directory '", path, "'");
     std::exit(1);
   }
 
@@ -147,24 +147,24 @@ remove_file_tree(std::string const & path)
     // remove a file object
     if (unlink(full_path.c_str()) == 0)
     {
-      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Removed a file " << full_path;
+      print_log(log_severity::debug, __HERE__, " Removed a file ", full_path);
       //BOOST_LOG_TRIVIAL(info) << __HERE__ << " Removed a file " << full_path;
     }
     else
     {
-      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Can't remove a file '" << full_path << "'";
+      print_log(log_severity::warning, __HERE__, " Can't remove a file '", full_path, "'");
     }
   }
 
   // remove the devastated directory and close the object of it
   if (rmdir(path.c_str()) == 0)
   {
-    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Removed a directory " << path;
+    print_log(log_severity::debug, __HERE__, " Removed a directory ", path);
     //BOOST_LOG_TRIVIAL(info) << __HERE__ << " Removed a directory " << path;
   }
   else
   {
-    BOOST_LOG_TRIVIAL(warning) << "Can't remove a directory '" << path << "'";
+    print_log(log_severity::warning, "Can't remove a directory '", path, "'");
   }
 
   closedir(dir);
@@ -184,7 +184,7 @@ check_file_exists(std::string const & filename)
 {
   if (filename.size() == 0 || !is_file(filename))
   {
-    BOOST_LOG_TRIVIAL(error) << "No file '" << filename << "' exists.";
+    print_log(log_severity::error, "No file '", filename, "' exists.");
     std::exit(1);
   }
 }
@@ -195,7 +195,7 @@ check_file_exists_or_empty(std::string const & filename)
 {
   if (filename.size() > 0 && !is_file(filename))
   {
-    BOOST_LOG_TRIVIAL(error) << "No file '" << filename << "' exists.";
+    print_log(log_severity::error, "No file '", filename, "' exists.");
     std::exit(1);
   }
 }

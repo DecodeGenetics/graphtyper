@@ -4,7 +4,7 @@
 #include <ctime>
 #include <iterator>
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 #include <htslib/sam.h>
 
@@ -619,8 +619,8 @@ get_better_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths1,
     // Make sure we got a ptr in every field in release mode as well
     if (!arr[0] || !arr[1] || !arr[2] || !arr[3])
     {
-      BOOST_LOG_TRIVIAL(warning) << "Unexpected read orientation, ptr array: "
-                                 << arr[0] << " " << arr[1] << " " << arr[2] << " " << arr[3];
+      print_log(log_severity::warning, "Unexpected read orientation, ptr array: "
+                                , arr[0], " ", arr[1], " ", arr[2], " ", arr[3]);
       genos1.first = nullptr;
       return genos1;
     }
@@ -685,8 +685,8 @@ find_haplotype_paths(std::vector<seqan::Dna5String> const & sequences,
 
   if (count_too_short_sequences > 0)
   {
-    BOOST_LOG_TRIVIAL(info) << __HERE__ << " Could not align "
-                            << count_too_short_sequences << " sequences.";
+    print_log(log_severity::info, __HERE__, " Could not align "
+                           , count_too_short_sequences, " sequences.");
   }
 
   return hap_paths;

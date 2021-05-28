@@ -8,7 +8,7 @@
 
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 #include <boost/serialization/map.hpp>
 #include <boost/serialization/set.hpp>
 #include <boost/serialization/vector.hpp>
@@ -171,7 +171,7 @@ VariantMap::create_varmap_for_all(ReferenceDepth const & reference_depth)
 
       #ifndef NDEBUG
       if (new_min_support > minimum_variant_support)
-        BOOST_LOG_TRIVIAL(debug) << "[graphtyper::variant_map] Min support increased to " << new_min_support;
+        print_log(log_severity::debug, "[graphtyper::variant_map] Min support increased to ", new_min_support);
       #endif // NDEBUG
     } // if (varmap.size() > 50)
 
@@ -202,11 +202,11 @@ VariantMap::create_varmap_for_all(ReferenceDepth const & reference_depth)
   } // for (long i = 0; i < NUM_SAMPLES; ++i)
 
 #ifndef NDEBUG
-  BOOST_LOG_TRIVIAL(debug) << "Pool varmap size " << pool_varmap.size();
+  print_log(log_severity::debug, "Pool varmap size ", pool_varmap.size());
 
   for (auto it = pool_varmap.begin(); it != pool_varmap.end(); ++it)
   {
-    BOOST_LOG_TRIVIAL(debug) << it->first.print();
+    print_log(log_severity::debug, it->first.print());
   }
 #endif // NDEBUG
 }
@@ -215,8 +215,8 @@ VariantMap::create_varmap_for_all(ReferenceDepth const & reference_depth)
 void
 VariantMap::filter_varmap_for_all()
 {
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::variant_map] Number of variants above minimum cutoff is "
-                           << pool_varmap.size();
+  print_log(log_severity::debug, "[graphtyper::variant_map] Number of variants above minimum cutoff is "
+                          , pool_varmap.size());
 
   // No need to filter no variants, in fact it will segfault
   if (pool_varmap.size() == 0)
@@ -258,7 +258,7 @@ VariantMap::filter_varmap_for_all()
           (abs_dev_sb > 0.34 && depth > 500))
       {
 #ifndef NDEBUG
-        BOOST_LOG_TRIVIAL(debug) << "Strand bias removed " << it->first.print() << " " << abs_dev_sb << " " << depth;
+        print_log(log_severity::debug, "Strand bias removed ", it->first.print(), " ", abs_dev_sb, " ", depth);
 #endif // NDEBUG
         it = pool_varmap.erase(it);
         continue;
@@ -277,7 +277,7 @@ VariantMap::filter_varmap_for_all()
             (abs_dev_rb > 0.35 && depth > 500))
         {
 #ifndef NDEBUG
-          BOOST_LOG_TRIVIAL(debug) << "Read bias removed " << it->first.print() << " " << abs_dev_rb << " " << depth;
+          print_log(log_severity::debug, "Read bias removed ", it->first.print(), " ", abs_dev_rb, " ", depth);
 #endif // NDEBUG
           it = pool_varmap.erase(it);
           continue;
@@ -295,8 +295,8 @@ VariantMap::filter_varmap_for_all()
     long const max_variants_in_100bp_window = Options::const_instance()->soft_cap_of_variants_in_100_bp_window;
     assert(max_variants_in_100bp_window > 0);
 
-    BOOST_LOG_TRIVIAL(debug) << "[graphtyper::variant_map] Soft cap of variants in 100 bp window is "
-                             << Options::const_instance()->soft_cap_of_variants_in_100_bp_window;
+    print_log(log_severity::debug, "[graphtyper::variant_map] Soft cap of variants in 100 bp window is "
+                            , Options::const_instance()->soft_cap_of_variants_in_100_bp_window);
 
     // Gather how many variants fall into each bucket (which covers 100 bp)
     std::vector<long> max_scores_in_bucket;
@@ -306,7 +306,7 @@ VariantMap::filter_varmap_for_all()
     auto filter_window =
       [&max_scores_in_bucket, max_variants_in_100bp_window, this](PoolVarMap::iterator window_it)
       {
-        BOOST_LOG_TRIVIAL(debug) << "[graphtyper::variant_map] Too many variants! " << max_scores_in_bucket.size();
+        print_log(log_severity::debug, "[graphtyper::variant_map] Too many variants! ", max_scores_in_bucket.size());
 
         // Find the minimum max score for passing a variant in this region
         std::vector<long> sorted_max_scores_in_bucket(max_scores_in_bucket);
@@ -325,10 +325,10 @@ VariantMap::filter_varmap_for_all()
           else
           {
 #ifndef NDEBUG
-            BOOST_LOG_TRIVIAL(debug) << "Due to too high graph complexity I erased the variant: "
-                                     << window_it->first.print()
-                                     << ". It had support in " << window_it->second.size()
-                                     << " samples and score of " << max_scores_in_bucket[s];
+            print_log(log_severity::debug, "Due to too high graph complexity I erased the variant: "
+                                     , window_it->first.print()
+                                     , ". It had support in ", window_it->second.size()
+                                     , " samples and score of ", max_scores_in_bucket[s]);
 #endif // NDEBUG
             window_it = pool_varmap.erase(window_it);
           }
@@ -460,7 +460,7 @@ VariantMap::filter_varmap_for_all()
     if (new_broken_down_var_candidates.size() == 0)
     {
 #ifndef NDEBUG
-      BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Erased " << map_it->first.print();
+      print_log(log_severity::debug, __HERE__, " Erased ", map_it->first.print());
 #endif // NDEBUG
       map_it = pool_varmap.erase(map_it); // Erase the old variant
     }
@@ -614,7 +614,7 @@ VariantMap::get_vcf(Vcf & new_variant_vcf, std::string const & output_name)
   new_variant_vcf.open(WRITE_BGZF_MODE, output_name);
 
 #ifndef NDEBUG
-  BOOST_LOG_TRIVIAL(debug) << "[graphtyper::variant_map] Writing " << pool_varmap.size() << " variants.";
+  print_log(log_severity::debug, "[graphtyper::variant_map] Writing ", pool_varmap.size(), " variants.");
 #endif // NDEBUG
 
   for (auto map_it = pool_varmap.begin(); map_it != pool_varmap.end(); ++map_it)
@@ -631,9 +631,7 @@ save_variant_map(std::string const & path, VariantMap const & map)
 
   if (!ofs.is_open())
   {
-    BOOST_LOG_TRIVIAL(error) << "[graphtyper::variant_map] Could not save variant_map at '"
-                             << path
-                             << "'";
+    print_log(log_severity::error, "[graphtyper::variant_map] Could not save variant_map at '", path, "'");
 
     std::exit(1);
   }
@@ -651,9 +649,7 @@ load_variant_map(std::string const & path)
 
   if (!ifs.is_open())
   {
-    BOOST_LOG_TRIVIAL(error) << "[graphtyper::constructor] Could not load variant_map at '"
-                             << path
-                             << "'";
+    print_log(log_severity::error, "[graphtyper::constructor] Could not load variant_map at '", path, "'");
 
     std::exit(1);
   }

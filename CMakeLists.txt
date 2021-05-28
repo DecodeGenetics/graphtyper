@@ -91,7 +91,7 @@ if (NOT Boost_USE_STATIC_LIBS)
 endif()
 
 message (STATUS "Checking for Boost: USE_STATIC_LIBS=${Boost_USE_STATIC_LIBS}")
-find_package(Boost 1.57.0 REQUIRED COMPONENTS system iostreams log_setup log thread serialization filesystem REQUIRED)
+find_package(Boost 1.57.0 REQUIRED COMPONENTS system iostreams thread serialization filesystem REQUIRED)
 message (STATUS "Boost include directory: ${Boost_INCLUDE_DIR}")
 include_directories(SYSTEM ${Boost_INCLUDE_DIR})
 set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I ${Boost_INCLUDE_DIR}")
@@ -234,8 +234,6 @@ else(STATIC_DIR STREQUAL "")
     libdeflate
     ${STATIC_DIR}/libboost_system.a
     ${STATIC_DIR}/libboost_iostreams.a
-    ${STATIC_DIR}/libboost_log_setup.a
-    ${STATIC_DIR}/libboost_log.a
     ${STATIC_DIR}/libboost_thread.a
     ${STATIC_DIR}/libboost_serialization.a
     ${STATIC_DIR}/libboost_filesystem.a

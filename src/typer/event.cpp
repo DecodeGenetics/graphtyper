@@ -2,7 +2,7 @@
 #include <vector>
 
 #include <boost/functional/hash.hpp> // boost::hash_range
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 
 #include <graphtyper/constants.hpp>
@@ -167,7 +167,7 @@ base2index(char const base)
 
   default:
   {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << " Unexpected base '" << base << "'";
+    print_log(log_severity::error, __HERE__, " Unexpected base '", base, "'");
     std::exit(1);
   }
   }   // switch ends
@@ -375,7 +375,7 @@ apply_indel_event(std::vector<char> & sequence,
     if (ref_positions[pos] != ref_pos)
     {
       if (is_debug)
-        BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Couldn't find pos for event " << indel_event.to_string();
+        print_log(log_severity::warning, __HERE__, " Couldn't find pos for event ", indel_event.to_string());
 
       return false;
     }
@@ -402,7 +402,7 @@ apply_indel_event(std::vector<char> & sequence,
       else
       {
         if (is_debug)
-          BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Not pure " << indel_event.to_string();
+          print_log(log_severity::debug, __HERE__, " Not pure ", indel_event.to_string());
 
         return false; // Not pure, skip indel
       }
@@ -415,7 +415,7 @@ apply_indel_event(std::vector<char> & sequence,
         ref_positions[pos + event_size] != (ref_pos + event_size))
     {
       if (is_debug)
-        BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Cannot apply deletion";
+        print_log(log_severity::debug, __HERE__, " Cannot apply deletion");
 
       return false;
     }
@@ -441,7 +441,7 @@ apply_indel_event(std::vector<char> & sequence,
   }
   else
   {
-    BOOST_LOG_TRIVIAL(error) << "Unknown type: " << indel_event.type;
+    print_log(log_severity::error, "Unknown type: ", indel_event.type);
     return false;
   }
 

@@ -4,7 +4,7 @@
 
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 #include <boost/serialization/vector.hpp>
 
 #include <graphtyper/graph/absolute_position.hpp>
@@ -127,7 +127,7 @@ SampleCall::get_gt_call() const
     }
   }
 
-  BOOST_LOG_TRIVIAL(warning) << __HERE__ << " No phred==0";
+  print_log(log_severity::warning, __HERE__, " No phred==0");
 
   for (auto p : phred)
     std::cerr << static_cast<long>(p) << ",";

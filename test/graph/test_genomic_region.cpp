@@ -1,6 +1,5 @@
 #include <string> //std::string
 
-#include <boost/log/trivial.hpp>
 
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/genomic_region.hpp>

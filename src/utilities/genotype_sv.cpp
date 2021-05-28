@@ -20,7 +20,7 @@
 #include <graphtyper/utilities/hts_parallel_reader.hpp>
 #include <graphtyper/utilities/system.hpp>
 
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 namespace gyper
 {
@@ -42,13 +42,13 @@ genotype_sv(std::string ref_path,
 
   long const NUM_SAMPLES = sams.size();
 
-  BOOST_LOG_TRIVIAL(info) << "SV genotyping region " << genomic_region.to_string();
-  BOOST_LOG_TRIVIAL(info) << "Path to genome is '" << ref_path << "'";
-  BOOST_LOG_TRIVIAL(info) << "Running with up to " << copts.threads << " threads.";
-  BOOST_LOG_TRIVIAL(info) << "Copying data from " << NUM_SAMPLES << " input SAM/BAM/CRAMs to local disk.";
+  print_log(log_severity::info, "SV genotyping region ", genomic_region.to_string());
+  print_log(log_severity::info, "Path to genome is '", ref_path, "'");
+  print_log(log_severity::info, "Running with up to ", copts.threads, " threads.");
+  print_log(log_severity::info, "Copying data from ", NUM_SAMPLES, " input SAM/BAM/CRAMs to local disk.");
   std::string tmp = create_temp_dir(genomic_region);
 
-  BOOST_LOG_TRIVIAL(info) << "Temporary folder is " << tmp;
+  print_log(log_severity::info, "Temporary folder is ", tmp);
 
   // Create directories
   mkdir(output_path.c_str(), 0755);
@@ -57,7 +57,7 @@ genotype_sv(std::string ref_path,
   // Copy reference genome to temporary directory
   if (is_copy_reference)
   {
-    BOOST_LOG_TRIVIAL(info) << "Copying reference genome FASTA and its index to temporary folder.";
+    print_log(log_severity::info, "Copying reference genome FASTA and its index to temporary folder.");
 
     filesystem::copy_file(ref_path, tmp + "/genome.fa");
     filesystem::copy_file(ref_path + ".fai", tmp + "/genome.fa.fai");
@@ -73,17 +73,17 @@ genotype_sv(std::string ref_path,
 
   // Iteration 1 out of 1
   {
-    BOOST_LOG_TRIVIAL(info) << "Genotype calling step starting.";
+    print_log(log_severity::info, "Genotype calling step starting.");
     std::string const output_vcf = tmp + "/it1/final.vcf.gz";
     std::string const out_dir = tmp + "/it1";
     mkdir(out_dir.c_str(), 0755);
-    BOOST_LOG_TRIVIAL(info) << "Padded region is: " << padded_region.to_string();
+    print_log(log_severity::info, "Padded region is: ", padded_region.to_string());
 
     {
       bool constexpr is_sv_graph{true};
       bool constexpr use_index{true};
 
-      BOOST_LOG_TRIVIAL(info) << "Constructing graph.";
+      print_log(log_severity::info, "Constructing graph.");
 
       gyper::construct_graph(ref_path,
                              sv_vcf,
@@ -91,7 +91,7 @@ genotype_sv(std::string ref_path,
                              is_sv_graph,
                              use_index);
 
-      BOOST_LOG_TRIVIAL(info) << "Calculating contig offsets.";
+      print_log(log_severity::info, "Calculating contig offsets.");
 
       absolute_pos.calculate_offsets(gyper::graph.contigs);
     }
@@ -120,7 +120,7 @@ genotype_sv(std::string ref_path,
                                                  is_writing_calls_vcf,
                                                  is_writing_hap);
 
-    BOOST_LOG_TRIVIAL(info) << "Merging output VCFs.";
+    print_log(log_severity::info, "Merging output VCFs.");
 
     // VCF merge
     {
@@ -150,12 +150,12 @@ genotype_sv(std::string ref_path,
 
   if (!copts.no_cleanup)
   {
-    BOOST_LOG_TRIVIAL(info) << "Cleaning up temporary files.";
+    print_log(log_severity::info, "Cleaning up temporary files.");
     remove_file_tree(tmp.c_str());
   }
   else
   {
-    BOOST_LOG_TRIVIAL(info) << "Temporary files left: " << tmp;
+    print_log(log_severity::info, "Temporary files left: ", tmp);
   }
 
   {
@@ -167,7 +167,7 @@ genotype_sv(std::string ref_path,
        << std::setw(9) << std::setfill('0') << genomic_region.end
        << ".vcf.gz";
 
-    BOOST_LOG_TRIVIAL(info) << "Finished! Output written at: " << ss.str();
+    print_log(log_severity::info, "Finished! Output written at: ", ss.str());
   }
 
   // free memory
