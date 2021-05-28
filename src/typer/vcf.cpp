@@ -8,11 +8,10 @@
 #include <graphtyper/utilities/logging.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
+#include <cereal/archives/binary.hpp>
 #include <boost/lexical_cast.hpp>
-#include <boost/serialization/string.hpp>
-#include <boost/serialization/vector.hpp>
+#include <cereal/types/string.hpp>
+#include <cereal/types/vector.hpp>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/absolute_position.hpp>
@@ -1840,9 +1839,9 @@ Vcf::serialize(Archive & ar, unsigned const int /*version*/)
  * EXPLICIT INSTANTIATIONS *
  ***************************/
 
-template void Vcf::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &,
+template void Vcf::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &,
                                                               const unsigned int);
-template void Vcf::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &,
+template void Vcf::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputArchive &,
                                                               const unsigned int);
 
 
@@ -1909,7 +1908,7 @@ save_vcf(Vcf const & vcf, std::string const & filename)
       filter.push(boost::iostreams::gzip_compressor());
       filter.push(ofs);
 
-      boost::archive::binary_oarchive oa(filter);
+      cereal::BinaryOutputArchive oa(filter);
       oa << new_vcf; // done saving the batch
 
       v_begin = v + 1;
@@ -1944,8 +1943,8 @@ save_vcf(Vcf const & vcf, std::string const & filename)
   filter.push(boost::iostreams::gzip_compressor());
   filter.push(ofs);
 
-  boost::archive::binary_oarchive oa(filter);
-  //boost::archive::binary_oarchive oa(ofs);
+  cereal::BinaryOutputArchive oa(filter);
+  //cereal::BinaryOutputArchive oa(ofs);
   oa << new_vcf; // done saving the batch
 }
 
@@ -1979,8 +1978,8 @@ load_vcf(Vcf & vcf, std::string const & filename, long n_batch)
     boost::iostreams::filtering_stream<boost::iostreams::input> filter;
     filter.push(boost::iostreams::gzip_decompressor());
     filter.push(ifs);
-    boost::archive::binary_iarchive ia(filter);
-    //boost::archive::binary_iarchive ia(ifs);
+    cereal::BinaryInputArchive ia(filter);
+    //cereal::BinaryInputArchive ia(ifs);
     ia >> vcf;
   }
 }
@@ -2003,8 +2002,8 @@ append_vcf(Vcf & vcf, std::string const & filename, long n_batch)
   boost::iostreams::filtering_stream<boost::iostreams::input> filter;
   filter.push(boost::iostreams::gzip_decompressor());
   filter.push(ifs);
-  boost::archive::binary_iarchive ia(filter);
-  //boost::archive::binary_iarchive ia(ifs);
+  cereal::BinaryInputArchive ia(filter);
+  //cereal::BinaryInputArchive ia(ifs);
   ia >> new_vcf;
   std::move(new_vcf.variants.begin(), new_vcf.variants.end(), std::back_inserter(vcf.variants));
   return true;

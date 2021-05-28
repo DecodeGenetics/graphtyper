@@ -1,10 +1,9 @@
 #include <fstream>
 #include <string>
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
+#include <cereal/archives/binary.hpp>
 #include <graphtyper/utilities/logging.hpp>
-#include <boost/serialization/vector.hpp>
+#include <cereal/types/vector.hpp>
 
 #include <graphtyper/graph/haplotype_calls.hpp>
 
@@ -98,9 +97,9 @@ HaplotypeCall::make_calls_unique()
 // * EXPLICIT INSTANTIATIONS *
 // ***************************/
 //
-//template void HaplotypeCalls::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &,
+//template void HaplotypeCalls::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &,
 //                                                                         const unsigned int);
-//template void HaplotypeCalls::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &,
+//template void HaplotypeCalls::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputArchive &,
 //                                                                         const unsigned int);
 //
 ///*********************************
@@ -120,7 +119,7 @@ HaplotypeCall::make_calls_unique()
 //    std::exit(1);
 //  }
 //
-//  boost::archive::binary_oarchive oa(ofs);
+//  cereal::BinaryOutputArchive oa(ofs);
 //  oa << calls;
 //}
 //
@@ -137,7 +136,7 @@ HaplotypeCall::make_calls_unique()
 //    std::exit(1);
 //  }
 //
-//  boost::archive::binary_iarchive ia(ifs);
+//  cereal::BinaryInputArchive ia(ifs);
 //  ia >> calls;
 //  return calls.get_hap_calls();
 //}

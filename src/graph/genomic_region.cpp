@@ -8,8 +8,8 @@
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/var_record.hpp>
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
+#include <cereal/archives/binary.hpp>
+#include <cereal/types/string.hpp>
 #include <graphtyper/utilities/logging.hpp>
 
 
@@ -289,11 +289,11 @@ GenomicRegion::serialize(Archive & ar, unsigned const /*version*/)
 }
 
 
-template void GenomicRegion::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &,
+template void GenomicRegion::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &,
                                                                         const unsigned int);
-template void GenomicRegion::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &,
+template void GenomicRegion::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputArchive &,
                                                                         const unsigned int);
 
 } // namespace gyper
 
-BOOST_CLASS_VERSION(gyper::GenomicRegion, 1)
+// BOOST_CLASS_VERSION(gyper::GenomicRegion, 1)

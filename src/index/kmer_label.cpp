@@ -2,8 +2,7 @@
 #include <sstream>
 #include <string>
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
+#include <cereal/archives/binary.hpp>
 
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/index/kmer_label.hpp>
@@ -61,9 +60,9 @@ KmerLabel::to_string() const
 /***************************
  * EXPLICIT INSTANTIATIONS *
  ***************************/
-template void KmerLabel::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &,
+template void KmerLabel::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &,
                                                                     const unsigned int);
-template void KmerLabel::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &,
+template void KmerLabel::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputArchive &,
                                                                     const unsigned int);
 
 } // namespace gyper

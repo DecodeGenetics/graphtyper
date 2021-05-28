@@ -1,8 +1,8 @@
+#include <cassert>
 #include <iostream>
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
-#include <boost/serialization/vector.hpp>
+#include <cereal/archives/binary.hpp>
+#include <cereal/types/vector.hpp>
 
 #include <graphtyper/graph/node.hpp>
 
@@ -73,9 +73,9 @@ RefNode::serialize(Archive & ar, const unsigned int)
 /***************************
  * EXPLICIT INSTANTIATIONS *
  ***************************/
-template void RefNode::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &,
+template void RefNode::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &,
                                                                   const unsigned int);
-template void RefNode::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &,
+template void RefNode::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputArchive &,
                                                                   const unsigned int);
 
 } // namespace gyper

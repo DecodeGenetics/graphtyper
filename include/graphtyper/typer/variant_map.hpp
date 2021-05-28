@@ -8,7 +8,7 @@
 #include <graphtyper/typer/variant_candidate.hpp>
 #include <graphtyper/typer/variant_support.hpp>
 
-#include <boost/serialization/access.hpp>
+#include <cereal/access.hpp>
 
 
 namespace gyper
@@ -22,7 +22,7 @@ using PoolVarMap = std::map<VariantCandidate, std::vector<VariantSupport> >;
 
 class VariantMap
 {
-  friend class boost::serialization::access;
+  friend class cereal::access;
 
 
 public:

@@ -4,7 +4,7 @@
 #include <string> // std::string
 #include <vector> // std::vector
 
-#include <boost/serialization/access.hpp>
+#include <cereal/access.hpp>
 
 #include <graphtyper/graph/genotype.hpp> // gyper::Genotype
 #include <graphtyper/graph/haplotype.hpp> // gyper::Haplotype
@@ -19,7 +19,7 @@ class VariantCandidate;
 
 class Variant
 {
-  friend class boost::serialization::access;
+  friend class cereal::access;
 
 public:
   long abs_pos{0};

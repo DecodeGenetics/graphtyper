@@ -3,7 +3,7 @@
 #include <cstdint> // uint32_t
 #include <set> // std::set<T>
 
-#include <boost/serialization/access.hpp>
+#include <cereal/access.hpp>
 
 
 namespace gyper
@@ -11,7 +11,7 @@ namespace gyper
 
 class VariantSupport
 {
-  friend class boost::serialization::access;
+  friend class cereal::access;
 
 public:
   uint16_t hq_support{0u};

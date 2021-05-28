@@ -4,9 +4,9 @@
 #include <sstream>
 #include <unordered_set>
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
-#include <boost/serialization/vector.hpp>
+#include <cereal/archives/binary.hpp>
+#include <cereal/types/vector.hpp>
+#include <cereal/types/string.hpp>
 
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/sv.hpp>
@@ -119,10 +119,10 @@ SV::serialize(Archive & ar, const unsigned int /*version*/)
  * EXPLICIT INSTANTIATIONS *
  ***************************/
 
-template void SV::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &,
+template void SV::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &,
                                                              const unsigned int);
 
-template void SV::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &,
+template void SV::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputArchive &,
                                                              const unsigned int);
 
 

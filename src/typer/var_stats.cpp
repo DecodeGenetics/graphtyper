@@ -9,10 +9,9 @@
 #include <vector> // std::vector
 
 #include <boost/algorithm/string/split.hpp> // boost::split
-#include <boost/archive/binary_iarchive.hpp>
-#include <boost/archive/binary_oarchive.hpp>
+#include <cereal/archives/binary.hpp>
 #include <boost/lexical_cast.hpp>
-#include <boost/serialization/vector.hpp>
+#include <cereal/types/vector.hpp>
 
 #include <graphtyper/graph/absolute_position.hpp> // gyper::absolute_pos
 #include <graphtyper/typer/var_stats.hpp> // gyper::VarStats
@@ -516,9 +515,9 @@ VarStats::serialize(Archive & ar, unsigned const int /*version*/)
 }
 
 
-template void VarStats::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &,
+template void VarStats::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &,
                                                                    const unsigned int);
-template void VarStats::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &,
+template void VarStats::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputArchive &,
                                                                    const unsigned int);
 
 

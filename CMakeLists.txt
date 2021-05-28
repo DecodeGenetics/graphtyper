@@ -92,7 +92,7 @@ if (NOT Boost_USE_STATIC_LIBS)
 endif()
 
 message (STATUS "Checking for Boost: USE_STATIC_LIBS=${Boost_USE_STATIC_LIBS}")
-find_package(Boost 1.57.0 REQUIRED COMPONENTS system iostreams thread serialization filesystem REQUIRED)
+find_package(Boost 1.57.0 REQUIRED COMPONENTS system iostreams REQUIRED)
 message (STATUS "Boost include directory: ${Boost_INCLUDE_DIR}")
 include_directories(SYSTEM ${Boost_INCLUDE_DIR})
 set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I ${Boost_INCLUDE_DIR}")
@@ -177,14 +177,14 @@ include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/seqan/include)
 
 ## CEREAL
 if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cereal)
+    set (CMAKE_REQUIRED_INCLUDES    ${CMAKE_INCLUDE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cereal/include)
     include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/cereal/include)
-    message (STATUS "Cereal submofule found. Adding it to INCLUDES.")
+    message (STATUS "Cereal submodule found. Adding it to INCLUDES.")
 endif()
 check_include_file_cxx (cereal/cereal.hpp _HAVE_CEREAL)
 if (NOT _HAVE_CEREAL)
     message (FATAL_ERROR "Cereal has not been found but is required.")
 endif()
-
 
 ## Executables go to a "bin" folder.
 set(EXECUTABLE_OUTPUT_PATH ../bin)
@@ -246,13 +246,7 @@ else(STATIC_DIR STREQUAL "")
     libdeflate
     ${STATIC_DIR}/libboost_system.a
     ${STATIC_DIR}/libboost_iostreams.a
-    ${STATIC_DIR}/libboost_thread.a
-    ${STATIC_DIR}/libboost_serialization.a
-    ${STATIC_DIR}/libboost_filesystem.a
     ${STATIC_DIR}/libboost_regex.a
-    ${STATIC_DIR}/libboost_date_time.a
-    ${STATIC_DIR}/libboost_chrono.a
-    ${STATIC_DIR}/libboost_atomic.a
     ${STATIC_DIR}/libpthread.a
     ${STATIC_DIR}/libz.a
     ${STATIC_DIR}/libbz2.a

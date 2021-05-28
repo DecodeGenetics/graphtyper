@@ -1,8 +1,7 @@
 #include <algorithm>
 #include <sstream>
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
+#include <cereal/archives/binary.hpp>
 
 #include <graphtyper/graph/read_strand.hpp>
 
@@ -72,9 +71,9 @@ ReadStrand::serialize(Archive & ar, unsigned const int /*version*/)
  * EXPLICIT INSTANTIATIONS *
  ***************************/
 
-template void ReadStrand::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &,
+template void ReadStrand::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &,
                                                                      const unsigned int);
-template void ReadStrand::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &,
+template void ReadStrand::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputArchive &,
                                                                      const unsigned int);
 
 } // namespace gyper

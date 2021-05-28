@@ -1,8 +1,7 @@
 #include <fstream>
 #include <string>
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
+#include <cereal/archives/binary.hpp>
 #include <graphtyper/utilities/logging.hpp>
 
 #include <graphtyper/graph/absolute_position.hpp>
@@ -24,7 +23,7 @@ save_graph(std::string const & graph_path)
     std::exit(1);
   }
 
-  boost::archive::binary_oarchive oa(ofs);
+  cereal::BinaryOutputArchive oa(ofs);
   oa << graph;
 }
 
@@ -42,7 +41,7 @@ load_graph(std::string const & graph_path)
     std::exit(1);
   }
 
-  boost::archive::binary_iarchive ia(ifs);
+  cereal::BinaryInputArchive ia(ifs);
   ia >> graph;
   assert(graph.size() > 0u);
 
@@ -64,7 +63,7 @@ load_secondary_graph(std::string const & graph_path)
     std::exit(1);
   }
 
-  boost::archive::binary_iarchive ia(ifs);
+  cereal::BinaryInputArchive ia(ifs);
   ia >> second_graph;
   assert(second_graph.size() > 0u);
 

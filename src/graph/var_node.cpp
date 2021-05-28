@@ -1,10 +1,9 @@
 #include <unordered_set>
 #include <iostream>
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
+#include <cereal/archives/binary.hpp>
 
-#include <boost/serialization/unordered_set.hpp>
+#include <cereal/types/unordered_set.hpp>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/node.hpp>
@@ -87,9 +86,9 @@ VarNode::serialize(Archive & ar, unsigned int const)
 /***************************
  * EXPLICIT INSTANTIATIONS *
  ***************************/
-template void VarNode::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &,
+template void VarNode::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &,
                                                                   const unsigned int);
-template void VarNode::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &,
+template void VarNode::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputArchive &,
                                                                   const unsigned int);
 
 } // namespace gyper
