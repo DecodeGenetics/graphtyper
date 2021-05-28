@@ -1044,9 +1044,6 @@ void Variant::trim_sequences(bool const keep_one_match)
 
 bool Variant::add_base_in_front(bool const add_N)
 {
-  // uint32_t abs_pos_copy = abs_pos - graph.genomic_region.get_absolute_begin_position() + 1;
-  // uint32_t abs_pos_copy = abs_pos - graph.genomic_region.get_absolute_begin_position() + 1;
-  // //graph.genomic_region.abs_pos;
   uint32_t contig_pos = absolute_pos.get_contig_position(abs_pos, graph.contigs).second;
   uint32_t contig_pos_cp = contig_pos;
   uint32_t new_contig_pos = contig_pos - 1;
@@ -1055,8 +1052,13 @@ bool Variant::add_base_in_front(bool const add_N)
   if (first_base.size() != 1 || contig_pos_cp != contig_pos || new_contig_pos != contig_pos - 1)
     return false; // The base in front could not be extracted
 
-  if (!add_N && first_base[0] == 'N')
+  bool const is_not_ACGT = first_base[0] != 'A' && first_base[0] != 'C' && first_base[0] != 'G' && first_base[0] != 'T';
+
+  if (!add_N && is_not_ACGT)
     return false;
+
+  if (add_N && is_not_ACGT)
+    first_base[0] = 'N'; // make sure it's N then
 
   // Insert the new first base in front of all the sequences
   for (auto & seq : seqs)
