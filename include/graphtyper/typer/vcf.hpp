@@ -16,7 +16,6 @@
 #include <graphtyper/utilities/bgzf_stream.hpp>
 #include <graphtyper/utilities/gzstream.hpp>
 
-
 namespace gyper
 {
 

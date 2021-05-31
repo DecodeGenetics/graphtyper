@@ -2,18 +2,13 @@
 #include <sstream>
 #include <fstream>
 
-
 #include <graphtyper/utilities/logging.hpp>
-#include <boost/algorithm/string.hpp>
-#include <boost/iostreams/filtering_stream.hpp>
-#include <boost/iostreams/filtering_streambuf.hpp>
-#include <boost/iostreams/copy.hpp>
-#include <boost/iostreams/filter/gzip.hpp>
 
 #include <seqan/basic.h>
+#include <seqan/bam_io.h>
 #include <seqan/sequence.h>
 #include <seqan/seq_io.h>
-#include <seqan/bam_io.h>
+#include <seqan/stream.h>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/utilities/io.hpp>
@@ -294,10 +289,10 @@ write_gzipped_to_file(std::stringstream & ss, std::string const & file_name, boo
     std::exit(3);
   }
 
-  boost::iostreams::filtering_streambuf<boost::iostreams::input> out;
-  out.push(boost::iostreams::gzip_compressor());
-  out.push(ss);
-  boost::iostreams::copy(out, compressed);
+  seqan::VirtualStream<char, seqan::Output> filter;
+  seqan::open(filter, compressed, seqan::GZFile{});
+
+  filter << ss.rdbuf();
 }
 
 
