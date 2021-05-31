@@ -1,7 +1,8 @@
+#include <functional>
 #include <string>
+#include <string_view>
 #include <vector>
 
-#include <boost/functional/hash.hpp> // boost::hash_range
 #include <graphtyper/utilities/logging.hpp>
 
 
@@ -479,7 +480,7 @@ EventHash::operator()(gyper::Event const & e) const
 {
   std::size_t h1 = std::hash<uint32_t>()(e.pos);
   std::size_t h2 = std::hash<char>()(e.type);
-  std::size_t h3 = 42 + boost::hash_range(e.sequence.begin(), e.sequence.end());
+  std::size_t h3 = 42 + std::hash<std::string_view>{}(std::string_view{e.sequence.data(), e.sequence.size()});
   return h1 ^ (h2 << 1) ^ (h3 + 0x9e3779b9);
 }
 

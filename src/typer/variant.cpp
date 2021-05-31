@@ -1,12 +1,12 @@
 #include <algorithm> // std::swap
 #include <limits>
 #include <string> // std::string
+#include <string_view>
 #include <sstream> // std::stringstream
 #include <vector> // std::vector
 
 #include <cereal/archives/binary.hpp>
 #include <graphtyper/utilities/logging.hpp>
-#include <boost/functional/hash.hpp> // boost::hash_range
 #include <cereal/types/map.hpp>
 #include <cereal/types/string.hpp>
 #include <cereal/types/vector.hpp>
@@ -2259,8 +2259,8 @@ VariantHash::operator()(Variant const & v) const
 {
   assert(v.seqs.size() == 2);
   std::size_t h1 = std::hash<uint32_t>()(v.abs_pos);
-  std::size_t h2 = boost::hash_range(v.seqs[0].begin(), v.seqs[0].end());
-  std::size_t h3 = 42 + boost::hash_range(v.seqs[1].begin(), v.seqs[1].end());
+  std::size_t h2 = std::hash<std::string_view>{}(std::string_view{v.seqs[0].data(), v.seqs[0].size()});
+  std::size_t h3 = 42 + std::hash<std::string_view>{}(std::string_view{v.seqs[1].data(), v.seqs[1].size()});
   return h1 ^ (h2 << 1) ^ (h3 + 0x9e3779b9);
 }
 
