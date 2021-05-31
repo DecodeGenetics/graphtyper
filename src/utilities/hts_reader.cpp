@@ -3,8 +3,8 @@
 
 #include <graphtyper/utilities/hts_reader.hpp>
 
-#include <boost/algorithm/string.hpp>
 #include <graphtyper/utilities/logging.hpp>
+#include <graphtyper/utilities/string.hpp>
 
 #include <htslib/hfile.h>
 #include <htslib/hts.h>
@@ -37,14 +37,11 @@ HtsReader::open(std::string const & path, std::string const & region, std::strin
   if (!Options::const_instance()->get_sample_names_from_filename)
   {
     std::string const header_text(fp->bam_header->text, fp->bam_header->l_text);
-    std::vector<std::string> header_lines;
-
-    // Split the header text into lines
-    boost::split(header_lines, header_text, boost::is_any_of("\n"));
+    std::vector<std::string_view> header_lines = split_on_delim(header_text,'\n');
 
     for (auto & line_it : header_lines)
     {
-      if (boost::starts_with(line_it, "@RG"))
+      if (starts_with(line_it, "@RG"))
       {
         std::size_t const pos_id = line_it.find("\tID:");
         std::size_t const pos_samp = line_it.rfind("\tSM:");
@@ -67,17 +64,17 @@ HtsReader::open(std::string const & path, std::string const & region, std::strin
         if (pos_samp_ends == std::string::npos)
           pos_samp_ends = line_it.size();
 
-        std::string new_id = line_it.substr(pos_id + 4, pos_id_ends - pos_id - 4);
-        std::string new_sample = line_it.substr(pos_samp + 4, pos_samp_ends - pos_samp - 4);
+        std::string new_id = std::string{line_it.substr(pos_id + 4, pos_id_ends - pos_id - 4)};
+        std::string new_sample = std::string{line_it.substr(pos_samp + 4, pos_samp_ends - pos_samp - 4)};
         print_log(log_severity::debug, __HERE__, " Added RG: '", new_id, "' => '", new_sample, "'");
-        rg2index[new_id] = rg2sample_i.size();
+        rg2index[std::move(new_id)] = rg2sample_i.size();
         auto find_it = std::find(samples.begin(), samples.end(), new_sample);
 
         // check if this is a new sample
         if (find_it == samples.end())
         {
           rg2sample_i.push_back(samples.size());
-          samples.push_back(new_sample);
+          samples.push_back(std::move(new_sample));
         }
         else
         {
