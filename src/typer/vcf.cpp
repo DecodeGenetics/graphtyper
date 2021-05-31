@@ -4,7 +4,6 @@
 #include <sstream>
 #include <unordered_map>
 
-#include <boost/algorithm/string/predicate.hpp> // boost::algorithm::ends_with
 #include <graphtyper/utilities/logging.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
@@ -24,6 +23,7 @@
 #include <graphtyper/utilities/filesystem.hpp>
 #include <graphtyper/utilities/graph_help_functions.hpp>
 #include <graphtyper/utilities/options.hpp> // gyper::options::instance()
+#include <graphtyper/utilities/string.hpp>
 #include <graphtyper/utilities/system.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
 
@@ -186,14 +186,14 @@ Vcf::set_filemode(VCF_FILE_MODE const _filemode)
 {
   if (_filemode == READ_MODE)
   {
-    if (boost::algorithm::ends_with(filename, ".vcf.gz"))
+    if (ends_with(filename, ".vcf.gz"))
       filemode = READ_BGZF_MODE;
     else
       filemode = READ_UNCOMPRESSED_MODE;
   }
   else if (_filemode == WRITE_MODE)
   {
-    if (boost::algorithm::ends_with(filename, ".vcf.gz"))
+    if (ends_with(filename, ".vcf.gz"))
       filemode = WRITE_BGZF_MODE;
     else
       filemode = WRITE_UNCOMPRESSED_MODE;

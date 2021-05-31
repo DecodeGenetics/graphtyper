@@ -8,7 +8,6 @@
 #include <sstream> // std::ostringstream
 #include <vector> // std::vector
 
-#include <boost/algorithm/string/split.hpp> // boost::split
 #include <cereal/archives/binary.hpp>
 #include <boost/lexical_cast.hpp>
 #include <cereal/types/vector.hpp>
@@ -17,7 +16,7 @@
 #include <graphtyper/typer/var_stats.hpp> // gyper::VarStats
 #include <graphtyper/typer/vcf.hpp> // gyper::get_all_pos(line, delim)
 #include <graphtyper/utilities/options.hpp> // gyper::Options::instance()
-
+#include <graphtyper/utilities/string.hpp>
 
 namespace gyper
 {
@@ -411,21 +410,10 @@ join_strand_bias(std::vector<uint32_t> const & r1bias, std::vector<uint32_t> con
 }
 
 
-std::vector<std::string>
-split_bias_to_strings(std::string const & bias)
-{
-  std::vector<std::string> splitted;
-  boost::split(splitted, bias, [](char c){
-      return c == ',';
-    });
-  return splitted;
-}
-
-
 std::vector<uint32_t>
 split_bias_to_numbers(std::string const & bias)
 {
-  std::vector<std::string> splitted = split_bias_to_strings(bias);
+  auto splitted = split_on_delim(bias, ',');
   std::vector<uint32_t> nums;
 
   if (splitted.size() >= 1)
@@ -433,7 +421,7 @@ split_bias_to_numbers(std::string const & bias)
     nums.reserve(splitted.size());
 
     for (auto const & spl : splitted)
-      nums.push_back(std::strtoull(spl.c_str(), NULL, 10));
+      nums.push_back(stoi64(spl));
   }
 
   return nums;
