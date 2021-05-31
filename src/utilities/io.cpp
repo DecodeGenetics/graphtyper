@@ -2,8 +2,9 @@
 #include <sstream>
 #include <fstream>
 
-#include <boost/algorithm/string.hpp>
+
 #include <graphtyper/utilities/logging.hpp>
+#include <boost/algorithm/string.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filtering_streambuf.hpp>
 #include <boost/iostreams/copy.hpp>
@@ -16,6 +17,7 @@
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/utilities/io.hpp>
+#include <graphtyper/utilities/string.hpp>
 
 
 namespace gyper
@@ -35,14 +37,11 @@ get_sample_name_from_bam_header(std::string const & hts_filename,
   }
 
   std::string const header_text(hts_file.hdr->text, hts_file.hdr->l_text);
-  std::vector<std::string> header_lines;
-
-  // Split the header text into lines
-  boost::split(header_lines, header_text, boost::is_any_of("\n"));
+  std::vector<std::string_view> header_lines = split_on_delim(header_text, '\n');
 
   for (auto & line_it : header_lines)
   {
-    if (boost::starts_with(line_it, "@RG"))
+    if (starts_with(line_it, "@RG"))
     {
       std::size_t const pos_id = line_it.find("\tID:");
       std::size_t const pos_samp = line_it.rfind("\tSM:");
@@ -66,8 +65,8 @@ get_sample_name_from_bam_header(std::string const & hts_filename,
       if (pos_samp_ends == std::string::npos)
         pos_samp_ends = line_it.size();
 
-      std::string new_id = line_it.substr(pos_id + 4, pos_id_ends - pos_id - 4);
-      std::string new_sample = line_it.substr(pos_samp + 4, pos_samp_ends - pos_samp - 4);
+      std::string new_id = std::string{line_it.substr(pos_id + 4, pos_id_ends - pos_id - 4)};
+      std::string new_sample = std::string{line_it.substr(pos_samp + 4, pos_samp_ends - pos_samp - 4)};
 
 #ifndef NDEBUG
       print_log(log_severity::debug, __HERE__, "  Added RG: '", new_id, "' => '", new_sample, "'");
@@ -78,12 +77,12 @@ get_sample_name_from_bam_header(std::string const & hts_filename,
       // check if this is a new sample
       if (find_it == samples.end())
       {
-        rg2sample_i[new_id] = samples.size();
-        samples.push_back(new_sample);
+        rg2sample_i[std::move(new_id)] = samples.size();
+        samples.push_back(std::move(new_sample));
       }
       else
       {
-        rg2sample_i[new_id] = std::distance(samples.begin(), find_it);
+        rg2sample_i[std::move(new_id)] = std::distance(samples.begin(), find_it);
       }
     }
   }

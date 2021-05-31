@@ -2,7 +2,6 @@
 #include <string>
 #include <unordered_set>
 
-#include <boost/algorithm/string.hpp>
 #include <graphtyper/utilities/logging.hpp>
 
 #include <graphtyper/constants.hpp>
@@ -10,6 +9,7 @@
 #include <graphtyper/typer/path.hpp>
 #include <graphtyper/typer/genotype_paths.hpp>
 #include <graphtyper/typer/primers.hpp>
+#include <graphtyper/utilities/string.hpp>
 #include <graphtyper/utilities/system.hpp>
 
 
@@ -41,11 +41,10 @@ Primers::read(std::string const & primer_bedpe)
   }
 
   std::string line;
-  std::vector<std::string> fields;
 
   while (std::getline(fs, line))
   {
-    boost::split(fields, line, boost::is_any_of("\t"));
+    std::vector<std::string_view> fields = split_on_delim(line, '\t');
 
     if (fields.size() < 6)
     {
@@ -53,8 +52,8 @@ Primers::read(std::string const & primer_bedpe)
       std::exit(1);
     }
 
-    GenomicRegion left_region(fields[0], std::stol(fields[1]), std::stol(fields[2]));
-    GenomicRegion right_region(fields[3], std::stol(fields[4]), std::stol(fields[5]));
+    GenomicRegion left_region(fields[0], stoi64(fields[1]), stoi64(fields[2]));
+    GenomicRegion right_region(fields[3], stoi64(fields[4]), stoi64(fields[5]));
 
     print_log(log_severity::debug, __HERE__, " Got primer regions ", left_region.to_string(), " "
                             , right_region.to_string());

@@ -11,7 +11,7 @@
 #include <cereal/archives/binary.hpp>
 #include <cereal/types/string.hpp>
 #include <graphtyper/utilities/logging.hpp>
-
+#include <graphtyper/utilities/string.hpp>
 
 namespace
 {
@@ -83,7 +83,7 @@ GenomicRegion::GenomicRegion()
 {}
 
 
-GenomicRegion::GenomicRegion(std::string const & region)
+GenomicRegion::GenomicRegion(std::string_view region)
   : chr("N/A"), begin(0), end(AS_LONG_AS_POSSIBLE)
 {
   if (region.size() == 0 || (region.size() == 1 && region[0] == '.'))
@@ -103,14 +103,14 @@ GenomicRegion::GenomicRegion(std::string const & region)
 
     if (std::count(region.begin(), region.end(), '-') == 0)
     {
-      begin = std::stol(region.substr(colon + 1, region.size() - colon));
+      begin = stoi64(region.substr(colon + 1, region.size() - colon));
     }
     else
     {
       std::size_t const dash = region.find('-', colon + 1);
 
-      begin = std::stol(region.substr(colon + 1, dash - colon));
-      end = std::stol(region.substr(dash + 1, region.size() - dash));
+      begin = stoi64(region.substr(colon + 1, dash - colon));
+      end = stoi64(region.substr(dash + 1, region.size() - dash));
     }
   }
 
@@ -122,9 +122,20 @@ GenomicRegion::GenomicRegion(std::string const & region)
   }
 }
 
-
-GenomicRegion::GenomicRegion(std::string const & chrom, long _begin, long _end)
+GenomicRegion::GenomicRegion(std::string_view chrom, long _begin, long _end)
   : chr(chrom)
+  , begin(_begin)
+  , end(_end)
+{
+  if (begin != 0)
+  {
+    // Switch to 0-based indexing
+    --begin;
+  }
+}
+
+GenomicRegion::GenomicRegion(std::string && chrom, long _begin, long _end)
+  : chr(std::move(chrom))
   , begin(_begin)
   , end(_end)
 {

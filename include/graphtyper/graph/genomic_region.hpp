@@ -3,6 +3,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -28,8 +29,9 @@ public:
    * CONSTRUCTORS *
    ****************/
   explicit GenomicRegion();
-  explicit GenomicRegion(std::string const & region);
-  explicit GenomicRegion(std::string const & chrom, long begin, long end);
+  explicit GenomicRegion(std::string_view region);
+  explicit GenomicRegion(std::string_view chrom, long begin, long end);
+  explicit GenomicRegion(std::string && chrom, long begin, long end);
 
   void clear();
   void pad(long N_bases); // pad region by N_bases
