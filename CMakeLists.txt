@@ -81,21 +81,6 @@ if (DEFINED LDFLAGS)
   message (STATUS "Custom LDFLAGS: ${MYLDFLAGS}")
 endif()
 
-# Find external libraries
-## boost
-if (NOT DEFINED Boost_USE_STATIC_LIBS)
-  set(Boost_USE_STATIC_LIBS ON)
-endif()
-
-if (NOT Boost_USE_STATIC_LIBS)
-  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DBOOST_LOG_DYN_LINK")
-endif()
-
-message (STATUS "Checking for Boost: USE_STATIC_LIBS=${Boost_USE_STATIC_LIBS}")
-find_package(Boost 1.57.0 REQUIRED COMPONENTS system iostreams REQUIRED)
-message (STATUS "Boost include directory: ${Boost_INCLUDE_DIR}")
-include_directories(SYSTEM ${Boost_INCLUDE_DIR})
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I ${Boost_INCLUDE_DIR}")
 
 ## libdeflate
 ExternalProject_Add(
@@ -212,7 +197,6 @@ if(STATIC_DIR STREQUAL "")
     htslib
     paw
     libdeflate
-    ${Boost_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
     ${ZLIB_LIBRARIES}
     ${BZIP2_LIBRARIES}
@@ -244,9 +228,6 @@ else(STATIC_DIR STREQUAL "")
     htslib
     paw
     libdeflate
-    ${STATIC_DIR}/libboost_system.a
-    ${STATIC_DIR}/libboost_iostreams.a
-    ${STATIC_DIR}/libboost_regex.a
     ${STATIC_DIR}/libpthread.a
     ${STATIC_DIR}/libz.a
     ${STATIC_DIR}/libbz2.a
