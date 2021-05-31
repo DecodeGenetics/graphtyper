@@ -3,6 +3,8 @@
 #include <sstream>
 #include <vector>
 
+#include <seqan/stream.h>
+
 #include <graphtyper/utilities/logging.hpp>
 
 #include <graphtyper/graph/absolute_position.hpp>
