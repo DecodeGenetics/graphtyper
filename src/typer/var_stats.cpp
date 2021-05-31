@@ -9,7 +9,6 @@
 #include <vector> // std::vector
 
 #include <cereal/archives/binary.hpp>
-#include <boost/lexical_cast.hpp>
 #include <cereal/types/vector.hpp>
 
 #include <graphtyper/graph/absolute_position.hpp> // gyper::absolute_pos

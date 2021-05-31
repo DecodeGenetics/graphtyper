@@ -4,13 +4,11 @@
 #include <sstream>
 #include <unordered_map>
 
-#include <graphtyper/utilities/logging.hpp>
-#include <boost/iostreams/filtering_stream.hpp>
-#include <boost/iostreams/filter/gzip.hpp>
 #include <cereal/archives/binary.hpp>
-#include <boost/lexical_cast.hpp>
 #include <cereal/types/string.hpp>
 #include <cereal/types/vector.hpp>
+
+#include <seqan/stream.h>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/absolute_position.hpp>
@@ -23,6 +21,7 @@
 #include <graphtyper/utilities/filesystem.hpp>
 #include <graphtyper/utilities/graph_help_functions.hpp>
 #include <graphtyper/utilities/options.hpp> // gyper::options::instance()
+#include <graphtyper/utilities/logging.hpp>
 #include <graphtyper/utilities/string.hpp>
 #include <graphtyper/utilities/system.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
@@ -1904,9 +1903,8 @@ save_vcf(Vcf const & vcf, std::string const & filename)
         std::exit(1);
       }
 
-      boost::iostreams::filtering_ostream filter;
-      filter.push(boost::iostreams::gzip_compressor());
-      filter.push(ofs);
+      seqan::VirtualStream<char, seqan::Output> filter;
+      seqan::open(filter, ofs, seqan::GZFile{});
 
       cereal::BinaryOutputArchive oa(filter);
       oa << new_vcf; // done saving the batch
@@ -1939,9 +1937,8 @@ save_vcf(Vcf const & vcf, std::string const & filename)
     std::exit(1);
   }
 
-  boost::iostreams::filtering_ostream filter;
-  filter.push(boost::iostreams::gzip_compressor());
-  filter.push(ofs);
+  seqan::VirtualStream<char, seqan::Output> filter;
+  seqan::open(filter, ofs, seqan::GZFile{});
 
   cereal::BinaryOutputArchive oa(filter);
   //cereal::BinaryOutputArchive oa(ofs);
@@ -1975,9 +1972,8 @@ load_vcf(Vcf & vcf, std::string const & filename, long n_batch)
       std::exit(1);
     }
 
-    boost::iostreams::filtering_stream<boost::iostreams::input> filter;
-    filter.push(boost::iostreams::gzip_decompressor());
-    filter.push(ifs);
+    seqan::VirtualStream<char, seqan::Input> filter;
+    seqan::open(filter, ifs, seqan::GZFile{});
     cereal::BinaryInputArchive ia(filter);
     //cereal::BinaryInputArchive ia(ifs);
     ia >> vcf;
@@ -1999,9 +1995,9 @@ append_vcf(Vcf & vcf, std::string const & filename, long n_batch)
     return false;
   }
 
-  boost::iostreams::filtering_stream<boost::iostreams::input> filter;
-  filter.push(boost::iostreams::gzip_decompressor());
-  filter.push(ifs);
+  seqan::VirtualStream<char, seqan::Input> filter;
+  seqan::open(filter, ifs, seqan::GZFile{});
+
   cereal::BinaryInputArchive ia(filter);
   //cereal::BinaryInputArchive ia(ifs);
   ia >> new_vcf;
