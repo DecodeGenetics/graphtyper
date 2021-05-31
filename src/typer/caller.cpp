@@ -1633,17 +1633,17 @@ run_first_pass_lr(bam1_t * hts_rec,
             continue;
           }
 
-          if (core.qual <= 20)
-            qual = qual / 5;
-          else if (core.qual <= 40 && qual >= 4)
-            qual = qual / 4;
-          else if (qual >= 4)
-            qual = qual / 2;
-
-          if (qual > 0 && qual < 5)
-            qual = 5;
-          else if (qual > 10)
-            qual = 10;
+          //if (core.qual <= 20)
+          //  qual = qual / 5;
+          //else if (core.qual <= 40 && qual >= 4)
+          //  qual = qual / 4;
+          //else if (qual >= 4)
+          //  qual = qual / 2;
+          //
+          //if (qual > 0 && qual < 5)
+          //  qual = 5;
+          //else if (qual > 10)
+          //  qual = 10;
 
           //BOOST_LOG_TRIVIAL(info) << __HERE__ << " adding base " << read_base << "," << static_cast<long>(qual)
           //                        << " @ " << (ref_pos + region_begin)
