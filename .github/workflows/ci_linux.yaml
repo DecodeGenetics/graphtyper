@@ -82,9 +82,6 @@ jobs:
           sudo add-apt-repository --no-update --yes "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-12 main"
           sudo apt-get update
 
-      - name: Install Dependencies
-        run: sudo apt-get install --yes libboost-all-dev libboost-log1.65.1 libboost-log1.65-dev
-
       - name: Install Build dependencies
         run: sudo apt-get install --yes cmake ccache
 
