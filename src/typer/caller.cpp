@@ -1525,7 +1525,10 @@ run_first_pass_lr(bam1_t * hts_rec,
   {
     assert(hts_rec);
 
-    while (hts_rec->core.n_cigar == 0 || hts_rec->core.l_qseq < 150 || hts_rec->core.qual < copts.lr_mapq_filter)
+    while (hts_rec->core.n_cigar == 0 ||
+           hts_rec->core.l_qseq < 150 ||
+           hts_rec->core.qual < copts.lr_mapq_filter ||
+           (hts_rec->core.flag & copts.sam_flag_filter) != 0u)
     {
       hts_rec = hts_reader.get_next_read(hts_rec);
 
