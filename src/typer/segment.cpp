@@ -1,41 +1,34 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
-#include <iostream>
 #include <iomanip>
+#include <iostream>
 #include <limits>
 #include <sstream>
 #include <string>
 
-#include <graphtyper/utilities/logging.hpp>
-
 #include <graphtyper/typer/segment.hpp>
 #include <graphtyper/utilities/graph_help_functions.hpp>
-
+#include <graphtyper/utilities/logging.hpp>
 
 namespace
 {
-
-std::vector<uint8_t>
-get_segment_phred_from_log2_scores(std::vector<uint32_t> const & log_score)
+std::vector<uint8_t> get_segment_phred_from_log2_scores(std::vector<uint32_t> const & log_score)
 {
   using namespace gyper;
   assert(log_score.size() > 0);
 
   // Check if all phred scores are zero by finding the first non-zero phred score
-  auto find_it = std::find_if(log_score.begin() + 1,
-                              log_score.end(),
-                              [&](uint32_t const val)
-    {
-      return val != log_score[0];
-    });
+  auto find_it =
+    std::find_if(log_score.begin() + 1, log_score.end(), [&](uint32_t const val) { return val != log_score[0]; });
 
   if (find_it == log_score.end())
   {
     print_log(log_severity::warning, "[graphtyper::segment] All PHRED scores zero");
-    return std::vector<uint8_t>(log_score.size(), 0u); // If no non-zero phred score is found, the phred scores of the haplotype should be all zero as well
+    return std::vector<uint8_t>(
+      log_score.size(),
+      0u); // If no non-zero phred score is found, the phred scores of the haplotype should be all zero as well
   }
-
 
   std::vector<uint8_t> segment_phred(log_score.size(), 255);
 
@@ -44,7 +37,7 @@ get_segment_phred_from_log2_scores(std::vector<uint32_t> const & log_score)
 
   for (std::size_t i = 0; i < log_score.size(); ++i)
   {
-    assert (log_score[i] <= max_log_score);
+    assert(log_score[i] <= max_log_score);
     double constexpr LOG10_HALF_times_10 = 3.0102999566398119521373889472449302676818988146210854131;
     uint64_t const phred_score = std::llround(static_cast<double>(max_log_score - log_score[i]) * LOG10_HALF_times_10);
 
@@ -55,39 +48,28 @@ get_segment_phred_from_log2_scores(std::vector<uint32_t> const & log_score)
   return segment_phred;
 }
 
-
-} // anon namespace
-
+} // namespace
 
 namespace gyper
 {
+Segment::Segment()
+{
+}
 
-Segment::Segment(){}
-
-
-Segment::Segment(uint32_t _id, std::size_t _ref_size, std::vector<std::string> const & _allele_names)
-  : id(_id)
-  , ref_size(_ref_size)
-  , allele_names(_allele_names)
-  , var_type("XG")
+Segment::Segment(uint32_t _id, std::size_t _ref_size, std::vector<std::string> const & _allele_names) :
+  id(_id), ref_size(_ref_size), allele_names(_allele_names), var_type("XG")
 {
   assert(allele_names.size() > 1);
 
-  if (allele_names[0].substr(0, 4) == std::string("HLA-") ||
-      allele_names[0].substr(0, 4) == std::string("TAP1") ||
-      allele_names[0].substr(0, 4) == std::string("TAP2") ||
-      allele_names[0].substr(0, 4) == std::string("MICA") ||
-      allele_names[0].substr(0, 4) == std::string("MICB") ||
-      allele_names[0].substr(0, 3) == std::string("HFE")
-      )
+  if (allele_names[0].substr(0, 4) == std::string("HLA-") || allele_names[0].substr(0, 4) == std::string("TAP1") ||
+      allele_names[0].substr(0, 4) == std::string("TAP2") || allele_names[0].substr(0, 4) == std::string("MICA") ||
+      allele_names[0].substr(0, 4) == std::string("MICB") || allele_names[0].substr(0, 3) == std::string("HFE"))
   {
     var_type = "H";
   }
 }
 
-
-void
-Segment::clear()
+void Segment::clear()
 {
   allele_names.clear();
   allele_names.shrink_to_fit();
@@ -96,9 +78,7 @@ Segment::clear()
   var_type.clear();
 }
 
-
-void
-Segment::insert_score(std::vector<uint32_t> const & score)
+void Segment::insert_score(std::vector<uint32_t> const & score)
 {
   SegmentCall new_segment_call;
   new_segment_call.phred = get_segment_phred_from_log2_scores(score);
@@ -117,9 +97,7 @@ Segment::insert_score(std::vector<uint32_t> const & score)
   segment_calls.push_back(std::move(new_segment_call));
 }
 
-
-void
-Segment::insert_scores(std::vector<std::vector<uint32_t> > const & scores)
+void Segment::insert_scores(std::vector<std::vector<uint32_t>> const & scores)
 {
   segment_calls.reserve(scores.size());
 
@@ -129,9 +107,7 @@ Segment::insert_scores(std::vector<std::vector<uint32_t> > const & scores)
   assert(segment_calls.size() == scores.size());
 }
 
-
-std::string
-Segment::get_ref_string() const
+std::string Segment::get_ref_string() const
 {
   assert(allele_names.size() > 1);
   std::stringstream hap_ss;
@@ -139,9 +115,7 @@ Segment::get_ref_string() const
   return hap_ss.str();
 }
 
-
-std::string
-Segment::get_alt_string() const
+std::string Segment::get_alt_string() const
 {
   assert(allele_names.size() > 1);
   std::stringstream hap_ss;
@@ -155,9 +129,7 @@ Segment::get_alt_string() const
   return hap_ss.str();
 }
 
-
-std::vector<Segment>
-Segment::get_biallelic_segments() const
+std::vector<Segment> Segment::get_biallelic_segments() const
 {
   std::vector<Segment> new_segments;
   assert(this->allele_names.size() >= 2);
@@ -169,7 +141,7 @@ Segment::get_biallelic_segments() const
     new_segment.ref_size = this->ref_size;
     new_segment.segment_name = allele_names[alt_id];
     new_segment.var_type = this->var_type;
-    new_segment.allele_names.push_back(std::string("!")+this->allele_names[alt_id]);
+    new_segment.allele_names.push_back(std::string("!") + this->allele_names[alt_id]);
     new_segment.allele_names.push_back(this->allele_names[alt_id]);
     new_segment.extra_id = alt_id;
 
@@ -182,7 +154,7 @@ Segment::get_biallelic_segments() const
 
     for (unsigned s = 0; s < new_segment.segment_calls.size(); ++s)
     {
-      assert (s < segment_calls.size());
+      assert(s < segment_calls.size());
       auto const & segment_call = this->segment_calls[s];
       auto & new_calls = new_segment.segment_calls[s];
       uint32_t i = 0;
@@ -191,7 +163,7 @@ Segment::get_biallelic_segments() const
       {
         for (uint32_t x = 0; x <= y; ++x, ++i)
         {
-          assert (i < segment_call.phred.size());
+          assert(i < segment_call.phred.size());
 
           if (segment_call.phred[i] == 255u)
             continue;
@@ -233,6 +205,5 @@ Segment::get_biallelic_segments() const
 
   return new_segments;
 }
-
 
 } // namespace gyper

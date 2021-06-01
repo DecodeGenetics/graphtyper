@@ -1,16 +1,10 @@
-#include <string> // std::string
+#include <string>        // std::string
 #include <unordered_map> // std::unordered_map
-#include <vector> // std::vector
-
-#include <graphtyper/utilities/logging.hpp>
-
-#include <htslib/hfile.h>
-#include <htslib/hts.h>
-#include <htslib/sam.h>
+#include <vector>        // std::vector
 
 #include <seqan/basic.h>
-#include <seqan/sequence.h>
 #include <seqan/hts_io.h>
+#include <seqan/sequence.h>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/haplotype_calls.hpp>
@@ -26,16 +20,19 @@
 #include <graphtyper/utilities/hts_store.hpp>
 #include <graphtyper/utilities/hts_writer.hpp>
 #include <graphtyper/utilities/io.hpp>
+#include <graphtyper/utilities/logging.hpp>
 #include <graphtyper/utilities/options.hpp>
+
+#include <htslib/hfile.h>
+#include <htslib/hts.h>
+#include <htslib/sam.h>
 
 namespace
 {
-
-using TMapGPaths = std::unordered_map<std::string, std::pair<gyper::GenotypePaths, gyper::GenotypePaths> >;
+using TMapGPaths = std::unordered_map<std::string, std::pair<gyper::GenotypePaths, gyper::GenotypePaths>>;
 
 #ifndef NDEBUG
-void
-check_if_maps_are_empty(std::vector<TMapGPaths> const & maps)
+void check_if_maps_are_empty(std::vector<TMapGPaths> const & maps)
 {
   for (long i = 0; i < static_cast<long>(maps.size()); ++i)
   {
@@ -49,31 +46,26 @@ check_if_maps_are_empty(std::vector<TMapGPaths> const & maps)
                 map.size(),
                 "! This likely means these reads have the BAM_FPAIRED flag set but have no mate read.");
 
-      //for (auto it = map.begin(); it != map.end(); ++it)
+      // for (auto it = map.begin(); it != map.end(); ++it)
       //  BOOST_LOG_TRIVIAL(debug) << "Leftover read name: " << it->first;
     }
   }
 }
 
-
 #endif // NDEBUG
 
-} // anon namespace
-
+} // namespace
 
 namespace gyper
 {
-
 HtsParallelReader::~HtsParallelReader()
 {
   close();
 }
 
-
-void
-HtsParallelReader::open(std::vector<std::string> const & hts_file_paths,
-                        std::string const & reference,
-                        std::string const & region)
+void HtsParallelReader::open(std::vector<std::string> const & hts_file_paths,
+                             std::string const & reference,
+                             std::string const & region)
 {
   for (auto const & bam : hts_file_paths)
   {
@@ -102,17 +94,13 @@ HtsParallelReader::open(std::vector<std::string> const & hts_file_paths,
   }
 }
 
-
-void
-HtsParallelReader::close()
+void HtsParallelReader::close()
 {
   for (auto & hts_f : hts_files)
     hts_f.close();
 }
 
-
-bool
-HtsParallelReader::read_record(HtsRecord & hts_record)
+bool HtsParallelReader::read_record(HtsRecord & hts_record)
 {
   if (heap.empty())
     return false;
@@ -147,9 +135,7 @@ HtsParallelReader::read_record(HtsRecord & hts_record)
   return true;
 }
 
-
-void
-HtsParallelReader::move_record(HtsRecord & to, HtsRecord & from)
+void HtsParallelReader::move_record(HtsRecord & to, HtsRecord & from)
 {
   if (to.record)
     store.push(to.record);
@@ -159,39 +145,29 @@ HtsParallelReader::move_record(HtsRecord & to, HtsRecord & from)
   from.record = nullptr;
 }
 
-
-std::vector<std::string> const &
-HtsParallelReader::get_samples() const
+std::vector<std::string> const & HtsParallelReader::get_samples() const
 {
   return samples;
 }
 
-
-void
-HtsParallelReader::get_sample_and_rg_index(long & sample_i, long & rg_i, HtsRecord const & hts_rec) const
+void HtsParallelReader::get_sample_and_rg_index(long & sample_i, long & rg_i, HtsRecord const & hts_rec) const
 {
   assert(hts_rec.file_index < static_cast<long>(hts_files.size()));
   auto const & hts_f = hts_files[hts_rec.file_index];
   hts_f.get_sample_and_rg_index(sample_i, rg_i, hts_rec.record);
 }
 
-
-long
-HtsParallelReader::get_num_rg() const
+long HtsParallelReader::get_num_rg() const
 {
   return num_rg;
 }
 
-
-long
-HtsParallelReader::get_num_samples() const
+long HtsParallelReader::get_num_samples() const
 {
   return samples.size();
 }
 
-
-bam_hdr_t *
-HtsParallelReader::get_header() const
+bam_hdr_t * HtsParallelReader::get_header() const
 {
   if (hts_files.size() == 0)
   {
@@ -235,12 +211,10 @@ HtsParallelReader::get_header() const
   return hdr;
 }
 
-
 //***
 // Free functions
 
-seqan::BamAlignmentRecord
-parse(HtsRecord const & hts_rec)
+seqan::BamAlignmentRecord parse(HtsRecord const & hts_rec)
 {
   assert(hts_rec.record);
 
@@ -249,9 +223,7 @@ parse(HtsRecord const & hts_rec)
   return rec;
 }
 
-
-void
-get_sequence(seqan::IupacString & seq, seqan::IupacString & rseq, bam1_t const * rec)
+void get_sequence(seqan::IupacString & seq, seqan::IupacString & rseq, bam1_t const * rec)
 {
   auto & core = rec->core;
   assert(core.l_qseq > 0);
@@ -270,20 +242,18 @@ get_sequence(seqan::IupacString & seq, seqan::IupacString & rseq, bam1_t const *
   seqan::reverseComplement(rseq);
 }
 
-
-void
-genotype_only(HtsParallelReader const & hts_preader,
-              VcfWriter & writer,
-              ReferenceDepth & reference_depth,
-              std::vector<TMapGPaths> & maps,
-              std::pair<GenotypePaths, GenotypePaths> & prev_paths,
-              PHIndex const & ph_index,
-              Primers const * primers,
-              HtsRecord const & hts_rec,
-              seqan::IupacString & seq,
-              seqan::IupacString & rseq,
-              bool update_prev_paths,
-              bool const IS_SV_CALLING)
+void genotype_only(HtsParallelReader const & hts_preader,
+                   VcfWriter & writer,
+                   ReferenceDepth & reference_depth,
+                   std::vector<TMapGPaths> & maps,
+                   std::pair<GenotypePaths, GenotypePaths> & prev_paths,
+                   PHIndex const & ph_index,
+                   Primers const * primers,
+                   HtsRecord const & hts_rec,
+                   seqan::IupacString & seq,
+                   seqan::IupacString & rseq,
+                   bool update_prev_paths,
+                   bool const IS_SV_CALLING)
 {
   assert(hts_rec.record);
   assert(hts_rec.file_index >= 0);
@@ -316,7 +286,7 @@ genotype_only(HtsParallelReader const & hts_preader,
     {
       // Read is in a pair and we need to wait for its mate
       update_paths(geno_paths, hts_rec.record);
-      map_gpaths[read_name] = std::move(geno_paths);   // Did not find the read name
+      map_gpaths[read_name] = std::move(geno_paths); // Did not find the read name
     }
     else
     {
@@ -345,8 +315,7 @@ genotype_only(HtsParallelReader const & hts_preader,
     }
 
     // Find the better pair of geno paths
-    std::pair<GenotypePaths *, GenotypePaths *> better_paths =
-      get_better_paths(find_it->second, geno_paths);
+    std::pair<GenotypePaths *, GenotypePaths *> better_paths = get_better_paths(find_it->second, geno_paths);
 
     if (better_paths.first)
     {
@@ -360,14 +329,13 @@ genotype_only(HtsParallelReader const & hts_preader,
       }
 
       writer.update_haplotype_scores_geno(better_paths, sample_i, primers);
-      //writer.update_haplotype_scores_geno(*better_paths.first, sample_i, primers);
-      //writer.update_haplotype_scores_geno(*better_paths.second, sample_i, primers);
+      // writer.update_haplotype_scores_geno(*better_paths.first, sample_i, primers);
+      // writer.update_haplotype_scores_geno(*better_paths.second, sample_i, primers);
     }
 
     map_gpaths.erase(find_it); // Remove the read name afterwards
   }
 }
-
 
 /*
 void
@@ -487,21 +455,20 @@ genotype_and_discover(HtsParallelReader const & hts_preader,
 }
 */
 
-void
-parallel_reader_genotype_only(long const thread_id,
-                              std::string * out_path,
-                              std::vector<std::string> const * hts_paths_ptr,
-                              std::vector<double> const * avg_cov_ptr,
-                              std::string const * output_dir_ptr,
-                              std::string const * reference_fn_ptr,
-                              std::string const * region_ptr,
-                              PHIndex const * ph_index_ptr,
-                              Primers const * primers,
-                              std::vector<std::map<std::pair<uint16_t, uint16_t>,
-                                                   std::map<std::pair<uint16_t, uint16_t>, int8_t> > > * ph_ptr,
-                              bool const is_writing_calls_vcf,
-                              bool const is_writing_hap,
-                              std::vector<std::unordered_map<uint32_t, uint32_t> > * allele_hap_gts_ptr)
+void parallel_reader_genotype_only(
+  long const thread_id,
+  std::string * out_path,
+  std::vector<std::string> const * hts_paths_ptr,
+  std::vector<double> const * avg_cov_ptr,
+  std::string const * output_dir_ptr,
+  std::string const * reference_fn_ptr,
+  std::string const * region_ptr,
+  PHIndex const * ph_index_ptr,
+  Primers const * primers,
+  std::vector<std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t>>> * ph_ptr,
+  bool const is_writing_calls_vcf,
+  bool const is_writing_hap,
+  std::vector<std::unordered_map<uint32_t, uint32_t>> * allele_hap_gts_ptr)
 {
   assert(hts_paths_ptr);
   assert(avg_cov_ptr);
@@ -509,7 +476,7 @@ parallel_reader_genotype_only(long const thread_id,
   assert(output_dir_ptr);
   assert(reference_fn_ptr);
   assert(region_ptr);
-  //assert(allele_hap_gts_ptr);
+  // assert(allele_hap_gts_ptr);
 
   auto const & hts_paths = *hts_paths_ptr;
   auto const & avg_cov_by_readlen = *avg_cov_ptr;
@@ -548,7 +515,7 @@ parallel_reader_genotype_only(long const thread_id,
   {
     writer.print_statistics_headers();
     writer.print_variant_details();
-    //writer.print_variant_group_details();
+    // writer.print_variant_group_details();
   }
 #endif // ifndef NDEBUG
 
@@ -558,49 +525,47 @@ parallel_reader_genotype_only(long const thread_id,
   HtsRecord prev;
 
   // returns true if the read is good enough to attempt graph alignment and use in genotyping
-  auto is_good_read =
-    [](bam1_t * record) -> bool
+  auto is_good_read = [](bam1_t * record) -> bool
+  {
+    auto const & core = record->core;
+
+    if ((core.flag & IS_UNMAPPED) != 0u)
+      return false;
+
+    std::array<char, 16> static constexpr CIGAR_MAP = {
+      {'M', 'I', 'D', 'N', 'S', 'H', 'P', '=', 'X', 'B', '*', '*', '*', '*', '*', '*'}};
+
+    auto cigar_it = record->data + core.l_qname;
+    long const N_CIGAR = core.n_cigar;
+    bool const is_mate_far_away = core.tid != core.mtid || std::abs(core.pos - core.mpos) > 200000;
+
+    if (core.qual <= 15 && is_mate_far_away)
+      return false;
+
+    // Check if both ends are clipped
+    if (N_CIGAR >= 2)
     {
-      auto const & core = record->core;
+      uint32_t opAndCnt;
+      memcpy(&opAndCnt, cigar_it, sizeof(uint32_t));
+      char cigar_operation_front = CIGAR_MAP[opAndCnt & 15];
+      uint32_t count_front = opAndCnt >> 4;
 
-      if ((core.flag & IS_UNMAPPED) != 0u)
+      cigar_it += sizeof(uint32_t) * (N_CIGAR - 1);
+      memcpy(&opAndCnt, cigar_it, sizeof(uint32_t));
+      char cigar_operation_back = CIGAR_MAP[opAndCnt & 15];
+      uint32_t count_back = opAndCnt >> 4;
+
+      bool const is_one_clipped =
+        (cigar_operation_front == 'S' && count_front >= 12) || (cigar_operation_back == 'S' && count_back >= 12);
+
+      bool const are_both_clipped = cigar_operation_front == 'S' && cigar_operation_back == 'S';
+
+      if (are_both_clipped || (core.qual <= 15 && is_one_clipped))
         return false;
+    }
 
-      std::array<char, 16> static constexpr CIGAR_MAP = {{
-        'M', 'I', 'D', 'N', 'S', 'H', 'P', '=', 'X', 'B', '*', '*', '*', '*', '*', '*'
-      }};
-
-      auto cigar_it = record->data + core.l_qname;
-      long const N_CIGAR = core.n_cigar;
-      bool const is_mate_far_away = core.tid != core.mtid || std::abs(core.pos - core.mpos) > 200000;
-
-      if (core.qual <= 15 && is_mate_far_away)
-        return false;
-
-      // Check if both ends are clipped
-      if (N_CIGAR >= 2)
-      {
-        uint32_t opAndCnt;
-        memcpy(&opAndCnt, cigar_it, sizeof(uint32_t));
-        char cigar_operation_front = CIGAR_MAP[opAndCnt & 15];
-        uint32_t count_front = opAndCnt >> 4;
-
-        cigar_it += sizeof(uint32_t) * (N_CIGAR - 1);
-        memcpy(&opAndCnt, cigar_it, sizeof(uint32_t));
-        char cigar_operation_back = CIGAR_MAP[opAndCnt & 15];
-        uint32_t count_back = opAndCnt >> 4;
-
-        bool const is_one_clipped = (cigar_operation_front == 'S' && count_front >= 12) ||
-                                    (cigar_operation_back == 'S' && count_back >= 12);
-
-        bool const are_both_clipped = cigar_operation_front == 'S' && cigar_operation_back == 'S';
-
-        if (are_both_clipped || (core.qual <= 15 && is_one_clipped))
-          return false;
-      }
-
-      return true;
-    };
+    return true;
+  };
 
   // Read the first record
   bool is_done = !hts_preader.read_record(prev);
@@ -623,7 +588,7 @@ parallel_reader_genotype_only(long const thread_id,
     // bin counts for the (extreme) coverage filter
     long const first_pos{prev.record->core.pos};
 
-    std::vector<std::vector<uint16_t> > bin_counts;
+    std::vector<std::vector<uint16_t>> bin_counts;
     bool const IS_COVERAGE_FILTER{IS_SV_CALLING && !Options::const_instance()->no_filter_on_coverage};
 
     if (IS_COVERAGE_FILTER)
@@ -631,50 +596,59 @@ parallel_reader_genotype_only(long const thread_id,
 
     // Lambda function to update bin counts for the first record. Returns false when there are too many
     // reads in bin
-    auto update_bin_count =
-      [&](HtsRecord const & hts_rec) -> bool
+    auto update_bin_count = [&](HtsRecord const & hts_rec) -> bool
+    {
+      if (!IS_COVERAGE_FILTER)
+        return true;
+
+      long sample_i{0};
+      long rg_i{0};
+      hts_preader.get_sample_and_rg_index(sample_i, rg_i, hts_rec);
+
+      if (sample_i >= static_cast<long>(avg_cov_by_readlen.size()) || avg_cov_by_readlen[sample_i] <= 0.0)
+        return true;
+
+      uint16_t max_bin_count = std::min(static_cast<long>(std::numeric_limits<uint16_t>::max()),
+                                        static_cast<long>(avg_cov_by_readlen[sample_i] * 50.0 * 3.0 + 0.5));
+
+      assert(sample_i < static_cast<long>(bin_counts.size()));
+      auto & sample_bin_counts = bin_counts[sample_i];
+      long const bin = (hts_rec.record->core.pos - first_pos) / 50l;
+
+      if (bin >= static_cast<long>(sample_bin_counts.size()))
       {
-        if (!IS_COVERAGE_FILTER)
-          return true;
-
-        long sample_i{0};
-        long rg_i{0};
-        hts_preader.get_sample_and_rg_index(sample_i, rg_i, hts_rec);
-
-        if (sample_i >= static_cast<long>(avg_cov_by_readlen.size()) || avg_cov_by_readlen[sample_i] <= 0.0)
-          return true;
-
-        uint16_t max_bin_count = std::min(static_cast<long>(std::numeric_limits<uint16_t>::max()),
-                                          static_cast<long>(avg_cov_by_readlen[sample_i] * 50.0 * 3.0 + 0.5));
-
-        assert(sample_i < static_cast<long>(bin_counts.size()));
-        auto & sample_bin_counts = bin_counts[sample_i];
-        long const bin = (hts_rec.record->core.pos - first_pos) / 50l;
-
-        if (bin >= static_cast<long>(sample_bin_counts.size()))
-        {
-          sample_bin_counts.resize(bin + 1, 0u);
-          ++sample_bin_counts[bin]; // increment read count in new bin
-          return true;
-        }
-        else if (sample_bin_counts[bin] > max_bin_count)
-        {
-          return false;
-        }
-        else
-        {
-          ++sample_bin_counts[bin]; // increment read count in bin
-          return true;
-        }
-      };
+        sample_bin_counts.resize(bin + 1, 0u);
+        ++sample_bin_counts[bin]; // increment read count in new bin
+        return true;
+      }
+      else if (sample_bin_counts[bin] > max_bin_count)
+      {
+        return false;
+      }
+      else
+      {
+        ++sample_bin_counts[bin]; // increment read count in bin
+        return true;
+      }
+    };
 
     update_bin_count(prev);
     ++num_records;
     seqan::IupacString seq;
     seqan::IupacString rseq;
 
-    genotype_only(hts_preader, writer, reference_depth, maps, prev_paths, ph_index, primers,
-                  prev, seq, rseq, true /*update prev_geno_paths*/, IS_SV_CALLING);
+    genotype_only(hts_preader,
+                  writer,
+                  reference_depth,
+                  maps,
+                  prev_paths,
+                  ph_index,
+                  primers,
+                  prev,
+                  seq,
+                  rseq,
+                  true /*update prev_geno_paths*/,
+                  IS_SV_CALLING);
 
     HtsRecord curr;
 
@@ -695,8 +669,18 @@ parallel_reader_genotype_only(long const thread_id,
         update_bin_count(curr);
         ++num_duplicated_records;
 
-        genotype_only(hts_preader, writer, reference_depth, maps, prev_paths, ph_index, primers,
-                      curr, seq, rseq, false /*update prev_geno_paths*/, IS_SV_CALLING);
+        genotype_only(hts_preader,
+                      writer,
+                      reference_depth,
+                      maps,
+                      prev_paths,
+                      ph_index,
+                      primers,
+                      curr,
+                      seq,
+                      rseq,
+                      false /*update prev_geno_paths*/,
+                      IS_SV_CALLING);
       }
       else
       {
@@ -706,49 +690,61 @@ parallel_reader_genotype_only(long const thread_id,
           continue;
         }
 
-        genotype_only(hts_preader, writer, reference_depth, maps, prev_paths, ph_index, primers,
-                      curr, seq, rseq, true /*update prev_geno_paths*/, IS_SV_CALLING);
+        genotype_only(hts_preader,
+                      writer,
+                      reference_depth,
+                      maps,
+                      prev_paths,
+                      ph_index,
+                      primers,
+                      curr,
+                      seq,
+                      rseq,
+                      true /*update prev_geno_paths*/,
+                      IS_SV_CALLING);
 
         hts_preader.move_record(prev, curr); // move curr to prev
       }
     }
 
-    print_log(log_severity::debug, __HERE__, " Num of duplicated records: "
-                            , num_duplicated_records, " / ", num_records);
+    print_log(log_severity::debug,
+              __HERE__,
+              " Num of duplicated records: ",
+              num_duplicated_records,
+              " / ",
+              num_records);
   }
 
   // align leftover reads
   if (IS_SV_CALLING)
   {
-    auto process_leftovers =
-      [&](long sample_i, long rg_i)
+    auto process_leftovers = [&](long sample_i, long rg_i)
+    {
+      auto & map_gpaths = maps[rg_i];
+
+      for (auto read_it = map_gpaths.begin(); read_it != map_gpaths.end(); ++read_it)
       {
-        auto & map_gpaths = maps[rg_i];
+        // BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << read_it->first;
+        std::pair<GenotypePaths, GenotypePaths> copy(read_it->second);
 
-        for (auto read_it = map_gpaths.begin(); read_it != map_gpaths.end(); ++read_it)
+        toggle_bit(copy.first.flags, IS_FIRST_IN_PAIR | IS_SEQ_REVERSED);
+        toggle_bit(copy.second.flags, IS_FIRST_IN_PAIR | IS_SEQ_REVERSED);
+
+        std::pair<GenotypePaths *, GenotypePaths *> better_paths = get_better_paths(read_it->second, copy);
+
+        if (better_paths.first)
         {
-          //BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << read_it->first;
-          std::pair<GenotypePaths, GenotypePaths> copy(read_it->second);
+          assert(better_paths.second);
 
-          toggle_bit(copy.first.flags, IS_FIRST_IN_PAIR | IS_SEQ_REVERSED);
-          toggle_bit(copy.second.flags, IS_FIRST_IN_PAIR | IS_SEQ_REVERSED);
+          // Add reference depth
+          reference_depth.add_genotype_paths(*better_paths.first, sample_i);
+          // reference_depth.add_genotype_paths(*better_paths.second, sample_i);
 
-          std::pair<GenotypePaths *, GenotypePaths *> better_paths =
-            get_better_paths(read_it->second, copy);
-
-          if (better_paths.first)
-          {
-            assert(better_paths.second);
-
-            // Add reference depth
-            reference_depth.add_genotype_paths(*better_paths.first, sample_i);
-            //reference_depth.add_genotype_paths(*better_paths.second, sample_i);
-
-            writer.update_haplotype_scores_geno(*better_paths.first, sample_i, primers);
-            //writer.update_haplotype_scores_geno(*better_paths.second, sample_i, primers);
-          }
+          writer.update_haplotype_scores_geno(*better_paths.first, sample_i, primers);
+          // writer.update_haplotype_scores_geno(*better_paths.second, sample_i, primers);
         }
-      };
+      }
+    };
 
     long const NUM_FILES = hts_preader.hts_files.size();
 
@@ -776,7 +772,7 @@ parallel_reader_genotype_only(long const thread_id,
   }
 
 #ifndef NDEBUG
-  //if (!gyper::graph.is_sv_graph)
+  // if (!gyper::graph.is_sv_graph)
   {
     check_if_maps_are_empty(maps);
   }
@@ -785,12 +781,11 @@ parallel_reader_genotype_only(long const thread_id,
   // Write haplotype calls
   if (is_writing_hap)
   {
-#ifdef GT_DEV
     assert(ph_ptr);
     assert(thread_id < static_cast<long>(ph_ptr->size()));
 
-    std::map<std::pair<uint16_t, uint16_t>,
-             std::map<std::pair<uint16_t, uint16_t>, int8_t> > & ph = (*ph_ptr)[thread_id];
+    std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t>> & ph =
+      (*ph_ptr)[thread_id];
 
     for (long ps1{0}; ps1 < (static_cast<long>(writer.haplotypes.size()) - 1l); ++ps1)
     {
@@ -824,17 +819,15 @@ parallel_reader_genotype_only(long const thread_id,
             if (find_it == conn.end()) // no info between these haplotypes
               continue;
 
-            bool const is_clearly_seen1 = hap_samples1.gt_coverage[cov1] >= 4 ||
-                                          (static_cast<double>(hap_samples1.gt_coverage[cov1]) /
-                                           std::accumulate(hap_samples1.gt_coverage.begin(),
-                                                           hap_samples1.gt_coverage.end(),
-                                                           0.0)) >= 0.28;
+            bool const is_clearly_seen1 =
+              hap_samples1.gt_coverage[cov1] >= 4 ||
+              (static_cast<double>(hap_samples1.gt_coverage[cov1]) /
+               std::accumulate(hap_samples1.gt_coverage.begin(), hap_samples1.gt_coverage.end(), 0.0)) >= 0.28;
 
-            bool const is_not_seen1 = hap_samples1.gt_coverage[cov1] <= 2 ||
-                                      (static_cast<double>(hap_samples1.gt_coverage[cov1]) /
-                                       std::accumulate(hap_samples1.gt_coverage.begin(),
-                                                       hap_samples1.gt_coverage.end(),
-                                                       0.0)) < 0.22;
+            bool const is_not_seen1 =
+              hap_samples1.gt_coverage[cov1] <= 2 ||
+              (static_cast<double>(hap_samples1.gt_coverage[cov1]) /
+               std::accumulate(hap_samples1.gt_coverage.begin(), hap_samples1.gt_coverage.end(), 0.0)) < 0.22;
 
             auto find1_it = ph.find({ps1, cov1});
 
@@ -856,22 +849,20 @@ parallel_reader_genotype_only(long const thread_id,
             {
               double const support = static_cast<double>(support_vec[cov2]);
 
-              //if (total_support <= 2)
+              // if (total_support <= 2)
               //  continue;
 
               int8_t is_good{0};
 
-              bool const is_clearly_seen2 = hap_samples2.gt_coverage[cov2] >= 4 ||
-                                            (static_cast<double>(hap_samples2.gt_coverage[cov2]) /
-                                             std::accumulate(hap_samples2.gt_coverage.begin(),
-                                                             hap_samples2.gt_coverage.end(),
-                                                             0.0)) >= 0.28;
+              bool const is_clearly_seen2 =
+                hap_samples2.gt_coverage[cov2] >= 4 ||
+                (static_cast<double>(hap_samples2.gt_coverage[cov2]) /
+                 std::accumulate(hap_samples2.gt_coverage.begin(), hap_samples2.gt_coverage.end(), 0.0)) >= 0.28;
 
-              bool const is_not_seen2 = hap_samples2.gt_coverage[cov2] <= 2 ||
-                                        (static_cast<double>(hap_samples2.gt_coverage[cov2]) /
-                                         std::accumulate(hap_samples2.gt_coverage.begin(),
-                                                         hap_samples2.gt_coverage.end(),
-                                                         0.0)) < 0.22;
+              bool const is_not_seen2 =
+                hap_samples2.gt_coverage[cov2] <= 2 ||
+                (static_cast<double>(hap_samples2.gt_coverage[cov2]) /
+                 std::accumulate(hap_samples2.gt_coverage.begin(), hap_samples2.gt_coverage.end(), 0.0)) < 0.22;
 
               if (is_not_seen1 && is_not_seen2)
               {
@@ -971,23 +962,12 @@ parallel_reader_genotype_only(long const thread_id,
 
       save_vcf(vcf, output_dir + "/" + first_sample);
     }
-
-#else
-    // Write genotype calls. No need to write haplotype calls in SV genotyping
-    std::ostringstream hap_calls_path;
-    hap_calls_path << output_dir << "/" << first_sample << ".hap";
-    HaplotypeCalls hap_calls(writer.get_haplotype_calls());
-
-    print_log(log_severity::debug, __HERE__, " Writing haplotype calls to '"
-                            , hap_calls_path.str(), "'");
-    save_calls(hap_calls, hap_calls_path.str());
-#endif
   }
 
   // Optionally we can write _calls.vcf.gz files for each pool of samples
   if (allele_hap_gts_ptr && !Options::const_instance()->force_ignore_segment)
   {
-    //BOOST_LOG_TRIVIAL(info) << __HERE__ << " Writing HLA calls to '"
+    // BOOST_LOG_TRIVIAL(info) << __HERE__ << " Writing HLA calls to '"
     //                        << output_dir << "/"
     //                        << first_sample << "_*'";
     Vcf vcf;
@@ -1003,9 +983,7 @@ parallel_reader_genotype_only(long const thread_id,
   }
   else if (is_writing_calls_vcf || Options::const_instance()->force_ignore_segment)
   {
-    print_log(log_severity::debug, __HERE__, " Writing calls to '"
-                            , output_dir, "/"
-                            , first_sample, "_*'");
+    print_log(log_severity::debug, __HERE__, " Writing calls to '", output_dir, "/", first_sample, "_*'");
 
     Vcf vcf;
 
@@ -1019,7 +997,7 @@ parallel_reader_genotype_only(long const thread_id,
       hap.clear(); // clear haplotype
     }
 
-    //for (auto & var : vcf.variants)
+    // for (auto & var : vcf.variants)
     //  var.trim_sequences(false);   // Don't keep one match
 
     if (graph.is_sv_graph)
@@ -1035,9 +1013,8 @@ parallel_reader_genotype_only(long const thread_id,
       // Non-SVs are at the end from the reformat_sv_vcf_records function, so this is needed
       std::sort(vcf.variants.begin(),
                 vcf.variants.end(),
-                [](Variant const & a, Variant const & b){
-          return a.abs_pos < b.abs_pos || (a.abs_pos == b.abs_pos && a.seqs < b.seqs);
-        });
+                [](Variant const & a, Variant const & b)
+                { return a.abs_pos < b.abs_pos || (a.abs_pos == b.abs_pos && a.seqs < b.seqs); });
     }
 
     if (!Options::const_instance()->is_segment_calling)
@@ -1052,7 +1029,6 @@ parallel_reader_genotype_only(long const thread_id,
   assert(out_path);
   *out_path = output_dir + "/" + first_sample;
 }
-
 
 /*
 void
@@ -1243,9 +1219,7 @@ parallel_reader_with_discovery(std::string * out_path,
 }
 */
 
-
-void
-sam_merge(std::string const & output_sam, std::vector<std::string> const & input_sams)
+void sam_merge(std::string const & output_sam, std::vector<std::string> const & input_sams)
 {
   {
     HtsParallelReader hts_preader;
@@ -1275,6 +1249,5 @@ sam_merge(std::string const & output_sam, std::vector<std::string> const & input
       print_log(log_severity::warning, __HERE__, " Unable to remove ", input_sam);
   }
 }
-
 
 } // namespace gyper

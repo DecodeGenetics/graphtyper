@@ -8,7 +8,6 @@
 #include <graphtyper/graph/haplotype.hpp>
 #include <graphtyper/typer/vcf_writer.hpp>
 
-
 /*
 namespace gyper
 {

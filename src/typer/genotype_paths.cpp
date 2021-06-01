@@ -3,6 +3,9 @@
 #include <string>
 #include <vector>
 
+#include <seqan/basic.h>
+#include <seqan/hts_io.h> // BamAlignmentRecord
+
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/haplotype_extractor.hpp>
@@ -10,38 +13,27 @@
 #include <graphtyper/typer/genotype_paths.hpp>
 #include <graphtyper/typer/variant_candidate.hpp>
 #include <graphtyper/utilities/kmer_help_functions.hpp>
-#include <graphtyper/utilities/options.hpp>
-
 #include <graphtyper/utilities/logging.hpp>
-
-#include <seqan/basic.h>
-#include <seqan/hts_io.h> // BamAlignmentRecord
-
+#include <graphtyper/utilities/options.hpp>
 
 namespace
 {
-
-bool
-merge_current_compatibility(gyper::KmerLabel const & l, gyper::Path const & p)
+bool merge_current_compatibility(gyper::KmerLabel const & l, gyper::Path const & p)
 {
   // It is not compatible if the variant order is not already in the path
   return l.start_index == p.start && l.end_index == p.end;
 }
 
-
-bool
-merge_forward_compatibility(gyper::Path const & prev, gyper::Path const & next)
+bool merge_forward_compatibility(gyper::Path const & prev, gyper::Path const & next)
 {
   return prev.end == next.start && prev.read_end_index == next.read_start_index;
 }
 
-
-std::vector<gyper::Path>
-find_all_nonduplicated_paths(gyper::Graph const & graph,
-                             std::vector<gyper::KmerLabel> const & ll,
-                             uint32_t const read_start_index,
-                             uint32_t const read_end_index,
-                             uint16_t const mismatches)
+std::vector<gyper::Path> find_all_nonduplicated_paths(gyper::Graph const & graph,
+                                                      std::vector<gyper::KmerLabel> const & ll,
+                                                      uint32_t const read_start_index,
+                                                      uint32_t const read_end_index,
+                                                      uint16_t const mismatches)
 {
   if (ll.size() == 0)
     return std::vector<gyper::Path>(0);
@@ -73,25 +65,23 @@ find_all_nonduplicated_paths(gyper::Graph const & graph,
   return paths;
 }
 
-
-} // anon namespace
-
+} // namespace
 
 namespace gyper
 {
-
-GenotypePaths::GenotypePaths()
-  : read2()
-  , qual2()
-  , paths(0)
-  , read_length(0)
-  , flags(0)
-  , longest_path_length(0)
-  , original_pos(0)
-  , score_diff(0)
-//  , original_clipped_bp(0)
-  , mapq(255)
-  , ml_insert_size(INSERT_SIZE_WHEN_NOT_PROPER_PAIR)
+GenotypePaths::GenotypePaths() :
+  read2(),
+  qual2(),
+  paths(0),
+  read_length(0),
+  flags(0),
+  longest_path_length(0),
+  original_pos(0),
+  score_diff(0)
+  //  , original_clipped_bp(0)
+  ,
+  mapq(255),
+  ml_insert_size(INSERT_SIZE_WHEN_NOT_PROPER_PAIR)
 {
 #ifndef NDEBUG
   if (Options::instance()->stats.size() > 0)
@@ -101,19 +91,19 @@ GenotypePaths::GenotypePaths()
 #endif // NDEBUG
 }
 
-
-GenotypePaths::GenotypePaths(GenotypePaths const & b)
-  : read2(b.read2)
-  , qual2(b.qual2)
-  , paths(b.paths)
-  , read_length(b.read_length)
-  , flags(b.flags)
-  , longest_path_length(b.longest_path_length)
-  , original_pos(b.original_pos)
-  , score_diff(b.score_diff)
-//  , original_clipped_bp(b.original_clipped_bp)
-  , mapq(b.mapq)
-  , ml_insert_size(b.ml_insert_size)
+GenotypePaths::GenotypePaths(GenotypePaths const & b) :
+  read2(b.read2),
+  qual2(b.qual2),
+  paths(b.paths),
+  read_length(b.read_length),
+  flags(b.flags),
+  longest_path_length(b.longest_path_length),
+  original_pos(b.original_pos),
+  score_diff(b.score_diff)
+  //  , original_clipped_bp(b.original_clipped_bp)
+  ,
+  mapq(b.mapq),
+  ml_insert_size(b.ml_insert_size)
 {
 #ifndef NDEBUG
   if (Options::instance()->stats.size() > 0)
@@ -125,19 +115,19 @@ GenotypePaths::GenotypePaths(GenotypePaths const & b)
 #endif // NDEBUG
 }
 
-
-GenotypePaths::GenotypePaths(GenotypePaths && b)
-  : read2(std::move(b.read2))
-  , qual2(std::move(b.qual2))
-  , paths(std::move(b.paths))
-  , read_length(b.read_length)
-  , flags(b.flags)
-  , longest_path_length(b.longest_path_length)
-  , original_pos(b.original_pos)
-  , score_diff(b.score_diff)
-//  , original_clipped_bp(b.original_clipped_bp)
-  , mapq(b.mapq)
-  , ml_insert_size(b.ml_insert_size)
+GenotypePaths::GenotypePaths(GenotypePaths && b) :
+  read2(std::move(b.read2)),
+  qual2(std::move(b.qual2)),
+  paths(std::move(b.paths)),
+  read_length(b.read_length),
+  flags(b.flags),
+  longest_path_length(b.longest_path_length),
+  original_pos(b.original_pos),
+  score_diff(b.score_diff)
+  //  , original_clipped_bp(b.original_clipped_bp)
+  ,
+  mapq(b.mapq),
+  ml_insert_size(b.ml_insert_size)
 {
 #ifndef NDEBUG
   if (Options::instance()->stats.size() > 0)
@@ -147,9 +137,7 @@ GenotypePaths::GenotypePaths(GenotypePaths && b)
 #endif // NDEBUG
 }
 
-
-GenotypePaths &
-GenotypePaths::operator=(GenotypePaths const & b)
+GenotypePaths & GenotypePaths::operator=(GenotypePaths const & b)
 {
   read2 = b.read2;
   qual2 = b.qual2;
@@ -159,7 +147,7 @@ GenotypePaths::operator=(GenotypePaths const & b)
   longest_path_length = b.longest_path_length;
   original_pos = b.original_pos;
   score_diff = b.score_diff;
-//  original_clipped_bp = b.original_clipped_bp;
+  //  original_clipped_bp = b.original_clipped_bp;
   mapq = b.mapq;
   ml_insert_size = b.ml_insert_size;
 
@@ -182,9 +170,7 @@ GenotypePaths::operator=(GenotypePaths const & b)
   return *this;
 }
 
-
-GenotypePaths &
-GenotypePaths::operator=(GenotypePaths && b)
+GenotypePaths & GenotypePaths::operator=(GenotypePaths && b)
 {
   read2 = std::move(b.read2);
   qual2 = std::move(b.qual2);
@@ -194,7 +180,7 @@ GenotypePaths::operator=(GenotypePaths && b)
   longest_path_length = b.longest_path_length;
   original_pos = b.original_pos;
   score_diff = b.score_diff;
-//  original_clipped_bp = b.original_clipped_bp;
+  //  original_clipped_bp = b.original_clipped_bp;
   mapq = b.mapq;
   ml_insert_size = b.ml_insert_size;
 
@@ -208,19 +194,19 @@ GenotypePaths::operator=(GenotypePaths && b)
   return *this;
 }
 
-
-GenotypePaths::GenotypePaths(int16_t _flags, std::size_t _read_length)
-  : read2()
-  , qual2()
-  , paths(0)
-  , read_length(_read_length)
-  , flags(_flags)
-  , longest_path_length(0)
-  , original_pos(0)
-  , score_diff(0)
-//  , original_clipped_bp(0)
-  , mapq(255)
-  , ml_insert_size(INSERT_SIZE_WHEN_NOT_PROPER_PAIR)
+GenotypePaths::GenotypePaths(int16_t _flags, std::size_t _read_length) :
+  read2(),
+  qual2(),
+  paths(0),
+  read_length(_read_length),
+  flags(_flags),
+  longest_path_length(0),
+  original_pos(0),
+  score_diff(0)
+  //  , original_clipped_bp(0)
+  ,
+  mapq(255),
+  ml_insert_size(INSERT_SIZE_WHEN_NOT_PROPER_PAIR)
 {
 #ifndef NDEBUG
   if (Options::instance()->stats.size() > 0)
@@ -230,15 +216,12 @@ GenotypePaths::GenotypePaths(int16_t _flags, std::size_t _read_length)
 #endif // NDEBUG
 }
 
-
-bool
-GenotypePaths::all_paths_unique() const
+bool GenotypePaths::all_paths_unique() const
 {
   for (std::size_t i = 1; i < paths.size(); ++i)
   {
     if (paths[0].start_ref_reach_pos() != paths[i].start_ref_reach_pos() &&
-        paths[0].end_ref_reach_pos() != paths[i].end_ref_reach_pos()
-        )
+        paths[0].end_ref_reach_pos() != paths[i].end_ref_reach_pos())
     {
       return false;
     }
@@ -247,21 +230,15 @@ GenotypePaths::all_paths_unique() const
   return true;
 }
 
-
-void
-GenotypePaths::add_prev_kmer_labels(std::vector<KmerLabel> const & ll,
-                                    uint32_t const read_start_index,
-                                    uint32_t const read_end_index,
-                                    int const mismatches
-                                    )
+void GenotypePaths::add_prev_kmer_labels(std::vector<KmerLabel> const & ll,
+                                         uint32_t const read_start_index,
+                                         uint32_t const read_end_index,
+                                         int const mismatches)
 {
   assert(read_end_index > read_start_index);
   assert(mismatches >= 0);
-  std::vector<Path> const pp = find_all_nonduplicated_paths(gyper::graph,
-                                                            ll,
-                                                            read_start_index,
-                                                            read_end_index,
-                                                            (uint16_t)mismatches);
+  std::vector<Path> const pp =
+    find_all_nonduplicated_paths(gyper::graph, ll, read_start_index, read_end_index, (uint16_t)mismatches);
   std::size_t const original_size = paths.size();
 
   // Keep track of which new paths did matches with any previous paths
@@ -314,21 +291,14 @@ GenotypePaths::add_prev_kmer_labels(std::vector<KmerLabel> const & ll,
   }
 }
 
-
-void
-GenotypePaths::add_next_kmer_labels(std::vector<KmerLabel> const & ll,
-                                    uint32_t const read_start_index,
-                                    uint32_t const read_end_index,
-                                    int const mismatches
-                                    )
+void GenotypePaths::add_next_kmer_labels(std::vector<KmerLabel> const & ll,
+                                         uint32_t const read_start_index,
+                                         uint32_t const read_end_index,
+                                         int const mismatches)
 {
   assert(read_end_index > read_start_index);
-  std::vector<Path> const pp = find_all_nonduplicated_paths(gyper::graph,
-                                                            ll,
-                                                            read_start_index,
-                                                            read_end_index,
-                                                            (uint16_t)mismatches
-                                                            );
+  std::vector<Path> const pp =
+    find_all_nonduplicated_paths(gyper::graph, ll, read_start_index, read_end_index, (uint16_t)mismatches);
 
   std::size_t const original_size = paths.size();
 
@@ -381,40 +351,35 @@ GenotypePaths::add_next_kmer_labels(std::vector<KmerLabel> const & ll,
   }
 }
 
-
-void
-GenotypePaths::clear_paths()
+void GenotypePaths::clear_paths()
 {
   paths.clear();
   longest_path_length = 0;
 }
 
-
-void
-GenotypePaths::remove_paths_with_too_many_mismatches()
+void GenotypePaths::remove_paths_with_too_many_mismatches()
 {
   if (paths.size() == 0)
     return;
 
   // Maximum mismatches allowed
-  uint16_t min_mismatches = 10; //Options::instance()->is_segment_calling ? (short)2 : (short)10;
+  uint16_t min_mismatches = 10; // Options::instance()->is_segment_calling ? (short)2 : (short)10;
 
   // Find the minimum number of mismatches in the aligned paths
   for (auto const & path : paths)
     min_mismatches = std::min(path.mismatches, min_mismatches);
 
   // Erase paths with more mismatches than the minimum number of mismatches
-  paths.erase(std::remove_if(paths.begin(), paths.end(), [min_mismatches](Path const & path){
-      return path.mismatches > min_mismatches;
-    }), paths.end());
+  paths.erase(std::remove_if(paths.begin(),
+                             paths.end(),
+                             [min_mismatches](Path const & path) { return path.mismatches > min_mismatches; }),
+              paths.end());
 
   // Finally, update the longest path size
-  //update_longest_path_size();
+  // update_longest_path_size();
 }
 
-
-void
-GenotypePaths::remove_support_from_read_ends()
+void GenotypePaths::remove_support_from_read_ends()
 {
   long constexpr MIN_OFFSET = 4;
 
@@ -446,8 +411,7 @@ GenotypePaths::remove_support_from_read_ends()
       if (graph.is_special_pos(path.start + static_cast<uint32_t>(MIN_OFFSET)))
       {
         long const start_ref_reach_pos = path.start_ref_reach_pos();
-        long const start_offset_ref_reach_pos =
-          graph.get_ref_reach_pos(path.start + static_cast<uint32_t>(MIN_OFFSET));
+        long const start_offset_ref_reach_pos = graph.get_ref_reach_pos(path.start + static_cast<uint32_t>(MIN_OFFSET));
         is_ambigous = start_ref_reach_pos != start_offset_ref_reach_pos;
       }
       else
@@ -465,83 +429,58 @@ GenotypePaths::remove_support_from_read_ends()
   }
 }
 
-
-void
-GenotypePaths::remove_paths_within_variant_node()
+void GenotypePaths::remove_paths_within_variant_node()
 {
-  auto is_path_within_one_variant_node =
-    [&](Path const & path)
+  auto is_path_within_one_variant_node = [&](Path const & path)
+  {
+    std::vector<Location> s_locs = graph.get_locations_of_a_position(path.start, path);
+    std::vector<Location> e_locs = graph.get_locations_of_a_position(path.end, path);
+
+    for (auto const & s : s_locs)
     {
-      std::vector<Location> s_locs = graph.get_locations_of_a_position(path.start,
-                                                                       path);
-      std::vector<Location> e_locs = graph.get_locations_of_a_position(path.end,
-                                                                       path);
+      if (s.node_type != 'V')
+        continue;
 
-      for (auto const & s : s_locs)
+      for (auto const & e : e_locs)
       {
-        if (s.node_type != 'V')
-          continue;
-
-        for (auto const & e : e_locs)
+        if (e.node_type == 'V' && s.node_order == e.node_order && s.offset > 0)
         {
-          if (e.node_type == 'V' && s.node_order == e.node_order && s.offset > 0)
-          {
-            return true;
-          }
+          return true;
         }
       }
+    }
 
-      return false;
-    };
+    return false;
+  };
 
   // Erase paths which are within a single variant node
-  paths.erase(std::remove_if(paths.begin(),
-                             paths.end(),
-                             is_path_within_one_variant_node
-                             ), paths.end()
-              );
+  paths.erase(std::remove_if(paths.begin(), paths.end(), is_path_within_one_variant_node), paths.end());
 }
 
-
-void
-GenotypePaths::remove_non_ref_paths_when_read_matches_ref()
+void GenotypePaths::remove_non_ref_paths_when_read_matches_ref()
 {
   if (all_paths_unique()) // paths.size() == 0
     return;
 
   // Check if there are any paths that support purely reference, and in that case delete every other path.
-  auto find_path_it = std::find_if(paths.begin(), paths.end(), [](Path const & p){
-      return p.is_reference();
-    });
+  auto find_path_it = std::find_if(paths.begin(), paths.end(), [](Path const & p) { return p.is_reference(); });
 
   if (find_path_it != paths.end())
   {
     // I found a path that is purely reference... delete all other paths
-    paths.erase(std::remove_if(paths.begin(), paths.end(), [](Path const & p){
-        return !p.is_reference();
-      }), paths.end());
+    paths.erase(std::remove_if(paths.begin(), paths.end(), [](Path const & p) { return !p.is_reference(); }),
+                paths.end());
   }
 }
 
-
-void
-GenotypePaths::remove_fully_special_paths()
+void GenotypePaths::remove_fully_special_paths()
 {
-  auto is_fully_special = [](Path const & p) -> bool
-                          {
-                            return p.start_ref_reach_pos() == p.end_ref_reach_pos();
-                          };
+  auto is_fully_special = [](Path const & p) -> bool { return p.start_ref_reach_pos() == p.end_ref_reach_pos(); };
 
-  paths.erase(std::remove_if(paths.begin(),
-                             paths.end(),
-                             is_fully_special
-                             )
-             , paths.end());
+  paths.erase(std::remove_if(paths.begin(), paths.end(), is_fully_special), paths.end());
 }
 
-
-void
-GenotypePaths::walk_read_ends(seqan::IupacString const & seq, int maximum_mismatches, gyper::Graph const & graph)
+void GenotypePaths::walk_read_ends(seqan::IupacString const & seq, int maximum_mismatches, gyper::Graph const & graph)
 {
   if (paths.size() == 0 || paths[0].size() == seqan::length(seq))
     return;
@@ -554,7 +493,7 @@ GenotypePaths::walk_read_ends(seqan::IupacString const & seq, int maximum_mismat
 
   std::size_t best_mismatches = 7;
   std::vector<uint32_t> best_end_indexes;
-  std::vector<std::vector<KmerLabel> > best_labels;
+  std::vector<std::vector<KmerLabel>> best_labels;
 
   for (auto & path : paths)
   {
@@ -579,9 +518,9 @@ GenotypePaths::walk_read_ends(seqan::IupacString const & seq, int maximum_mismat
     std::vector<KmerLabel> new_labels;
 
     // Value less than zero causes default value
-    uint32_t mismatches = (maximum_mismatches < 0) ?
-                          static_cast<uint32_t>(std::min(2 + kmer.size() / 11, best_mismatches)) :
-                          static_cast<uint32_t>(maximum_mismatches);
+    uint32_t mismatches = (maximum_mismatches < 0)
+                          ? static_cast<uint32_t>(std::min(2 + kmer.size() / 11, best_mismatches))
+                          : static_cast<uint32_t>(maximum_mismatches);
 
     new_labels = graph.iterative_dfs(std::move(s_locs), std::move(e_locs), kmer, mismatches);
 
@@ -608,18 +547,12 @@ GenotypePaths::walk_read_ends(seqan::IupacString const & seq, int maximum_mismat
   {
     for (unsigned i = 0; i < best_labels.size(); ++i)
     {
-      add_next_kmer_labels(best_labels[i],
-                           best_end_indexes[i],
-                           seqan::length(seq) - 1,
-                           (int)best_mismatches
-                           );
+      add_next_kmer_labels(best_labels[i], best_end_indexes[i], seqan::length(seq) - 1, (int)best_mismatches);
     }
   }
 }
 
-
-void
-GenotypePaths::walk_read_starts(seqan::IupacString const & seq, int maximum_mismatches, gyper::Graph const & graph)
+void GenotypePaths::walk_read_starts(seqan::IupacString const & seq, int maximum_mismatches, gyper::Graph const & graph)
 {
   if (paths.size() == 0 || paths[0].size() == seqan::length(seq))
     return;
@@ -631,7 +564,7 @@ GenotypePaths::walk_read_starts(seqan::IupacString const & seq, int maximum_mism
     maximum_mismatches = 0; // Only allow exact matches when we have a lot of paths
 
   std::size_t best_mismatches = 7;
-  std::vector<std::vector<KmerLabel> > best_labels;
+  std::vector<std::vector<KmerLabel>> best_labels;
   std::vector<uint32_t> best_start_indexes;
 
   for (auto & path : paths)
@@ -656,9 +589,8 @@ GenotypePaths::walk_read_starts(seqan::IupacString const & seq, int maximum_mism
     std::vector<KmerLabel> new_labels;
 
     // Value less than zero causes default value
-    uint32_t mismatches = (maximum_mismatches < 0) ?
-                          std::min(2 + kmer.size() / 11, best_mismatches) :
-                          static_cast<uint32_t>(maximum_mismatches);
+    uint32_t mismatches = (maximum_mismatches < 0) ? std::min(2 + kmer.size() / 11, best_mismatches)
+                                                   : static_cast<uint32_t>(maximum_mismatches);
 
     new_labels = graph.iterative_dfs(std::move(s_locs), std::move(e_locs), kmer, mismatches);
 
@@ -687,7 +619,6 @@ GenotypePaths::walk_read_starts(seqan::IupacString const & seq, int maximum_mism
       add_prev_kmer_labels(best_labels[i], 0, best_start_indexes[i], best_mismatches);
   }
 }
-
 
 /*
 std::vector<VariantCandidate>
@@ -890,23 +821,19 @@ GenotypePaths::find_new_variants() const
 }
 */
 
-
-void
-GenotypePaths::remove_short_paths()
+void GenotypePaths::remove_short_paths()
 {
   if (longest_path_length <= 1)
     return;
 
-  paths.erase(std::remove_if(paths.begin(), paths.end(), [&](Path const & p){
-      return p.size() < longest_path_length;
-    }), paths.end());
+  paths.erase(
+    std::remove_if(paths.begin(), paths.end(), [&](Path const & p) { return p.size() < longest_path_length; }),
+    paths.end());
 
   assert(paths.size() > 0);
 }
 
-
-bool
-GenotypePaths::all_paths_fully_aligned() const
+bool GenotypePaths::all_paths_fully_aligned() const
 {
   for (auto const & path : paths)
   {
@@ -917,9 +844,7 @@ GenotypePaths::all_paths_fully_aligned() const
   return true;
 }
 
-
-bool
-GenotypePaths::is_purely_reference() const
+bool GenotypePaths::is_purely_reference() const
 {
   for (auto const & path : paths)
   {
@@ -930,9 +855,7 @@ GenotypePaths::is_purely_reference() const
   return true;
 }
 
-
-void
-GenotypePaths::update_longest_path_size()
+void GenotypePaths::update_longest_path_size()
 {
   longest_path_length = 0;
 
@@ -940,20 +863,16 @@ GenotypePaths::update_longest_path_size()
     longest_path_length = std::max(path.size(), longest_path_length);
 }
 
-
 /*********************
  * CLASS INFORMATION *
  *********************/
 
-std::size_t
-GenotypePaths::longest_path_size() const
+std::size_t GenotypePaths::longest_path_size() const
 {
   return longest_path_length;
 }
 
-
-bool
-GenotypePaths::check_no_variant_is_missing() const
+bool GenotypePaths::check_no_variant_is_missing() const
 {
   for (auto const & path : paths)
   {
@@ -961,21 +880,24 @@ GenotypePaths::check_no_variant_is_missing() const
 
     if (expected_orders.size() != path.var_order.size())
     {
-      print_log(log_severity::error, "[genotype_paths] The number of expected orders did not match, got ",
-        path.var_order.size(), " but expected ", expected_orders.size());
+      print_log(log_severity::error,
+                "[genotype_paths] The number of expected orders did not match, got ",
+                path.var_order.size(),
+                " but expected ",
+                expected_orders.size());
       return false;
     }
 
     auto all_orders_match = [&](std::vector<uint32_t> const & o1, std::vector<uint32_t> const & o2)
-                            {
-                              for (auto const & o : o1)
-                              {
-                                if (std::find(o2.begin(), o2.end(), o) == o2.end())
-                                  return false;
-                              }
+    {
+      for (auto const & o : o1)
+      {
+        if (std::find(o2.begin(), o2.end(), o) == o2.end())
+          return false;
+      }
 
-                              return true;
-                            };
+      return true;
+    };
 
     if (!all_orders_match(expected_orders, path.var_order) || !all_orders_match(path.var_order, expected_orders))
     {
@@ -987,30 +909,20 @@ GenotypePaths::check_no_variant_is_missing() const
   return true;
 }
 
-
 #ifndef NDEBUG
-std::string
-GenotypePaths::to_string() const
+std::string GenotypePaths::to_string() const
 {
   std::ostringstream ss;
-  ss << "read_name=" << details->query_name
-     << " first_in_pair=" << ((flags & IS_FIRST_IN_PAIR) != 0 ? "Y" : "N")
-     << " read=" << std::string(read2.begin(), read2.end())
-     << " paths.size()=" << paths.size()
-     << " pos=" << original_pos
-     << "\n";
+  ss << "read_name=" << details->query_name << " first_in_pair=" << ((flags & IS_FIRST_IN_PAIR) != 0 ? "Y" : "N")
+     << " read=" << std::string(read2.begin(), read2.end()) << " paths.size()=" << paths.size()
+     << " pos=" << original_pos << "\n";
 
   for (auto const & path : paths)
   {
-    ss << " path_start=" << path.start_pos()
-       << " path_end=" << path.end_pos()
-       << " path_start_correct=" << path.start_correct_pos()
-       << " path_end_correct=" << path.end_correct_pos()
-       << " read_start_index=" << path.read_start_index
-       << " read_end_index=" << path.read_end_index
-       << " mismatches=" << path.mismatches
-       << " path.var_order.size()=" << path.var_order.size()
-       << " var_orders=";
+    ss << " path_start=" << path.start_pos() << " path_end=" << path.end_pos()
+       << " path_start_correct=" << path.start_correct_pos() << " path_end_correct=" << path.end_correct_pos()
+       << " read_start_index=" << path.read_start_index << " read_end_index=" << path.read_end_index
+       << " mismatches=" << path.mismatches << " path.var_order.size()=" << path.var_order.size() << " var_orders=";
 
     for (auto const var_order : path.var_order)
       ss << var_order << " ";
@@ -1021,19 +933,14 @@ GenotypePaths::to_string() const
   return ss.str();
 }
 
-
 #endif // NDEBUG
 
-
-bool
-GenotypePaths::is_proper_pair() const
+bool GenotypePaths::is_proper_pair() const
 {
   return ml_insert_size != INSERT_SIZE_WHEN_NOT_PROPER_PAIR;
 }
 
-
-int
-compare_pair_of_genotype_paths(GenotypePaths const & geno1, GenotypePaths const & geno2)
+int compare_pair_of_genotype_paths(GenotypePaths const & geno1, GenotypePaths const & geno2)
 {
   assert(geno1.read_length > 0);
   assert(geno2.read_length > 0);
@@ -1066,10 +973,8 @@ compare_pair_of_genotype_paths(GenotypePaths const & geno1, GenotypePaths const 
   return 0;
 }
 
-
-int
-compare_pair_of_genotype_paths(std::pair<GenotypePaths *, GenotypePaths *> const & genos1_ptr,
-                               std::pair<GenotypePaths *, GenotypePaths *> const & genos2_ptr)
+int compare_pair_of_genotype_paths(std::pair<GenotypePaths *, GenotypePaths *> const & genos1_ptr,
+                                   std::pair<GenotypePaths *, GenotypePaths *> const & genos2_ptr)
 {
   assert(genos1_ptr.first);
   assert(genos1_ptr.second);
@@ -1104,16 +1009,15 @@ compare_pair_of_genotype_paths(std::pair<GenotypePaths *, GenotypePaths *> const
   //   4. The alignment with fewer paths.
   //   5. The alignment with fewer non-ref variant calls.
   // If we haven't already chosen an alignment at this point we throw both of them away.
-  // Also, the requirement for an alignment to be considered is that both reads have at least two K-mers aligned or one with 90 bases matched.
+  // Also, the requirement for an alignment to be considered is that both reads have at least two K-mers aligned or one
+  // with 90 bases matched.
 
   if ((TOTAL_MATCHES_1_1 >= PERFECT_PATH_SIZE_1 && TOTAL_MATCHES_1_2 >= PERFECT_PATH_SIZE_2) ||
-      (TOTAL_MATCHES_2_1 >= PERFECT_PATH_SIZE_1 && TOTAL_MATCHES_2_2 >= PERFECT_PATH_SIZE_2)
-      )
+      (TOTAL_MATCHES_2_1 >= PERFECT_PATH_SIZE_1 && TOTAL_MATCHES_2_2 >= PERFECT_PATH_SIZE_2))
   {
     // We have a perfect match
     if ((TOTAL_MATCHES_1_1 >= PERFECT_PATH_SIZE_1 && TOTAL_MATCHES_1_2 >= PERFECT_PATH_SIZE_2) &&
-        (TOTAL_MATCHES_2_1 >= PERFECT_PATH_SIZE_1 && TOTAL_MATCHES_2_2 >= PERFECT_PATH_SIZE_2)
-        )
+        (TOTAL_MATCHES_2_1 >= PERFECT_PATH_SIZE_1 && TOTAL_MATCHES_2_2 >= PERFECT_PATH_SIZE_2))
     {
       assert(genos1_first.paths.size() > 0);
       assert(genos1_second.paths.size() > 0);
@@ -1147,19 +1051,19 @@ compare_pair_of_genotype_paths(std::pair<GenotypePaths *, GenotypePaths *> const
         {
           // Count the number of alternative allele calls
           auto alternative_call_count = [](std::vector<Path> const & paths)
-                                        {
-                                          std::size_t count = 0;
+          {
+            std::size_t count = 0;
 
-                                          for (auto const & path : paths)
-                                          {
-                                            for (auto const & num : path.nums)
-                                            {
-                                              count += (num.count(0) == 0);
-                                            }
-                                          }
+            for (auto const & path : paths)
+            {
+              for (auto const & num : path.nums)
+              {
+                count += (num.count(0) == 0);
+              }
+            }
 
-                                          return count;
-                                        };
+            return count;
+          };
 
           std::size_t const COUNT_1 =
             alternative_call_count(genos1_first.paths) + alternative_call_count(genos1_second.paths);
@@ -1264,10 +1168,8 @@ compare_pair_of_genotype_paths(std::pair<GenotypePaths *, GenotypePaths *> const
   return 1; // needed for sv calling
 }
 
-
-int
-compare_pair_of_genotype_paths(std::pair<GenotypePaths, GenotypePaths> & genos1,
-                               std::pair<GenotypePaths, GenotypePaths> & genos2)
+int compare_pair_of_genotype_paths(std::pair<GenotypePaths, GenotypePaths> & genos1,
+                                   std::pair<GenotypePaths, GenotypePaths> & genos2)
 {
   std::pair<GenotypePaths *, GenotypePaths *> genos1_ptr =
     std::make_pair<GenotypePaths *, GenotypePaths *>(&genos1.first, &genos1.second);
@@ -1277,6 +1179,5 @@ compare_pair_of_genotype_paths(std::pair<GenotypePaths, GenotypePaths> & genos1,
 
   return compare_pair_of_genotype_paths(genos1_ptr, genos2_ptr);
 }
-
 
 } // namespace gyper

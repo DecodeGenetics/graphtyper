@@ -1,33 +1,29 @@
 #pragma once
 
-#include <htslib/sam.h>
-
 #include <graphtyper/utilities/hts_store.hpp>
 #include <graphtyper/utilities/hts_utils.hpp>
 
+#include <htslib/sam.h>
 
 namespace gyper
 {
-
 struct HtsRecord
 {
-  bam1_t* record = nullptr;
+  bam1_t * record = nullptr;
   int file_index = -1;
 
-  HtsRecord()
-    : record(nullptr)
-    , file_index(-1)
-  {}
+  HtsRecord() : record(nullptr), file_index(-1)
+  {
+  }
 
-  HtsRecord(bam1_t* r, int i)
-    : record(r)
-    , file_index(i)
-  {}
+  HtsRecord(bam1_t * r, int i) : record(r), file_index(i)
+  {
+  }
 
   HtsRecord(HtsRecord const &) = delete;
-  HtsRecord& operator=(HtsRecord const &) = delete;
+  HtsRecord & operator=(HtsRecord const &) = delete;
 
-  HtsRecord& operator=(HtsRecord && o)
+  HtsRecord & operator=(HtsRecord && o)
   {
     if (record)
       bam_destroy1(record);
@@ -55,11 +51,9 @@ struct HtsRecord
   }
 };
 
-
-inline bool
-Cmp_gt_pair_bam1_t_fun(HtsRecord const & a, HtsRecord const & b)
+inline bool Cmp_gt_pair_bam1_t_fun(HtsRecord const & a, HtsRecord const & b)
 {
   return gt_pos_seq(a.record, b.record);
 }
 
-} // namespace hts
+} // namespace gyper

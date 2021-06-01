@@ -1,32 +1,31 @@
 #include <cassert> // assert()
-#include <cmath> // sqrt
-#include <cstdlib> // std::abs(int64_t)
+#include <cmath>   // sqrt
 #include <cstdint> // uint64_t
-#include <map> // std::map<Key, Value>
+#include <cstdlib> // std::abs(int64_t)
+#include <map>     // std::map<Key, Value>
 #include <numeric> // std::accumulate
-#include <string> // std::string
 #include <sstream> // std::ostringstream
-#include <vector> // std::vector
+#include <string>  // std::string
+#include <vector>  // std::vector
 
 #include <cereal/archives/binary.hpp>
 #include <cereal/types/vector.hpp>
 
 #include <graphtyper/graph/absolute_position.hpp> // gyper::absolute_pos
-#include <graphtyper/typer/var_stats.hpp> // gyper::VarStats
-#include <graphtyper/typer/vcf.hpp> // gyper::get_all_pos(line, delim)
-#include <graphtyper/utilities/options.hpp> // gyper::Options::instance()
+#include <graphtyper/typer/var_stats.hpp>         // gyper::VarStats
+#include <graphtyper/typer/vcf.hpp>               // gyper::get_all_pos(line, delim)
+#include <graphtyper/utilities/options.hpp>       // gyper::Options::instance()
 #include <graphtyper/utilities/string.hpp>
 
 namespace gyper
 {
-
 VarStats::VarStats(std::size_t const allele_count) noexcept
-//  : realignment_distance(allele_count)
-//  , realignment_count(allele_count)
-  : per_allele(allele_count)
-  , read_strand(allele_count)
-{}
-
+  //  : realignment_distance(allele_count)
+  //  , realignment_count(allele_count)
+  :
+  per_allele(allele_count), read_strand(allele_count)
+{
+}
 
 /*
 void
@@ -51,8 +50,7 @@ VarStats::add_realignment_distance(uint8_t const allele_id,
  * CLASS INFORMATION
  */
 
-void
-VarStats::write_stats(std::map<std::string, std::string> & infos) const
+void VarStats::write_stats(std::map<std::string, std::string> & infos) const
 {
   assert(per_allele.size() == read_strand.size());
   long const num_allele = per_allele.size();
@@ -66,9 +64,7 @@ VarStats::write_stats(std::map<std::string, std::string> & infos) const
   write_per_allele_stats(infos);
 }
 
-
-void
-VarStats::write_per_allele_stats(std::map<std::string, std::string> & infos) const
+void VarStats::write_per_allele_stats(std::map<std::string, std::string> & infos) const
 {
   long const num_allele = per_allele.size();
   assert(num_allele > 1);
@@ -101,9 +97,7 @@ VarStats::write_per_allele_stats(std::map<std::string, std::string> & infos) con
   infos["MMal"] = mm_ss.str();
 }
 
-
-void
-VarStats::write_read_strand_stats(std::map<std::string, std::string> & infos) const
+void VarStats::write_read_strand_stats(std::map<std::string, std::string> & infos) const
 {
   long const num_allele = read_strand.size();
   assert(num_allele > 1);
@@ -144,9 +138,7 @@ VarStats::write_read_strand_stats(std::map<std::string, std::string> & infos) co
   infos["SBR2"] = r2_ss.str();
 }
 
-
-void
-VarStats::add_stats(VarStats const & stats)
+void VarStats::add_stats(VarStats const & stats)
 {
   assert(per_allele.size() == stats.per_allele.size());
   assert(read_strand.size() == stats.read_strand.size());
@@ -196,9 +188,7 @@ VarStats::add_stats(VarStats const & stats)
   }
 }
 
-
-void
-VarStats::read_stats(std::map<std::string, std::string> const & infos)
+void VarStats::read_stats(std::map<std::string, std::string> const & infos)
 {
   {
     auto find_it = infos.find("CR");
@@ -367,11 +357,9 @@ VarStats::read_stats(std::map<std::string, std::string> const & infos)
   }
 }
 
-
 /** Non-member functions */
 template <class T>
-std::string
-join_strand_bias(std::vector<T> const & bias)
+std::string join_strand_bias(std::vector<T> const & bias)
 {
   if (bias.size() == 0)
     return std::string(".");
@@ -385,14 +373,11 @@ join_strand_bias(std::vector<T> const & bias)
   return ss.str();
 }
 
-
 // Explicit instantiation
 template std::string join_strand_bias(std::vector<uint32_t> const & bias);
 template std::string join_strand_bias(std::vector<uint64_t> const & bias);
 
-
-std::string
-join_strand_bias(std::vector<uint32_t> const & r1bias, std::vector<uint32_t> const & r2bias)
+std::string join_strand_bias(std::vector<uint32_t> const & r1bias, std::vector<uint32_t> const & r2bias)
 {
   assert(r1bias.size() == r2bias.size());
 
@@ -408,9 +393,7 @@ join_strand_bias(std::vector<uint32_t> const & r1bias, std::vector<uint32_t> con
   return ss.str();
 }
 
-
-std::vector<uint32_t>
-split_bias_to_numbers(std::string const & bias)
+std::vector<uint32_t> split_bias_to_numbers(std::string const & bias)
 {
   auto splitted = split_on_delim(bias, ',');
   std::vector<uint32_t> nums;
@@ -426,9 +409,7 @@ split_bias_to_numbers(std::string const & bias)
   return nums;
 }
 
-
-std::vector<uint32_t>
-get_strand_bias(std::map<std::string, std::string> const & infos, std::string const & bias)
+std::vector<uint32_t> get_strand_bias(std::map<std::string, std::string> const & infos, std::string const & bias)
 {
   auto find_it = infos.find(bias);
 
@@ -438,19 +419,13 @@ get_strand_bias(std::map<std::string, std::string> const & infos, std::string co
     return std::vector<uint32_t>(0);
 }
 
-
-long
-get_accumulated_strand_bias(std::map<std::string, std::string> const & infos,
-                            std::string const & bias)
+long get_accumulated_strand_bias(std::map<std::string, std::string> const & infos, std::string const & bias)
 {
   std::vector<uint32_t> strand_bias = get_strand_bias(infos, bias);
   return std::accumulate(strand_bias.begin(), strand_bias.end(), 0l);
 }
 
-
-long
-get_accumulated_alt_strand_bias(std::map<std::string, std::string> const & infos,
-                                std::string const & bias)
+long get_accumulated_alt_strand_bias(std::map<std::string, std::string> const & infos, std::string const & bias)
 {
   std::vector<uint32_t> strand_bias = get_strand_bias(infos, bias);
 
@@ -460,9 +435,7 @@ get_accumulated_alt_strand_bias(std::map<std::string, std::string> const & infos
   return std::accumulate(strand_bias.begin() + 1, strand_bias.end(), 0l);
 }
 
-
-std::vector<uint16_t>
-get_list_of_uncalled_alleles(std::string const & ac)
+std::vector<uint16_t> get_list_of_uncalled_alleles(std::string const & ac)
 {
   std::vector<uint16_t> uncalled_alleles;
 
@@ -480,10 +453,8 @@ get_list_of_uncalled_alleles(std::string const & ac)
   return uncalled_alleles;
 }
 
-
 template <typename Archive>
-void
-VarStats::serialize(Archive & ar, unsigned const int /*version*/)
+void VarStats::serialize(Archive & ar, unsigned const int /*version*/)
 {
   ar & per_allele;
   ar & read_strand;
@@ -501,11 +472,7 @@ VarStats::serialize(Archive & ar, unsigned const int /*version*/)
   ar & hom_allele_depth;
 }
 
-
-template void VarStats::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &,
-                                                                   const unsigned int);
-template void VarStats::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputArchive &,
-                                                                   const unsigned int);
-
+template void VarStats::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &, const unsigned int);
+template void VarStats::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputArchive &, const unsigned int);
 
 } // namespace gyper

@@ -1,42 +1,33 @@
 #include <algorithm> // std::sort
-#include <string> // std::string
-#include <sstream> // std::stringstream
-#include <vector> // std::vector
-
-#include <graphtyper/utilities/logging.hpp>
+#include <sstream>   // std::stringstream
+#include <string>    // std::string
+#include <vector>    // std::vector
 
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/reference_depth.hpp>
 #include <graphtyper/typer/genotype_paths.hpp>
 #include <graphtyper/typer/variant_candidate.hpp>
-
+#include <graphtyper/utilities/logging.hpp>
 
 namespace gyper
 {
-
 /***********************
  * Global reference
  */
 
 ReferenceDepth::ReferenceDepth()
 {
-  reference_offset = graph.ref_nodes.size() > 0 ?
-                     graph.ref_nodes[0].get_label().order :
-                     0;
+  reference_offset = graph.ref_nodes.size() > 0 ? graph.ref_nodes[0].get_label().order : 0;
 }
 
-
-void
-ReferenceDepth::set_depth_sizes(long const sample_count, long const reference_size)
+void ReferenceDepth::set_depth_sizes(long const sample_count, long const reference_size)
 {
   std::vector<uint16_t> depth;
   depth.resize(reference_size);
   depths.resize(sample_count, depth);
 }
 
-
-uint16_t
-ReferenceDepth::get_read_depth(VariantCandidate const & var, long const sample_index) const
+uint16_t ReferenceDepth::get_read_depth(VariantCandidate const & var, long const sample_index) const
 {
   assert(depths.size() > 0);
   assert(sample_index < static_cast<long>(depths.size()));
@@ -46,7 +37,8 @@ ReferenceDepth::get_read_depth(VariantCandidate const & var, long const sample_i
   uint32_t start_pos = var.abs_pos;
   uint32_t end_pos = static_cast<uint32_t>(start_pos + var.seqs[0].size() - 1);
 
-  // We want to avoid getting the coverage at the first pos if possible, since the first positions very often match in more than one path
+  // We want to avoid getting the coverage at the first pos if possible, since the first positions very often match in
+  // more than one path
   if (var.seqs[0].size() > 1)
     ++start_pos;
 
@@ -65,9 +57,7 @@ ReferenceDepth::get_read_depth(VariantCandidate const & var, long const sample_i
   }
 }
 
-
-uint16_t
-ReferenceDepth::get_read_depth(uint32_t abs_pos, long const sample_index) const
+uint16_t ReferenceDepth::get_read_depth(uint32_t abs_pos, long const sample_index) const
 {
   assert(sample_index < static_cast<long>(depths.size()));
   auto const & depth = depths[sample_index];
@@ -79,17 +69,14 @@ ReferenceDepth::get_read_depth(uint32_t abs_pos, long const sample_index) const
   }
   else
   {
-    //std::cerr << "abs_pos = " << abs_pos << " " << start_pos_to_index(abs_pos) << "\n";
+    // std::cerr << "abs_pos = " << abs_pos << " " << start_pos_to_index(abs_pos) << "\n";
     long const index = std::min(start_pos_to_index(abs_pos), static_cast<long>(depth.size() - 1l));
     return depth[index];
   }
 }
 
-
-uint64_t
-ReferenceDepth::get_total_read_depth_of_samples(VariantCandidate const & var,
-                                                std::vector<uint32_t> const & sample_indexes
-                                                ) const
+uint64_t ReferenceDepth::get_total_read_depth_of_samples(VariantCandidate const & var,
+                                                         std::vector<uint32_t> const & sample_indexes) const
 {
   assert(var.seqs.size() > 0);
   uint32_t start_pos = var.abs_pos;
@@ -124,18 +111,21 @@ ReferenceDepth::get_total_read_depth_of_samples(VariantCandidate const & var,
   return total_read_depth;
 }
 
-
-void
-ReferenceDepth::add_genotype_paths(GenotypePaths const & geno, long const sample_index)
+void ReferenceDepth::add_genotype_paths(GenotypePaths const & geno, long const sample_index)
 {
   assert(depths.size() > 0);
 
   if (sample_index >= static_cast<long>(depths.size()))
   {
-    print_log(log_severity::error, __HERE__, " Odd.. sample_index >= expected ("
-                            , sample_index, " >= ", depths.size(), ")");
+    print_log(log_severity::error,
+              __HERE__,
+              " Odd.. sample_index >= expected (",
+              sample_index,
+              " >= ",
+              depths.size(),
+              ")");
     return;
-    //std::exit(1);
+    // std::exit(1);
   }
 
   assert(sample_index < static_cast<long>(depths.size()));
@@ -166,28 +156,27 @@ ReferenceDepth::add_genotype_paths(GenotypePaths const & geno, long const sample
   {
     std::unordered_set<long> local_depth;
 
-    auto increase_local_depth_lambda =
-      [&](long start_pos, long end_pos)
+    auto increase_local_depth_lambda = [&](long start_pos, long end_pos)
+    {
+      assert(end_pos >= start_pos);
+
+      // Needed for SV breakpoint indel calling
+      if (end_pos < reference_offset)
+        return;
+
+      assert(end_pos >= reference_offset);
+      assert(depth.size() > 0);
+      long const start_index = start_pos_to_index(start_pos);
+      auto const end = depth.begin() + end_pos_to_index(end_pos, depth.size());
+
+      // TODO: Super rarely this fails, find out why.
+      // Must likely it is related to SV breakpoint indel calling
+      if (start_index < static_cast<long>(depth.size()))
       {
-        assert(end_pos >= start_pos);
-
-        // Needed for SV breakpoint indel calling
-        if (end_pos < reference_offset)
-          return;
-
-        assert(end_pos >= reference_offset);
-        assert(depth.size() > 0);
-        long const start_index = start_pos_to_index(start_pos);
-        auto const end = depth.begin() + end_pos_to_index(end_pos, depth.size());
-
-        // TODO: Super rarely this fails, find out why.
-        // Must likely it is related to SV breakpoint indel calling
-        if (start_index < static_cast<long>(depth.size()))
-        {
-          for (auto it = depth.begin() + start_index; it != end && it != depth.end(); ++it)
-            local_depth.insert(std::distance(depth.begin(), it)); // Increase the depth by one
-        }
-      };
+        for (auto it = depth.begin() + start_index; it != end && it != depth.end(); ++it)
+          local_depth.insert(std::distance(depth.begin(), it)); // Increase the depth by one
+      }
+    };
 
     for (auto const & path : geno.paths)
     {
@@ -213,9 +202,7 @@ ReferenceDepth::add_genotype_paths(GenotypePaths const & geno, long const sample
   }
 }
 
-
-void
-ReferenceDepth::add_depth(long const start_pos, long const end_pos, long const sample_index)
+void ReferenceDepth::add_depth(long const start_pos, long const end_pos, long const sample_index)
 {
   assert(sample_index < static_cast<long>(depths.size()));
   auto & depth = depths[sample_index];
@@ -233,19 +220,14 @@ ReferenceDepth::add_depth(long const start_pos, long const end_pos, long const s
   }
 }
 
-
-long
-ReferenceDepth::start_pos_to_index(long const start_pos) const
+long ReferenceDepth::start_pos_to_index(long const start_pos) const
 {
   return (start_pos < reference_offset) ? 0 : (start_pos - reference_offset);
 }
 
-
-long
-ReferenceDepth::end_pos_to_index(long const end_pos, long const depth_size) const
+long ReferenceDepth::end_pos_to_index(long const end_pos, long const depth_size) const
 {
   return (end_pos > reference_offset + depth_size) ? depth_size : end_pos + 1 - reference_offset;
 }
-
 
 } // namespace gyper

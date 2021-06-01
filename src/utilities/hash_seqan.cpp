@@ -8,9 +8,7 @@
 
 namespace std
 {
-
-std::size_t
-hash<seqan::String<seqan::Dna> >::operator()(seqan::String<seqan::Dna> const & s) const
+std::size_t hash<seqan::String<seqan::Dna>>::operator()(seqan::String<seqan::Dna> const & s) const
 {
   std::size_t hash_val = 0;
 
@@ -22,12 +20,9 @@ hash<seqan::String<seqan::Dna> >::operator()(seqan::String<seqan::Dna> const & s
   return hash_val;
 }
 
-
-std::size_t
-hash<seqan::String<char> >::operator()(seqan::String<char> const & s) const
+std::size_t hash<seqan::String<char>>::operator()(seqan::String<char> const & s) const
 {
   return std::hash<std::string_view>{}(std::string_view{&*seqan::begin(s), seqan::length(s)});
 }
-
 
 } // namespace std

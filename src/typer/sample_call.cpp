@@ -3,57 +3,44 @@
 #include <numeric>
 
 #include <cereal/archives/binary.hpp>
-#include <graphtyper/utilities/logging.hpp>
 #include <cereal/types/vector.hpp>
 
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/haplotype.hpp> // AlleleCoverage
 #include <graphtyper/graph/reference_depth.hpp>
 #include <graphtyper/graph/sv.hpp> // SV
-#include <graphtyper/utilities/graph_help_functions.hpp> // to_index
 #include <graphtyper/typer/sample_call.hpp>
-
+#include <graphtyper/utilities/graph_help_functions.hpp> // to_index
+#include <graphtyper/utilities/logging.hpp>
 
 namespace
 {
-
-uint16_t
-get_uint16(long const val)
+uint16_t get_uint16(long const val)
 {
-  return static_cast<uint16_t>(
-    std::max(static_cast<long>(std::numeric_limits<uint16_t>::min()),
-             std::min(static_cast<long>(std::numeric_limits<uint16_t>::max()),
-                      val
-                      )
-             )
-    );
+  return static_cast<uint16_t>(std::max(static_cast<long>(std::numeric_limits<uint16_t>::min()),
+                                        std::min(static_cast<long>(std::numeric_limits<uint16_t>::max()), val)));
 }
 
-
 template <typename Tvec>
-typename Tvec::value_type
-median(Tvec & vec)
+typename Tvec::value_type median(Tvec & vec)
 {
   std::nth_element(vec.begin(), vec.begin() + vec.size() / 2, vec.end());
   return vec[vec.size() / 2];
 }
 
-
-} // anon namespace
-
+} // namespace
 
 namespace gyper
 {
-
 SampleCall::SampleCall(std::vector<uint8_t> && _phred,
                        std::vector<uint16_t> && _coverage,
                        uint8_t const _ambiguous_depth,
                        uint8_t const _ambiguous_depth_alt,
-                       uint8_t const _alt_proper_pair_depth) noexcept
-  : phred(std::forward<std::vector<uint8_t> >(_phred))
-  , coverage(std::forward<std::vector<uint16_t> >(_coverage))
-  , ambiguous_depth(_ambiguous_depth)
-  , alt_proper_pair_depth(_alt_proper_pair_depth)
+                       uint8_t const _alt_proper_pair_depth) noexcept :
+  phred(std::forward<std::vector<uint8_t>>(_phred)),
+  coverage(std::forward<std::vector<uint16_t>>(_coverage)),
+  ambiguous_depth(_ambiguous_depth),
+  alt_proper_pair_depth(_alt_proper_pair_depth)
 {
   assert(coverage.size() > 1);
   assert(ambiguous_depth >= _ambiguous_depth_alt);
@@ -63,48 +50,33 @@ SampleCall::SampleCall(std::vector<uint8_t> && _phred,
 
   assert(ref_depth >= coverage[0]);
 
-  ref_total_depth = static_cast<uint16_t>(
-    std::min(static_cast<uint32_t>(0xFFFFu),
-             static_cast<uint32_t>(ref_depth)
-             )
-    );
+  ref_total_depth = static_cast<uint16_t>(std::min(static_cast<uint32_t>(0xFFFFu), static_cast<uint32_t>(ref_depth)));
 
   // All ambiguous depth supports alt
   uint32_t const alt_depth = std::accumulate(coverage.begin() + 1, coverage.end(), 0u) + ambiguous_depth;
 
-  alt_total_depth = static_cast<uint16_t>(
-    std::min(static_cast<uint32_t>(0xFFFFu),
-             static_cast<uint32_t>(alt_depth))
-    );
+  alt_total_depth = static_cast<uint16_t>(std::min(static_cast<uint32_t>(0xFFFFu), static_cast<uint32_t>(alt_depth)));
 
   assert(alt_total_depth >= ambiguous_depth);
   assert(ref_total_depth >= coverage[0]);
 }
 
-
-uint32_t
-SampleCall::get_depth() const
+uint32_t SampleCall::get_depth() const
 {
   return std::accumulate(coverage.begin(), coverage.end(), static_cast<uint32_t>(ambiguous_depth));
 }
 
-
-uint32_t
-SampleCall::get_unique_depth() const
+uint32_t SampleCall::get_unique_depth() const
 {
   return std::accumulate(coverage.begin(), coverage.end(), static_cast<uint32_t>(0));
 }
 
-
-uint32_t
-SampleCall::get_alt_depth() const
+uint32_t SampleCall::get_alt_depth() const
 {
   return std::accumulate(coverage.begin() + 1, coverage.end(), static_cast<uint32_t>(ambiguous_depth));
 }
 
-
-std::pair<uint16_t, uint16_t>
-SampleCall::get_gt_call() const
+std::pair<uint16_t, uint16_t> SampleCall::get_gt_call() const
 {
   if (phred.size() == 0)
     return std::make_pair<uint16_t, uint16_t>(0, 0);
@@ -119,9 +91,7 @@ SampleCall::get_gt_call() const
 
       if (phred[i] == 0)
       {
-        return std::make_pair<uint16_t, uint16_t>(static_cast<uint16_t>(x),
-                                                  static_cast<uint16_t>(y)
-                                                  );
+        return std::make_pair<uint16_t, uint16_t>(static_cast<uint16_t>(x), static_cast<uint16_t>(y));
       }
     }
   }
@@ -136,9 +106,7 @@ SampleCall::get_gt_call() const
   return std::make_pair<uint16_t, uint16_t>(0xFFFFu, 0xFFFFu);
 }
 
-
-uint8_t
-SampleCall::get_gq() const
+uint8_t SampleCall::get_gq() const
 {
   bool seen_zero = false;
   uint8_t next_lowest_phred = 255;
@@ -161,9 +129,7 @@ SampleCall::get_gq() const
   return next_lowest_phred;
 }
 
-
-uint8_t
-SampleCall::get_lowest_phred_not_with(uint16_t allele) const
+uint8_t SampleCall::get_lowest_phred_not_with(uint16_t allele) const
 {
   long i{0};
   uint8_t min_phred{255};
@@ -189,9 +155,7 @@ SampleCall::get_lowest_phred_not_with(uint16_t allele) const
   return min_phred;
 }
 
-
-int8_t
-SampleCall::check_filter(long gq) const
+int8_t SampleCall::check_filter(long gq) const
 {
   if (filter < 0)
   {
@@ -208,10 +172,8 @@ SampleCall::check_filter(long gq) const
   return filter;
 }
 
-
 template <typename Archive>
-void
-SampleCall::serialize(Archive & ar, unsigned const int /*version*/)
+void SampleCall::serialize(Archive & ar, unsigned const int /*version*/)
 {
   ar & phred;
   ar & coverage;
@@ -221,15 +183,10 @@ SampleCall::serialize(Archive & ar, unsigned const int /*version*/)
   ar & alt_proper_pair_depth;
 }
 
+template void SampleCall::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &, const unsigned int);
+template void SampleCall::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputArchive &, const unsigned int);
 
-template void SampleCall::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &,
-                                                                     const unsigned int);
-template void SampleCall::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputArchive &,
-                                                                     const unsigned int);
-
-
-SampleCall
-make_bi_allelic_call(SampleCall const & oc, long aa)
+SampleCall make_bi_allelic_call(SampleCall const & oc, long aa)
 {
   if (oc.coverage.size() == 2)
     return oc;
@@ -264,18 +221,16 @@ make_bi_allelic_call(SampleCall const & oc, long aa)
       continue; // Skip the target alternative allele
 
     cov_aa -= static_cast<int>(oc.coverage[a]);
-    c.alt_total_depth = static_cast<uint16_t>(
-      std::max(0, static_cast<int>(c.alt_total_depth) - static_cast<int>(oc.coverage[a])));
+    c.alt_total_depth =
+      static_cast<uint16_t>(std::max(0, static_cast<int>(c.alt_total_depth) - static_cast<int>(oc.coverage[a])));
 
-    c.alt_proper_pair_depth = static_cast<uint8_t>(
-      std::max(0, static_cast<int>(c.alt_proper_pair_depth) - static_cast<int>(oc.coverage[a])));
+    c.alt_proper_pair_depth =
+      static_cast<uint8_t>(std::max(0, static_cast<int>(c.alt_proper_pair_depth) - static_cast<int>(oc.coverage[a])));
   }
 
   c.coverage.push_back(static_cast<unsigned short>(std::max(cov_aa, 0)));
 
-  int32_t const alt_not_proper = c.coverage[1] > c.alt_proper_pair_depth ?
-                                 c.coverage[1] - c.alt_proper_pair_depth :
-                                 0;
+  int32_t const alt_not_proper = c.coverage[1] > c.alt_proper_pair_depth ? c.coverage[1] - c.alt_proper_pair_depth : 0;
 
   int32_t const alt_proper = c.coverage[1] - alt_not_proper;
 
@@ -297,9 +252,7 @@ make_bi_allelic_call(SampleCall const & oc, long aa)
   return c;
 }
 
-
-SampleCall
-make_call_based_on_coverage(long pn_index, SV const & sv, ReferenceDepth const & reference_depth)
+SampleCall make_call_based_on_coverage(long pn_index, SV const & sv, ReferenceDepth const & reference_depth)
 {
   SampleCall call;
   long abs_begin = absolute_pos.get_absolute_position(sv.chrom, sv.begin);
@@ -311,7 +264,7 @@ make_call_based_on_coverage(long pn_index, SV const & sv, ReferenceDepth const &
     abs_end = abs_begin + 190000;
 
   long constexpr N = 101; // Number of points, should be an odd number
-  long constexpr M = 20; // Number of bp to jump outside of the deletion
+  long constexpr M = 20;  // Number of bp to jump outside of the deletion
   std::vector<uint16_t> depths_in;
   std::vector<uint16_t> depths_out;
   depths_in.reserve(N);
@@ -416,5 +369,4 @@ make_call_based_on_coverage(long pn_index, SV const & sv, ReferenceDepth const &
   return call;
 }
 
-
-} // namespce gyper
+} // namespace gyper

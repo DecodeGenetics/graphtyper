@@ -2,18 +2,15 @@
 #include <cassert>
 #include <iostream>
 #include <iterator>
-#include <string>
 #include <sstream>
+#include <string>
 #include <vector>
-
-#include <graphtyper/utilities/logging.hpp>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/var_record.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
-
-std::ostream &
-operator<<(std::ostream & os, std::vector<char> const & dt)
+std::ostream & operator<<(std::ostream & os, std::vector<char> const & dt)
 {
   for (auto it = dt.begin(); it != dt.end(); ++it)
     os << *it;
@@ -21,26 +18,17 @@ operator<<(std::ostream & os, std::vector<char> const & dt)
   return os;
 }
 
-
 namespace
 {
-
 template <typename T, typename U>
-void
-copy_events_and_anti_events(T & out, U const & in)
+void copy_events_and_anti_events(T & out, U const & in)
 {
-  std::copy(in.events.begin(),
-            in.events.end(),
-            std::inserter(out.events, out.events.begin()));
+  std::copy(in.events.begin(), in.events.end(), std::inserter(out.events, out.events.begin()));
 
-  std::copy(in.anti_events.begin(),
-            in.anti_events.end(),
-            std::inserter(out.anti_events, out.anti_events.begin()));
+  std::copy(in.anti_events.begin(), in.anti_events.end(), std::inserter(out.anti_events, out.anti_events.begin()));
 }
 
-
-void
-insert_prior_sequence(gyper::VarRecord & current, gyper::VarRecord const & previous)
+void insert_prior_sequence(gyper::VarRecord & current, gyper::VarRecord const & previous)
 {
   assert(current.pos > previous.pos);
   current.ref.seq.insert(current.ref.seq.begin(),
@@ -57,9 +45,7 @@ insert_prior_sequence(gyper::VarRecord & current, gyper::VarRecord const & previ
   current.pos = previous.pos;
 }
 
-
-void
-extend_record(gyper::VarRecord & current, gyper::VarRecord const & previous)
+void extend_record(gyper::VarRecord & current, gyper::VarRecord const & previous)
 {
   assert(previous.ref.seq.size() > current.ref.seq.size());
 
@@ -75,9 +61,7 @@ extend_record(gyper::VarRecord & current, gyper::VarRecord const & previous)
   std::copy(begin_it, end_it, std::back_inserter(current.ref.seq));
 }
 
-
-void
-extend_smaller_record(gyper::VarRecord & current, gyper::VarRecord & previous)
+void extend_smaller_record(gyper::VarRecord & current, gyper::VarRecord & previous)
 {
   // Check if the previous reference reacher further than then current one
   if (current.ref.seq.size() < previous.ref.seq.size())
@@ -92,9 +76,7 @@ extend_smaller_record(gyper::VarRecord & current, gyper::VarRecord & previous)
   }
 }
 
-
-void
-move_alts(gyper::VarRecord & current, gyper::VarRecord && prev_record)
+void move_alts(gyper::VarRecord & current, gyper::VarRecord && prev_record)
 {
   long const alts_size_original = current.alts.size();
 
@@ -118,62 +100,40 @@ move_alts(gyper::VarRecord & current, gyper::VarRecord && prev_record)
   }
 }
 
+} // namespace
 
-} // anon namespace
-
-
-std::string
-to_string(std::vector<char> const & dt)
+std::string to_string(std::vector<char> const & dt)
 {
   std::stringstream ss;
   ss << dt;
   return ss.str();
 }
 
-
 namespace gyper
 {
+VarRecord::VarRecord() : pos(0u), ref(), alts(0), is_sv(false)
+{
+}
 
-VarRecord::VarRecord()
-  :  pos(0u)
-  , ref()
-  , alts(0)
-  , is_sv(false)
-{}
+VarRecord::VarRecord(uint32_t const p) : pos(p), ref(), alts(0), is_sv(false)
+{
+}
 
-VarRecord::VarRecord(uint32_t const p)
-  : pos(p)
-  , ref()
-  , alts(0)
-  , is_sv(false)
-{}
+VarRecord::VarRecord(uint32_t const p, Ref && r, std::vector<Alt> && a) :
+  pos(std::move(p)), ref(std::move(r)), alts(std::move(a)), is_sv(false)
+{
+}
 
-VarRecord::VarRecord(uint32_t const p, Ref && r, std::vector<Alt> && a)
-  : pos(std::move(p))
-  , ref(std::move(r))
-  , alts(std::move(a))
-  , is_sv(false)
-{}
+VarRecord::VarRecord(VarRecord const & o) : pos(o.pos), ref(o.ref), alts(o.alts), is_sv(o.is_sv)
+{
+}
 
+VarRecord::VarRecord(VarRecord && o) :
+  pos(o.pos), ref(std::forward<Ref>(o.ref)), alts(std::forward<std::vector<Alt>>(o.alts)), is_sv(o.is_sv)
+{
+}
 
-VarRecord::VarRecord(VarRecord const & o)
-  : pos(o.pos)
-  , ref(o.ref)
-  , alts(o.alts)
-  , is_sv(o.is_sv)
-{}
-
-
-VarRecord::VarRecord(VarRecord && o)
-  : pos(o.pos)
-  , ref(std::forward<Ref>(o.ref))
-  , alts(std::forward<std::vector<Alt> >(o.alts))
-  , is_sv(o.is_sv)
-{}
-
-
-VarRecord &
-VarRecord::operator=(VarRecord const & o)
+VarRecord & VarRecord::operator=(VarRecord const & o)
 {
   pos = o.pos;
   ref = o.ref;
@@ -182,9 +142,7 @@ VarRecord::operator=(VarRecord const & o)
   return *this;
 }
 
-
-VarRecord &
-VarRecord::operator=(VarRecord && o)
+VarRecord & VarRecord::operator=(VarRecord && o)
 {
   pos = o.pos;
   ref = std::move(o.ref);
@@ -193,9 +151,7 @@ VarRecord::operator=(VarRecord && o)
   return *this;
 }
 
-
-void
-VarRecord::clear()
+void VarRecord::clear()
 {
   pos = 0;
   ref.clear();
@@ -209,9 +165,7 @@ VarRecord::clear()
   is_sv = false;
 }
 
-
-std::string
-VarRecord::to_string() const
+std::string VarRecord::to_string() const
 {
   std::ostringstream ss;
   ss << "pos,ref:alts=" << pos << ", " << ref.seq << ":";
@@ -222,9 +176,7 @@ VarRecord::to_string() const
   return ss.str();
 }
 
-
-void
-VarRecord::merge_one_path(VarRecord && prev_record)
+void VarRecord::merge_one_path(VarRecord && prev_record)
 {
   assert(pos >= prev_record.pos);
 
@@ -244,12 +196,10 @@ VarRecord::merge_one_path(VarRecord && prev_record)
 
   move_alts(*this, std::move(prev_record));
   // TODO remove this as it messes up haplotype things
-  //std::sort(alts.begin(), alts.end(), compare_two_alts);
+  // std::sort(alts.begin(), alts.end(), compare_two_alts);
 }
 
-
-void
-VarRecord::merge_all(VarRecord && prev_record)
+void VarRecord::merge_all(VarRecord && prev_record)
 {
   // Check if the previous records ends where this one starts
   assert(prev_record.pos + prev_record.ref.seq.size() >= pos);
@@ -261,12 +211,12 @@ VarRecord::merge_all(VarRecord && prev_record)
     // S C,D,E
     // =>
     // RS RC,RD,RE,AC,AD,AE,BC,BD,BE
-    //long const ORIGINAL_NUMBER_OF_CURR_ALTS = alts.size();
+    // long const ORIGINAL_NUMBER_OF_CURR_ALTS = alts.size();
 
     // Gather new alts here and add them afterwards
     VarRecord new_record(prev_record.pos); // its ok that ref is just set to empty string - it is not used
 
-    //std::vector<Alt> new_alts;
+    // std::vector<Alt> new_alts;
 
     // Add AC,AD,AE,BC,BD,BE
     for (auto const & prev_alt : prev_record.alts)
@@ -307,15 +257,16 @@ VarRecord::merge_all(VarRecord && prev_record)
     alts.erase(std::remove_if(alts.begin(),
                               alts.end(),
                               [](Alt const & alt)
-      {
-        for (auto anti_event : alt.anti_events)
-        {
-          if (alt.events.count(anti_event) == 1)
-            return true;
-        }
+                              {
+                                for (auto anti_event : alt.anti_events)
+                                {
+                                  if (alt.events.count(anti_event) == 1)
+                                    return true;
+                                }
 
-        return false;
-      }), alts.end());
+                                return false;
+                              }),
+               alts.end());
   }
   else
   {
@@ -324,14 +275,12 @@ VarRecord::merge_all(VarRecord && prev_record)
   }
 }
 
-
-void
-VarRecord::merge(VarRecord && prev_record, long const EXTRA_SUFFIX)
+void VarRecord::merge(VarRecord && prev_record, long const EXTRA_SUFFIX)
 {
   assert(pos >= prev_record.pos);
 
   long const jump_size = pos - prev_record.pos; // Original reference allele pos
-  long const oref_size = ref.seq.size(); // Original reference allele size
+  long const oref_size = ref.seq.size();        // Original reference allele size
 
   // Insert new sequences prior to the reference sequence and all alternative sequences (if any)
   if (jump_size > 0)
@@ -403,27 +352,25 @@ VarRecord::merge(VarRecord && prev_record, long const EXTRA_SUFFIX)
     copy_events_and_anti_events(alt, prev_record.ref);
 
   // remove extended alts which are in parity to the added event
-  prev_record.alts.erase(
-    std::remove_if(prev_record.alts.begin(),
-                   prev_record.alts.end(),
-                   [this](Alt const & prev_alt)
-    {
-      for (auto anti_event : prev_alt.anti_events)
-      {
-        if (ref.events.count(anti_event))
-          return true;
-      }
+  prev_record.alts.erase(std::remove_if(prev_record.alts.begin(),
+                                        prev_record.alts.end(),
+                                        [this](Alt const & prev_alt)
+                                        {
+                                          for (auto anti_event : prev_alt.anti_events)
+                                          {
+                                            if (ref.events.count(anti_event))
+                                              return true;
+                                          }
 
-      return false;
-    }), prev_record.alts.end());
+                                          return false;
+                                        }),
+                         prev_record.alts.end());
 
   move_alts(*this, std::move(prev_record));
   move_alts(*this, std::move(new_record));
 }
 
-
-void
-VarRecord::add_suffix(std::vector<char> && suffix)
+void VarRecord::add_suffix(std::vector<char> && suffix)
 {
   for (Alt & alt : alts)
     std::copy(suffix.begin(), suffix.end(), std::back_inserter(alt.seq));
@@ -431,14 +378,9 @@ VarRecord::add_suffix(std::vector<char> && suffix)
   std::move(suffix.begin(), suffix.end(), std::back_inserter(ref.seq));
 }
 
-
-std::vector<char>
-VarRecord::get_common_suffix() const
+std::vector<char> VarRecord::get_common_suffix() const
 {
-  if (ref.seq.size() == 0 ||
-      std::any_of(alts.begin(),
-                  alts.end(),
-                  is_empty_seq))
+  if (ref.seq.size() == 0 || std::any_of(alts.begin(), alts.end(), is_empty_seq))
   {
     std::vector<char> empty;
     return empty;
@@ -447,16 +389,13 @@ VarRecord::get_common_suffix() const
   long suffix_size{0};
   auto ref_it = ref.seq.rbegin();
 
-  while (ref_it != ref.seq.rend() &&
-         suffix_size < (static_cast<long>(ref.seq.size()) - 1l) &&
+  while (ref_it != ref.seq.rend() && suffix_size < (static_cast<long>(ref.seq.size()) - 1l) &&
          std::all_of(alts.begin(),
                      alts.end(),
-                     [&](Alt const & alt)
-    {
-      return suffix_size < (static_cast<long>(alt.seq.size()) - 1l) && *(alt.seq.rbegin() + suffix_size) == *ref_it;
-    }
-                     )
-         )
+                     [&](Alt const & alt) {
+                       return suffix_size < (static_cast<long>(alt.seq.size()) - 1l) &&
+                            *(alt.seq.rbegin() + suffix_size) == *ref_it;
+                     }))
   {
     ++ref_it;
     ++suffix_size;
@@ -466,33 +405,20 @@ VarRecord::get_common_suffix() const
   return std::vector<char>(ref.seq.end() - suffix_size, ref.seq.end());
 }
 
-
-bool
-VarRecord::is_any_seq_larger_than(long val) const
+bool VarRecord::is_any_seq_larger_than(long val) const
 {
   return static_cast<long>(ref.seq.size()) > val ||
          std::any_of(alts.begin(),
                      alts.end(),
-                     [val](Alt const & alt)
-    {
-      return static_cast<long>(alt.seq.size()) > val;
-    });
+                     [val](Alt const & alt) { return static_cast<long>(alt.seq.size()) > val; });
 }
 
-
-bool
-VarRecord::is_snp_or_snps() const
+bool VarRecord::is_snp_or_snps() const
 {
-  return std::all_of(alts.begin(),
-                     alts.end(),
-                     [this](Alt const & alt){
-      return alt.seq.size() == ref.seq.size();
-    });
+  return std::all_of(alts.begin(), alts.end(), [this](Alt const & alt) { return alt.seq.size() == ref.seq.size(); });
 }
 
-
-bool
-VarRecord::operator<(VarRecord const & b)
+bool VarRecord::operator<(VarRecord const & b)
 {
   if (pos < b.pos)
     return true;
@@ -519,6 +445,5 @@ VarRecord::operator<(VarRecord const & b)
     return order_a < order_b;
   }
 }
-
 
 } // namespace gyper

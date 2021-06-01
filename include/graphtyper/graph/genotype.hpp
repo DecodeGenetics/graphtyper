@@ -4,10 +4,8 @@
 
 #include <cereal/access.hpp>
 
-
 namespace gyper
 {
-
 class Genotype
 {
   friend class cereal::access;

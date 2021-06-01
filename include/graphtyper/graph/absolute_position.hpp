@@ -6,10 +6,8 @@
 
 #include <cereal/access.hpp>
 
-
 namespace gyper
 {
-
 struct Contig;
 
 class AbsolutePosition
@@ -28,20 +26,14 @@ public:
   bool is_contig_available(std::string const & chromosome) const;
   long get_absolute_position(std::string const & chromosome, long contig_position) const;
 
-  std::pair<std::string, long>
-  get_contig_position(long absolute_position,
-                      std::vector<Contig> const & contigs) const;
-
+  std::pair<std::string, long> get_contig_position(long absolute_position, std::vector<Contig> const & contigs) const;
 
   template <typename Archive>
-  void
-  serialize(Archive & ar, unsigned int)
+  void serialize(Archive & ar, unsigned int)
   {
     ar & offsets;
     ar & chromosome_to_offset;
   }
-
-
 };
 
 extern AbsolutePosition absolute_pos;

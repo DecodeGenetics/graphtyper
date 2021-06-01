@@ -3,24 +3,21 @@
 #include <string>
 #include <vector>
 
-#include <graphtyper/utilities/logging.hpp>
-
 #include <parallel_hashmap/phmap.h>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/typer/bucket.hpp>
 #include <graphtyper/typer/event.hpp>
 #include <graphtyper/typer/read.hpp>
-
+#include <graphtyper/utilities/logging.hpp>
 
 namespace gyper
 {
-
-std::string
-Bucket::to_string() const
+std::string Bucket::to_string() const
 {
   std::ostringstream ss;
-  ss << " indel events " << "," << events.size();
+  ss << " indel events "
+     << "," << events.size();
   ss << " n_reads=" << reads.size();
 
   for (auto const & read : reads)
@@ -29,9 +26,7 @@ Bucket::to_string() const
   return ss.str();
 }
 
-
-void
-merge_bucket_lr(std::vector<BucketLR> & old_buckets, std::vector<BucketLR> const & new_buckets)
+void merge_bucket_lr(std::vector<BucketLR> & old_buckets, std::vector<BucketLR> const & new_buckets)
 {
   long const max_bucket_size = std::max(old_buckets.size(), new_buckets.size());
 
@@ -67,12 +62,10 @@ merge_bucket_lr(std::vector<BucketLR> & old_buckets, std::vector<BucketLR> const
   }
 }
 
-
-bool
-is_indel_in_bucket(std::vector<Bucket> const & buckets,
-                   Event const & indel_event,
-                   long const region_begin,
-                   long const BUCKET_SIZE)
+bool is_indel_in_bucket(std::vector<Bucket> const & buckets,
+                        Event const & indel_event,
+                        long const region_begin,
+                        long const BUCKET_SIZE)
 {
   long const event_bucket_index = (indel_event.pos - region_begin) / BUCKET_SIZE;
 
@@ -84,15 +77,13 @@ is_indel_in_bucket(std::vector<Bucket> const & buckets,
   return find_it != indel_events.end();
 }
 
-
 template <typename TBucket>
-std::map<Event, EventSupport>::iterator
-add_indel_event_to_bucket(std::vector<TBucket> & buckets,
-                          Event && new_indel_event,
-                          long const region_begin,
-                          long const BUCKET_SIZE,
-                          std::vector<char> const & reference_sequence,
-                          long ref_offset)
+std::map<Event, EventSupport>::iterator add_indel_event_to_bucket(std::vector<TBucket> & buckets,
+                                                                  Event && new_indel_event,
+                                                                  long const region_begin,
+                                                                  long const BUCKET_SIZE,
+                                                                  std::vector<char> const & reference_sequence,
+                                                                  long ref_offset)
 {
   long const REF_SIZE = reference_sequence.size();
 
@@ -125,8 +116,7 @@ add_indel_event_to_bucket(std::vector<TBucket> & buckets,
       // Check insterted sequence
       while (span < count)
       {
-        if ((ref_offset + span) >= REF_SIZE ||
-            new_event.sequence[span] != reference_sequence[ref_offset + span])
+        if ((ref_offset + span) >= REF_SIZE || new_event.sequence[span] != reference_sequence[ref_offset + span])
         {
           break;
         }
@@ -176,12 +166,10 @@ add_indel_event_to_bucket(std::vector<TBucket> & buckets,
   return it_pair.first;
 }
 
-
-std::map<Event, EventSupport>::iterator
-add_snp_event_to_bucket(std::vector<BucketFirstPass> & buckets,
-                        Event && event,
-                        long const region_begin,
-                        long const BUCKET_SIZE)
+std::map<Event, EventSupport>::iterator add_snp_event_to_bucket(std::vector<BucketFirstPass> & buckets,
+                                                                Event && event,
+                                                                long const region_begin,
+                                                                long const BUCKET_SIZE)
 {
   assert(event.pos >= region_begin);
   long const event_bucket_index = (event.pos - region_begin) / BUCKET_SIZE;
@@ -199,14 +187,8 @@ add_snp_event_to_bucket(std::vector<BucketFirstPass> & buckets,
   return it_pair.first;
 }
 
-
-void
-add_base_to_bucket(std::vector<BucketLR> & buckets,
-                   int32_t pos,
-                   char seq,
-                   char qual,
-                   long const region_begin,
-                   long const BUCKET_SIZE)
+void add_base_to_bucket(
+  std::vector<BucketLR> & buckets, int32_t pos, char seq, char qual, long const region_begin, long const BUCKET_SIZE)
 {
   // Any sensible compiler will optimize this
   long const event_bucket_index = (pos - region_begin) / BUCKET_SIZE;
@@ -224,23 +206,19 @@ add_base_to_bucket(std::vector<BucketLR> & buckets,
   bucket.pileup[local_pos].add_base(seq, qual);
 }
 
-
 // explicit instantiation
-template std::map<Event, EventSupport>::iterator
-add_indel_event_to_bucket(std::vector<BucketFirstPass> & buckets,
-                          Event && new_indel_event,
-                          long const region_begin,
-                          long const BUCKET_SIZE,
-                          std::vector<char> const & reference_sequence,
-                          long ref_offset);
+template std::map<Event, EventSupport>::iterator add_indel_event_to_bucket(std::vector<BucketFirstPass> & buckets,
+                                                                           Event && new_indel_event,
+                                                                           long const region_begin,
+                                                                           long const BUCKET_SIZE,
+                                                                           std::vector<char> const & reference_sequence,
+                                                                           long ref_offset);
 
-template std::map<Event, EventSupport>::iterator
-add_indel_event_to_bucket(std::vector<Bucket> & buckets,
-                          Event && new_indel_event,
-                          long const region_begin,
-                          long const BUCKET_SIZE,
-                          std::vector<char> const & reference_sequence,
-                          long ref_offset);
-
+template std::map<Event, EventSupport>::iterator add_indel_event_to_bucket(std::vector<Bucket> & buckets,
+                                                                           Event && new_indel_event,
+                                                                           long const region_begin,
+                                                                           long const BUCKET_SIZE,
+                                                                           std::vector<char> const & reference_sequence,
+                                                                           long ref_offset);
 
 } // namespace gyper

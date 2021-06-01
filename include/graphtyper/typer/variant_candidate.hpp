@@ -4,14 +4,12 @@
 #include <string> // std::string
 #include <vector> // std::vector
 
-#include <graphtyper/typer/variant.hpp>
-
 #include <cereal/access.hpp>
 
+#include <graphtyper/typer/variant.hpp>
 
 namespace gyper
 {
-
 /**
 Variant candidate is almost the same as Variant, but I was not sure how to use polymorphism effectively here,
 so I ended up repeating some code in both classes.
@@ -24,7 +22,7 @@ class VariantCandidate
 public:
   uint32_t abs_pos = 0;
   uint32_t original_pos = 0u;
-  std::vector<std::vector<char> > seqs;
+  std::vector<std::vector<char>> seqs;
   uint16_t flags = 0;
 
   /******************
@@ -54,16 +52,13 @@ public:
 
 private:
   template <class Archive>
-  void
-  serialize(Archive & ar, const unsigned int)
+  void serialize(Archive & ar, const unsigned int)
   {
     ar & abs_pos;
     ar & original_pos;
     ar & flags;
     ar & seqs;
   }
-
-
 };
 
 // Hash function for VariantCandidate

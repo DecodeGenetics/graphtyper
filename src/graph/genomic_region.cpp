@@ -1,24 +1,21 @@
 #include <iomanip>
 #include <sstream> // std::ostringstream
-#include <string> // std::string, std::stol
+#include <string>  // std::string, std::stol
+
+#include <cereal/archives/binary.hpp>
+#include <cereal/types/string.hpp>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/genomic_region.hpp>
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/var_record.hpp>
-
-#include <cereal/archives/binary.hpp>
-#include <cereal/types/string.hpp>
 #include <graphtyper/utilities/logging.hpp>
 #include <graphtyper/utilities/string.hpp>
 
 namespace
 {
-
-
-bool
-prefix_match(std::vector<char> const & seq1, std::vector<char> const & seq2)
+bool prefix_match(std::vector<char> const & seq1, std::vector<char> const & seq2)
 {
   auto it1 = seq1.begin();
   auto it2 = seq2.begin();
@@ -35,9 +32,7 @@ prefix_match(std::vector<char> const & seq1, std::vector<char> const & seq2)
   return true;
 }
 
-
-bool
-has_matching_longest_prefix(std::vector<char> const & ref, std::vector<gyper::Alt> const & alts)
+bool has_matching_longest_prefix(std::vector<char> const & ref, std::vector<gyper::Alt> const & alts)
 {
   // Check reference
   for (uint32_t a = 0; a < alts.size(); ++a)
@@ -71,26 +66,21 @@ has_matching_longest_prefix(std::vector<char> const & ref, std::vector<gyper::Al
   return false;
 }
 
-
-} // anon namespace
-
+} // namespace
 
 namespace gyper
 {
+GenomicRegion::GenomicRegion() : chr("N/A"), begin(0), end(AS_LONG_AS_POSSIBLE)
+{
+}
 
-GenomicRegion::GenomicRegion()
-  : chr("N/A"), begin(0), end(AS_LONG_AS_POSSIBLE)
-{}
-
-
-GenomicRegion::GenomicRegion(std::string_view region)
-  : chr("N/A"), begin(0), end(AS_LONG_AS_POSSIBLE)
+GenomicRegion::GenomicRegion(std::string_view region) : chr("N/A"), begin(0), end(AS_LONG_AS_POSSIBLE)
 {
   if (region.size() == 0 || (region.size() == 1 && region[0] == '.'))
     return;
 
   assert(std::count(region.begin(), region.end(), ':') <= 1);
-  //assert(std::count(region.begin(), region.end(), '-') <= 1);
+  // assert(std::count(region.begin(), region.end(), '-') <= 1);
 
   if (std::count(region.begin(), region.end(), ':') == 0)
   {
@@ -114,7 +104,6 @@ GenomicRegion::GenomicRegion(std::string_view region)
     }
   }
 
-
   if (begin != 0)
   {
     // Switch to 0-based indexing
@@ -122,10 +111,7 @@ GenomicRegion::GenomicRegion(std::string_view region)
   }
 }
 
-GenomicRegion::GenomicRegion(std::string_view chrom, long _begin, long _end)
-  : chr(chrom)
-  , begin(_begin)
-  , end(_end)
+GenomicRegion::GenomicRegion(std::string_view chrom, long _begin, long _end) : chr(chrom), begin(_begin), end(_end)
 {
   if (begin != 0)
   {
@@ -134,10 +120,8 @@ GenomicRegion::GenomicRegion(std::string_view chrom, long _begin, long _end)
   }
 }
 
-GenomicRegion::GenomicRegion(std::string && chrom, long _begin, long _end)
-  : chr(std::move(chrom))
-  , begin(_begin)
-  , end(_end)
+GenomicRegion::GenomicRegion(std::string && chrom, long _begin, long _end) :
+  chr(std::move(chrom)), begin(_begin), end(_end)
 {
   if (begin != 0)
   {
@@ -146,33 +130,25 @@ GenomicRegion::GenomicRegion(std::string && chrom, long _begin, long _end)
   }
 }
 
-
-void
-GenomicRegion::clear()
+void GenomicRegion::clear()
 {
   chr.clear();
   begin = 0;
   end = 0;
 }
 
-
-void
-GenomicRegion::pad(long bases)
+void GenomicRegion::pad(long bases)
 {
   begin = std::max(static_cast<long>(begin) - bases, 0l);
   end += bases;
 }
 
-
-void
-GenomicRegion::pad_end(long bases)
+void GenomicRegion::pad_end(long bases)
 {
   end += bases;
 }
 
-
-std::string
-GenomicRegion::to_string() const
+std::string GenomicRegion::to_string() const
 {
   std::ostringstream ss;
 
@@ -188,54 +164,42 @@ GenomicRegion::to_string() const
   return ss.str();
 }
 
-std::string
-GenomicRegion::to_file_string() const
+std::string GenomicRegion::to_file_string() const
 {
   std::ostringstream ss;
-  ss << chr << "/" // chromosome/contig
+  ss << chr << "/"                                              // chromosome/contig
      << std::setw(9) << std::setfill('0') << (begin + 1) << '-' // 9 digit begin position (1-indexed)
-     << std::setw(9) << std::setfill('0') << end; // 9 digit end position
+     << std::setw(9) << std::setfill('0') << end;               // 9 digit end position
   return ss.str();
 }
 
-long
-GenomicRegion::get_absolute_begin_position() const
+long GenomicRegion::get_absolute_begin_position() const
 {
   return absolute_pos.get_absolute_position(chr, begin + 1);
 }
 
-
-long
-GenomicRegion::get_absolute_end_position() const
+long GenomicRegion::get_absolute_end_position() const
 {
   return absolute_pos.get_absolute_position(chr, end + 1);
 }
 
-
-long
-GenomicRegion::get_absolute_position(std::string const & chromosome, long contig_position) const
+long GenomicRegion::get_absolute_position(std::string const & chromosome, long contig_position) const
 {
   return absolute_pos.get_absolute_position(chromosome, contig_position);
 }
 
-
-long
-GenomicRegion::get_absolute_position(long contig_position) const
+long GenomicRegion::get_absolute_position(long contig_position) const
 {
   return absolute_pos.get_absolute_position(chr, contig_position);
 }
 
-
-std::pair<std::string, long>
-GenomicRegion::get_contig_position(long absolute_position, Graph const & graph) const
+std::pair<std::string, long> GenomicRegion::get_contig_position(long absolute_position, Graph const & graph) const
 {
   return absolute_pos.get_contig_position(absolute_position, graph.contigs);
 }
 
-
-void
-GenomicRegion::check_if_var_records_match_reference_genome(std::vector<VarRecord> const & var_records,
-                                                           std::vector<char> const & reference)
+void GenomicRegion::check_if_var_records_match_reference_genome(std::vector<VarRecord> const & var_records,
+                                                                std::vector<char> const & reference)
 {
   for (auto const & record : var_records)
   {
@@ -248,26 +212,29 @@ GenomicRegion::check_if_var_records_match_reference_genome(std::vector<VarRecord
     assert(record.ref.seq[0] != '.');
 
     auto start_it = reference.begin() + (pos - GenomicRegion::begin);
-    std::size_t const ref_len = std::min(static_cast<std::size_t>(std::distance(start_it, reference.end())),
-                                         record.ref.seq.size());
+    std::size_t const ref_len =
+      std::min(static_cast<std::size_t>(std::distance(start_it, reference.end())), record.ref.seq.size());
 
     std::vector<char> const reference_ref(start_it, start_it + ref_len);
 
     if (reference_ref.size() > 0 && !prefix_match(record.ref.seq, reference_ref))
     {
-      print_log(log_severity::warning, __HERE__, " Record @ position ", pos
-                                , " (REF = "
-                                , std::string(record.ref.seq.begin(), record.ref.seq.end()), ')'
-                                , " did not match the reference genome ("
-                                , std::string(reference_ref.begin(), reference_ref.end()), ")");
+      print_log(log_severity::warning,
+                __HERE__,
+                " Record @ position ",
+                pos,
+                " (REF = ",
+                std::string(record.ref.seq.begin(), record.ref.seq.end()),
+                ')',
+                " did not match the reference genome (",
+                std::string(reference_ref.begin(), reference_ref.end()),
+                ")");
     }
   }
 }
 
-
-void
-GenomicRegion::add_reference_to_record_if_they_have_a_matching_prefix(VarRecord & var_record,
-                                                                      std::vector<char> const & reference)
+void GenomicRegion::add_reference_to_record_if_they_have_a_matching_prefix(VarRecord & var_record,
+                                                                           std::vector<char> const & reference)
 {
   if (var_record.is_sv)
     return;
@@ -275,8 +242,7 @@ GenomicRegion::add_reference_to_record_if_they_have_a_matching_prefix(VarRecord 
   auto start_it = reference.begin() + (var_record.pos - GenomicRegion::begin) + var_record.ref.seq.size();
   assert(std::distance(reference.begin(), start_it) <= static_cast<int64_t>(reference.size()));
 
-  while (start_it != reference.end() &&
-         *start_it != 'N' &&
+  while (start_it != reference.end() && *start_it != 'N' &&
          has_matching_longest_prefix(var_record.ref.seq, var_record.alts))
   {
     // Add base to back
@@ -289,21 +255,16 @@ GenomicRegion::add_reference_to_record_if_they_have_a_matching_prefix(VarRecord 
   }
 }
 
-
 template <typename Archive>
-void
-GenomicRegion::serialize(Archive & ar, unsigned const /*version*/)
+void GenomicRegion::serialize(Archive & ar, unsigned const /*version*/)
 {
   ar & chr;
   ar & begin;
   ar & end;
 }
 
-
-template void GenomicRegion::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &,
-                                                                        const unsigned int);
-template void GenomicRegion::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputArchive &,
-                                                                        const unsigned int);
+template void GenomicRegion::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &, const unsigned int);
+template void GenomicRegion::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputArchive &, const unsigned int);
 
 } // namespace gyper
 

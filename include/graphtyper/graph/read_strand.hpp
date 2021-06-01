@@ -4,10 +4,8 @@
 
 #include <cereal/access.hpp>
 
-
 namespace gyper
 {
-
 class ReadStrand
 {
   friend class cereal::access;
@@ -30,7 +28,6 @@ public:
 private:
   template <class Archive>
   void serialize(Archive & ar, unsigned int version);
-
 };
 
 } // namespace gyper

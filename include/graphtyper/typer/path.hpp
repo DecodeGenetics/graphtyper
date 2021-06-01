@@ -1,6 +1,6 @@
 #pragma once
 
-#include <bitset> // std::bitset<Size>
+#include <bitset>  // std::bitset<Size>
 #include <cstdint> // uint16_t, uint32_t
 #include <set>
 #include <vector> // std::vector<Type>
@@ -13,7 +13,6 @@
 
 namespace gyper
 {
-
 class Graph;
 
 class Path
@@ -36,8 +35,8 @@ public:
    */
   uint16_t read_end_index = 0;
   std::vector<uint32_t> var_order;
-  //std::vector<std::set<uint64_t> > nums = std::vector<std::set<uint64_t> >(0);
-  std::vector<phmap::flat_hash_set<uint16_t> > nums = std::vector<phmap::flat_hash_set<uint16_t> >(0);
+  // std::vector<std::set<uint64_t> > nums = std::vector<std::set<uint64_t> >(0);
+  std::vector<phmap::flat_hash_set<uint16_t>> nums = std::vector<phmap::flat_hash_set<uint16_t>>(0);
   uint16_t mismatches = 0;
 
   /*********************
@@ -51,10 +50,10 @@ public:
        uint16_t mismatches = 0) noexcept;
 
   Path(Path const & p1, Path const & p2);
-  Path(Path const &)                     = default;
-  Path(Path &&)                          = default;
-  Path & operator=(Path const &)         = default;
-  Path & operator=(Path &&)              = default;
+  Path(Path const &) = default;
+  Path(Path &&) = default;
+  Path & operator=(Path const &) = default;
+  Path & operator=(Path &&) = default;
 
   /**********************
    * PATH MODIFICATIONS *

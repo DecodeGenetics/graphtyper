@@ -1,7 +1,7 @@
 #define CATCH_CONFIG_MAIN
 
-#include <catch.hpp>
+#include "test.hpp"
 
 #include <graphtyper/constants.hpp>
 
-#include "test.hpp"
+#include <catch.hpp>

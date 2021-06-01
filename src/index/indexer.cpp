@@ -2,20 +2,15 @@
 #include <fstream>
 #include <iostream>
 
-#include <graphtyper/utilities/logging.hpp>
-
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/graph_serialization.hpp>
 #include <graphtyper/index/indexer.hpp>
 #include <graphtyper/index/ph_index.hpp>
-
+#include <graphtyper/utilities/logging.hpp>
 
 namespace gyper
 {
-
-
-void
-index_reference_label(PHIndex & ph_index, TEntryList & mers, Label const & label)
+void index_reference_label(PHIndex & ph_index, TEntryList & mers, Label const & label)
 {
   for (int d{0}; d < static_cast<int>(label.dna.size()); ++d)
   {
@@ -72,13 +67,11 @@ index_reference_label(PHIndex & ph_index, TEntryList & mers, Label const & label
   }
 }
 
-
-void
-insert_variant_label(PHIndex & ph_index,
-                     TEntryList & mers,
-                     std::vector<VarNode> const & var_nodes,
-                     TNodeIndex const v,
-                     std::size_t const ref_reach)
+void insert_variant_label(PHIndex & ph_index,
+                          TEntryList & mers,
+                          std::vector<VarNode> const & var_nodes,
+                          TNodeIndex const v,
+                          std::size_t const ref_reach)
 {
   assert(v < var_nodes.size());
   VarNode const & var_node = var_nodes[v];
@@ -103,7 +96,7 @@ insert_variant_label(PHIndex & ph_index,
         IndexEntry & entry = *entry_it;
         bool is_ok{true};
 
-        //if (var_node.events.size() > 0 || var_node.anti_events.size() > 0)
+        // if (var_node.events.size() > 0 || var_node.anti_events.size() > 0)
         //{
         //  BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << var_node.events.size() << " "
         //                          << var_node.anti_events.size() << " "
@@ -115,7 +108,7 @@ insert_variant_label(PHIndex & ph_index,
         {
           if (var_node.events.count(anti_event) == 1)
           {
-            //BOOST_LOG_TRIVIAL(info) << __HERE__ << " bad event " << anti_event;
+            // BOOST_LOG_TRIVIAL(info) << __HERE__ << " bad event " << anti_event;
             is_ok = false;
             break;
           }
@@ -125,9 +118,7 @@ insert_variant_label(PHIndex & ph_index,
         {
           entry.add_to_dna(dna_base);
 
-          std::copy(var_node.events.begin(),
-                    var_node.events.end(),
-                    std::inserter(entry.events, entry.events.begin()));
+          std::copy(var_node.events.begin(), var_node.events.end(), std::inserter(entry.events, entry.events.begin()));
 
           std::copy(var_node.anti_events.begin(),
                     var_node.anti_events.end(),
@@ -190,9 +181,7 @@ insert_variant_label(PHIndex & ph_index,
   }
 }
 
-
-void
-append_list(TEntryList & mers, TEntryList && list)
+void append_list(TEntryList & mers, TEntryList && list)
 {
   if (mers.size() < list.size())
     mers.resize(list.size());
@@ -210,13 +199,8 @@ append_list(TEntryList & mers, TEntryList && list)
   assert(list.size() <= mers.size());
 }
 
-
-void
-index_variant(PHIndex & ph_index,
-              std::vector<VarNode> const & var_nodes,
-              TEntryList & mers,
-              unsigned var_count,
-              TNodeIndex v)
+void index_variant(
+  PHIndex & ph_index, std::vector<VarNode> const & var_nodes, TEntryList & mers, unsigned var_count, TNodeIndex v)
 {
   TEntryList clean_list(mers); // copies all mers, we find new kmers using the copy.
 
@@ -232,43 +216,32 @@ index_variant(PHIndex & ph_index,
     ++v;
 
     TEntryList new_list(clean_list); // copies all mers, we find new kmers using the new copy
-    insert_variant_label(ph_index,
-                         new_list,
-                         var_nodes,
-                         v,
-                         ref_label_reach);
+    insert_variant_label(ph_index, new_list, var_nodes, v, ref_label_reach);
 
     append_list(mers, std::move(new_list));
   }
 
   // No need to copy clean_list on the last variant
   ++v;
-  insert_variant_label(ph_index,
-                       clean_list,
-                       var_nodes,
-                       v,
-                       ref_label_reach);
+  insert_variant_label(ph_index, clean_list, var_nodes, v, ref_label_reach);
 
   append_list(mers, std::move(clean_list));
 }
 
-
-PHIndex
-index_graph(Graph const & graph)
+PHIndex index_graph(Graph const & graph)
 {
   PHIndex ph_index;
 
   assert(graph.ref_nodes.back().out_degree() == 0);
   uint32_t const start_order = graph.ref_nodes.front().get_label().order;
-  uint32_t const end_order = static_cast<uint32_t>(graph.ref_nodes.back().get_label().order +
-                                                   graph.ref_nodes.back().get_label().dna.size());
+  uint32_t const end_order =
+    static_cast<uint32_t>(graph.ref_nodes.back().get_label().order + graph.ref_nodes.back().get_label().dna.size());
   uint32_t goal_order = start_order;
   uint32_t goal = 0;
 
   TNodeIndex r{0}; // Reference node index
   TEntryList mers;
-  print_log(log_severity::debug, __HERE__, " The number of reference nodes are "
-                          , graph.ref_nodes.size());
+  print_log(log_severity::debug, __HERE__, " The number of reference nodes are ", graph.ref_nodes.size());
 
   while (r < graph.ref_nodes.size() - 1)
   {
@@ -303,9 +276,7 @@ index_graph(Graph const & graph)
   return ph_index;
 }
 
-
-PHIndex
-index_graph(std::string const & graph_path)
+PHIndex index_graph(std::string const & graph_path)
 {
   load_graph(graph_path);
 
@@ -318,6 +289,5 @@ index_graph(std::string const & graph_path)
 
   return index_graph(graph);
 }
-
 
 } // namespace gyper
