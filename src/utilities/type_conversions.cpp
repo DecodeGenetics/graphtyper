@@ -1,24 +1,21 @@
-#include <bitset> // std::bitset
+#include <bitset>  // std::bitset
 #include <iomanip> // std::hex
-
-#include <graphtyper/utilities/type_conversions.hpp>
-
-#include <graphtyper/utilities/logging.hpp>
 
 #include <seqan/basic.h>
 #include <seqan/sequence.h>
 
+#include <graphtyper/utilities/logging.hpp>
+#include <graphtyper/utilities/type_conversions.hpp>
+
 namespace gyper
 {
-
 /**
  * @brief Converts a string/list of DNA bases to a unsigned 64 bit integer.
  *
  * @param s String of DNA bases.
  * @return The new unsigned 64 bit integer.
  */
-uint64_t
-to_uint64(char const c)
+uint64_t to_uint64(char const c)
 {
   switch (c)
   {
@@ -41,7 +38,6 @@ to_uint64(char const c)
   }
 }
 
-
 /*
 uint64_t
 to_uint64(seqan::DnaString const & s, std::size_t i)
@@ -59,9 +55,7 @@ to_uint64(seqan::DnaString const & s, std::size_t i)
 }
 */
 
-
-uint64_t
-to_uint64(std::vector<char> const & s, int i)
+uint64_t to_uint64(std::vector<char> const & s, int i)
 {
   assert(s.size() >= 32u);
   uint64_t d = 0ull;
@@ -75,9 +69,7 @@ to_uint64(std::vector<char> const & s, int i)
   return d;
 }
 
-
-uint64_t
-to_uint64(std::string const & s, int i)
+uint64_t to_uint64(std::string const & s, int i)
 {
   assert(s.size() >= 32u);
   uint64_t d = 0ull;
@@ -90,7 +82,6 @@ to_uint64(std::string const & s, int i)
 
   return d;
 }
-
 
 /** WIP
 uint16_t
@@ -213,12 +204,10 @@ to_uint16_vec(std::string const & s)
 }
 */
 
-
 template <typename TSeq>
-std::vector<uint64_t>
-to_uint64_vec(TSeq const & s, std::size_t i)
+std::vector<uint64_t> to_uint64_vec(TSeq const & s, std::size_t i)
 {
-  assert(seqan::length(s) >= 32 + i);  // Cannot read 32 bases from read!"
+  assert(seqan::length(s) >= 32 + i); // Cannot read 32 bases from read!"
   std::vector<uint64_t> uints(1, 0u);
 
   for (unsigned const j = i + 32; i < j; ++i)
@@ -237,29 +226,29 @@ to_uint64_vec(TSeq const & s, std::size_t i)
         uints.push_back(uints[u] * 4 + 0); // A
         uints.push_back(uints[u] * 4 + 1); // C
         uints.push_back(uints[u] * 4 + 2); // G
-        uints[u] <<= 2; uints[u] += 3;     // T
+        uints[u] <<= 2;
+        uints[u] += 3; // T
       }
       else
       {
         std::size_t set_count = iupac.count();
 
-        auto check_set_count =
-          [&uints, u, &set_count](std::size_t const to_add)
+        auto check_set_count = [&uints, u, &set_count](std::size_t const to_add)
+        {
+          assert(set_count != 0);
+
+          if (set_count == 1)
           {
-            assert(set_count != 0);
+            uints[u] *= 4;
+            uints[u] += to_add;
+          }
+          else
+          {
+            uints.push_back(uints[u] * 4 + to_add);
+          }
 
-            if (set_count == 1)
-            {
-              uints[u] *= 4;
-              uints[u] += to_add;
-            }
-            else
-            {
-              uints.push_back(uints[u] * 4 + to_add);
-            }
-
-            --set_count;
-          };
+          --set_count;
+        };
 
         if (iupac.test(0))
           check_set_count(0); // A
@@ -276,14 +265,11 @@ to_uint64_vec(TSeq const & s, std::size_t i)
   return uints;
 }
 
-
 // Explicit instantation
 template std::vector<uint64_t> to_uint64_vec<seqan::Dna5String>(seqan::Dna5String const & s, std::size_t i);
 template std::vector<uint64_t> to_uint64_vec<seqan::IupacString>(seqan::IupacString const & s, std::size_t i);
 
-
-std::array<uint64_t, 96>
-to_uint64_vec_hamming_distance_1(uint64_t const key)
+std::array<uint64_t, 96> to_uint64_vec_hamming_distance_1(uint64_t const key)
 {
   std::array<uint64_t, 96> hamming1;
 
@@ -300,7 +286,6 @@ to_uint64_vec_hamming_distance_1(uint64_t const key)
 
   return hamming1;
 }
-
 
 /*
 seqan::DnaString
@@ -336,8 +321,7 @@ to_dna(uint64_t const & d, uint8_t k)
 }
 */
 
-std::string
-to_dna_str(uint64_t const d, uint8_t k)
+std::string to_dna_str(uint64_t const d, uint8_t k)
 {
   std::string new_dna;
 
@@ -368,65 +352,51 @@ to_dna_str(uint64_t const d, uint8_t k)
   return new_dna;
 }
 
-
-std::array<uint64_t, 3>
-get_mismatches_of_last_base(uint64_t const d)
+std::array<uint64_t, 3> get_mismatches_of_last_base(uint64_t const d)
 {
   uint64_t const d2 = ((d >> 2) << 2);
 
   switch (d & 0x0000000000000003ULL)
   {
-  case A_VALUE: return {{
-      d2 | C_VALUE, d2 | G_VALUE, d2 | T_VALUE
-    }};
+  case A_VALUE:
+    return {{d2 | C_VALUE, d2 | G_VALUE, d2 | T_VALUE}};
 
-  case C_VALUE: return {{
-      d2 | A_VALUE, d2 | G_VALUE, d2 | T_VALUE
-    }};
+  case C_VALUE:
+    return {{d2 | A_VALUE, d2 | G_VALUE, d2 | T_VALUE}};
 
-  case G_VALUE: return {{
-      d2 | A_VALUE, d2 | C_VALUE, d2 | T_VALUE
-    }};
+  case G_VALUE:
+    return {{d2 | A_VALUE, d2 | C_VALUE, d2 | T_VALUE}};
 
-  default: /*T*/ return {{
-      d2 | A_VALUE, d2 | C_VALUE, d2 | G_VALUE
-    }};
+  default: /*T*/
+    return {{d2 | A_VALUE, d2 | C_VALUE, d2 | G_VALUE}};
   }
 }
 
-
-std::array<uint64_t, 3>
-get_mismatches_of_first_base(uint64_t const d)
+std::array<uint64_t, 3> get_mismatches_of_first_base(uint64_t const d)
 {
   uint64_t const d2 = ((d << 2) >> 2);
 
   switch (d & 0xC000000000000000ULL)
   {
-  case A_LAST_VALUE: return {{
-      d2 | C_LAST_VALUE, d2 | G_LAST_VALUE, d2 | T_LAST_VALUE
-    }};
+  case A_LAST_VALUE:
+    return {{d2 | C_LAST_VALUE, d2 | G_LAST_VALUE, d2 | T_LAST_VALUE}};
 
-  case C_LAST_VALUE: return {{
-      d2 | A_LAST_VALUE, d2 | G_LAST_VALUE, d2 | T_LAST_VALUE
-    }};
+  case C_LAST_VALUE:
+    return {{d2 | A_LAST_VALUE, d2 | G_LAST_VALUE, d2 | T_LAST_VALUE}};
 
-  case G_LAST_VALUE: return {{
-      d2 | A_LAST_VALUE, d2 | C_LAST_VALUE, d2 | T_LAST_VALUE
-    }};
+  case G_LAST_VALUE:
+    return {{d2 | A_LAST_VALUE, d2 | C_LAST_VALUE, d2 | T_LAST_VALUE}};
 
-  default: /*T*/ return {{
-      d2 | A_LAST_VALUE, d2 | C_LAST_VALUE, d2 | G_LAST_VALUE
-    }};
+  default: /*T*/
+    return {{d2 | A_LAST_VALUE, d2 | C_LAST_VALUE, d2 | G_LAST_VALUE}};
   }
 }
-
 
 /**
  * @brief Inserts all elements from one map to another and optionally deletes the elements from the old map.
  */
 template <typename Map1, typename Map2>
-void
-map_swap(Map1 & map1, Map2 & map2)
+void map_swap(Map1 & map1, Map2 & map2)
 {
   for (auto it = map1.begin(); it != map1.end(); ++it)
   {
@@ -435,10 +405,8 @@ map_swap(Map1 & map1, Map2 & map2)
   }
 }
 
-
 template <typename Map1, typename Map2>
-void
-map_swap(Map1 & map1, Map2 & map2, bool const & delete_as_i_go)
+void map_swap(Map1 & map1, Map2 & map2, bool const & delete_as_i_go)
 {
   if (!delete_as_i_go)
   {
@@ -452,10 +420,8 @@ map_swap(Map1 & map1, Map2 & map2, bool const & delete_as_i_go)
   }
 }
 
-
 template <class TListItems>
-std::vector<TListItems>
-to_vector(std::forward_list<TListItems> const & q)
+std::vector<TListItems> to_vector(std::forward_list<TListItems> const & q)
 {
   std::vector<TListItems> new_list;
 
@@ -467,9 +433,7 @@ to_vector(std::forward_list<TListItems> const & q)
   return new_list;
 }
 
-
-std::vector<char>
-to_vec(std::string && str)
+std::vector<char> to_vec(std::string && str)
 {
   std::vector<char> vec(str.size());
 
@@ -480,6 +444,5 @@ to_vec(std::string && str)
 
   return vec;
 }
-
 
 } // namespace gyper

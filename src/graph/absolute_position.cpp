@@ -1,26 +1,21 @@
-#include <stdlib.h>
-
 #include <cassert>
 #include <cstdlib>
+#include <stdlib.h>
 #include <string>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/graph.hpp>
-
 #include <graphtyper/utilities/logging.hpp>
 
 namespace gyper
 {
-
 AbsolutePosition::AbsolutePosition(std::vector<Contig> const & contigs)
 {
   this->calculate_offsets(contigs);
 }
 
-
-void
-AbsolutePosition::calculate_offsets(std::vector<Contig> const & contigs)
+void AbsolutePosition::calculate_offsets(std::vector<Contig> const & contigs)
 {
   if (contigs.size() == 0 || contigs.size() == offsets.size())
     return;
@@ -39,17 +34,12 @@ AbsolutePosition::calculate_offsets(std::vector<Contig> const & contigs)
   }
 }
 
-
-bool
-AbsolutePosition::is_contig_available(std::string const & contig) const
+bool AbsolutePosition::is_contig_available(std::string const & contig) const
 {
   return chromosome_to_offset.count(contig) > 0;
 }
 
-
-long
-AbsolutePosition::get_absolute_position(std::string const & chromosome,
-                                        long const contig_position) const
+long AbsolutePosition::get_absolute_position(std::string const & chromosome, long const contig_position) const
 {
   long abs_pos{0};
 
@@ -59,8 +49,8 @@ AbsolutePosition::get_absolute_position(std::string const & chromosome,
   }
   catch (std::out_of_range const &)
   {
-    std::cerr << "[gyper::absolute_position] ERROR: No chromosome \""
-              << chromosome << "\" available. Available chromosomes are:\n";
+    std::cerr << "[gyper::absolute_position] ERROR: No chromosome \"" << chromosome
+              << "\" available. Available chromosomes are:\n";
 
     for (auto it = chromosome_to_offset.begin(); it != chromosome_to_offset.end(); ++it)
       std::cerr << it->first << "\n";
@@ -73,19 +63,15 @@ AbsolutePosition::get_absolute_position(std::string const & chromosome,
   return abs_pos;
 }
 
-
-std::pair<std::string, long>
-AbsolutePosition::get_contig_position(long const absolute_position,
-                                      std::vector<Contig> const & contigs) const
+std::pair<std::string, long> AbsolutePosition::get_contig_position(long const absolute_position,
+                                                                   std::vector<Contig> const & contigs) const
 {
   auto offset_it = std::lower_bound(offsets.begin(), offsets.end(), absolute_position);
   long const i = std::distance(offsets.begin(), offset_it);
   assert(i > 0);
   assert(i <= static_cast<long>(contigs.size()));
-  return std::make_pair<std::string, long>(std::string(contigs[i - 1].name),
-                                           absolute_position - offsets[i - 1]);
+  return std::make_pair<std::string, long>(std::string(contigs[i - 1].name), absolute_position - offsets[i - 1]);
 }
-
 
 AbsolutePosition absolute_pos;
 

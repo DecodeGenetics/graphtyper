@@ -6,13 +6,10 @@
 #include <string>
 #include <vector>
 
-
 #include <graphtyper/constants.hpp>
-
 
 namespace gyper
 {
-
 static const uint64_t A_VALUE = 0x0000000000000000ULL; /** \brief 'A' is represented by '00'. */
 static const uint64_t C_VALUE = 0x0000000000000001ULL; /** \brief 'C' is represented by '01'. */
 static const uint64_t G_VALUE = 0x0000000000000002ULL; /** \brief 'G' is represented by '10'. */

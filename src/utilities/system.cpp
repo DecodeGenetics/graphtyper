@@ -1,79 +1,65 @@
 #include <algorithm> // std::generate_n
-#include <cassert> // assert
+#include <cassert>   // assert
 #include <cstring>
+#include <dirent.h>
 #include <iomanip>
 #include <iostream>
 #include <random>
-#include <string> // std::string
 #include <sstream>
+#include <string> // std::string
+#include <sys/stat.h>
+#include <unistd.h>
 #include <utility>
 #include <vector>
 
-#include <dirent.h>
-#include <sys/stat.h>
-#include <unistd.h>
-
 #include <graphtyper/constants.hpp>
-#include <graphtyper/utilities/system.hpp>
-
 #include <graphtyper/utilities/logging.hpp>
-
+#include <graphtyper/utilities/system.hpp>
 
 namespace
 {
-
-std::string
-get_env_var(std::string const & key, std::string const & _default = "")
+std::string get_env_var(std::string const & key, std::string const & _default = "")
 {
   char * val = getenv(key.c_str());
   return val ? val : _default;
 }
 
-
-std::string
-get_random_string(long length)
+std::string get_random_string(long length)
 {
   // from https://stackoverflow.com/questions/440133/how-do-i-create-a-random-alpha-numeric-string-in-c
-  char const charset[] = "0123456789"
-                         "ABCDEFGHIJ"
-                         "KLMNOPQRST"
-                         "UVWXYZabcd"
-                         "efghijklmn"
-                         "opqrstuvwxyz";
+  char const charset[] =
+    "0123456789"
+    "ABCDEFGHIJ"
+    "KLMNOPQRST"
+    "UVWXYZabcd"
+    "efghijklmn"
+    "opqrstuvwxyz";
 
   std::vector<char> char_vec;
   char_vec.reserve(sizeof(charset) - 1); // skip the last NULL
   std::copy(charset, charset + sizeof(charset) - 1, std::back_inserter(char_vec));
   assert(char_vec.size() > 0);
 
-  std::default_random_engine rng(std::random_device{} ());
+  std::default_random_engine rng(std::random_device{}());
   std::uniform_int_distribution<> dist(0, char_vec.size() - 1);
 
   std::string str(length, 0);
-  std::generate_n(str.begin(), length, [&](){
-      return char_vec[dist(rng)];
-    });
+  std::generate_n(str.begin(), length, [&]() { return char_vec[dist(rng)]; });
 
   assert(std::find(str.begin(), str.end(), '\0') == str.end()); // No NULLs in final string
   return str;
 }
 
-
-} // namespace anon
-
+} // namespace
 
 namespace gyper
 {
-
-void
-create_dir(std::string const & dir, unsigned mode)
+void create_dir(std::string const & dir, unsigned mode)
 {
   mkdir(dir.c_str(), mode);
 }
 
-
-std::string
-current_sec()
+std::string current_sec()
 {
   time_t now = time(0);
   struct tm time_structure;
@@ -84,23 +70,18 @@ current_sec()
   return sec;
 }
 
-
-std::string
-create_temp_dir(GenomicRegion const & region)
+std::string create_temp_dir(GenomicRegion const & region)
 {
   std::ostringstream ss;
-  ss << get_env_var("TMPDIR", "/tmp") << "/graphtyper_" << current_sec() << "_"
-     << region.chr << "_" << std::setw(9) << std::setfill('0') << (region.begin + 1)
-     << "." << get_random_string(6);
+  ss << get_env_var("TMPDIR", "/tmp") << "/graphtyper_" << current_sec() << "_" << region.chr << "_" << std::setw(9)
+     << std::setfill('0') << (region.begin + 1) << "." << get_random_string(6);
 
   std::string tmp = ss.str();
   create_dir(tmp, 0700);
   return tmp;
 }
 
-
-void
-remove_file_tree(std::string const & path)
+void remove_file_tree(std::string const & path)
 {
   std::string full_path;
   DIR * dir;
@@ -148,7 +129,7 @@ remove_file_tree(std::string const & path)
     if (unlink(full_path.c_str()) == 0)
     {
       print_log(log_severity::debug, __HERE__, " Removed a file ", full_path);
-      //BOOST_LOG_TRIVIAL(info) << __HERE__ << " Removed a file " << full_path;
+      // BOOST_LOG_TRIVIAL(info) << __HERE__ << " Removed a file " << full_path;
     }
     else
     {
@@ -160,7 +141,7 @@ remove_file_tree(std::string const & path)
   if (rmdir(path.c_str()) == 0)
   {
     print_log(log_severity::debug, __HERE__, " Removed a directory ", path);
-    //BOOST_LOG_TRIVIAL(info) << __HERE__ << " Removed a directory " << path;
+    // BOOST_LOG_TRIVIAL(info) << __HERE__ << " Removed a directory " << path;
   }
   else
   {
@@ -170,17 +151,13 @@ remove_file_tree(std::string const & path)
   closedir(dir);
 }
 
-
-bool
-is_file(std::string const & filename)
+bool is_file(std::string const & filename)
 {
   struct stat sb;
   return stat(filename.c_str(), &sb) == 0 && (S_ISREG(sb.st_mode) || S_ISLNK(sb.st_mode));
 }
 
-
-void
-check_file_exists(std::string const & filename)
+void check_file_exists(std::string const & filename)
 {
   if (filename.size() == 0 || !is_file(filename))
   {
@@ -189,9 +166,7 @@ check_file_exists(std::string const & filename)
   }
 }
 
-
-void
-check_file_exists_or_empty(std::string const & filename)
+void check_file_exists_or_empty(std::string const & filename)
 {
   if (filename.size() > 0 && !is_file(filename))
   {
@@ -200,17 +175,13 @@ check_file_exists_or_empty(std::string const & filename)
   }
 }
 
-
-bool
-is_directory(std::string const & filename)
+bool is_directory(std::string const & filename)
 {
   struct stat sb;
   return stat(filename.c_str(), &sb) == 0;
 }
 
-
-bool
-is_defined_in_env(std::string const & var)
+bool is_defined_in_env(std::string const & var)
 {
   char * ref_cache;
   ref_cache = getenv(var.c_str());
@@ -220,6 +191,5 @@ is_defined_in_env(std::string const & var)
 
   return false;
 }
-
 
 } // namespace gyper

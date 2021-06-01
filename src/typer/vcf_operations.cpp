@@ -1,31 +1,27 @@
-#include <cmath> // sqrt
-#include <string> // std::string
+#include <cmath>   // sqrt
 #include <sstream> // std::ostringstream
-#include <vector> // std::vector
-
-#include <graphtyper/utilities/logging.hpp> // BOOST_LOG_TRIVIAL
+#include <string>  // std::string
+#include <vector>  // std::vector
 
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/genomic_region.hpp>
-#include <graphtyper/typer/variant.hpp> // gyper::break_down_variant
-#include <graphtyper/typer/vcf_operations.hpp>
-#include <graphtyper/typer/vcf.hpp> // gyper::Vcf
 #include <graphtyper/typer/var_stats.hpp> // gyper::join_strand_bias, gyper::split_bias_to_strings
+#include <graphtyper/typer/variant.hpp>   // gyper::break_down_variant
+#include <graphtyper/typer/vcf.hpp>       // gyper::Vcf
+#include <graphtyper/typer/vcf_operations.hpp>
+#include <graphtyper/utilities/logging.hpp> // BOOST_LOG_TRIVIAL
 #include <graphtyper/utilities/options.hpp> // gyper::Options
-
 
 namespace gyper
 {
-
 // vcf should be constructed with gyper::Vcf and no functions called
-void
-vcf_merge_and_return(gyper::Vcf & vcf, std::vector<std::string> & vcfs, std::string const & output)
+void vcf_merge_and_return(gyper::Vcf & vcf, std::vector<std::string> & vcfs, std::string const & output)
 {
   if (vcfs.size() == 0)
     return;
 
   auto const & copts = *(Options::const_instance());
-  //long const ploidy = copts.ploidy;
+  // long const ploidy = copts.ploidy;
   auto const & vcf_fn = vcfs[0];
   load_vcf(vcf, vcf_fn, 0);
   long n_batch{1};
@@ -52,9 +48,7 @@ vcf_merge_and_return(gyper::Vcf & vcf, std::vector<std::string> & vcfs, std::str
     assert(next_vcf.variants.size() == next_vcfs[0].variants.size()); // all bins have the same number of variants
 
     // Add the samples on the first batch
-    vcf.sample_names.insert(vcf.sample_names.end(),
-                            next_vcf.sample_names.begin(),
-                            next_vcf.sample_names.end());
+    vcf.sample_names.insert(vcf.sample_names.end(), next_vcf.sample_names.begin(), next_vcf.sample_names.end());
   }
 
   // Check whether the sample names are unique
@@ -74,10 +68,10 @@ vcf_merge_and_return(gyper::Vcf & vcf, std::vector<std::string> & vcfs, std::str
 
   // We have all the samples, write the header now
   vcf.write_header(false); // do not drop genotypes
-  long v_next{0}; // number of variants analyzed in previous batches
+  long v_next{0};          // number of variants analyzed in previous batches
 
   // lambda function for updating the reach
-  //auto update_reach =
+  // auto update_reach =
   //  [&reach](std::vector<Variant> const & new_variants) -> void
   //  {
   //    for (auto const & v : new_variants)
@@ -124,41 +118,41 @@ vcf_merge_and_return(gyper::Vcf & vcf, std::vector<std::string> & vcfs, std::str
       auto & next_vcf_var = next_vcf.variants[v - v_next];
       var.stats.add_stats(next_vcf_var.stats);
 
-      std::move(next_vcf_var.calls.begin(),
-                next_vcf_var.calls.end(),
-                std::back_inserter(var.calls));
+      std::move(next_vcf_var.calls.begin(), next_vcf_var.calls.end(), std::back_inserter(var.calls));
     }
 
     // Add strand bias, this must happend before the INFO is generated
-    //stats.add_stats(var.infos);
+    // stats.add_stats(var.infos);
 
     if (var.calls.size() != vcf.sample_names.size())
     {
-      print_log(log_severity::error, "Number of calls a variant had did not matches the number of samples "
-                              , var.calls.size(), " vs. ", vcf.sample_names.size());
+      print_log(log_severity::error,
+                "Number of calls a variant had did not matches the number of samples ",
+                var.calls.size(),
+                " vs. ",
+                vcf.sample_names.size());
       std::exit(1);
     }
   }
 
-  //vcf.close_vcf_file();
-  //vcf.write_tbi_index();
+  // vcf.close_vcf_file();
+  // vcf.write_tbi_index();
 }
 
-
-void
-vcf_merge(std::vector<std::string> & vcfs, std::string const & output)
+void vcf_merge(std::vector<std::string> & vcfs, std::string const & output)
 {
   // Skip if the filename contains '*'
-  vcfs.erase(std::remove_if(vcfs.begin(), vcfs.end(), [](std::string const & vcf){
-      return std::count(vcf.begin(), vcf.end(), '*') > 0;
-    }), vcfs.end());
+  vcfs.erase(std::remove_if(vcfs.begin(),
+                            vcfs.end(),
+                            [](std::string const & vcf) { return std::count(vcf.begin(), vcf.end(), '*') > 0; }),
+             vcfs.end());
 
   if (vcfs.size() == 0)
     return;
 
   gyper::Vcf vcf;
   vcf.open(READ_MODE, vcfs.at(0));
-  vcf.read(); // Read the entire file
+  vcf.read();                   // Read the entire file
   vcf.open(WRITE_MODE, output); // Change to write mode
   vcf.open_for_writing();
 
@@ -187,22 +181,19 @@ vcf_merge(std::vector<std::string> & vcfs, std::string const & output)
       next_vcf.read_samples();
 
       // Add samples names (we chose to copy them for assertions when reading the records)
-      vcf.sample_names.insert(vcf.sample_names.end(),
-                              next_vcf.sample_names.begin(),
-                              next_vcf.sample_names.end());
+      vcf.sample_names.insert(vcf.sample_names.end(), next_vcf.sample_names.begin(), next_vcf.sample_names.end());
     }
   }
 
-  print_log(log_severity::debug, __HERE__, " Total number of samples read is "
-                          , vcf.sample_names.size());
+  print_log(log_severity::debug, __HERE__, " Total number of samples read is ", vcf.sample_names.size());
 
   vcf.write_header(); // Now that we know all the sample names we can write the header
 
   // For each variant in the first VCF, add the calls from the other VCFs
   for (auto & var : vcf.variants)
   {
-    //VarStats stats(var.seqs.size());
-    //stats.read_stats(var.infos);
+    // VarStats stats(var.seqs.size());
+    // stats.read_stats(var.infos);
 
     for (auto & next_vcf : next_vcfs)
     {
@@ -214,22 +205,19 @@ vcf_merge(std::vector<std::string> & vcfs, std::string const & output)
 
       if (!SUCCESS)
       {
-        print_log(log_severity::error, __HERE__, " There was a problem reading "
-                                , next_vcf.filename, ".");
+        print_log(log_severity::error, __HERE__, " There was a problem reading ", next_vcf.filename, ".");
         std::exit(1);
       }
 
       assert(next_vcf.variants.size() == 1);
       var.stats.add_stats(next_vcf.variants[0].stats);
 
-      std::move(next_vcf.variants[0].calls.begin(),
-                next_vcf.variants[0].calls.end(),
-                std::back_inserter(var.calls));
+      std::move(next_vcf.variants[0].calls.begin(), next_vcf.variants[0].calls.end(), std::back_inserter(var.calls));
 
       next_vcf.variants.clear();
     }
 
-    //stats.add_stats(var.infos);
+    // stats.add_stats(var.infos);
 
     // generate the rest of the INFOs
     var.generate_infos();
@@ -276,12 +264,10 @@ vcf_merge(std::vector<std::string> & vcfs, std::string const & output)
   vcf.write_tbi_index();
 }
 
-
-void
-vcf_merge_and_filter(std::vector<std::string> const & vcfs,
-                     std::string const & output,
-                     std::map<std::pair<uint16_t, uint16_t>,
-                              std::map<std::pair<uint16_t, uint16_t>, int8_t> > const & ph)
+void vcf_merge_and_filter(
+  std::vector<std::string> const & vcfs,
+  std::string const & output,
+  std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t>> const & ph)
 {
   if (vcfs.size() == 0)
   {
@@ -317,7 +303,7 @@ vcf_merge_and_filter(std::vector<std::string> const & vcfs,
     var_id += (static_cast<long>(var.seqs.size()) - 1l);
   }
 
-  var_id = 0;   // reset var_id
+  var_id = 0;                                          // reset var_id
   assert(hap_id2var_id.size() == vcf.variants.size()); // no duplicate hap_ids
 
   std::vector<gyper::Vcf> next_vcfs(vcfs.size() - 1);
@@ -335,7 +321,7 @@ vcf_merge_and_filter(std::vector<std::string> const & vcfs,
   }
 
   vcf.sample_names.clear(); // this should only contain variant sites
-  vcf.write_header(true); // is dropping genotypes
+  vcf.write_header(true);   // is dropping genotypes
 
   for (long v{0}; v < static_cast<long>(vcf.variants.size()); ++v)
   {
@@ -372,9 +358,7 @@ vcf_merge_and_filter(std::vector<std::string> const & vcfs,
       auto & next_vcf_var = next_vcf.variants[v - v_next];
       var.stats.add_stats(next_vcf_var.stats);
 
-      std::move(next_vcf_var.calls.begin(),
-                next_vcf_var.calls.end(),
-                std::back_inserter(var.calls));
+      std::move(next_vcf_var.calls.begin(), next_vcf_var.calls.end(), std::back_inserter(var.calls));
     }
 
     std::vector<int8_t> is_good_alt = var.generate_infos();
@@ -386,7 +370,7 @@ vcf_merge_and_filter(std::vector<std::string> const & vcfs,
 
       if (is_good_alt[a] == 0)
       {
-        //BOOST_LOG_TRIVIAL(info) << __HERE__ << " Skipping alt " << a << " of " << var.to_string();
+        // BOOST_LOG_TRIVIAL(info) << __HERE__ << " Skipping alt " << a << " of " << var.to_string();
         continue; // skip
       }
 
@@ -482,14 +466,12 @@ vcf_merge_and_filter(std::vector<std::string> const & vcfs,
   vcf.write_tbi_index();
 }
 
-
-void
-vcf_merge_and_break(std::vector<std::string> const & vcfs,
-                    std::string const & output,
-                    std::string const & region,
-                    bool const FILTER_ZERO_QUAL,
-                    bool const force_no_variant_overlapping,
-                    bool const force_no_break_down)
+void vcf_merge_and_break(std::vector<std::string> const & vcfs,
+                         std::string const & output,
+                         std::string const & region,
+                         bool const FILTER_ZERO_QUAL,
+                         bool const force_no_variant_overlapping,
+                         bool const force_no_break_down)
 {
   if (vcfs.size() == 0)
     return;
@@ -497,11 +479,9 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
   auto const & copts = *(Options::const_instance());
   long const ploidy = copts.ploidy;
   GenomicRegion genomic_region(region);
-  uint32_t const region_begin = 1 + absolute_pos.get_absolute_position(genomic_region.chr,
-                                                                       genomic_region.begin);
+  uint32_t const region_begin = 1 + absolute_pos.get_absolute_position(genomic_region.chr, genomic_region.begin);
 
-  uint32_t const region_end = absolute_pos.get_absolute_position(genomic_region.chr,
-                                                                 genomic_region.end);
+  uint32_t const region_end = absolute_pos.get_absolute_position(genomic_region.chr, genomic_region.end);
 
   auto const & vcf_fn = vcfs[0];
   Vcf vcf;
@@ -530,9 +510,7 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
     assert(next_vcf.variants.size() == next_vcfs[0].variants.size()); // all bins have the same number of variants
 
     // Add the samples on the first batch
-    vcf.sample_names.insert(vcf.sample_names.end(),
-                            next_vcf.sample_names.begin(),
-                            next_vcf.sample_names.end());
+    vcf.sample_names.insert(vcf.sample_names.end(), next_vcf.sample_names.begin(), next_vcf.sample_names.end());
   }
 
   // Check whether the sample names are unique
@@ -555,20 +533,19 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
 
   long reach{-1};
   std::vector<Variant> broken_vars; // broken down variants
-  long v_next{0}; // number of variants analyzed in previous batches
+  long v_next{0};                   // number of variants analyzed in previous batches
 
   // lambda function for updating the reach
-  auto update_reach =
-    [&reach](std::vector<Variant> const & new_variants) -> void
+  auto update_reach = [&reach](std::vector<Variant> const & new_variants) -> void
+  {
+    for (auto const & v : new_variants)
     {
-      for (auto const & v : new_variants)
-      {
-        long curr_reach = v.seqs[0].size() + v.abs_pos;
+      long curr_reach = v.seqs[0].size() + v.abs_pos;
 
-        if (curr_reach > reach)
-          reach = curr_reach;
-      }
-    };
+      if (curr_reach > reach)
+        reach = curr_reach;
+    }
+  };
 
   for (long v{0}; v < static_cast<long>(vcf.variants.size()); ++v)
   {
@@ -603,30 +580,30 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
       assert((v - v_next) >= 0);
       assert((v - v_next) < static_cast<long>(next_vcf.variants.size()));
       auto & next_vcf_var = next_vcf.variants[v - v_next];
-      //next_vcf_var.scan_calls();
+      // next_vcf_var.scan_calls();
       var.stats.add_stats(next_vcf_var.stats);
 
-      std::move(next_vcf_var.calls.begin(),
-                next_vcf_var.calls.end(),
-                std::back_inserter(var.calls));
+      std::move(next_vcf_var.calls.begin(), next_vcf_var.calls.end(), std::back_inserter(var.calls));
     }
 
     // Add strand bias, this must happend before the INFO is generated
-    //stats.add_stats(var.infos);
+    // stats.add_stats(var.infos);
 
     if (var.calls.size() != vcf.sample_names.size())
     {
-      print_log(log_severity::error, "Number of calls a variant had did not matches the number of samples "
-                              , var.calls.size(), " vs. ", vcf.sample_names.size());
+      print_log(log_severity::error,
+                "Number of calls a variant had did not matches the number of samples ",
+                var.calls.size(),
+                " vs. ",
+                vcf.sample_names.size());
       std::exit(1);
     }
 
-    //assert(var.infos.count("SBF1") == 1);
-    //assert(var.stats.per_allele.size() == var.seqs.size());
+    // assert(var.infos.count("SBF1") == 1);
+    // assert(var.stats.per_allele.size() == var.seqs.size());
 
     // break down the merged variants
-    bool const is_no_variant_overlapping{copts.no_variant_overlapping ||
-                                         force_no_variant_overlapping};
+    bool const is_no_variant_overlapping{copts.no_variant_overlapping || force_no_variant_overlapping};
 
     bool const is_all_biallelic{copts.is_all_biallelic};
     std::vector<Variant> new_variants;
@@ -637,17 +614,14 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
     }
     else
     {
-      new_variants = break_down_variant(std::move(var),
-                                        reach,
-                                        is_no_variant_overlapping,
-                                        is_all_biallelic);
+      new_variants = break_down_variant(std::move(var), reach, is_no_variant_overlapping, is_all_biallelic);
     }
 
     assert(new_variants.size() > 0);
 
-    //BOOST_LOG_TRIVIAL(info) << __HERE__ << " generating INFOs";
+    // BOOST_LOG_TRIVIAL(info) << __HERE__ << " generating INFOs";
 
-    for (auto it = new_variants.begin(); it != new_variants.end();)  // no increment & new_var : new_variants)
+    for (auto it = new_variants.begin(); it != new_variants.end();) // no increment & new_var : new_variants)
     {
       auto & new_var = *it;
       long const normalize_distance = new_var.normalize();
@@ -660,12 +634,13 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
         auto is_good_alt = new_var.generate_infos();
 
         if (!Options::const_instance()->force_no_filter_bad_alts &&
-            std::all_of(is_good_alt.begin(), is_good_alt.end(), [](int8_t is_good){
-            return is_good == 0;
-          }))
+            std::all_of(is_good_alt.begin(), is_good_alt.end(), [](int8_t is_good) { return is_good == 0; }))
         {
-          print_log(log_severity::debug, __HERE__, " Removed variant=", new_var.to_string(true)
-                                  , " because every alt was bad");
+          print_log(log_severity::debug,
+                    __HERE__,
+                    " Removed variant=",
+                    new_var.to_string(true),
+                    " because every alt was bad");
           it = new_variants.erase(it);
         }
         else
@@ -674,22 +649,25 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
         }
 
         // Remove uneeded infos
-        //new_var.infos.erase("CRal");
-        //new_var.infos.erase("MMal");
-        //new_var.infos.erase("MQal");
-        //new_var.infos.erase("MQsquared");
-        //new_var.infos.erase("MQSal");
-        //new_var.infos.erase("SDal");
+        // new_var.infos.erase("CRal");
+        // new_var.infos.erase("MMal");
+        // new_var.infos.erase("MQal");
+        // new_var.infos.erase("MQsquared");
+        // new_var.infos.erase("MQSal");
+        // new_var.infos.erase("SDal");
       }
       else
       {
-        print_log(log_severity::warning, __HERE__, " Removed a variant which moved ", normalize_distance
-                                  , " bp during normalization.");
+        print_log(log_severity::warning,
+                  __HERE__,
+                  " Removed a variant which moved ",
+                  normalize_distance,
+                  " bp during normalization.");
         it = new_variants.erase(it);
       }
     }
 
-    //BOOST_LOG_TRIVIAL(info) << __HERE__ << " done generating INFOs";
+    // BOOST_LOG_TRIVIAL(info) << __HERE__ << " done generating INFOs";
 
     if (new_variants.size() > 0)
     {
@@ -701,10 +679,7 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
       auto min_max_it_pair =
         std::minmax_element(broken_vars.begin(),
                             broken_vars.end(),
-                            [](Variant const & a, Variant const & b)
-        {
-          return a.abs_pos < b.abs_pos;
-        });
+                            [](Variant const & a, Variant const & b) { return a.abs_pos < b.abs_pos; });
 
       assert(min_max_it_pair.first != broken_vars.end());
       assert(min_max_it_pair.second != broken_vars.end());
@@ -715,8 +690,7 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
       if ((min_abs_pos + 2l * W) < max_abs_pos)
       {
         // Make sure we do no print outside of the region
-        long const reg_end =
-          std::min(static_cast<long>(region_end), max_abs_pos - static_cast<long>(W));
+        long const reg_end = std::min(static_cast<long>(region_end), max_abs_pos - static_cast<long>(W));
 
         if (reg_end >= static_cast<long>(region_begin))
         {
@@ -727,15 +701,10 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
                             broken_vars);
 
           // Remove variants that were written (or before the region, since they will never be printed)
-          broken_vars.erase(
-            std::remove_if(broken_vars.begin(),
-                           broken_vars.end(),
-                           [&](Variant const & v)
-            {
-              return static_cast<long>(v.abs_pos) <= reg_end;
-            }),
-            broken_vars.end()
-            );
+          broken_vars.erase(std::remove_if(broken_vars.begin(),
+                                           broken_vars.end(),
+                                           [&](Variant const & v) { return static_cast<long>(v.abs_pos) <= reg_end; }),
+                            broken_vars.end());
         }
       }
     }
@@ -744,24 +713,18 @@ vcf_merge_and_break(std::vector<std::string> const & vcfs,
   }
 
   // Write the remaining broken variants
-  vcf.write_records(region_begin,
-                    region_end,
-                    FILTER_ZERO_QUAL,
-                    copts.is_dropping_genotypes,
-                    broken_vars);
+  vcf.write_records(region_begin, region_end, FILTER_ZERO_QUAL, copts.is_dropping_genotypes, broken_vars);
 
   vcf.close_vcf_file();
   vcf.write_tbi_index();
 }
 
-
-void
-vcf_concatenate(std::vector<std::string> const & vcfs,
-                std::string const & output,
-                bool const SKIP_SORT,
-                bool const SITES_ONLY,
-                bool const WRITE_TBI,
-                std::string const & region)
+void vcf_concatenate(std::vector<std::string> const & vcfs,
+                     std::string const & output,
+                     bool const SKIP_SORT,
+                     bool const SITES_ONLY,
+                     bool const WRITE_TBI,
+                     std::string const & region)
 {
   print_log(log_severity::info, __HERE__, " running vcf_concatenate.");
 
@@ -816,8 +779,7 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
       // Copy sample names if this is the first VCF
       if (i == 0)
       {
-        std::copy(next_vcf.sample_names.begin(), next_vcf.sample_names.end(),
-                  std::back_inserter(vcf.sample_names));
+        std::copy(next_vcf.sample_names.begin(), next_vcf.sample_names.end(), std::back_inserter(vcf.sample_names));
         vcf.write_header();
       }
       else if (next_vcf.sample_names.size() != vcf.sample_names.size())
@@ -828,7 +790,8 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
                   " has different amount of samples! (",
                   next_vcf.sample_names.size(),
                   " but not ",
-                  vcf.sample_names.size(), ")");
+                  vcf.sample_names.size(),
+                  ")");
         std::exit(1);
       }
 
@@ -838,8 +801,7 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
       {
         // Add variants
         assert(vcf.variants.size() == 0);
-        std::move(next_vcf.variants.begin(), next_vcf.variants.end(),
-                  std::back_inserter(vcf.variants));
+        std::move(next_vcf.variants.begin(), next_vcf.variants.end(), std::back_inserter(vcf.variants));
         assert(vcf.variants.size() == 1);
 
         if (vcf.sample_names.size() > 0)
@@ -908,9 +870,7 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
       }
 
       // Add variants
-      std::move(next_vcf.variants.begin(),
-                next_vcf.variants.end(),
-                std::back_inserter(vcf.variants));
+      std::move(next_vcf.variants.begin(), next_vcf.variants.end(), std::back_inserter(vcf.variants));
     }
 
     // Regenerate the INFO scores
@@ -927,9 +887,7 @@ vcf_concatenate(std::vector<std::string> const & vcfs,
     vcf.write_tbi_index();
 }
 
-
-void
-vcf_break_down(std::string const & vcf, std::string const & output, std::string const & region)
+void vcf_break_down(std::string const & vcf, std::string const & output, std::string const & region)
 {
   gyper::Vcf vcf_in;
   vcf_in.open(READ_MODE, vcf);
@@ -943,20 +901,15 @@ vcf_break_down(std::string const & vcf, std::string const & output, std::string 
 
   // Read the sample names and add them
   vcf_in.read_samples();
-  print_log(log_severity::debug, __HERE__, " Total number of samples read is "
-                          , vcf_in.sample_names.size());
+  print_log(log_severity::debug, __HERE__, " Total number of samples read is ", vcf_in.sample_names.size());
 
   // Copy sample names
-  std::copy(vcf_in.sample_names.begin(),
-            vcf_in.sample_names.end(),
-            std::back_inserter(vcf_out.sample_names));
+  std::copy(vcf_in.sample_names.begin(), vcf_in.sample_names.end(), std::back_inserter(vcf_out.sample_names));
 
   GenomicRegion genomic_region(region);
-  uint32_t const region_begin = 1 + absolute_pos.get_absolute_position(genomic_region.chr,
-                                                                       genomic_region.begin);
+  uint32_t const region_begin = 1 + absolute_pos.get_absolute_position(genomic_region.chr, genomic_region.begin);
 
-  uint32_t const region_end = absolute_pos.get_absolute_position(genomic_region.chr,
-                                                                 genomic_region.end);
+  uint32_t const region_end = absolute_pos.get_absolute_position(genomic_region.chr, genomic_region.end);
 
   // Read first record
   bool not_at_end = vcf_in.read_record();
@@ -965,17 +918,16 @@ vcf_break_down(std::string const & vcf, std::string const & output, std::string 
   vcf_out.write_header();
   long reach{-1}; // Indicates how long the previous variants reached
 
-  auto update_reach =
-    [&reach](std::vector<Variant> const & new_variants)
+  auto update_reach = [&reach](std::vector<Variant> const & new_variants)
+  {
+    for (auto const & var : new_variants)
     {
-      for (auto const & var : new_variants)
-      {
-        long curr_reach = var.seqs[0].size() + var.abs_pos;
+      long curr_reach = var.seqs[0].size() + var.abs_pos;
 
-        if (curr_reach > reach)
-          reach = curr_reach;
-      }
-    };
+      if (curr_reach > reach)
+        reach = curr_reach;
+    }
+  };
 
   // Loop over the entire VCF in file, line by line
   for (; not_at_end; not_at_end = vcf_in.read_record())
@@ -999,10 +951,8 @@ vcf_break_down(std::string const & vcf, std::string const & output, std::string 
     bool const is_no_variant_overlapping{Options::const_instance()->no_variant_overlapping};
     bool const is_all_biallelic{Options::const_instance()->is_all_biallelic};
     assert(vcf_in.variants[0].infos.count("SBF1") == 1);
-    std::vector<Variant> new_variants = break_down_variant(std::move(vcf_in.variants[0]),
-                                                           reach,
-                                                           is_no_variant_overlapping,
-                                                           is_all_biallelic);
+    std::vector<Variant> new_variants =
+      break_down_variant(std::move(vcf_in.variants[0]), reach, is_no_variant_overlapping, is_all_biallelic);
 
     update_reach(new_variants);
     std::move(new_variants.begin(), new_variants.end(), std::back_inserter(vcf_out.variants));
@@ -1020,9 +970,7 @@ vcf_break_down(std::string const & vcf, std::string const & output, std::string 
       }
 
       // Make sure we do no print outside of the region
-      uint32_t const reg_end = std::min(region_end,
-                                        static_cast<uint32_t>(vcf_in.variants.back().abs_pos - W)
-                                        );
+      uint32_t const reg_end = std::min(region_end, static_cast<uint32_t>(vcf_in.variants.back().abs_pos - W));
 
       vcf_out.write_records(region_begin,
                             reg_end,
@@ -1031,16 +979,11 @@ vcf_break_down(std::string const & vcf, std::string const & output, std::string 
                             vcf_out.variants);
 
       // Remove variants that were written (or before the region, since they will never be printed)
-      vcf_out.variants.erase(
-        std::remove_if(vcf_out.variants.begin(),
-                       vcf_out.variants.end(),
-                       [&](Variant const & v)
-        {
-          return v.abs_pos <= reg_end;
-        }),
+      vcf_out.variants.erase(std::remove_if(vcf_out.variants.begin(),
+                                            vcf_out.variants.end(),
+                                            [&](Variant const & v) { return v.abs_pos <= reg_end; }),
 
-        vcf_out.variants.end()
-        );
+                             vcf_out.variants.end());
     }
 
     // Write the records
@@ -1068,9 +1011,7 @@ vcf_break_down(std::string const & vcf, std::string const & output, std::string 
   vcf_out.write_tbi_index();
 }
 
-
-void
-vcf_update_info(std::string const & vcf, std::string const & output)
+void vcf_update_info(std::string const & vcf, std::string const & output)
 {
   gyper::Vcf vcf_in;
   vcf_in.open(READ_MODE, vcf);
@@ -1086,8 +1027,7 @@ vcf_update_info(std::string const & vcf, std::string const & output)
   vcf_in.read_samples();
 
   // Copy sample names
-  std::copy(vcf_in.sample_names.begin(), vcf_in.sample_names.end(),
-            std::back_inserter(vcf_out.sample_names));
+  std::copy(vcf_in.sample_names.begin(), vcf_in.sample_names.end(), std::back_inserter(vcf_out.sample_names));
 
   // Write header to output
   vcf_out.write_header();
@@ -1104,9 +1044,7 @@ vcf_update_info(std::string const & vcf, std::string const & output)
     assert(vcf_in.variants.size() == 1);
     assert(vcf_out.variants.size() == 0);
 
-    std::move(vcf_in.variants.begin(),
-              vcf_in.variants.end(),
-              std::back_inserter(vcf_out.variants));
+    std::move(vcf_in.variants.begin(), vcf_in.variants.end(), std::back_inserter(vcf_out.variants));
 
     assert(vcf_out.variants.size() == 1);
 
@@ -1128,6 +1066,5 @@ vcf_update_info(std::string const & vcf, std::string const & output)
   vcf_in.close_vcf_file();
   vcf_out.close_vcf_file();
 }
-
 
 } // namespace gyper

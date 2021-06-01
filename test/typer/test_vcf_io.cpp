@@ -1,15 +1,14 @@
-#include <catch.hpp>
-
-#include <stdio.h>
 #include <climits>
 #include <cstdio>
-#include <string>
-#include <iostream>
 #include <fstream>
+#include <iostream>
+#include <stdio.h>
+#include <string>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/typer/vcf.hpp>
 
+#include <catch.hpp>
 
 TEST_CASE("Read the index test VCF file")
 {

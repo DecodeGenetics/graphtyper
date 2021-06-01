@@ -1,25 +1,23 @@
 #include <cstdint>
 #include <numeric>
-#include <string>
 #include <sstream>
+#include <string>
 #include <unordered_set>
 
 #include <cereal/archives/binary.hpp>
-#include <cereal/types/vector.hpp>
 #include <cereal/types/string.hpp>
+#include <cereal/types/vector.hpp>
 
+#include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/sv.hpp>
-#include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/typer/variant.hpp>
-#include <graphtyper/utilities/options.hpp>
 #include <graphtyper/utilities/graph_help_functions.hpp>
+#include <graphtyper/utilities/options.hpp>
 
 namespace gyper
 {
-
-std::string
-SV::get_type() const
+std::string SV::get_type() const
 {
   switch (type)
   {
@@ -50,9 +48,7 @@ SV::get_type() const
   } // switch
 }
 
-
-std::string
-SV::get_allele() const
+std::string SV::get_allele() const
 {
   std::ostringstream ss;
 
@@ -67,9 +63,7 @@ SV::get_allele() const
   return ss.str();
 }
 
-
-std::string
-SV::get_allele_with_model() const
+std::string SV::get_allele_with_model() const
 {
   std::ostringstream ss;
 
@@ -87,10 +81,8 @@ SV::get_allele_with_model() const
   return ss.str();
 }
 
-
 template <typename Archive>
-void
-SV::serialize(Archive & ar, const unsigned int /*version*/)
+void SV::serialize(Archive & ar, const unsigned int /*version*/)
 {
   ar & chrom;
   ar & begin;
@@ -114,25 +106,20 @@ SV::serialize(Archive & ar, const unsigned int /*version*/)
   ar & original_alt;
 }
 
-
 /***************************
  * EXPLICIT INSTANTIATIONS *
  ***************************/
 
-template void SV::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &,
-                                                             const unsigned int);
+template void SV::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &, const unsigned int);
 
-template void SV::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputArchive &,
-                                                             const unsigned int);
+template void SV::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputArchive &, const unsigned int);
 
-
-void
-reformat_sv_vcf_records(std::vector<Variant> & variants, ReferenceDepth const & reference_depth)
+void reformat_sv_vcf_records(std::vector<Variant> & variants, ReferenceDepth const & reference_depth)
 {
   long const variants_original_size = variants.size();
-  std::unordered_set<long> variant_ids_to_erase; // Index of variants to erase
+  std::unordered_set<long> variant_ids_to_erase;    // Index of variants to erase
   std::unordered_map<int32_t, int32_t> related_svs; // Map of all related SVs
-  std::vector<Variant> new_vars; // Keep new variants here to keep var reference valid
+  std::vector<Variant> new_vars;                    // Keep new variants here to keep var reference valid
 
   for (long v = 0; v < variants_original_size; ++v)
   {
@@ -162,12 +149,8 @@ reformat_sv_vcf_records(std::vector<Variant> & variants, ReferenceDepth const & 
     }
 
     {
-      bool const is_any_sv = std::find_if(sv_ids.cbegin(),
-                                          sv_ids.cend(),
-                                          [](long const id){
-          return id != -1;
-        }
-                                          ) != sv_ids.cend();
+      bool const is_any_sv =
+        std::find_if(sv_ids.cbegin(), sv_ids.cend(), [](long const id) { return id != -1; }) != sv_ids.cend();
 
       if (not is_any_sv)
         continue; // Nothing to do, there are no SVs here
@@ -193,359 +176,344 @@ reformat_sv_vcf_records(std::vector<Variant> & variants, ReferenceDepth const & 
       };
     */
 
-    auto make_new_sv_var =
-      [&](Variant const & old_var, long const aa) -> Variant
+    auto make_new_sv_var = [&](Variant const & old_var, long const aa) -> Variant
+    {
+      Variant new_var;
+      new_var.abs_pos = old_var.abs_pos;
+      new_var.seqs.reserve(2);
+      new_var.seqs.push_back(old_var.seqs[0]);
+      new_var.seqs.push_back(old_var.seqs[aa + 1]);
+      new_var.infos = old_var.infos;
+      new_var.stats = old_var.stats;
+
+      // Set value at index 1 to the alternative allele stats and then shrink the vector with .resize()
+      new_var.stats.per_allele[1] = old_var.stats.per_allele[aa + 1];
+      new_var.stats.read_strand[1] = old_var.stats.read_strand[aa + 1];
+
+      new_var.stats.per_allele.resize(2);
+      new_var.stats.read_strand.resize(2);
+
+      assert(new_var.stats.per_allele.size() == new_var.seqs.size());
+
+      new_var.calls.reserve(old_var.calls.size());
+
+      for (long i = 0; i < static_cast<long>(old_var.calls.size()); ++i)
       {
-        Variant new_var;
-        new_var.abs_pos = old_var.abs_pos;
-        new_var.seqs.reserve(2);
-        new_var.seqs.push_back(old_var.seqs[0]);
-        new_var.seqs.push_back(old_var.seqs[aa + 1]);
-        new_var.infos = old_var.infos;
-        new_var.stats = old_var.stats;
+        auto & call = old_var.calls[i];
+        new_var.calls.push_back(make_bi_allelic_call(call, aa));
+      }
 
-        // Set value at index 1 to the alternative allele stats and then shrink the vector with .resize()
-        new_var.stats.per_allele[1] = old_var.stats.per_allele[aa + 1];
-        new_var.stats.read_strand[1] = old_var.stats.read_strand[aa + 1];
+      // new_var.normalize();
+      assert(sv_ids[aa] != -1);
+      auto const & sv_of_new_var = graph.SVs[sv_ids[aa]];
 
-        new_var.stats.per_allele.resize(2);
-        new_var.stats.read_strand.resize(2);
+      if (sv_of_new_var.n_clusters > 0)
+        new_var.infos["NCLUSTERS"] = std::to_string(sv_of_new_var.n_clusters);
 
-        assert(new_var.stats.per_allele.size() == new_var.seqs.size());
+      if (sv_of_new_var.num_merged_svs > 0)
+        new_var.infos["NUM_MERGED_SVS"] = std::to_string(sv_of_new_var.num_merged_svs);
 
-        new_var.calls.reserve(old_var.calls.size());
+      new_var.infos["SV_ID"] = std::to_string(sv_ids[aa]);
 
-        for (long i = 0; i < static_cast<long>(old_var.calls.size()); ++i)
+      if (sv_of_new_var.related_sv >= 0)
+        new_var.infos["RELATED_SV_ID"] = std::to_string(sv_of_new_var.related_sv);
+
+      // Move SV to its original position
+      new_var.abs_pos = absolute_pos.get_absolute_position(sv_of_new_var.chrom, sv_of_new_var.begin);
+      return new_var;
+    };
+
+    auto make_variant_with_combined_calls = [](Variant const & var1, Variant const & var2) -> Variant
+    {
+      Variant combined_var(var1);
+      assert(var1.calls.size() == var2.calls.size());
+
+      for (long i = 0; i < static_cast<long>(var1.calls.size()); ++i)
+      {
+        auto & combined_call = combined_var.calls[i];
+        auto const & var2_call = var2.calls[i];
+
+        std::pair<uint16_t, uint16_t> gt_call2 = var2_call.get_gt_call();
+        std::pair<uint16_t, uint16_t> gt_call1 = combined_call.get_gt_call();
+
+        long gq1 = var2_call.get_gq();
+        long gq2 = combined_call.get_gq();
+        long max_gq = gq1;
+        long min_gq = gq2;
+
+        // Get unique depth here since here it is call1
+        uint32_t dp1 = combined_call.get_unique_depth();
+
+        if (gq1 > gq2)
         {
-          auto & call = old_var.calls[i];
-          new_var.calls.push_back(make_bi_allelic_call(call, aa));
+          combined_call = var2_call;
+          max_gq = gq1;
+          min_gq = gq2;
         }
 
-        //new_var.normalize();
-        assert(sv_ids[aa] != -1);
-        auto const & sv_of_new_var = graph.SVs[sv_ids[aa]];
-
-        if (sv_of_new_var.n_clusters > 0)
-          new_var.infos["NCLUSTERS"] = std::to_string(sv_of_new_var.n_clusters);
-
-        if (sv_of_new_var.num_merged_svs > 0)
-          new_var.infos["NUM_MERGED_SVS"] = std::to_string(sv_of_new_var.num_merged_svs);
-
-        new_var.infos["SV_ID"] = std::to_string(sv_ids[aa]);
-
-        if (sv_of_new_var.related_sv >= 0)
-          new_var.infos["RELATED_SV_ID"] = std::to_string(sv_of_new_var.related_sv);
-
-        // Move SV to its original position
-        new_var.abs_pos = absolute_pos.get_absolute_position(sv_of_new_var.chrom, sv_of_new_var.begin);
-        return new_var;
-      };
-
-
-    auto make_variant_with_combined_calls =
-      [](Variant const & var1, Variant const & var2) -> Variant
-      {
-        Variant combined_var(var1);
-        assert(var1.calls.size() == var2.calls.size());
-
-        for (long i = 0; i < static_cast<long>(var1.calls.size()); ++i)
+        if (var1.calls[i].filter > 0 && var2.calls[i].filter > 0)
         {
-          auto & combined_call = combined_var.calls[i];
-          auto const & var2_call = var2.calls[i];
+          combined_call.filter = 3;
+        }
+        else if (var1.calls[i].filter > 0)
+        {
+          combined_call.filter = var1.calls[i].filter;
+        }
+        else if (var2.calls[i].filter > 0)
+        {
+          combined_call.filter = var2.calls[i].filter;
+        }
+        else if (dp1 >= 10u && var2_call.get_unique_depth() >= 10u)
+        {
+          std::pair<uint16_t, uint16_t> final_gt_call = combined_call.get_gt_call();
+          long index = to_index(final_gt_call.first, final_gt_call.second);
+          assert(index < static_cast<long>(var1.calls[i].phred.size()));
+          assert(index < static_cast<long>(var2.calls[i].phred.size()));
 
-          std::pair<uint16_t, uint16_t> gt_call2 = var2_call.get_gt_call();
-          std::pair<uint16_t, uint16_t> gt_call1 = combined_call.get_gt_call();
-
-          long gq1 = var2_call.get_gq();
-          long gq2 = combined_call.get_gq();
-          long max_gq = gq1;
-          long min_gq = gq2;
-
-          // Get unique depth here since here it is call1
-          uint32_t dp1 = combined_call.get_unique_depth();
-
-          if (gq1 > gq2)
+          if ((final_gt_call == gt_call1 && final_gt_call == gt_call2) && min_gq > 10)
           {
-            combined_call = var2_call;
-            max_gq = gq1;
-            min_gq = gq2;
+            combined_call.filter = 0; // PASS
           }
-
-          if (var1.calls[i].filter > 0 && var2.calls[i].filter > 0)
+          else if (max_gq > 40 && (var1.calls[i].phred[index] + var2.calls[i].phred[index]) <= 20)
           {
-            combined_call.filter = 3;
+            combined_call.filter = 0; // PASS
           }
-          else if (var1.calls[i].filter > 0)
+          else if (max_gq > 30)
           {
-            combined_call.filter = var1.calls[i].filter;
-          }
-          else if (var2.calls[i].filter > 0)
-          {
-            combined_call.filter = var2.calls[i].filter;
-          }
-          else if (dp1 >= 10u && var2_call.get_unique_depth() >= 10u)
-          {
-            std::pair<uint16_t,
-                      uint16_t> final_gt_call = combined_call.get_gt_call();
-            long index = to_index(final_gt_call.first, final_gt_call.second);
-            assert(index < static_cast<long>(var1.calls[i].phred.size()));
-            assert(index < static_cast<long>(var2.calls[i].phred.size()));
-
-            if ((final_gt_call == gt_call1 && final_gt_call == gt_call2) &&
-                min_gq > 10)
-            {
-              combined_call.filter = 0; // PASS
-            }
-            else if (max_gq > 40 &&
-                     (var1.calls[i].phred[index] + var2.calls[i].phred[index]) <= 20)
-            {
-              combined_call.filter = 0; // PASS
-            }
-            else if (max_gq > 30)
-            {
-              combined_call.filter = 1; // FAIL1
-            }
-            else
-            {
-              combined_call.filter = 2; // FAIL2
-            }
+            combined_call.filter = 1; // FAIL1
           }
           else
           {
-            combined_call.filter = 3; // FAIL3
+            combined_call.filter = 2; // FAIL2
           }
         }
-
-        return combined_var;
-      };
-
-    auto add_sv_to_new_vars_vector =
-      [&new_vars](Variant && var, SV const & sv, std::string const & model) -> void
-      {
-        /// Set genotyping model in alternative allele
-        if (sv.type != BND && !model.empty())
-        {
-          std::vector<char> & an = var.seqs[1]; // an = allele name
-          an[an.size() - 1] = ':';
-          std::copy(model.begin(), model.end(), std::back_inserter(an));
-          an.push_back('>');
-        }
-        else if (sv.type == BND)
-        {
-          var.seqs[1] = sv.original_alt;
-        }
-
-        var.infos["SVTYPE"] = sv.get_type();
-
-        // Make sure we do not write an END which is smaller then the begin position - otherwise bcftools is not happy
-        if (sv.end < sv.begin)
-          var.infos["END"] = std::to_string(sv.begin);
         else
-          var.infos["END"] = std::to_string(sv.end);
-
-        if (sv.length != 0)
-          var.infos["SVSIZE"] = std::to_string(sv.size);
-
-        if (sv.length != 0)
-          var.infos["SVLEN"] = std::to_string(sv.length);
-
-        if (model.size() > 0)
-          var.infos["SVMODEL"] = model;
-
-        if (sv.or_start != -1)
-          var.infos["ORSTART"] = std::to_string(sv.or_start);
-
-        if (sv.or_start != -1)
-          var.infos["OREND"] = std::to_string(sv.or_end);
-
-        if (sv.seq.size() > 0)
-          var.infos["SEQ"] = std::string(sv.seq.begin(), sv.seq.end());
-
-        if (sv.n_clusters > 0)
-          var.infos["NCLUSTERS"] = std::to_string(sv.n_clusters);
-
-        if (sv.num_merged_svs >= 0)
-          var.infos["NUM_MERGED_SVS"] = std::to_string(sv.num_merged_svs);
-
-        if (sv.old_variant_id.size() > 0 && sv.old_variant_id != ".")
-          var.infos["OLD_VARIANT_ID"] = sv.old_variant_id;
-
-        if (sv.hom_seq.size() > 0)
-          var.infos["HOMSEQ"] = std::string(sv.hom_seq.begin(), sv.hom_seq.end());
-
-        if (sv.ins_seq.size() > 0)
-          var.infos["SVINSSEQ"] = std::string(sv.ins_seq.begin(), sv.ins_seq.end());
-
-        if (sv.ins_seq_left.size() > 0)
-          var.infos["LEFT_SVINSSEQ"] = std::string(sv.ins_seq_left.begin(), sv.ins_seq_left.end());
-
-        if (sv.ins_seq_right.size() > 0)
-          var.infos["RIGHT_SVINSSEQ"] = std::string(sv.ins_seq_right.begin(), sv.ins_seq_right.end());
-
-        if (sv.type == INV && sv.inv_type != NOT_INV)
         {
-          switch (sv.inv_type)
-          {
-          case INV3:
-            var.infos["INV3"] = "";
-            break;
-
-          case INV5:
-            var.infos["INV5"] = "";
-            break;
-
-          case BOTH_BREAKPOINTS:
-            var.infos["INV3"] = "";
-            var.infos["INV5"] = "";
-            break;
-
-          default:
-            break;
-          }
+          combined_call.filter = 3; // FAIL3
         }
+      }
 
+      return combined_var;
+    };
 
-        new_vars.push_back(std::move(var));
-      };
+    auto add_sv_to_new_vars_vector = [&new_vars](Variant && var, SV const & sv, std::string const & model) -> void
+    {
+      /// Set genotyping model in alternative allele
+      if (sv.type != BND && !model.empty())
+      {
+        std::vector<char> & an = var.seqs[1]; // an = allele name
+        an[an.size() - 1] = ':';
+        std::copy(model.begin(), model.end(), std::back_inserter(an));
+        an.push_back('>');
+      }
+      else if (sv.type == BND)
+      {
+        var.seqs[1] = sv.original_alt;
+      }
 
+      var.infos["SVTYPE"] = sv.get_type();
+
+      // Make sure we do not write an END which is smaller then the begin position - otherwise bcftools is not happy
+      if (sv.end < sv.begin)
+        var.infos["END"] = std::to_string(sv.begin);
+      else
+        var.infos["END"] = std::to_string(sv.end);
+
+      if (sv.length != 0)
+        var.infos["SVSIZE"] = std::to_string(sv.size);
+
+      if (sv.length != 0)
+        var.infos["SVLEN"] = std::to_string(sv.length);
+
+      if (model.size() > 0)
+        var.infos["SVMODEL"] = model;
+
+      if (sv.or_start != -1)
+        var.infos["ORSTART"] = std::to_string(sv.or_start);
+
+      if (sv.or_start != -1)
+        var.infos["OREND"] = std::to_string(sv.or_end);
+
+      if (sv.seq.size() > 0)
+        var.infos["SEQ"] = std::string(sv.seq.begin(), sv.seq.end());
+
+      if (sv.n_clusters > 0)
+        var.infos["NCLUSTERS"] = std::to_string(sv.n_clusters);
+
+      if (sv.num_merged_svs >= 0)
+        var.infos["NUM_MERGED_SVS"] = std::to_string(sv.num_merged_svs);
+
+      if (sv.old_variant_id.size() > 0 && sv.old_variant_id != ".")
+        var.infos["OLD_VARIANT_ID"] = sv.old_variant_id;
+
+      if (sv.hom_seq.size() > 0)
+        var.infos["HOMSEQ"] = std::string(sv.hom_seq.begin(), sv.hom_seq.end());
+
+      if (sv.ins_seq.size() > 0)
+        var.infos["SVINSSEQ"] = std::string(sv.ins_seq.begin(), sv.ins_seq.end());
+
+      if (sv.ins_seq_left.size() > 0)
+        var.infos["LEFT_SVINSSEQ"] = std::string(sv.ins_seq_left.begin(), sv.ins_seq_left.end());
+
+      if (sv.ins_seq_right.size() > 0)
+        var.infos["RIGHT_SVINSSEQ"] = std::string(sv.ins_seq_right.begin(), sv.ins_seq_right.end());
+
+      if (sv.type == INV && sv.inv_type != NOT_INV)
+      {
+        switch (sv.inv_type)
+        {
+        case INV3:
+          var.infos["INV3"] = "";
+          break;
+
+        case INV5:
+          var.infos["INV5"] = "";
+          break;
+
+        case BOTH_BREAKPOINTS:
+          var.infos["INV3"] = "";
+          var.infos["INV5"] = "";
+          break;
+
+        default:
+          break;
+        }
+      }
+
+      new_vars.push_back(std::move(var));
+    };
 
     /// Adds an SV variant to 'new_vars' vector
     auto add_sv_variant =
-      [&](Variant const & var,
-          long aa,
-          std::unordered_map<int32_t, int32_t> & related_svs_map) -> void
+      [&](Variant const & var, long aa, std::unordered_map<int32_t, int32_t> & related_svs_map) -> void
+    {
+      // Put first SV allele in new VCF records
+      Variant new_sv_var = make_new_sv_var(var, aa);
+      assert(new_sv_var.seqs.size() == 2);
+      assert(new_sv_var.stats.per_allele.size() == 2);
+      assert(new_sv_var.stats.read_strand.size() == 2);
+      SV const & sv = graph.SVs[sv_ids[aa]];
+
+      if (sv.type != BND)
       {
-        // Put first SV allele in new VCF records
-        Variant new_sv_var = make_new_sv_var(var, aa);
-        assert(new_sv_var.seqs.size() == 2);
-        assert(new_sv_var.stats.per_allele.size() == 2);
-        assert(new_sv_var.stats.read_strand.size() == 2);
-        SV const & sv = graph.SVs[sv_ids[aa]];
+        new_sv_var.seqs[0] = std::vector<char>(1, 'N');
+        std::string sv_allele = sv.get_allele();
+        new_sv_var.seqs[1] = std::vector<char>(begin(sv_allele), end(sv_allele));
+      }
 
-        if (sv.type != BND)
+      /*// Fix position of first breakpoint for cases it is moved
+      if ((sv.type == DUP && sv.related_sv != -1 && sv.model == "BREAKPOINT1") ||
+          (sv.type == INV && sv.related_sv != -1 && sv.model == "BREAKPOINT2"))
+      {
+        new_sv_var.abs_pos -= sv.size;                     // Move back to original pos
+        }*/
+
+      // Fix genotype likelihood for duplication
+      if (sv.type == DUP && (sv.model == "BREAKPOINT1" || sv.model == "BREAKPOINT2"))
+      {
+        for (auto & call : new_sv_var.calls)
         {
-          new_sv_var.seqs[0] = std::vector<char>(1, 'N');
-          std::string sv_allele = sv.get_allele();
-          new_sv_var.seqs[1] = std::vector<char>(begin(sv_allele), end(sv_allele));
+          uint64_t constexpr ERROR = 25;
+          double constexpr minus_10log10_one_third = 4.77121255;
+          double constexpr minus_10log10_two_third = 1.76091259;
+
+          uint64_t gt_00 = call.coverage[1] * ERROR;
+          uint64_t gt_01 =
+            static_cast<uint64_t>(0.499999999 + minus_10log10_one_third * static_cast<double>(call.coverage[1]) +
+                                  minus_10log10_two_third * static_cast<double>(call.coverage[0]));
+
+          uint64_t gt_11 = 3ul * (call.coverage[0] + static_cast<uint64_t>(call.coverage[1]));
+          uint64_t min_gt = std::min(gt_00, std::min(gt_01, gt_11));
+
+          gt_00 -= min_gt;
+          gt_01 -= min_gt;
+          gt_11 -= min_gt;
+
+          call.phred[0] = static_cast<uint8_t>(std::min(static_cast<uint64_t>(0xFFu), gt_00));
+          call.phred[1] = static_cast<uint8_t>(std::min(static_cast<uint64_t>(0xFFu), gt_01));
+          call.phred[2] = static_cast<uint8_t>(std::min(static_cast<uint64_t>(0xFFu), gt_11));
         }
+      }
 
-        /*// Fix position of first breakpoint for cases it is moved
-        if ((sv.type == DUP && sv.related_sv != -1 && sv.model == "BREAKPOINT1") ||
-            (sv.type == INV && sv.related_sv != -1 && sv.model == "BREAKPOINT2"))
+      // If the new variant is an insertion and this is the second breakpoint, make a combined
+      // variant. Also do the same if it is a duplication and we have coverage turned off
+      if ((sv.type == INS && related_svs_map.count(sv_ids[aa]) == 1) ||
+          (sv.type == INV && related_svs_map.count(sv_ids[aa]) == 1))
+      {
+        assert(new_vars.size() > 0);
+        Variant const & var_bp1 = new_vars[related_svs_map.at(sv_ids[aa])];
+        assert(var_bp1.seqs.size() == var_bp1.stats.per_allele.size());
+        Variant combined_var = make_variant_with_combined_calls(new_sv_var, var_bp1);
+        assert(combined_var.seqs.size() == combined_var.stats.per_allele.size());
+        add_sv_to_new_vars_vector(std::move(combined_var), sv, "AGGREGATED");
+      }
+
+      // If the new variant is a deletion, check coverage
+      if (graph.is_sv_graph)
+      {
+        if ((sv.type == DEL || sv.type == DEL_ALU))
         {
-          new_sv_var.abs_pos -= sv.size;                     // Move back to original pos
-          }*/
+          Variant cov_var(new_sv_var);
+          assert(cov_var.seqs.size() == 2);
+          assert(cov_var.stats.per_allele.size() == 2);
+          assert(cov_var.stats.read_strand.size() == 2);
 
-        // Fix genotype likelihood for duplication
-        if (sv.type == DUP &&
-            (sv.model == "BREAKPOINT1" || sv.model == "BREAKPOINT2"))
-        {
-          for (auto & call : new_sv_var.calls)
-          {
-            uint64_t constexpr ERROR = 25;
-            double constexpr minus_10log10_one_third = 4.77121255;
-            double constexpr minus_10log10_two_third = 1.76091259;
+          for (long pn_index = 0; pn_index < static_cast<long>(cov_var.calls.size()); ++pn_index)
+            cov_var.calls[pn_index] = make_call_based_on_coverage(pn_index, sv, reference_depth);
 
-            uint64_t gt_00 = call.coverage[1] * ERROR;
-            uint64_t gt_01 = static_cast<uint64_t>(0.499999999 +
-                                                   minus_10log10_one_third *
-                                                   static_cast<double>(call.coverage[1]) +
-                                                   minus_10log10_two_third *
-                                                   static_cast<double>(call.coverage[0]));
-
-            uint64_t gt_11 = 3ul * (call.coverage[0] + static_cast<uint64_t>(call.coverage[1]));
-            uint64_t min_gt = std::min(gt_00, std::min(gt_01, gt_11));
-
-            gt_00 -= min_gt;
-            gt_01 -= min_gt;
-            gt_11 -= min_gt;
-
-            call.phred[0] = static_cast<uint8_t>(std::min(static_cast<uint64_t>(0xFFu), gt_00));
-            call.phred[1] = static_cast<uint8_t>(std::min(static_cast<uint64_t>(0xFFu), gt_01));
-            call.phred[2] = static_cast<uint8_t>(std::min(static_cast<uint64_t>(0xFFu), gt_11));
-          }
-        }
-
-        // If the new variant is an insertion and this is the second breakpoint, make a combined
-        // variant. Also do the same if it is a duplication and we have coverage turned off
-        if ((sv.type == INS && related_svs_map.count(sv_ids[aa]) == 1) ||
-            (sv.type == INV && related_svs_map.count(sv_ids[aa]) == 1))
-        {
-          assert(new_vars.size() > 0);
-          Variant const & var_bp1 = new_vars[related_svs_map.at(sv_ids[aa])];
-          assert(var_bp1.seqs.size() == var_bp1.stats.per_allele.size());
-          Variant combined_var = make_variant_with_combined_calls(new_sv_var, var_bp1);
-          assert(combined_var.seqs.size() == combined_var.stats.per_allele.size());
+          // Make a combined variant with both breakpoint and coverage
+          Variant combined_var = make_variant_with_combined_calls(new_sv_var, cov_var);
+          assert(combined_var.seqs.size() == 2);
+          assert(combined_var.stats.per_allele.size() == 2);
+          assert(combined_var.stats.read_strand.size() == 2);
           add_sv_to_new_vars_vector(std::move(combined_var), sv, "AGGREGATED");
+          assert(cov_var.seqs.size() >= 2);
+          add_sv_to_new_vars_vector(std::move(cov_var), sv, "COVERAGE");
         }
-
-        // If the new variant is a deletion, check coverage
-        if (graph.is_sv_graph)
+        else if (sv.type == DUP && related_svs_map.count(sv_ids[aa]) == 1)
         {
-          if ((sv.type == DEL || sv.type == DEL_ALU))
-          {
-            Variant cov_var(new_sv_var);
-            assert(cov_var.seqs.size() == 2);
-            assert(cov_var.stats.per_allele.size() == 2);
-            assert(cov_var.stats.read_strand.size() == 2);
+          // Second breakpoint of a duplication
+          Variant cov_var(new_sv_var);
+          assert(cov_var.seqs.size() == 2ul);
+          assert(cov_var.seqs.size() == cov_var.stats.per_allele.size());
 
-            for (long pn_index = 0; pn_index < static_cast<long>(cov_var.calls.size()); ++pn_index)
-              cov_var.calls[pn_index] = make_call_based_on_coverage(pn_index, sv, reference_depth);
+          for (long pn_index = 0; pn_index < static_cast<long>(cov_var.calls.size()); ++pn_index)
+            cov_var.calls[pn_index] = make_call_based_on_coverage(pn_index, sv, reference_depth);
 
-            // Make a combined variant with both breakpoint and coverage
-            Variant combined_var = make_variant_with_combined_calls(new_sv_var, cov_var);
-            assert(combined_var.seqs.size() == 2);
-            assert(combined_var.stats.per_allele.size() == 2);
-            assert(combined_var.stats.read_strand.size() == 2);
-            add_sv_to_new_vars_vector(std::move(combined_var), sv, "AGGREGATED");
-            assert(cov_var.seqs.size() >= 2);
-            add_sv_to_new_vars_vector(std::move(cov_var), sv, "COVERAGE");
-          }
-          else if (sv.type == DUP && related_svs_map.count(sv_ids[aa]) == 1)
-          {
-            // Second breakpoint of a duplication
-            Variant cov_var(new_sv_var);
-            assert(cov_var.seqs.size() == 2ul);
-            assert(cov_var.seqs.size() == cov_var.stats.per_allele.size());
-
-            for (long pn_index = 0; pn_index < static_cast<long>(cov_var.calls.size()); ++pn_index)
-              cov_var.calls[pn_index] = make_call_based_on_coverage(pn_index, sv, reference_depth);
-
-            // Make a combined variant with both breakpoint and coverage
-            Variant combined_var = make_variant_with_combined_calls(new_sv_var, cov_var);
-            Variant const & other_bp_variant = new_vars[related_svs.at(sv_ids[aa])];
-            Variant combined_var2 =
-              make_variant_with_combined_calls(combined_var, other_bp_variant);
-            assert(combined_var.seqs.size() >= 2);
-            add_sv_to_new_vars_vector(std::move(combined_var2), sv, "AGGREGATED");
-            assert(cov_var.seqs.size() >= 2);
-            add_sv_to_new_vars_vector(std::move(cov_var), sv, "COVERAGE");
-          }
-          else if (sv.type == BND)
-          {
-            if (new_sv_var.seqs[1][1] == '<')
-            {
-              new_sv_var.add_base_in_back();
-              new_sv_var.remove_common_prefix();
-            }
-          }
+          // Make a combined variant with both breakpoint and coverage
+          Variant combined_var = make_variant_with_combined_calls(new_sv_var, cov_var);
+          Variant const & other_bp_variant = new_vars[related_svs.at(sv_ids[aa])];
+          Variant combined_var2 = make_variant_with_combined_calls(combined_var, other_bp_variant);
+          assert(combined_var.seqs.size() >= 2);
+          add_sv_to_new_vars_vector(std::move(combined_var2), sv, "AGGREGATED");
+          assert(cov_var.seqs.size() >= 2);
+          add_sv_to_new_vars_vector(std::move(cov_var), sv, "COVERAGE");
         }
-
-        // If the SV has a related SV, add it to the related_svs_map hashmap
-        if (sv.related_sv != -1)
+        else if (sv.type == BND)
         {
-          assert(related_svs_map.count(sv.related_sv) == 0);
-          related_svs_map[static_cast<int>(sv.related_sv)] = static_cast<int>(new_vars.size());
-          assert(related_svs_map.count(sv.related_sv) == 1);
+          if (new_sv_var.seqs[1][1] == '<')
+          {
+            new_sv_var.add_base_in_back();
+            new_sv_var.remove_common_prefix();
+          }
         }
+      }
 
-        assert(new_sv_var.seqs.size() >= 2);
-        add_sv_to_new_vars_vector(std::move(new_sv_var), sv, sv.model);
-      };
+      // If the SV has a related SV, add it to the related_svs_map hashmap
+      if (sv.related_sv != -1)
+      {
+        assert(related_svs_map.count(sv.related_sv) == 0);
+        related_svs_map[static_cast<int>(sv.related_sv)] = static_cast<int>(new_vars.size());
+        assert(related_svs_map.count(sv.related_sv) == 1);
+      }
+
+      assert(new_sv_var.seqs.size() >= 2);
+      add_sv_to_new_vars_vector(std::move(new_sv_var), sv, sv.model);
+    };
 
     assert(sv_ids.size() + 1u == var.seqs.size());
-    //long aa = 0; // Index of alternative allele
-    bool is_any_not_sv = false; //std::find(sv_ids.cbegin(), sv_ids.cend(), -1) != sv_ids.cend();
+    // long aa = 0; // Index of alternative allele
+    bool is_any_not_sv = false; // std::find(sv_ids.cbegin(), sv_ids.cend(), -1) != sv_ids.cend();
 
     for (long aa = 0; aa < static_cast<long>(sv_ids.size()); ++aa)
     {
@@ -564,11 +532,11 @@ reformat_sv_vcf_records(std::vector<Variant> & variants, ReferenceDepth const & 
       Variant non_sv_var;
       non_sv_var.abs_pos = var.abs_pos;
       non_sv_var.infos = var.infos;
-//      non_sv_var.phase = var.phase;
+      //      non_sv_var.phase = var.phase;
       non_sv_var.suffix_id = var.suffix_id;
 
       // Copy reference everywhere except this SNP
-      non_sv_var.seqs = std::vector<std::vector<char> >(var.seqs.size(), var.seqs[0]);
+      non_sv_var.seqs = std::vector<std::vector<char>>(var.seqs.size(), var.seqs[0]);
 
       for (long aa = 0; aa < static_cast<long>(sv_ids.size()); ++aa)
       {
@@ -681,6 +649,5 @@ reformat_sv_vcf_records(std::vector<Variant> & variants, ReferenceDepth const & 
     variants = std::move(new_vars);
   }
 }
-
 
 } // namespace gyper

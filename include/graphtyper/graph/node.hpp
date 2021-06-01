@@ -7,10 +7,8 @@
 
 #include <graphtyper/graph/label.hpp>
 
-
 namespace gyper
 {
-
 class Ref;
 class Alt;
 
@@ -38,7 +36,6 @@ private:
   void serialize(Archive & ar, const unsigned int);
 };
 
-
 class VarNode
 {
   friend class cereal::access;
@@ -50,9 +47,10 @@ public:
   std::unordered_set<long> anti_events;
 
   VarNode() = default;
-  //VarNode(Label && l, TNodeIndex && ori, std::unordered_set<long> && events) noexcept;
+  // VarNode(Label && l, TNodeIndex && ori, std::unordered_set<long> && events) noexcept;
 
-  VarNode(Label && l, TNodeIndex && ori,
+  VarNode(Label && l,
+          TNodeIndex && ori,
           std::unordered_set<long> && events,
           std::unordered_set<long> && anti_events) noexcept;
 
@@ -68,6 +66,5 @@ private:
   template <class Archive>
   void serialize(Archive & ar, const unsigned int);
 };
-
 
 } // namespace gyper

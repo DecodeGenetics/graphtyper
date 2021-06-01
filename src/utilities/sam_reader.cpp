@@ -3,20 +3,15 @@
 
 #include <seqan/hts_io.h>
 
-#include <graphtyper/utilities/logging.hpp>
-
 #include <graphtyper/constants.hpp>
+#include <graphtyper/utilities/logging.hpp>
 #include <graphtyper/utilities/options.hpp>
 #include <graphtyper/utilities/sam_reader.hpp>
 
-
 namespace gyper
 {
-
-SamReader::SamReader(std::string const & hts_path, std::vector<std::string> const & _regions)
-  : r(0)
-  , hts_file(hts_path.c_str())
-  , regions(_regions)
+SamReader::SamReader(std::string const & hts_path, std::vector<std::string> const & _regions) :
+  r(0), hts_file(hts_path.c_str()), regions(_regions)
 {
   if (!(regions.size() == 1 && regions[0] == std::string(".")) && !seqan::loadIndex(hts_file))
   {
@@ -31,9 +26,7 @@ SamReader::SamReader(std::string const & hts_path, std::vector<std::string> cons
   seqan::setRegion(hts_file, regions[r].c_str());
 }
 
-
-TReads
-SamReader::read_N_reads(std::size_t const N)
+TReads SamReader::read_N_reads(std::size_t const N)
 {
   TReads reads;
   seqan::BamAlignmentRecord record;
@@ -43,10 +36,10 @@ SamReader::read_N_reads(std::size_t const N)
     if (seqan::readRegion(record, hts_file))
     {
       // The minimum read length is 2 overlapping k-mers
-      //std::size_t const MIN_READ_LENGTH = 2 * K - 1;
+      // std::size_t const MIN_READ_LENGTH = 2 * K - 1;
       //
       // Require the read to be at least MIN_READ_LENGTH, otherwise skip it
-      //if (seqan::length(record.seq) < MIN_READ_LENGTH)
+      // if (seqan::length(record.seq) < MIN_READ_LENGTH)
       //  continue;
       assert(seqan::length(record.seq) >= 2 * K - 1);
       assert(seqan::length(record.seq) == seqan::length(record.qual));
@@ -84,9 +77,7 @@ SamReader::read_N_reads(std::size_t const N)
   return reads;
 }
 
-
-void
-SamReader::insert_reads(TReads & reads, seqan::BamAlignmentRecord && record)
+void SamReader::insert_reads(TReads & reads, seqan::BamAlignmentRecord && record)
 {
   if ((hts_file.hts_record->core.flag & (BAM_FSECONDARY | BAM_FQCFAIL | BAM_FSUPPLEMENTARY | BAM_FDUP)) != 0u)
     return;
@@ -97,7 +88,7 @@ SamReader::insert_reads(TReads & reads, seqan::BamAlignmentRecord && record)
     seqan::BamAlignmentRecord empty_record;
 
     // Make it the first read, if it isn't it already
-    //if (!seqan::hasFlagFirst(record))
+    // if (!seqan::hasFlagFirst(record))
     //  seqan::toggleFlagFirst(record);
 
     // This read is read 1
@@ -167,6 +158,5 @@ SamReader::insert_reads(TReads & reads, seqan::BamAlignmentRecord && record)
     reads_first[record.qName] = std::move(record);
   }
 }
-
 
 } // namespace gyper

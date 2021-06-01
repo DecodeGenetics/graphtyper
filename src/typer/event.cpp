@@ -3,13 +3,10 @@
 #include <string_view>
 #include <vector>
 
-#include <graphtyper/utilities/logging.hpp>
-
-
 #include <graphtyper/constants.hpp>
 #include <graphtyper/typer/event.hpp>
+#include <graphtyper/utilities/logging.hpp>
 #include <graphtyper/utilities/options.hpp>
-
 
 namespace
 {
@@ -35,41 +32,31 @@ get_phred_biallelic(uint32_t count, uint32_t anti_count, uint32_t eps)
 }
 */
 
-} // anon namespace
-
+} // namespace
 
 namespace gyper
 {
-
-long
-BaseCount::get_depth_without_deleted() const
+long BaseCount::get_depth_without_deleted() const
 {
   return acgt[0] + acgt[1] + acgt[2] + acgt[3];
 }
 
-
-long
-BaseCount::get_depth_with_deleted() const
+long BaseCount::get_depth_with_deleted() const
 {
   return acgt[0] + acgt[1] + acgt[2] + acgt[3] + deleted;
 }
 
-
-std::string
-BaseCount::to_string() const
+std::string BaseCount::to_string() const
 {
   std::ostringstream ss;
 
-  ss << acgt[0] << "," << acgt[1] << "," << acgt[2] << "," << acgt[3] << ":"
-     << acgt_qualsum[0] << "," << acgt_qualsum[1] << "," << acgt_qualsum[2]
-     << "," << acgt_qualsum[3] << " " << deleted;
+  ss << acgt[0] << "," << acgt[1] << "," << acgt[2] << "," << acgt[3] << ":" << acgt_qualsum[0] << ","
+     << acgt_qualsum[1] << "," << acgt_qualsum[2] << "," << acgt_qualsum[3] << " " << deleted;
 
   return ss.str();
 }
 
-
-void
-BaseCount::add_base(char seq, char qual)
+void BaseCount::add_base(char seq, char qual)
 {
   if (qual == 0)
   {
@@ -100,9 +87,7 @@ BaseCount::add_base(char seq, char qual)
   acgt_qualsum[i] += static_cast<int64_t>(qual);
 }
 
-
-uint32_t
-get_log_qual(uint32_t count, uint32_t anti_count, uint32_t eps)
+uint32_t get_log_qual(uint32_t count, uint32_t anti_count, uint32_t eps)
 {
   uint32_t const gt00 = count * eps;
   uint32_t const gt01 = count + anti_count;
@@ -115,9 +100,7 @@ get_log_qual(uint32_t count, uint32_t anti_count, uint32_t eps)
     return 0u;
 }
 
-
-uint32_t
-get_log_qual_double(double count, double anti_count, double eps)
+uint32_t get_log_qual_double(double count, double anti_count, double eps)
 {
   double const gt00 = count * eps;
   double const gt01 = count + anti_count;
@@ -130,9 +113,7 @@ get_log_qual_double(double count, double anti_count, double eps)
     return 0u;
 }
 
-
-long
-base2index(char const base)
+long base2index(char const base)
 {
   switch (base)
   {
@@ -171,41 +152,30 @@ base2index(char const base)
     print_log(log_severity::error, __HERE__, " Unexpected base '", base, "'");
     std::exit(1);
   }
-  }   // switch ends
+  } // switch ends
 }
 
-
-bool
-Event::operator==(Event const & b) const
+bool Event::operator==(Event const & b) const
 {
-  return (pos == b.pos) &&
-         (type == b.type) &&
-         (sequence == b.sequence);
+  return (pos == b.pos) && (type == b.type) && (sequence == b.sequence);
 }
 
-
-bool
-Event::operator!=(Event const & b) const
+bool Event::operator!=(Event const & b) const
 {
   return !(*this == b);
 }
 
-
-bool
-Event::operator<(Event const & b) const
+bool Event::operator<(Event const & b) const
 {
   // order is indel, deletions, snp
   auto const order_a = (type == 'D') + 2 * (type == 'X');
   auto const order_b = (b.type == 'D') + 2 * (b.type == 'X');
 
-  return pos < b.pos ||
-         (pos == b.pos && order_a < order_b) ||
+  return pos < b.pos || (pos == b.pos && order_a < order_b) ||
          (pos == b.pos && order_a == order_b && sequence < b.sequence);
 }
 
-
-void
-EventSupport::clear()
+void EventSupport::clear()
 {
   hq_count = 0;
   lq_count = 0;
@@ -218,27 +188,21 @@ EventSupport::clear()
   uniq_pos1 = -1;
   uniq_pos2 = -1;
   uniq_pos3 = -1;
-  //phase.clear();
+  // phase.clear();
   // do not clear indel only things
 }
 
-
-int
-EventSupport::get_raw_support() const
+int EventSupport::get_raw_support() const
 {
   return hq_count + lq_count;
 }
 
-
-double
-EventSupport::corrected_support() const
+double EventSupport::corrected_support() const
 {
   return static_cast<double>(hq_count) + static_cast<double>(lq_count) / 2.0;
 }
 
-
-bool
-EventSupport::has_good_support(long cov) const
+bool EventSupport::has_good_support(long cov) const
 {
   gyper::Options const & copts = *(Options::const_instance());
 
@@ -249,86 +213,52 @@ EventSupport::has_good_support(long cov) const
 
   bool const is_very_promising =
     uniq_pos3 != -1 &&
-    (
-      (hq_count >= 8 && ((static_cast<double>(raw_support) / static_cast<double>(cov)) >= 0.35)) ||
-      (hq_count >= 7 && ((static_cast<double>(raw_support) / static_cast<double>(cov)) >= 0.40))
-    ) && (!copts.filter_on_proper_pairs || proper_pairs >= 6);
+    ((hq_count >= 8 && ((static_cast<double>(raw_support) / static_cast<double>(cov)) >= 0.35)) ||
+     (hq_count >= 7 && ((static_cast<double>(raw_support) / static_cast<double>(cov)) >= 0.40))) &&
+    (!copts.filter_on_proper_pairs || proper_pairs >= 6);
 
   bool const is_promising =
     uniq_pos3 != -1 &&
-    (
-      (hq_count >= 7 && ((static_cast<double>(raw_support) / static_cast<double>(cov)) >= 0.20)) ||
-      (hq_count >= 6 && ((static_cast<double>(raw_support) / static_cast<double>(cov)) >= 0.30)) ||
-      (hq_count >= 5 && ((static_cast<double>(raw_support) / static_cast<double>(cov)) >= 0.40))
-    ) &&
+    ((hq_count >= 7 && ((static_cast<double>(raw_support) / static_cast<double>(cov)) >= 0.20)) ||
+     (hq_count >= 6 && ((static_cast<double>(raw_support) / static_cast<double>(cov)) >= 0.30)) ||
+     (hq_count >= 5 && ((static_cast<double>(raw_support) / static_cast<double>(cov)) >= 0.40))) &&
     (!copts.filter_on_proper_pairs || proper_pairs >= 4);
 
-  return (copts.no_filter_on_begin_pos || uniq_pos2 != -1)
-         &&
-         (!copts.filter_on_proper_pairs || (proper_pairs >= 2))
-         &&
-         (hq_count >= 3)
-         &&
-         (!copts.filter_on_read_bias ||
-          is_promising ||
-          (first_in_pairs > 0 && first_in_pairs < raw_support))
-         &&
-         (is_very_promising ||
-          !copts.filter_on_strand_bias ||
+  return (copts.no_filter_on_begin_pos || uniq_pos2 != -1) && (!copts.filter_on_proper_pairs || (proper_pairs >= 2)) &&
+         (hq_count >= 3) &&
+         (!copts.filter_on_read_bias || is_promising || (first_in_pairs > 0 && first_in_pairs < raw_support)) &&
+         (is_very_promising || !copts.filter_on_strand_bias ||
           (is_promising && sequence_reversed > 0 && sequence_reversed < raw_support) ||
-          (sequence_reversed > 1 && sequence_reversed < (raw_support - 1)))
-         &&
-         (clipped <= 1 || (clipped + 5) <= raw_support)
-         &&
-         (max_distance >= 10 || (is_promising && hq_count >= 10))
-         &&
-         (corrected_support() >= 3.9)
-         &&
+          (sequence_reversed > 1 && sequence_reversed < (raw_support - 1))) &&
+         (clipped <= 1 || (clipped + 5) <= raw_support) && (max_distance >= 10 || (is_promising && hq_count >= 10)) &&
+         (corrected_support() >= 3.9) &&
          (((static_cast<double>(raw_support) / static_cast<double>(cov)) > 0.26) || is_promising);
 }
 
-
-std::string
-EventSupport::to_string() const
+std::string EventSupport::to_string() const
 {
   std::ostringstream ss;
 
-  ss << "hq=" << hq_count
-     << ",lq=" << lq_count
-     << ",pp=" << proper_pairs
-     << ",first=" << first_in_pairs
-     << ",reversed=" << sequence_reversed
-     << ",clipped=" << clipped
-     << ",max_mapq=" << static_cast<long>(max_mapq)
-     << ",max_distance=" << static_cast<long>(max_distance)
-     << ",uniq_pos1=" << uniq_pos1
-     << ",uniq_pos2=" << uniq_pos2
-     << ",uniq_pos3=" << uniq_pos3
-     << ",phase_num=" << phase.size()
-     << ",anti_count=" << anti_count
-     << ",span=" << span
-     << ",max_log_qual=" << max_log_qual
-     << ",max_log_qual_file_i=" << max_log_qual_file_i;
+  ss << "hq=" << hq_count << ",lq=" << lq_count << ",pp=" << proper_pairs << ",first=" << first_in_pairs
+     << ",reversed=" << sequence_reversed << ",clipped=" << clipped << ",max_mapq=" << static_cast<long>(max_mapq)
+     << ",max_distance=" << static_cast<long>(max_distance) << ",uniq_pos1=" << uniq_pos1 << ",uniq_pos2=" << uniq_pos2
+     << ",uniq_pos3=" << uniq_pos3 << ",phase_num=" << phase.size() << ",anti_count=" << anti_count << ",span=" << span
+     << ",max_log_qual=" << max_log_qual << ",max_log_qual_file_i=" << max_log_qual_file_i;
 
   return ss.str();
 }
 
-
-uint32_t
-EventSupport::log_qual(uint32_t eps) const
+uint32_t EventSupport::log_qual(uint32_t eps) const
 {
   return get_log_qual(hq_count + lq_count, anti_count, eps);
 }
 
-
-bool
-EventSupport::is_good_indel(uint32_t eps) const
+bool EventSupport::is_good_indel(uint32_t eps) const
 {
   long const depth = hq_count + lq_count + anti_count + multi_count;
 
   if (hq_count <= 6 || sequence_reversed <= 0 || sequence_reversed >= depth || proper_pairs <= 4 ||
-      (hq_count < 10 && max_mapq <= 10)
-      )
+      (hq_count < 10 && max_mapq <= 10))
   {
     return false;
   }
@@ -343,13 +273,11 @@ EventSupport::is_good_indel(uint32_t eps) const
   return qd >= 3.5;
 }
 
-
-bool
-apply_indel_event(std::vector<char> & sequence,
-                  std::vector<int32_t> & ref_positions,
-                  Event const & indel_event,
-                  long const offset,
-                  bool const is_debug)
+bool apply_indel_event(std::vector<char> & sequence,
+                       std::vector<int32_t> & ref_positions,
+                       Event const & indel_event,
+                       long const offset,
+                       bool const is_debug)
 {
   assert(sequence.size() == ref_positions.size());
   long const ref_pos{indel_event.pos - offset};
@@ -450,39 +378,32 @@ apply_indel_event(std::vector<char> & sequence,
   return true;
 }
 
-
-Event
-make_deletion_event(std::vector<char> const & reference_sequence, long ref_offset, int32_t pos, long count)
+Event make_deletion_event(std::vector<char> const & reference_sequence, long ref_offset, int32_t pos, long count)
 {
   Event new_event(pos, 'D');
 
   assert(ref_offset >= 0);
   assert(ref_offset + count < static_cast<long>(reference_sequence.size()));
 
-  new_event.sequence = std::vector<char>(reference_sequence.begin() + ref_offset,
-                                         reference_sequence.begin() + ref_offset + count);
+  new_event.sequence =
+    std::vector<char>(reference_sequence.begin() + ref_offset, reference_sequence.begin() + ref_offset + count);
 
   return new_event;
 }
 
-
-Event
-make_insertion_event(int32_t pos, std::vector<char> && event_sequence)
+Event make_insertion_event(int32_t pos, std::vector<char> && event_sequence)
 {
   Event new_event(pos, 'I');
   new_event.sequence = std::move(event_sequence);
   return new_event;
 }
 
-
-std::size_t
-EventHash::operator()(gyper::Event const & e) const
+std::size_t EventHash::operator()(gyper::Event const & e) const
 {
   std::size_t h1 = std::hash<uint32_t>()(e.pos);
   std::size_t h2 = std::hash<char>()(e.type);
   std::size_t h3 = 42 + std::hash<std::string_view>{}(std::string_view{e.sequence.data(), e.sequence.size()});
   return h1 ^ (h2 << 1) ^ (h3 + 0x9e3779b9);
 }
-
 
 } // namespace gyper

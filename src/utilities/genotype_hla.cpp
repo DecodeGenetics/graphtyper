@@ -1,6 +1,6 @@
 #include <fstream>
-#include <string>
 #include <sstream>
+#include <string>
 #include <vector>
 
 #include <graphtyper/graph/absolute_position.hpp>
@@ -15,28 +15,24 @@
 #include <graphtyper/typer/vcf.hpp>
 #include <graphtyper/typer/vcf_operations.hpp>
 #include <graphtyper/utilities/filesystem.hpp>
-#include <graphtyper/utilities/options.hpp>
 #include <graphtyper/utilities/genotype.hpp>
 #include <graphtyper/utilities/graph_help_functions.hpp>
 #include <graphtyper/utilities/hts_parallel_reader.hpp>
-#include <graphtyper/utilities/system.hpp>
-
 #include <graphtyper/utilities/logging.hpp>
-
+#include <graphtyper/utilities/options.hpp>
+#include <graphtyper/utilities/system.hpp>
 
 namespace gyper
 {
-
-void
-genotype_hla(std::string ref_path,
-             std::string const & hla_vcf,
-             std::string const & interval_fn,
-             std::vector<std::string> const & sams,
-             std::vector<std::string> const & sam_index_paths,
-             std::vector<double> const & avg_cov_by_readlen,
-             GenomicRegion const & genomic_region,
-             std::string const & output_path,
-             bool const is_copy_reference)
+void genotype_hla(std::string ref_path,
+                  std::string const & hla_vcf,
+                  std::string const & interval_fn,
+                  std::vector<std::string> const & sams,
+                  std::vector<std::string> const & sam_index_paths,
+                  std::vector<double> const & avg_cov_by_readlen,
+                  GenomicRegion const & genomic_region,
+                  std::string const & output_path,
+                  bool const is_copy_reference)
 {
   // TODO: If the reference is only Ns then output an empty vcf with the sample names
   // TODO: Extract the reference sequence and use that to discover directly from BAM
@@ -113,11 +109,7 @@ genotype_hla(std::string ref_path,
 
       print_log(log_severity::info, "Constructing graph.");
 
-      gyper::construct_graph(ref_path,
-                             hla_vcf,
-                             padded_region.to_string(),
-                             is_sv_graph,
-                             use_index);
+      gyper::construct_graph(ref_path, hla_vcf, padded_region.to_string(), is_sv_graph, use_index);
 
       print_log(log_severity::info, "Calculating contig offsets.");
 
@@ -132,7 +124,7 @@ genotype_hla(std::string ref_path,
     hla.filename = tmp + "/graphtyper.hla.vcf.gz";
     hla.write(); // Just for debbuging, remove later
 
-    std::unordered_map<long, std::pair<uint32_t, uint32_t> > event2hap_gt;
+    std::unordered_map<long, std::pair<uint32_t, uint32_t>> event2hap_gt;
 
     {
       uint32_t v{0};
@@ -156,9 +148,9 @@ genotype_hla(std::string ref_path,
               event2hap_gt[event] = std::pair<uint32_t, uint32_t>(h, v_e);
           }
         }
-        //Haplotype hap;
-        //hap.add_genotype(Genotype(var_node.get_label().order, ref_node.out_degree(), uint32_t(v)));
-        //haplotypes.push_back(std::move(hap));
+        // Haplotype hap;
+        // hap.add_genotype(Genotype(var_node.get_label().order, ref_node.out_degree(), uint32_t(v)));
+        // haplotypes.push_back(std::move(hap));
 
         ++h;
         v += ref_node.out_degree();
@@ -179,8 +171,8 @@ genotype_hla(std::string ref_path,
       exon_haps.insert(find_it->second.first);
     }
 
-    std::vector<std::unordered_map<uint32_t, uint32_t> > allele_hap_gts(hla.sample_names.size());
-    //std::vector<std::unordered_set<long> > allele_events(hla.sample_names.size());
+    std::vector<std::unordered_map<uint32_t, uint32_t>> allele_hap_gts(hla.sample_names.size());
+    // std::vector<std::unordered_set<long> > allele_events(hla.sample_names.size());
 
     for (long s{0}; s < static_cast<long>(hla.sample_names.size()); ++s)
     {
@@ -190,7 +182,7 @@ genotype_hla(std::string ref_path,
       {
         if (var.infos.count("FEATURE") == 0 || var.infos.at("FEATURE") != "exon")
         {
-          //BOOST_LOG_TRIVIAL(info) << __HERE__ << " Skipping " << var.infos.at("FEATURE");
+          // BOOST_LOG_TRIVIAL(info) << __HERE__ << " Skipping " << var.infos.at("FEATURE");
           continue;
         }
 
@@ -205,9 +197,9 @@ genotype_hla(std::string ref_path,
         if (sample_call.coverage[0] == 0)
         {
           allele_hap_gt.insert(find_it->second);
-          //allele_events[s].insert(gt_id);
+          // allele_events[s].insert(gt_id);
         }
-        //else
+        // else
         //{
         //  allele_events[s].insert(-gt_id);
         //}
@@ -221,7 +213,6 @@ genotype_hla(std::string ref_path,
       }
     }
 
-
     print_log(log_severity::info, "Read ", hla.sample_names.size(), " alleles.");
 
 #ifndef NDEBUG
@@ -234,7 +225,7 @@ genotype_hla(std::string ref_path,
     print_log(log_severity::info, "Finished indexing graph.");
 
     std::string reference_fn{}; // empty by default
-    std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > ph;
+    std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t>> ph;
 
     if (Options::const_instance()->force_use_input_ref_for_cram_reading)
       reference_fn = ref_path;
@@ -246,7 +237,7 @@ genotype_hla(std::string ref_path,
                         "", // graph_path
                         ph_index,
                         out_dir,
-                        "", // reference
+                        "",  // reference
                         ".", // region
                         nullptr,
                         ph,
@@ -256,27 +247,22 @@ genotype_hla(std::string ref_path,
 
     print_log(log_severity::info, "Merging output VCFs.");
 
-    //for (auto & path : paths)
+    // for (auto & path : paths)
     //  path += "_calls.vcf.gz";
 
     // VCF merge
     {
       // Append _calls.vcf.gz
-      //for (auto & path : paths)
+      // for (auto & path : paths)
       //  path += "_calls.vcf.gz";
 
       //> FILTER_ZERO_QUAL, force_no_variant_overlapping
-      //vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", genomic_region.to_string(), false, false, true);
+      // vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", genomic_region.to_string(), false, false, true);
     }
 
     if (copts.force_ignore_segment)
     {
-      vcf_merge_and_break(paths,
-                          tmp + "/graphtyper.vcf.gz",
-                          genomic_region.to_string(),
-                          false,
-                          false,
-                          true);
+      vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", genomic_region.to_string(), false, false, true);
     }
     else
     {
@@ -290,13 +276,13 @@ genotype_hla(std::string ref_path,
         auto const is_pass_alt = var.generate_infos();
         assert(var.seqs.size() == hla.sample_names.size());
         assert((is_pass_alt.size() + 1u) == hla.sample_names.size());
-        std::vector<std::vector<char> > new_seqs;
+        std::vector<std::vector<char>> new_seqs;
 
         for (long s{0}; s < static_cast<long>(hla.sample_names.size()); ++s)
         {
           if (s > 0 && is_pass_alt[s - 1] == 0)
           {
-            //BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << s << " " << static_cast<long>(is_pass_alt[s - 1]);
+            // BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << s << " " << static_cast<long>(is_pass_alt[s - 1]);
             continue;
           }
 
@@ -309,7 +295,7 @@ genotype_hla(std::string ref_path,
         }
 
         // TODO Remove unused HLA alleles
-        //if (new_seqs.size() < var.seqs.size())
+        // if (new_seqs.size() < var.seqs.size())
         long const old_cnum = var.seqs.size();
         long const cnum = new_seqs.size();
 
@@ -330,13 +316,13 @@ genotype_hla(std::string ref_path,
               if (x > 0 && is_pass_alt[x - 1] == 0)
                 continue;
 
-              //BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << x << "," << y;
+              // BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << x << "," << y;
               long const i = to_index(x, y);
               new_phred.push_back(call.phred[i]);
             }
           }
 
-          //BOOST_LOG_TRIVIAL(warning) << __HERE__ << " " << new_phred.size() << " " << ((cnum * (cnum + 1)) / 2);
+          // BOOST_LOG_TRIVIAL(warning) << __HERE__ << " " << new_phred.size() << " " << ((cnum * (cnum + 1)) / 2);
           assert(static_cast<long>(new_phred.size()) == ((cnum * (cnum + 1)) / 2));
           call.phred = new_phred;
         }
@@ -404,7 +390,7 @@ genotype_hla(std::string ref_path,
 
           if (new_var.seqs.size() < 100)
             hla_vcf.write_record(new_var, ".4digit", false, false);
-          //hla_vcf.variants.push_back(std::move(new_var));
+          // hla_vcf.variants.push_back(std::move(new_var));
         }
       }
 
@@ -454,7 +440,7 @@ genotype_hla(std::string ref_path,
 
           new_var.generate_infos();
           hla_vcf.write_record(new_var, ".2digit", false, false);
-          //hla_vcf.variants.push_back(std::move(new_var));
+          // hla_vcf.variants.push_back(std::move(new_var));
         }
       }
 
@@ -466,21 +452,20 @@ genotype_hla(std::string ref_path,
   // gather segments from VCF
 
   // Copy final VCFs
-  auto copy_vcf_to_system =
-    [&](std::string const & name, std::string const & extension) -> void
-    {
-        filesystem::path src = tmp + "/" + name + extension;
-        filesystem::path dest = output_path + "/" + genomic_region.to_file_string() +
-          ((name == "graphtyper.hla.vcf.gz") ? ".hla" : "") + ".vcf.gz" + extension;
+  auto copy_vcf_to_system = [&](std::string const & name, std::string const & extension) -> void
+  {
+    filesystem::path src = tmp + "/" + name + extension;
+    filesystem::path dest = output_path + "/" + genomic_region.to_file_string() +
+                            ((name == "graphtyper.hla.vcf.gz") ? ".hla" : "") + ".vcf.gz" + extension;
 
-        filesystem::copy_file(src, dest, filesystem::copy_options::overwrite_existing);
-    };
+    filesystem::copy_file(src, dest, filesystem::copy_options::overwrite_existing);
+  };
 
   std::string const index_ext = copts.is_csi ? ".csi" : ".tbi";
 
-  copy_vcf_to_system("graphtyper.vcf.gz", ""); // Copy final VCF
+  copy_vcf_to_system("graphtyper.vcf.gz", "");        // Copy final VCF
   copy_vcf_to_system("graphtyper.vcf.gz", index_ext); // Copy tabix index for final VCF
-  //copy_vcf_to_system("graphtyper.hla.vcf.gz", ""); // Copy final HLA VCF
+  // copy_vcf_to_system("graphtyper.hla.vcf.gz", ""); // Copy final HLA VCF
 
   if (!copts.no_cleanup)
   {
@@ -495,11 +480,8 @@ genotype_hla(std::string ref_path,
   {
     std::ostringstream ss;
 
-    ss << output_path << "/" << genomic_region.chr << "/"
-       << std::setw(9) << std::setfill('0') << (genomic_region.begin + 1)
-       << '-'
-       << std::setw(9) << std::setfill('0') << genomic_region.end
-       << ".vcf.gz";
+    ss << output_path << "/" << genomic_region.chr << "/" << std::setw(9) << std::setfill('0')
+       << (genomic_region.begin + 1) << '-' << std::setw(9) << std::setfill('0') << genomic_region.end << ".vcf.gz";
 
     print_log(log_severity::info, "Finished! Output written at: ", ss.str());
   }
@@ -508,17 +490,15 @@ genotype_hla(std::string ref_path,
   graph = Graph();
 }
 
-
-void
-genotype_hla_regions(std::string ref_path,
-                     std::string const & hla_vcf,
-                     std::string const & interval_fn,
-                     std::vector<std::string> const & sams,
-                     std::vector<std::string> const & sam_index_paths,
-                     std::vector<double> const & avg_cov_by_readlen,
-                     std::vector<gyper::GenomicRegion> const & regions,
-                     std::string const & output_path,
-                     bool const is_copy_reference)
+void genotype_hla_regions(std::string ref_path,
+                          std::string const & hla_vcf,
+                          std::string const & interval_fn,
+                          std::vector<std::string> const & sams,
+                          std::vector<std::string> const & sam_index_paths,
+                          std::vector<double> const & avg_cov_by_readlen,
+                          std::vector<gyper::GenomicRegion> const & regions,
+                          std::string const & output_path,
+                          bool const is_copy_reference)
 {
   for (auto const & region : regions)
   {
@@ -533,6 +513,5 @@ genotype_hla_regions(std::string ref_path,
                  is_copy_reference);
   }
 }
-
 
 } // namespace gyper

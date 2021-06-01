@@ -5,10 +5,8 @@
 #include <graphtyper/index/index_entry.hpp>
 #include <graphtyper/index/ph_index.hpp>
 
-
 namespace gyper
 {
-
 class PHIndex;
 class Graph;
 

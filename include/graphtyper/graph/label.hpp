@@ -7,14 +7,11 @@
 
 #include <graphtyper/constants.hpp>
 
-
 namespace gyper
 {
-
 class RefNode;
 class VarNode;
 class Alt;
-
 
 class Label
 {

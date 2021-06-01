@@ -1,35 +1,30 @@
-#include <string>
-#include <vector>
-#include <stdio.h>
 #include <climits>
 #include <cstdio>
-
-#include <iostream>
 #include <fstream>
-
+#include <iostream>
+#include <stdio.h>
+#include <string>
+#include <vector>
 
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/label.hpp>
 #include <graphtyper/graph/var_record.hpp>
 #include <graphtyper/utilities/logging.hpp>
-#include <graphtyper/utilities/type_conversions.hpp>
 #include <graphtyper/utilities/options.hpp>
+#include <graphtyper/utilities/type_conversions.hpp>
 
 #include <catch.hpp>
 
-
-std::vector<std::vector<char> >
-get_var_dna(std::vector<gyper::VarNode> const & var_nodes)
+std::vector<std::vector<char>> get_var_dna(std::vector<gyper::VarNode> const & var_nodes)
 {
-  std::vector<std::vector<char> > var_dna;
+  std::vector<std::vector<char>> var_dna;
 
   for (auto const & v : var_nodes)
     var_dna.push_back(v.get_label().dna);
 
   return var_dna;
 }
-
 
 TEST_CASE("Get the reference sequence of a graph")
 {
@@ -100,7 +95,6 @@ TEST_CASE("Get the reference sequence of a graph")
   }
 }
 
-
 TEST_CASE("Graph with a reference only.")
 {
   using namespace gyper;
@@ -135,7 +129,6 @@ TEST_CASE("Graph with a reference only.")
     REQUIRE(graph.get_all_ref() == gyper::to_vec("ACCGGGAAAA"));
   }
 }
-
 
 TEST_CASE("Graph with two variant records.")
 {
@@ -229,7 +222,6 @@ TEST_CASE("Graph with two variant records.")
   }
 }
 
-
 TEST_CASE("Graph can start with a variant record.")
 {
   using namespace gyper;
@@ -302,13 +294,15 @@ TEST_CASE("Graph can start with a variant record.")
   }
 }
 
-
 TEST_CASE("The reference can contain Ns. Note however that variants cannot overlap the N.")
 {
   using namespace gyper;
 
-  gyper::print_log(gyper::log_severity::debug, "[", __HERE__, "] TEST_CASE: The reference can contain Ns. "
-                          , "Note however that variants cannot overlap the N.");
+  gyper::print_log(gyper::log_severity::debug,
+                   "[",
+                   __HERE__,
+                   "] TEST_CASE: The reference can contain Ns. ",
+                   "Note however that variants cannot overlap the N.");
 
   std::vector<char> reference_sequence;
   char testdata[] = "ACCGNGAAAA";
@@ -379,7 +373,6 @@ TEST_CASE("The reference can contain Ns. Note however that variants cannot overl
     REQUIRE(var_nodes[3].get_label().order == 7);
     REQUIRE(var_nodes[4].get_label().order == 7);
     REQUIRE(ref_nodes[2].get_label().order == 8);
-
   }
 
   // The nodes should have a label with the correct DNA bases
@@ -396,7 +389,6 @@ TEST_CASE("The reference can contain Ns. Note however that variants cannot overl
     REQUIRE(ref_nodes[2].get_label().dna == gyper::to_vec("AAA"));
   }
 }
-
 
 TEST_CASE("The reference can start with Ns.")
 {
@@ -474,12 +466,14 @@ TEST_CASE("The reference can start with Ns.")
   }
 }
 
-
 TEST_CASE("We can start at any location of the reference.")
 {
   using namespace gyper;
 
-  gyper::print_log(gyper::log_severity::debug, "[", __HERE__, "] TEST CASE: We can start at any location of the reference.");
+  gyper::print_log(gyper::log_severity::debug,
+                   "[",
+                   __HERE__,
+                   "] TEST CASE: We can start at any location of the reference.");
   std::vector<char> reference_sequence;
   char testdata[] = "CCGGTAAAT";
   reference_sequence.insert(reference_sequence.end(), testdata, testdata + 9);
@@ -632,13 +626,15 @@ TEST_CASE("Variants can overlap", "[graph]")
   }
 }
 
-
 TEST_CASE("Variants can overlap. Case where the second variant reaches further.")
 {
   using namespace gyper;
 
-  gyper::print_log(gyper::log_severity::debug, "[", __HERE__, "] TEST CASE: Variants can overlap. "
-                          , "Case where the second variant reaches further.");
+  gyper::print_log(gyper::log_severity::debug,
+                   "[",
+                   __HERE__,
+                   "] TEST CASE: Variants can overlap. ",
+                   "Case where the second variant reaches further.");
 
   std::vector<char> reference_sequence;
   char testdata[] = "ACGGTAA";
@@ -713,7 +709,6 @@ TEST_CASE("Variants can overlap. Case where the second variant reaches further."
     REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec("A"));
   }
 }
-
 
 /*
 TEST_CASE("Two variants next to each other won't overlap")
@@ -872,16 +867,17 @@ TEST_CASE("Two variants with 3 bp between them")
 }
 */
 
-
 TEST_CASE(
   "When merging a deletion covering multiple short variants, all combinations of the variants need to be added.",
   "[test2]")
 {
   using namespace gyper;
 
-  gyper::print_log(gyper::log_severity::debug, __HERE__, " TEST CASE: "
-                          , "When merging a deletion covering multiple short variants, all "
-                          , "combinations of the variants need to be added.");
+  gyper::print_log(gyper::log_severity::debug,
+                   __HERE__,
+                   " TEST CASE: ",
+                   "When merging a deletion covering multiple short variants, all ",
+                   "combinations of the variants need to be added.");
 
   Options::instance()->add_all_variants = true;
   std::vector<char> reference_sequence;
@@ -977,9 +973,9 @@ TEST_CASE(
 
   // "The nodes should have a label with the correct DNA bases"
   {
-    std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
+    std::vector<std::vector<char>> var_dna = get_var_dna(var_nodes);
 
-    //for (auto const & var_node_seq : var_dna)
+    // for (auto const & var_node_seq : var_dna)
     //{
     //  BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << std::string(var_node_seq.begin(), var_node_seq.end());
     //}
@@ -1003,13 +999,15 @@ TEST_CASE(
   Options::instance()->add_all_variants = false;
 }
 
-
 TEST_CASE("Same as above but with bases in between the variants.", "[test2]")
 {
   using namespace gyper;
 
-  gyper::print_log(gyper::log_severity::debug, "[", __HERE__, "] TEST CASE: "
-                          , "Same as above but with bases in between the variants.");
+  gyper::print_log(gyper::log_severity::debug,
+                   "[",
+                   __HERE__,
+                   "] TEST CASE: ",
+                   "Same as above but with bases in between the variants.");
 
   Options::instance()->add_all_variants = true;
   std::vector<char> reference_sequence;
@@ -1043,7 +1041,7 @@ TEST_CASE("Same as above but with bases in between the variants.", "[test2]")
 
   // "The nodes should have a label with the correct DNA bases"
   {
-    std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
+    std::vector<std::vector<char>> var_dna = get_var_dna(var_nodes);
 
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec(""));
 
@@ -1117,7 +1115,6 @@ TEST_CASE("Same as above but with bases in between the variants.", "[test2]")
   Options::instance()->add_all_variants = false;
 }
 
-
 TEST_CASE("Four variants joined", "[test2]")
 {
   using namespace gyper;
@@ -1162,7 +1159,7 @@ TEST_CASE("Four variants joined", "[test2]")
   // The nodes should have a label with the correct DNA bases
   {
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("S"));
-    std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
+    std::vector<std::vector<char>> var_dna = get_var_dna(var_nodes);
     std::sort(var_dna.begin(), var_dna.end());
 
     REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("G")) != var_dna.end());
@@ -1178,7 +1175,6 @@ TEST_CASE("Four variants joined", "[test2]")
     REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("bcACG")) != var_dna.end());
     REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("bcAdG")) != var_dna.end());
     REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("bTACG")) != var_dna.end());
-
 
     REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec("E"));
   }
@@ -1237,12 +1233,13 @@ TEST_CASE("Four variants joined", "[test2]")
   Options::instance()->add_all_variants = false;
 }
 
-
 TEST_CASE("Variants of any number can be joined, here 3 are tested.", "[test]")
 {
   using namespace gyper;
 
-  gyper::print_log(gyper::log_severity::debug, __HERE__, " TEST CASE: Variants of any number can be joined, here 3 are tested.");
+  gyper::print_log(gyper::log_severity::debug,
+                   __HERE__,
+                   " TEST CASE: Variants of any number can be joined, here 3 are tested.");
 
   Options::instance()->add_all_variants = true;
   std::vector<char> reference_sequence;
@@ -1286,7 +1283,7 @@ TEST_CASE("Variants of any number can be joined, here 3 are tested.", "[test]")
 
   // The nodes should have a label with the correct DNA bases"
   {
-    std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
+    std::vector<std::vector<char>> var_dna = get_var_dna(var_nodes);
     std::sort(var_dna.begin(), var_dna.end());
 
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("S"));
@@ -1317,7 +1314,7 @@ TEST_CASE("Variants of any number can be joined, here 3 are tested.", "[test]")
     REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("bcAdGEE")) != var_dna.end());
     REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("bcAdGe")) != var_dna.end());
 
-    REQUIRE(ref_nodes[1].get_label().dna ==  gyper::to_vec("F"));
+    REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec("F"));
   }
 
   // The graph should have the correct size
@@ -1342,13 +1339,12 @@ TEST_CASE("Variants of any number can be joined, here 3 are tested.", "[test]")
   Options::instance()->add_all_variants = false;
 }
 
-
 // chr6  29890476  145_H GGCT  AGCG,GGCG 0 . .
 // chr6  29890479  . TTGAAAGGTGAGACCTTGGGGGGCCTGATGTGTGGGGGA GTGAAAGGTGAGACCTTGGGGGGCCTGATGTGTGAGGGG . PASS  .
 // chr6  29890513  . GGGGA AGGGG . PASS  .
 // chr6  29890517  146_H ATGTTGGGGGGGAACAGTGG  GTGTTGGGGGGGAACAGTGG,GTGTTGGGGGGGAACAGTG  0 . .
 
-//TEST_CASE("Check if the above creates the graph correctly")
+// TEST_CASE("Check if the above creates the graph correctly")
 //{
 //  using namespace gyper;
 //
@@ -1437,7 +1433,6 @@ TEST_CASE("Variants of any number can be joined, here 3 are tested.", "[test]")
 //  Options::instance()->add_all_variants = false;
 //}
 
-
 TEST_CASE("Variant overlapping a N on the reference genome")
 {
   using namespace gyper;
@@ -1523,7 +1518,6 @@ TEST_CASE("Variant overlapping a N on the reference genome")
   Options::instance()->add_all_variants = false;
 }
 
-
 TEST_CASE("Prior test for the next")
 {
   using namespace gyper;
@@ -1578,7 +1572,6 @@ TEST_CASE("Prior test for the next")
   Options::instance()->add_all_variants = true;
 }
 
-
 TEST_CASE("Merge one path should check if we can remove the suffix of a variant before merging them")
 {
   using namespace gyper;
@@ -1592,7 +1585,7 @@ TEST_CASE("Merge one path should check if we can remove the suffix of a variant 
   {
     gyper::VarRecord record;
     record.pos = 1;
-    record.ref = gyper::to_vec("TAAAAAAT"); // TA
+    record.ref = gyper::to_vec("TAAAAAAT");   // TA
     record.alts = {gyper::to_vec("TAAAAAT")}; // T
     records.push_back(record);
 
@@ -1620,7 +1613,7 @@ TEST_CASE("Merge one path should check if we can remove the suffix of a variant 
 
   // We have the correct labels on the variant nodes
   {
-    std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
+    std::vector<std::vector<char>> var_dna = get_var_dna(var_nodes);
 
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("S"));
 
@@ -1630,7 +1623,6 @@ TEST_CASE("Merge one path should check if we can remove the suffix of a variant 
     REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("TAAAAT")) != var_dna.end());
   }
 }
-
 
 TEST_CASE("Merge one path works with connected indel+SNP")
 {
@@ -1681,7 +1673,6 @@ TEST_CASE("Merge one path works with connected indel+SNP")
     REQUIRE(var_nodes[2].get_label().dna == gyper::to_vec("T"));
   }
 }
-
 
 TEST_CASE("Merge path works with 3 pairs of connected SNPs")
 {
@@ -1743,7 +1734,6 @@ TEST_CASE("Merge path works with 3 pairs of connected SNPs")
   }
 }
 
-
 TEST_CASE("Two overlapping indels")
 {
   using namespace gyper;
@@ -1794,7 +1784,6 @@ TEST_CASE("Two overlapping indels")
   }
 }
 
-
 TEST_CASE("Two deletions and one of them overlaps SNPs")
 {
   using namespace gyper;
@@ -1839,9 +1828,7 @@ TEST_CASE("Two deletions and one of them overlaps SNPs")
     absolute_pos.calculate_offsets(graph.contigs);
   }
 
-  graph.add_genomic_region(std::move(reference_sequence),
-                           std::move(records),
-                           gyper::GenomicRegion("chr1"));
+  graph.add_genomic_region(std::move(reference_sequence), std::move(records), gyper::GenomicRegion("chr1"));
 
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
@@ -1878,7 +1865,7 @@ TEST_CASE("Two deletions and one of them overlaps SNPs")
 
   // The nodes should have a label with the correct DNA bases
   {
-    std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
+    std::vector<std::vector<char>> var_dna = get_var_dna(var_nodes);
 
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("S"));
 
@@ -1896,7 +1883,6 @@ TEST_CASE("Two deletions and one of them overlaps SNPs")
     REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec("TTATTACCGGGGGTAGTAGTAGTAGCGCAGAGGTTTTAGAGGGCF"));
   }
 }
-
 
 TEST_CASE("Two deletions and one of them overlaps SNPs and an insertion")
 {
@@ -1952,7 +1938,7 @@ TEST_CASE("Two deletions and one of them overlaps SNPs and an insertion")
 
   // The graph should have the correct size
   {
-    //graph.print();
+    // graph.print();
     REQUIRE(ref_nodes.size() == 2);
     REQUIRE(var_nodes.size() == 19);
     REQUIRE(graph.size() == 21);
@@ -1968,7 +1954,7 @@ TEST_CASE("Two deletions and one of them overlaps SNPs and an insertion")
 
   // The nodes should have a label with the correct DNA bases
   {
-    std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
+    std::vector<std::vector<char>> var_dna = get_var_dna(var_nodes);
 
     REQUIRE(ref_nodes[0].get_label().dna == gyper::to_vec("S"));
 
@@ -1990,7 +1976,6 @@ TEST_CASE("Two deletions and one of them overlaps SNPs and an insertion")
     REQUIRE(ref_nodes[1].get_label().dna == gyper::to_vec("TTATTACCGGGGGTAGTAGTAGTAGCGCAGAGGTTTTAGAGGGCF"));
   }
 }
-
 
 TEST_CASE("We cant have two events that sum up to the reference")
 {
@@ -2030,11 +2015,9 @@ TEST_CASE("We cant have two events that sum up to the reference")
 
   for (auto & var_record : records)
   {
-    genomic_region.add_reference_to_record_if_they_have_a_matching_prefix(var_record,
-                                                                          reference_sequence);
-    //BOOST_LOG_TRIVIAL(debug) << __HERE__ << var_record.to_string();
+    genomic_region.add_reference_to_record_if_they_have_a_matching_prefix(var_record, reference_sequence);
+    // BOOST_LOG_TRIVIAL(debug) << __HERE__ << var_record.to_string();
   }
-
 
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), std::move(genomic_region));
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
@@ -2042,11 +2025,14 @@ TEST_CASE("We cant have two events that sum up to the reference")
 
   // The nodes should have a label with the correct DNA bases
   {
-    std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
+    std::vector<std::vector<char>> var_dna = get_var_dna(var_nodes);
 
     for (auto const & var_node_seq : var_dna)
     {
-      gyper::print_log(gyper::log_severity::debug, __HERE__, " ", std::string(var_node_seq.begin(), var_node_seq.end()));
+      gyper::print_log(gyper::log_severity::debug,
+                       __HERE__,
+                       " ",
+                       std::string(var_node_seq.begin(), var_node_seq.end()));
     }
 
     REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("CT")) != var_dna.end());
@@ -2062,7 +2048,6 @@ TEST_CASE("We cant have two events that sum up to the reference")
 
   Options::instance()->add_all_variants = false;
 }
-
 
 TEST_CASE("anti events test case")
 {
@@ -2113,7 +2098,7 @@ TEST_CASE("anti events test case")
 
   // The nodes should have a label with the correct DNA bases
   {
-    std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
+    std::vector<std::vector<char>> var_dna = get_var_dna(var_nodes);
 
     for (auto const & var_node_seq : var_dna)
     {
@@ -2134,7 +2119,6 @@ TEST_CASE("anti events test case")
 
   Options::instance()->add_all_variants = false;
 }
-
 
 TEST_CASE("anti events test case 2 - more complex test")
 {
@@ -2216,10 +2200,8 @@ TEST_CASE("anti events test case 2 - more complex test")
   // This is needed to prohibit a combination of alt. alleles being able to be equal to the reference
   for (auto & var_record : records)
   {
-    genomic_region.add_reference_to_record_if_they_have_a_matching_prefix(var_record,
-                                                                          reference_sequence);
+    genomic_region.add_reference_to_record_if_they_have_a_matching_prefix(var_record, reference_sequence);
   }
-
 
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), std::move(genomic_region));
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
@@ -2227,7 +2209,7 @@ TEST_CASE("anti events test case 2 - more complex test")
 
   // The nodes should have a label with the correct DNA bases
   {
-    std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
+    std::vector<std::vector<char>> var_dna = get_var_dna(var_nodes);
 
     for (auto const & var_node_seq : var_dna)
     {
@@ -2252,7 +2234,6 @@ TEST_CASE("anti events test case 2 - more complex test")
   Options::instance()->add_all_variants = false;
 }
 
-
 TEST_CASE("parity events test case")
 {
   using namespace gyper;
@@ -2264,7 +2245,6 @@ TEST_CASE("parity events test case")
 
   {
     gyper::VarRecord record;
-
 
     record.pos = 3;
     record.ref = {'A'};
@@ -2311,10 +2291,8 @@ TEST_CASE("parity events test case")
   // This is needed to prohibit a combination of alt. alleles being able to be equal to the reference
   for (auto & var_record : records)
   {
-    genomic_region.add_reference_to_record_if_they_have_a_matching_prefix(var_record,
-                                                                          reference_sequence);
+    genomic_region.add_reference_to_record_if_they_have_a_matching_prefix(var_record, reference_sequence);
   }
-
 
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), std::move(genomic_region));
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
@@ -2322,11 +2300,14 @@ TEST_CASE("parity events test case")
 
   // The nodes should have a label with the correct DNA bases
   {
-    std::vector<std::vector<char> > var_dna = get_var_dna(var_nodes);
+    std::vector<std::vector<char>> var_dna = get_var_dna(var_nodes);
 
     for (auto const & var_node_seq : var_dna)
     {
-      gyper::print_log(gyper::log_severity::debug, __HERE__, " ", std::string(var_node_seq.begin(), var_node_seq.end()));
+      gyper::print_log(gyper::log_severity::debug,
+                       __HERE__,
+                       " ",
+                       std::string(var_node_seq.begin(), var_node_seq.end()));
     }
 
     REQUIRE(std::find(var_dna.cbegin(), var_dna.cend(), gyper::to_vec("ATTTTTTTT")) != var_dna.end());
@@ -2345,7 +2326,6 @@ TEST_CASE("parity events test case")
 
   Options::instance()->add_all_variants = false;
 }
-
 
 TEST_CASE("parity events test case 2 - snps next to each other")
 {
@@ -2406,16 +2386,14 @@ TEST_CASE("parity events test case 2 - snps next to each other")
   // This is needed to prohibit a combination of alt. alleles being able to be equal to the reference
   for (auto & var_record : records)
   {
-    genomic_region.add_reference_to_record_if_they_have_a_matching_prefix(var_record,
-                                                                          reference_sequence);
+    genomic_region.add_reference_to_record_if_they_have_a_matching_prefix(var_record, reference_sequence);
   }
-
 
   graph.add_genomic_region(std::move(reference_sequence), std::move(records), std::move(genomic_region));
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
   std::vector<gyper::VarNode> const & var_nodes = graph.var_nodes;
 
-  //graph.print();
+  // graph.print();
 
   // The graph should have the correct size
   {

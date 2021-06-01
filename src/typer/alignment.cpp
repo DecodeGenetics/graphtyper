@@ -4,30 +4,26 @@
 #include <ctime>
 #include <iterator>
 
-#include <graphtyper/utilities/logging.hpp>
-
-#include <htslib/sam.h>
-
 #include <seqan/basic.h>
 #include <seqan/sequence.h>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/graph_serialization.hpp>
 #include <graphtyper/typer/alignment.hpp>
-#include <graphtyper/utilities/kmer_help_functions.hpp>
 #include <graphtyper/utilities/io.hpp>
+#include <graphtyper/utilities/kmer_help_functions.hpp>
+#include <graphtyper/utilities/logging.hpp>
 #include <graphtyper/utilities/options.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
 
+#include <htslib/sam.h>
 
 namespace
 {
-
-void
-find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read,
-                                            gyper::GenotypePaths & geno,
-                                            gyper::PHIndex const & ph_index,
-                                            gyper::Graph const & graph)
+void find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read,
+                                                 gyper::GenotypePaths & geno,
+                                                 gyper::PHIndex const & ph_index,
+                                                 gyper::Graph const & graph)
 {
   using namespace gyper;
 
@@ -60,15 +56,9 @@ find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read,
 
       for (long i = 0; i < static_cast<long>(r_hamming0.size()); ++i)
       {
-        geno.add_next_kmer_labels(r_hamming0[i],
-                                  read_start_index,
-                                  read_start_index + (K - 1),
-                                  0 /*mismatches*/);
+        geno.add_next_kmer_labels(r_hamming0[i], read_start_index, read_start_index + (K - 1), 0 /*mismatches*/);
 
-        geno.add_next_kmer_labels(r_hamming1[i],
-                                  read_start_index,
-                                  read_start_index + (K - 1),
-                                  1 /*mismatches*/);
+        geno.add_next_kmer_labels(r_hamming1[i], read_start_index, read_start_index + (K - 1), 1 /*mismatches*/);
 
         read_start_index += (K - 1);
       }
@@ -101,7 +91,6 @@ find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read,
 
   // store score diff
 
-
 #ifndef NDEBUG
   /*
   if (!geno.check_no_variant_is_missing())
@@ -113,9 +102,7 @@ find_genotype_paths_of_one_of_the_sequences(seqan::IupacString const & read,
 #endif // NDEBUG
 }
 
-
-long
-clipped_count(bam1_t const & b)
+long clipped_count(bam1_t const & b)
 {
   long count{0};
 
@@ -131,7 +118,7 @@ clipped_count(bam1_t const & b)
     {
       uint32_t const cigar_count = opAndCnt >> 4;
       count += cigar_count;
-      //std::cerr << "MIDNSHP=X*******"[opAndCnt & 15] << " first ";
+      // std::cerr << "MIDNSHP=X*******"[opAndCnt & 15] << " first ";
       return true;
     }
 
@@ -140,7 +127,7 @@ clipped_count(bam1_t const & b)
 
     if ((opAndCnt & 15) == 4)
     {
-      //std::cerr << "MIDNSHP=X*******"[opAndCnt & 15] << " last ";
+      // std::cerr << "MIDNSHP=X*******"[opAndCnt & 15] << " last ";
       uint32_t const cigar_count = opAndCnt >> 4;
       count += cigar_count;
       return true;
@@ -150,9 +137,7 @@ clipped_count(bam1_t const & b)
   return count;
 }
 
-
-uint8_t
-get_score_diff(bam1_t * rec)
+uint8_t get_score_diff(bam1_t * rec)
 {
   uint8_t * it = bam_get_aux(rec);
   auto const l_aux = bam_get_l_aux(rec);
@@ -318,12 +303,11 @@ get_score_diff(bam1_t * rec)
 
     default:
     {
-      i = l_aux;       // Unkown tag, stop
+      i = l_aux; // Unkown tag, stop
       break;
     }
     }
   }
-
 
   if (as == -1 || as < xs)
   {
@@ -340,35 +324,27 @@ get_score_diff(bam1_t * rec)
   }
 }
 
-
-} // anon namespace
-
+} // namespace
 
 namespace gyper
 {
-
-
-std::pair<GenotypePaths, GenotypePaths>
-align_read(bam1_t * rec,
-           seqan::IupacString const & seq,
-           seqan::IupacString const & rseq,
-           gyper::PHIndex const & ph_index)
+std::pair<GenotypePaths, GenotypePaths> align_read(bam1_t * rec,
+                                                   seqan::IupacString const & seq,
+                                                   seqan::IupacString const & rseq,
+                                                   gyper::PHIndex const & ph_index)
 {
   auto const & core = rec->core;
 
   std::pair<GenotypePaths, GenotypePaths> geno_paths =
-    std::make_pair<GenotypePaths, GenotypePaths>(
-      GenotypePaths(core.flag, core.l_qseq),
-      GenotypePaths(core.flag, core.l_qseq));
+    std::make_pair<GenotypePaths, GenotypePaths>(GenotypePaths(core.flag, core.l_qseq),
+                                                 GenotypePaths(core.flag, core.l_qseq));
 
   // Hard restriction on read length is 63 bp (2*32 - 1)
   if (seqan::length(seq) < (2 * K - 1))
     return geno_paths;
 
   if ((core.flag & IS_PAIRED) == 0u ||
-      (core.tid == core.mtid &&
-       core.isize > -1200 &&
-       core.isize < 1200 &&
+      (core.tid == core.mtid && core.isize > -1200 && core.isize < 1200 &&
        (((core.flag & IS_SEQ_REVERSED) != 0u) != ((core.flag & IS_MATE_SEQ_REVERSED) != 0u))))
   {
     find_genotype_paths_of_one_of_the_sequences(seq, geno_paths.first, ph_index, graph);
@@ -386,9 +362,7 @@ align_read(bam1_t * rec,
   return geno_paths;
 }
 
-
-GenotypePaths *
-update_unpaired_read_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths, bam1_t * rec)
+GenotypePaths * update_unpaired_read_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths, bam1_t * rec)
 {
   assert(rec);
   auto const & core = rec->core;
@@ -467,15 +441,14 @@ update_unpaired_read_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths,
     return &geno;
   }
 
-  default: break;
+  default:
+    break;
   }
 
   return nullptr;
 }
 
-
-void
-further_update_unpaired_read_paths_for_discovery(GenotypePaths & geno, bam1_t * rec)
+void further_update_unpaired_read_paths_for_discovery(GenotypePaths & geno, bam1_t * rec)
 {
   assert(rec);
   auto const & core = rec->core;
@@ -506,9 +479,7 @@ further_update_unpaired_read_paths_for_discovery(GenotypePaths & geno, bam1_t * 
   }
 }
 
-
-void
-update_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths, bam1_t * rec)
+void update_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths, bam1_t * rec)
 {
   assert(rec);
   auto const & core = rec->core;
@@ -566,9 +537,7 @@ update_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths, bam1_t * rec)
 #endif // NDEBUG
 }
 
-
-void
-further_update_paths_for_discovery(std::pair<GenotypePaths, GenotypePaths> & geno_paths, bam1_t * rec)
+void further_update_paths_for_discovery(std::pair<GenotypePaths, GenotypePaths> & geno_paths, bam1_t * rec)
 {
   assert(rec);
 
@@ -585,10 +554,8 @@ further_update_paths_for_discovery(std::pair<GenotypePaths, GenotypePaths> & gen
   geno2.qual2 = std::vector<char>(geno1.qual2.rbegin(), geno1.qual2.rend());
 }
 
-
-std::pair<GenotypePaths *, GenotypePaths *>
-get_better_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths1,
-                 std::pair<GenotypePaths, GenotypePaths> & geno_paths2)
+std::pair<GenotypePaths *, GenotypePaths *> get_better_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths1,
+                                                             std::pair<GenotypePaths, GenotypePaths> & geno_paths2)
 {
   // contains first read w. forward strand and second read reverse strand
   std::pair<GenotypePaths *, GenotypePaths *> genos1;
@@ -602,9 +569,7 @@ get_better_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths1,
     //  2 is second in pair, forward strand
     //  3 is first in pair, forward strand
     auto get_index = [](uint16_t const flags) -> int
-                     {
-                       return ((flags & IS_FIRST_IN_PAIR) != 0) + 2 * ((flags & IS_SEQ_REVERSED) == 0);
-                     };
+    { return ((flags & IS_FIRST_IN_PAIR) != 0) + 2 * ((flags & IS_SEQ_REVERSED) == 0); };
 
     arr[get_index(geno_paths1.first.flags)] = &geno_paths1.first;
     arr[get_index(geno_paths1.second.flags)] = &geno_paths1.second;
@@ -619,8 +584,15 @@ get_better_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths1,
     // Make sure we got a ptr in every field in release mode as well
     if (!arr[0] || !arr[1] || !arr[2] || !arr[3])
     {
-      print_log(log_severity::warning, "Unexpected read orientation, ptr array: "
-                                , arr[0], " ", arr[1], " ", arr[2], " ", arr[3]);
+      print_log(log_severity::warning,
+                "Unexpected read orientation, ptr array: ",
+                arr[0],
+                " ",
+                arr[1],
+                " ",
+                arr[2],
+                " ",
+                arr[3]);
       genos1.first = nullptr;
       return genos1;
     }
@@ -649,12 +621,10 @@ get_better_paths(std::pair<GenotypePaths, GenotypePaths> & geno_paths1,
   return genos1;
 }
 
-
 /// SEGMENT CALLING
 
-std::vector<GenotypePaths>
-find_haplotype_paths(std::vector<seqan::Dna5String> const & sequences,
-                     gyper::PHIndex const & ph_index)
+std::vector<GenotypePaths> find_haplotype_paths(std::vector<seqan::Dna5String> const & sequences,
+                                                gyper::PHIndex const & ph_index)
 {
   std::vector<GenotypePaths> hap_paths;
   uint32_t count_too_short_sequences = 0;
@@ -685,12 +655,10 @@ find_haplotype_paths(std::vector<seqan::Dna5String> const & sequences,
 
   if (count_too_short_sequences > 0)
   {
-    print_log(log_severity::info, __HERE__, " Could not align "
-                           , count_too_short_sequences, " sequences.");
+    print_log(log_severity::info, __HERE__, " Could not align ", count_too_short_sequences, " sequences.");
   }
 
   return hap_paths;
 }
-
 
 } // namespace gyper

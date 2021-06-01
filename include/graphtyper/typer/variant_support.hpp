@@ -1,14 +1,12 @@
 #pragma once
 
 #include <cstdint> // uint32_t
-#include <set> // std::set<T>
+#include <set>     // std::set<T>
 
 #include <cereal/access.hpp>
 
-
 namespace gyper
 {
-
 class VariantSupport
 {
   friend class cereal::access;
@@ -43,8 +41,7 @@ public:
 
 private:
   template <class Archive>
-  void
-  serialize(Archive & ar, const unsigned int)
+  void serialize(Archive & ar, const unsigned int)
   {
     ar & hq_support;
     ar & lq_support;
@@ -57,16 +54,14 @@ private:
     ar & var_size;
     ar & growth;
 
-// We only need to serialize things that are used in "filter_varmap_for_all"
-//    ar & unique_positions;
-//    ar & is_any_mapq_good;
+    // We only need to serialize things that are used in "filter_varmap_for_all"
+    //    ar & unique_positions;
+    //    ar & is_any_mapq_good;
 
 #ifndef NDEBUG
     ar & pn_index;
 #endif
   }
-
-
 };
 
 } // namespace gyper

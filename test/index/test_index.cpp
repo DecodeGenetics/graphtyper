@@ -1,20 +1,18 @@
-#include <catch.hpp>
-
-#include <stdio.h>
 #include <climits>
 #include <cstdio>
-#include <string>
-#include <iostream>
 #include <fstream>
+#include <iostream>
+#include <stdio.h>
+#include <string>
 
-#include <graphtyper/graph/graph_serialization.hpp>
 #include <graphtyper/graph/constructor.hpp>
+#include <graphtyper/graph/graph_serialization.hpp>
 #include <graphtyper/index/indexer.hpp>
 #include <graphtyper/index/ph_index.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
 
 #include "../help_functions.hpp" // create_test_graph
-
+#include <catch.hpp>
 
 TEST_CASE("Test index chr1")
 {
@@ -22,10 +20,7 @@ TEST_CASE("Test index chr1")
 
   using namespace gyper;
 
-  create_test_graph("/test/data/reference/index_test.fa",
-                    "/test/data/reference/index_test.vcf.gz",
-                    "chr1",
-                    true);
+  create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr1", true);
 
   std::stringstream my_graph;
   my_graph << gyper_SOURCE_DIRECTORY << "/test/data/graphs/index_test_chr1.grf";
@@ -55,7 +50,6 @@ TEST_CASE("Test index chr1")
     REQUIRE(ph_index.get(to_uint64("GGTTTCCCCAGGTTTCCCCAGGTTTGCCCAGG")).size() == 1);
   }
 
-
   // All kmers should have the correct starting index
   {
     REQUIRE(ph_index.get(to_uint64("AGGTTTCCCCAGGTTTCCCCAGGTTTCCCCAG"))[0].start_index == 1);
@@ -64,7 +58,6 @@ TEST_CASE("Test index chr1")
     REQUIRE(ph_index.get(to_uint64("AGGTTTCCCCAGGTTTCCCCAGGTTTCCCCTT"))[0].start_index == 31);
     REQUIRE(ph_index.get(to_uint64("GGTTTCCCCAGGTTTCCCCAGGTTTGCCCAGG"))[0].start_index == 12);
   }
-
 
   // All kmers should have the correct end index
   {
@@ -87,17 +80,13 @@ TEST_CASE("Test index chr1")
   }
 }
 
-
 TEST_CASE("Test index chr2")
 {
   gyper::print_log(gyper::log_severity::debug, "[", __HERE__, "] Test index chr2");
 
   using namespace gyper;
 
-  create_test_graph("/test/data/reference/index_test.fa",
-                    "/test/data/reference/index_test.vcf.gz",
-                    "chr2",
-                    true);
+  create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr2", true);
 
   std::stringstream my_graph;
   my_graph << gyper_SOURCE_DIRECTORY << "/test/data/graphs/index_test_chr2.grf";
@@ -158,7 +147,6 @@ TEST_CASE("Test index chr2")
   }
 }
 
-
 TEST_CASE("Test index chr3")
 {
   gyper::print_log(gyper::log_severity::debug, __HERE__, " Test index chr3");
@@ -168,10 +156,7 @@ TEST_CASE("Test index chr3")
 
   using namespace gyper;
 
-  create_test_graph("/test/data/reference/index_test.fa",
-                    "/test/data/reference/index_test.vcf.gz",
-                    "chr3",
-                    true);
+  create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr3", true);
 
   std::stringstream my_graph;
   my_graph << gyper_SOURCE_DIRECTORY << "/test/data/graphs/index_test_chr3.grf";
@@ -223,17 +208,13 @@ TEST_CASE("Test index chr3")
   }
 }
 
-
 TEST_CASE("Test index chr4")
 {
   gyper::print_log(gyper::log_severity::debug, __HERE__, " Test index chr4");
 
   using namespace gyper;
 
-  create_test_graph("/test/data/reference/index_test.fa",
-                    "/test/data/reference/index_test.vcf.gz",
-                    "chr4",
-                    true);
+  create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr4", true);
 
   REQUIRE(graph.size() > 0);
 
@@ -262,7 +243,6 @@ TEST_CASE("Test index chr4")
   }
 }
 
-
 TEST_CASE("Test index chr5")
 {
   gyper::print_log(gyper::log_severity::debug, __HERE__, " Test index chr5");
@@ -272,10 +252,7 @@ TEST_CASE("Test index chr5")
   // 70A 70C 70G 70T
   // chr5 70A70C SVTYPE=DEL,SVSIZE=70
 
-  create_test_graph("/test/data/reference/index_test.fa",
-                    "/test/data/reference/index_test.vcf.gz",
-                    "chr5",
-                    true);
+  create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr5", true);
 
   std::stringstream my_graph;
   my_graph << gyper_SOURCE_DIRECTORY << "/test/data/graphs/index_test_chr5.grf";
@@ -288,11 +265,10 @@ TEST_CASE("Test index chr5")
   // All reference kmers are present in the graph
   {
     std::vector<char> ref = graph.get_all_ref();
-    REQUIRE(ref == gyper::to_vec(
-              "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-              "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
-              "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG"
-              "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"));
+    REQUIRE(ref == gyper::to_vec("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+                                 "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
+                                 "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG"
+                                 "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"));
   }
 
   // k-mer that starts at zero is has matches positions with the next one (although this is not a real alignmment)

@@ -1,3 +1,13 @@
+#include <algorithm>
+#include <cassert>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include <paw/station.hpp>
+
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/constructor.hpp>
 #include <graphtyper/graph/genomic_region.hpp>
@@ -14,38 +24,24 @@
 #include <graphtyper/utilities/filesystem.hpp>
 #include <graphtyper/utilities/genotype.hpp>
 #include <graphtyper/utilities/hts_parallel_reader.hpp>
+#include <graphtyper/utilities/logging.hpp>
 #include <graphtyper/utilities/options.hpp>
 #include <graphtyper/utilities/system.hpp>
 
-#include <paw/station.hpp>
-
-#include <graphtyper/utilities/logging.hpp>
-
-#include <algorithm>
-#include <cassert>
-#include <iostream>
-#include <string>
-#include <sstream>
-#include <utility>
-#include <vector>
-
-
 namespace gyper
 {
-
-void
-genotype_lr(std::string ref_path,
-            std::vector<std::string> const & sams,
-            GenomicRegion const & region,
-            std::string const & output_path,
-            bool const is_copy_reference)
+void genotype_lr(std::string ref_path,
+                 std::vector<std::string> const & sams,
+                 GenomicRegion const & region,
+                 std::string const & output_path,
+                 bool const is_copy_reference)
 {
-  //bool is_writing_calls_vcf{true};
-  //bool is_writing_hap{true};
-  //bool is_discovery{true};
+  // bool is_writing_calls_vcf{true};
+  // bool is_writing_hap{true};
+  // bool is_discovery{true};
 
-  //long minimum_variant_support = 5;
-  //double minimum_variant_support_ratio = 0.25;
+  // long minimum_variant_support = 5;
+  // double minimum_variant_support_ratio = 0.25;
   gyper::Options const & copts = *(Options::const_instance());
 
   long const NUM_SAMPLES = sams.size();
@@ -76,15 +72,15 @@ genotype_lr(std::string ref_path,
   }
 
   GenomicRegion padded_region(region);
-  //padded_region.pad(1000l);
+  // padded_region.pad(1000l);
 
-  //if (copts.vcf.size() > 0)
+  // if (copts.vcf.size() > 0)
   //{
   //  BOOST_LOG_TRIVIAL(info) << "Genotyping a input VCF";
   //  genotype_only_with_a_vcf(ref_path, shrinked_sams, region, padded_region, primers.get(), tmp);
   //}
-  //else
-  //std::vector<double> avg_cov_by_readlen(sams.size(), -1.0);
+  // else
+  // std::vector<double> avg_cov_by_readlen(sams.size(), -1.0);
 
   // Iteration 1
   {
@@ -96,11 +92,8 @@ genotype_lr(std::string ref_path,
     gyper::construct_graph(ref_path, "", padded_region.to_string(), false, false);
 
     Vcf variant_sites(WRITE_BGZF_MODE, output_vcf);
-    gyper::streamlined_lr_genotyping(sams,
-                                     ref_path,
-                                     padded_region.to_string(),
-                                     variant_sites);
-    //variant_sites.gene
+    gyper::streamlined_lr_genotyping(sams, ref_path, padded_region.to_string(), variant_sites);
+    // variant_sites.gene
     variant_sites.write(".", copts.threads);
     variant_sites.write_tbi_index();
   }
@@ -109,22 +102,22 @@ genotype_lr(std::string ref_path,
   std::string const index_ext = copts.is_csi ? ".vcf.gz.csi" : ".vcf.gz.tbi";
 
   // Copy final VCFs
-  auto copy_to_results =
-    [&](std::string const & basename_no_ext, std::string const & extension, std::string const & id)
-    {
-      filesystem::path src = tmp + "/" + basename_no_ext + extension;
-      filesystem::path dest = output_path + "/" + region.to_file_string() + id + extension;
+  auto copy_to_results = [&](std::string const & basename_no_ext, std::string const & extension, std::string const & id)
+  {
+    filesystem::path src = tmp + "/" + basename_no_ext + extension;
+    filesystem::path dest = output_path + "/" + region.to_file_string() + id + extension;
 
-      filesystem::copy_file(src, dest, filesystem::copy_options::overwrite_existing);
-    };
+    filesystem::copy_file(src, dest, filesystem::copy_options::overwrite_existing);
+  };
 
   std::string basename_no_ext{"graphtyper"};
 
   // Check if tabix file exists
   if (!is_file(tmp + "/graphtyper.vcf.gz.tbi") && !is_file(tmp + "/graphtyper.vcf.gz.csi"))
   {
-    print_log(log_severity::warning, "Tabix creation appears to have failed, "
-                              , "I will retry sorting the VCF by reading it in whole.");
+    print_log(log_severity::warning,
+              "Tabix creation appears to have failed, ",
+              "I will retry sorting the VCF by reading it in whole.");
 
     bool const no_sort{false};
     bool const sites_only{false};
@@ -163,29 +156,23 @@ genotype_lr(std::string ref_path,
 
   {
     std::ostringstream ss;
-    ss << output_path << "/" << region.chr << "/"
-       << std::setw(9) << std::setfill('0') << (region.begin + 1)
-       << '-'
-       << std::setw(9) << std::setfill('0') << region.end
-       << ".vcf.gz";
+    ss << output_path << "/" << region.chr << "/" << std::setw(9) << std::setfill('0') << (region.begin + 1) << '-'
+       << std::setw(9) << std::setfill('0') << region.end << ".vcf.gz";
 
     print_log(log_severity::info, "Finished! Output written at: ", ss.str());
   }
 }
 
-
-void
-genotype_lr_regions(std::string ref_path,
-                    std::vector<std::string> const & sams,
-                    std::vector<gyper::GenomicRegion> const & regions,
-                    std::string const & output_path,
-                    bool const is_copy_reference)
+void genotype_lr_regions(std::string ref_path,
+                         std::vector<std::string> const & sams,
+                         std::vector<gyper::GenomicRegion> const & regions,
+                         std::string const & output_path,
+                         bool const is_copy_reference)
 {
   for (auto const & region : regions)
   {
     genotype_lr(ref_path, sams, region, output_path, is_copy_reference);
   }
 }
-
 
 } // namespace gyper

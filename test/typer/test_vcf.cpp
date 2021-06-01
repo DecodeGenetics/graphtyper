@@ -1,17 +1,16 @@
-#include <catch.hpp>
-
-#include <stdio.h>
 #include <climits>
 #include <cstdio>
-#include <string>
-#include <iostream>
 #include <fstream>
+#include <iostream>
+#include <stdio.h>
+#include <string>
 
 #include <graphtyper/graph/graph_serialization.hpp> // load_graph()
-#include <graphtyper/index/indexer.hpp> // load_index()
+#include <graphtyper/index/indexer.hpp>             // load_index()
 #include <graphtyper/typer/vcf.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
 
+#include <catch.hpp>
 
 TEST_CASE("Create a VCF and add samples")
 {
@@ -41,7 +40,6 @@ TEST_CASE("Create a VCF and add samples")
   }
 }
 
-
 TEST_CASE("Create a VCF and add variants")
 {
   using namespace gyper;
@@ -56,7 +54,6 @@ TEST_CASE("Create a VCF and add variants")
 
     gyper::load_graph(my_graph.str());
   }
-
 
   std::vector<gyper::Haplotype> haps = graph.get_all_haplotypes(32 /*variant distance*/);
   assert(haps.size() == 2);

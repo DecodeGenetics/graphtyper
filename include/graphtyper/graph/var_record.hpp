@@ -7,13 +7,10 @@
 #include <graphtyper/graph/ref.hpp>
 #include <graphtyper/graph/snp_event.hpp>
 
-
-std::ostream &
-operator<<(std::ostream & os, std::vector<char> const & dt);
+std::ostream & operator<<(std::ostream & os, std::vector<char> const & dt);
 
 namespace gyper
 {
-
 class VarRecord
 {
 public:
@@ -46,6 +43,5 @@ public:
 
   bool operator<(VarRecord const & b);
 };
-
 
 } // namespace gyper

@@ -2,28 +2,23 @@
 #include <string>
 #include <unordered_set>
 
-#include <graphtyper/utilities/logging.hpp>
-
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/graph.hpp>
-#include <graphtyper/typer/path.hpp>
 #include <graphtyper/typer/genotype_paths.hpp>
+#include <graphtyper/typer/path.hpp>
 #include <graphtyper/typer/primers.hpp>
+#include <graphtyper/utilities/logging.hpp>
 #include <graphtyper/utilities/string.hpp>
 #include <graphtyper/utilities/system.hpp>
 
-
 namespace gyper
 {
-
 Primers::Primers(std::string const & primer_bedpe)
 {
   read(primer_bedpe);
 }
 
-
-void
-Primers::read(std::string const & primer_bedpe)
+void Primers::read(std::string const & primer_bedpe)
 {
   if (!gyper::is_file(primer_bedpe))
   {
@@ -55,17 +50,19 @@ Primers::read(std::string const & primer_bedpe)
     GenomicRegion left_region(fields[0], stoi64(fields[1]), stoi64(fields[2]));
     GenomicRegion right_region(fields[3], stoi64(fields[4]), stoi64(fields[5]));
 
-    print_log(log_severity::debug, __HERE__, " Got primer regions ", left_region.to_string(), " "
-                            , right_region.to_string());
+    print_log(log_severity::debug,
+              __HERE__,
+              " Got primer regions ",
+              left_region.to_string(),
+              " ",
+              right_region.to_string());
 
     left.push_back(std::move(left_region));
     right.push_back(std::move(right_region));
   }
 }
 
-
-void
-Primers::check(GenotypePaths & genos) const
+void Primers::check(GenotypePaths & genos) const
 {
   bool const is_reversed = (genos.flags & IS_SEQ_REVERSED) != 0;
 
@@ -75,9 +72,7 @@ Primers::check(GenotypePaths & genos) const
     check_left(genos);
 }
 
-
-void
-Primers::check_left(GenotypePaths & genos) const
+void Primers::check_left(GenotypePaths & genos) const
 {
   for (auto & path : genos.paths)
   {
@@ -120,9 +115,7 @@ Primers::check_left(GenotypePaths & genos) const
   }
 }
 
-
-void
-Primers::check_right(GenotypePaths & genos) const
+void Primers::check_right(GenotypePaths & genos) const
 {
   for (auto & path : genos.paths)
   {
@@ -164,6 +157,5 @@ Primers::check_right(GenotypePaths & genos) const
     }
   }
 }
-
 
 } // namespace gyper

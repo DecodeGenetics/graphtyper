@@ -1,17 +1,14 @@
 #pragma once
 
 #include <fstream> // std::ifstream
-#include <string> // std::string
-#include <vector> // std::vector
+#include <string>  // std::string
+#include <vector>  // std::vector
 
 #include <htslib/sam.h> // bam1_t
 
-
 namespace gyper
 {
-
-using Tqueue = std::pair<bam1_t*, int>;
-
+using Tqueue = std::pair<bam1_t *, int>;
 
 inline std::vector<std::string> get_lines(std::string const & path)
 {
@@ -25,14 +22,12 @@ inline std::vector<std::string> get_lines(std::string const & path)
   return lines;
 }
 
-
-inline std::string
-get_std_string_seq(const bam1_t* rec)
+inline std::string get_std_string_seq(const bam1_t * rec)
 {
   int32_t const lqseq = rec->core.l_qseq;
   std::string seq;
   seq.resize(lqseq);
-  uint8_t* seqptr = bam_get_seq(rec);
+  uint8_t * seqptr = bam_get_seq(rec);
 
   for (int32_t i = 0; i < lqseq; ++i)
   {
@@ -42,20 +37,15 @@ get_std_string_seq(const bam1_t* rec)
   return seq;
 }
 
-
-
 /**
  * Comparison functions
  */
-inline bool
-gt_pos(bam1_t* a, bam1_t* b)
+inline bool gt_pos(bam1_t * a, bam1_t * b)
 {
   return a->core.tid > b->core.tid || (a->core.tid == b->core.tid && a->core.pos > b->core.pos);
 }
 
-
-inline bool
-gt_pos_seq(bam1_t* a, bam1_t* b)
+inline bool gt_pos_seq(bam1_t * a, bam1_t * b)
 {
   if (a->core.tid > b->core.tid)
     return true;
@@ -72,8 +62,8 @@ gt_pos_seq(bam1_t* a, bam1_t* b)
 
   // Check the sequences
   int32_t const lqseq = (a->core.l_qseq + 1) / 2;
-  uint8_t* a_seqptr = bam_get_seq(a);
-  uint8_t* b_seqptr = bam_get_seq(b);
+  uint8_t * a_seqptr = bam_get_seq(a);
+  uint8_t * b_seqptr = bam_get_seq(b);
 
   for (int32_t i = 0; i < lqseq; ++i)
   {
@@ -90,9 +80,7 @@ gt_pos_seq(bam1_t* a, bam1_t* b)
   return false;
 }
 
-
-inline bool
-gt_pos_seq_same_pos(bam1_t* a, bam1_t* b)
+inline bool gt_pos_seq_same_pos(bam1_t * a, bam1_t * b)
 {
   if (a->core.l_qseq > b->core.l_qseq)
     return true;
@@ -101,8 +89,8 @@ gt_pos_seq_same_pos(bam1_t* a, bam1_t* b)
 
   // Check the sequences
   int32_t const lqseq = (a->core.l_qseq + 1) / 2;
-  uint8_t* a_seqptr = bam_get_seq(a);
-  uint8_t* b_seqptr = bam_get_seq(b);
+  uint8_t * a_seqptr = bam_get_seq(a);
+  uint8_t * b_seqptr = bam_get_seq(b);
 
   for (int32_t i = 0; i < lqseq; ++i)
   {
@@ -119,9 +107,7 @@ gt_pos_seq_same_pos(bam1_t* a, bam1_t* b)
   return false;
 }
 
-
-inline bool
-equal_pos_seq(bam1_t* a, bam1_t* b)
+inline bool equal_pos_seq(bam1_t * a, bam1_t * b)
 {
   // Check the positions and the lengdth of the sequences of the records
   if (a->core.tid != b->core.tid || a->core.pos != b->core.pos || a->core.l_qseq != b->core.l_qseq)
@@ -129,8 +115,8 @@ equal_pos_seq(bam1_t* a, bam1_t* b)
 
   // Check the sequences
   long const lqseq = (a->core.l_qseq + 1l) / 2l;
-  uint8_t* a_seqptr = bam_get_seq(a);
-  uint8_t* b_seqptr = bam_get_seq(b);
+  uint8_t * a_seqptr = bam_get_seq(a);
+  uint8_t * b_seqptr = bam_get_seq(b);
 
   for (auto i = 0; i < lqseq; ++i)
   {
@@ -141,13 +127,10 @@ equal_pos_seq(bam1_t* a, bam1_t* b)
   return true;
 }
 
-
-inline bool
-equal_pos(bam1_t* a, bam1_t* b)
+inline bool equal_pos(bam1_t * a, bam1_t * b)
 {
   // Check the positions and the lengdth of the sequences of the records
   return a->core.tid == b->core.tid && a->core.pos == b->core.pos;
 }
 
-
-} // namespace hts
+} // namespace gyper

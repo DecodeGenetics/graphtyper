@@ -1,11 +1,9 @@
 #include <fstream>
-#include <string>
 #include <sstream>
+#include <string>
 #include <vector>
 
 #include <seqan/stream.h>
-
-#include <graphtyper/utilities/logging.hpp>
 
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/constructor.hpp>
@@ -19,22 +17,20 @@
 #include <graphtyper/typer/vcf.hpp>
 #include <graphtyper/typer/vcf_operations.hpp>
 #include <graphtyper/utilities/filesystem.hpp>
-#include <graphtyper/utilities/options.hpp>
 #include <graphtyper/utilities/genotype.hpp>
 #include <graphtyper/utilities/hts_parallel_reader.hpp>
+#include <graphtyper/utilities/logging.hpp>
+#include <graphtyper/utilities/options.hpp>
 #include <graphtyper/utilities/system.hpp>
-
 
 namespace
 {
-
-std::string
-parse_interval(std::string const & line)
+std::string parse_interval(std::string const & line)
 {
   std::string interval;
   int field = 0;
 
-  for (int i {0}; i < static_cast<int>(line.size()); ++i)
+  for (int i{0}; i < static_cast<int>(line.size()); ++i)
   {
     char c = line[i];
 
@@ -62,19 +58,15 @@ parse_interval(std::string const & line)
   return interval;
 }
 
-
-} // anon namespace
-
+} // namespace
 
 namespace gyper
 {
-
-void
-genotype_camou(std::string const & interval_fn,
-               std::string const & ref_fn,
-               std::vector<std::string> const & sams,
-               std::string const & output_path,
-               std::vector<double> const & avg_cov_by_readlen)
+void genotype_camou(std::string const & interval_fn,
+                    std::string const & ref_fn,
+                    std::vector<std::string> const & sams,
+                    std::string const & output_path,
+                    std::vector<double> const & avg_cov_by_readlen)
 {
   long const NUM_SAMPLES = sams.size();
 
@@ -83,9 +75,7 @@ genotype_camou(std::string const & interval_fn,
   print_log(log_severity::info, "Running with up to ", Options::const_instance()->threads, " threads.");
   print_log(log_severity::info, "Copying data from ", NUM_SAMPLES, " input SAM/BAM/CRAMs to local disk.");
 
-#ifdef GT_DEV
   Options::instance()->is_one_genotype_per_haplotype = true;
-#endif // GT_DEV
 
   // Get intervals
   std::vector<std::string> intervals;
@@ -123,7 +113,6 @@ genotype_camou(std::string const & interval_fn,
   std::string tmp_bams = create_temp_dir(genomic_region_bams);
 
   print_log(log_severity::info, "Temporary folder is ", tmp_bams);
-
 
   std::vector<std::string> shrinked_sams;
 
@@ -179,14 +168,14 @@ genotype_camou(std::string const & interval_fn,
         {
           PHIndex ph_index = index_graph(gyper::graph);
           print_log(log_severity::info, "Index construction complete.");
-          std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > ph;
+          std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t>> ph;
 
           paths = gyper::call(shrinked_sams,
                               avg_cov_by_readlen,
                               "", // graph_path
                               ph_index,
                               out_dir,
-                              "", // reference
+                              "",  // reference
                               ".", // region
                               nullptr,
                               ph,
@@ -209,7 +198,7 @@ genotype_camou(std::string const & interval_fn,
         discovery_vcf.write();
 #ifndef NDEBUG
         discovery_vcf.write_tbi_index(); // Write index in debug mode
-#endif // NDEBUG
+#endif                                   // NDEBUG
 
         // free memory
         graph = Graph();
@@ -228,23 +217,23 @@ genotype_camou(std::string const & interval_fn,
 
         construct_graph(ref_fn, tmp + "/it1/final.vcf.gz", padded_genomic_region.to_string(), false, false);
 
-    #ifndef NDEBUG
+#ifndef NDEBUG
         // Save graph in debug mode
         save_graph(out_dir + "/graph");
-    #endif // NDEBUG
+#endif // NDEBUG
 
         std::vector<std::string> paths;
 
         {
           PHIndex ph_index = index_graph(gyper::graph);
-          std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > ph;
+          std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t>> ph;
 
           paths = gyper::call(shrinked_sams,
                               avg_cov_by_readlen,
                               "", // graph_path
                               ph_index,
                               out_dir,
-                              "", // reference
+                              "",  // reference
                               ".", // region
                               nullptr,
                               ph,
@@ -290,15 +279,15 @@ genotype_camou(std::string const & interval_fn,
 
       {
         PHIndex ph_index = index_graph(gyper::graph);
-        std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > ph;
+        std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t>> ph;
 
         paths = gyper::call(shrinked_sams,
                             avg_cov_by_readlen,
-                            "",   // graph_path
+                            "", // graph_path
                             ph_index,
                             out_dir,
-                            "",   // reference
-                            ".",   // region
+                            "",  // reference
+                            ".", // region
                             nullptr,
                             ph,
                             is_writing_calls_vcf,
@@ -315,15 +304,13 @@ genotype_camou(std::string const & interval_fn,
                           false);
     }
 
-    auto copy_camou_vcf_to_system =
-      [&](std::string const & extension) -> void
-      {
-        filesystem::path src = tmp + "/graphtyper.vcf.gz" + extension;
-        filesystem::path dest = output_path + "/" + genomic_region.to_file_string() + ".vcf.gz" + extension;
+    auto copy_camou_vcf_to_system = [&](std::string const & extension) -> void
+    {
+      filesystem::path src = tmp + "/graphtyper.vcf.gz" + extension;
+      filesystem::path dest = output_path + "/" + genomic_region.to_file_string() + ".vcf.gz" + extension;
 
-        filesystem::copy_file(src, dest, filesystem::copy_options::overwrite_existing);
-
-      };
+      filesystem::copy_file(src, dest, filesystem::copy_options::overwrite_existing);
+    };
 
     copy_camou_vcf_to_system(""); // Copy final camou VCF
     copy_camou_vcf_to_system(".tbi");
@@ -340,11 +327,8 @@ genotype_camou(std::string const & interval_fn,
 
     std::ostringstream ss;
 
-    ss << output_path << "/" << genomic_region.chr << "/"
-       << std::setw(9) << std::setfill('0') << (genomic_region.begin + 1)
-       << '-'
-       << std::setw(9) << std::setfill('0') << genomic_region.end
-       << ".vcf.gz";
+    ss << output_path << "/" << genomic_region.chr << "/" << std::setw(9) << std::setfill('0')
+       << (genomic_region.begin + 1) << '-' << std::setw(9) << std::setfill('0') << genomic_region.end << ".vcf.gz";
 
     graph = Graph();
     print_log(log_severity::info, "Finished ", genomic_region.to_string(), "! Output written at: ", ss.str());
@@ -362,6 +346,5 @@ genotype_camou(std::string const & interval_fn,
 
   print_log(log_severity::info, "Finished all ", num_intervals, " intervals.");
 }
-
 
 } // namespace gyper

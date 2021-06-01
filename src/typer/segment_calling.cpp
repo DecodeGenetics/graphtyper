@@ -1,24 +1,23 @@
-#include <bitset> // std::bitset
-#include <cassert> // assert
+#include <bitset>   // std::bitset
+#include <cassert>  // assert
 #include <iostream> // std::cout
-#include <map> // std::map<T,U>
-#include <string> // std::string
-#include <vector> // std::vector<T>
+#include <map>      // std::map<T,U>
+#include <string>   // std::string
+#include <vector>   // std::vector<T>
 
 #include <seqan/sequence.h> // seqan::Dna5String
-
-#include <graphtyper/utilities/logging.hpp> // BOOST_LOG_TRIVIAL macro
 
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/typer/alignment.hpp>
 #include <graphtyper/typer/genotype_paths.hpp>
 #include <graphtyper/typer/segment_calling.hpp>
-#include <graphtyper/typer/vcf_writer.hpp>
 #include <graphtyper/typer/vcf.hpp>
-#include <graphtyper/utilities/sam_reader.hpp>
-#include <graphtyper/utilities/io.hpp>
+#include <graphtyper/typer/vcf_writer.hpp>
 #include <graphtyper/utilities/graph_help_functions.hpp>
+#include <graphtyper/utilities/io.hpp>
+#include <graphtyper/utilities/logging.hpp> // BOOST_LOG_TRIVIAL macro
+#include <graphtyper/utilities/sam_reader.hpp>
 
 /*
 namespace
@@ -318,8 +317,9 @@ add_end_on_explain_map(std::map<uint32_t, std::vector<std::bitset<gyper::MAX_NUM
 
 std::size_t
 determine_reference_index(std::map<uint32_t,
-                                   std::vector<std::bitset<gyper::MAX_NUMBER_OF_HAPLOTYPES> > > const & exon_explain_map,
-                          std::map<uint32_t, std::vector<std::bitset<gyper::MAX_NUMBER_OF_HAPLOTYPES> > > const & intron_explain_map
+                                   std::vector<std::bitset<gyper::MAX_NUMBER_OF_HAPLOTYPES> > > const &
+exon_explain_map, std::map<uint32_t, std::vector<std::bitset<gyper::MAX_NUMBER_OF_HAPLOTYPES> > > const &
+intron_explain_map
                           )
 {
   print_log(log_severity::debug, "[graphtyper::segment_calling] Determining reference index from explain maps.");
@@ -607,7 +607,8 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
     remove_insignificant_variants(exon_explain_map);
     remove_insignificant_variants(intron_explain_map);
 
-    print_log(log_severity::debug, "[graphtyper::segment_calling] Done removing out of order and insignificant variants");
+    print_log(log_severity::debug, "[graphtyper::segment_calling] Done removing out of order and insignificant
+variants");
 
     // This condition is required to avoid segfault!
     if (exon_explain_map.size() > 0)
@@ -697,8 +698,8 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
     std::vector<std::vector<uint32_t> > hap_scores(samples.size());
     // Segment created
 
-    // Check the score of all the exons, if there are any exons (if we only have full sequences without features, we assume all the sequences are introns)
-    if (exon_explain_map.size() > 0)
+    // Check the score of all the exons, if there are any exons (if we only have full sequences without features, we
+assume all the sequences are introns) if (exon_explain_map.size() > 0)
     {
       for (uint32_t s = 0; s < samples.size(); ++s)
       {
@@ -721,7 +722,8 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
         }
 
         assert(best_indexes.size() > 0);
-        print_log(log_severity::debug, "[graphtyper::segment_calling] Number of best indexes are ", best_indexes.size());
+        print_log(log_severity::debug, "[graphtyper::segment_calling] Number of best indexes are ",
+best_indexes.size());
 
         if (best_indexes.size() <= 100)
         {
@@ -732,7 +734,8 @@ segment_calling(std::vector<std::string> const & segment_fasta_files,
           if (best_indexes.size() > 1)
           {
             print_log(log_severity::debug,
-              "[graphtyper::segment_calling] The best exon score is not unique, but there are less than 100 best exon scores";
+              "[graphtyper::segment_calling] The best exon score is not unique, but there are less than 100 best exon
+scores";
 
             // Add intron scores
             std::vector<uint32_t> intron_scores(best_indexes.size(), 0);

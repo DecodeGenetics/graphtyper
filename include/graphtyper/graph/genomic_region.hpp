@@ -9,10 +9,8 @@
 
 #include <cereal/access.hpp>
 
-
 namespace gyper
 {
-
 class VarRecord;
 class Graph;
 
@@ -34,7 +32,7 @@ public:
   explicit GenomicRegion(std::string && chrom, long begin, long end);
 
   void clear();
-  void pad(long N_bases); // pad region by N_bases
+  void pad(long N_bases);     // pad region by N_bases
   void pad_end(long N_bases); // pad end of region by N_bases
   long get_absolute_begin_position() const;
   long get_absolute_end_position() const;

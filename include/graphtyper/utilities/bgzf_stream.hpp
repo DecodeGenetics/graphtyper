@@ -5,18 +5,15 @@
 #include <iostream> // std::cout
 #include <memory>
 #include <sstream> // std::stringstream
-#include <string> // std::string
+#include <string>  // std::string
 
 #include <graphtyper/constants.hpp>
 
 #define INCLUDE_SEQAN_STREAM_IOSTREAM_BGZF_H_
 #include "bgzf.h" // part of htslib
 
-
 namespace gyper
 {
-
-
 class BGZF_stream
 {
 private:
@@ -48,30 +45,21 @@ public:
   long static constexpr MAX_CACHE_SIZE{50000ll};
 };
 
-
 template <class T>
-inline
-BGZF_stream &
-BGZF_stream::operator<<(T const & x)
+inline BGZF_stream & BGZF_stream::operator<<(T const & x)
 {
   // Add to stringstream
   ss << x;
   return *this;
 }
 
-
-inline
-void
-BGZF_stream::check_cache()
+inline void BGZF_stream::check_cache()
 {
   if (static_cast<long>(ss.tellp()) > this->MAX_CACHE_SIZE)
     flush();
 }
 
-
-inline
-void
-BGZF_stream::flush()
+inline void BGZF_stream::flush()
 {
   // Write stringstream to BGZF file
   if (!fp)
@@ -95,10 +83,7 @@ BGZF_stream::flush()
   ss.clear();
 }
 
-
-inline
-int
-BGZF_stream::write(void const * data, std::size_t length)
+inline int BGZF_stream::write(void const * data, std::size_t length)
 {
   if (!fp)
   {
@@ -111,10 +96,7 @@ BGZF_stream::write(void const * data, std::size_t length)
   }
 }
 
-
-inline
-int
-BGZF_stream::write(std::string const & str)
+inline int BGZF_stream::write(std::string const & str)
 {
   if (!fp)
   {
@@ -127,10 +109,7 @@ BGZF_stream::write(std::string const & str)
   }
 }
 
-
-inline
-void
-BGZF_stream::open(std::string const & _filename, std::string const & _filemode, long const _n_threads)
+inline void BGZF_stream::open(std::string const & _filename, std::string const & _filemode, long const _n_threads)
 {
   if (fp)
     close();
@@ -149,17 +128,12 @@ BGZF_stream::open(std::string const & _filename, std::string const & _filemode, 
   this->n_threads = _n_threads;
 }
 
-
-inline bool
-BGZF_stream::is_open() const
+inline bool BGZF_stream::is_open() const
 {
   return fp;
 }
 
-
-inline
-void
-BGZF_stream::close()
+inline void BGZF_stream::close()
 {
   flush();
 
@@ -177,12 +151,9 @@ BGZF_stream::close()
   }
 }
 
-
-inline
-BGZF_stream::~BGZF_stream()
+inline BGZF_stream::~BGZF_stream()
 {
   close();
 }
-
 
 } // namespace gyper

@@ -1,7 +1,7 @@
 #pragma once
 
 #if __has_include(<charconv>)
-#include <charconv>
+#  include <charconv>
 #endif
 #include <string>
 #include <string_view>
@@ -11,16 +11,15 @@
 
 namespace gyper
 {
-
 //----------------------------------- starts_with / ends_with ----------------------------
 // TODO: this can be implemented much more generically and nicer with c++ ranges / c++20
 
 inline bool starts_with(std::string_view input, std::string_view prefix)
 {
-  auto in_it  = begin(input);
+  auto in_it = begin(input);
   auto in_end = end(input);
 
-  auto pre_it  = begin(prefix);
+  auto pre_it = begin(prefix);
   auto pre_end = end(prefix);
 
   if (pre_end - pre_it > in_end - in_it)
@@ -40,10 +39,10 @@ inline bool starts_with(std::string_view input, std::string_view prefix)
 
 inline bool ends_with(std::string_view input, std::string_view prefix)
 {
-  auto in_it  = rbegin(input);
+  auto in_it = rbegin(input);
   auto in_end = rend(input);
 
-  auto pre_it  = rbegin(prefix);
+  auto pre_it = rbegin(prefix);
   auto pre_end = rend(prefix);
 
   if (pre_end - pre_it > in_end - in_it)
@@ -95,8 +94,8 @@ inline int64_t stoi64(std::string_view str)
 
   if (tmp.ec != std::errc())
   {
-      print_log(log_severity::error, "Converting \"", str, "\" of size ", str.size(), " to int failed.");
-      std::exit(1);
+    print_log(log_severity::error, "Converting \"", str, "\" of size ", str.size(), " to int failed.");
+    std::exit(1);
   }
 
   return ret;

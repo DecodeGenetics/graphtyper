@@ -11,7 +11,6 @@
 
 namespace gyper
 {
-
 template <typename TSequence>
 std::size_t get_num_kmers(TSequence const & dna);
 template <typename TSequence>
@@ -21,16 +20,13 @@ template <typename TSequence>
 uint32_t read_offset(TSequence const & dna);
 
 template <typename TSeq>
-std::vector<KmerLabel>
-query_index_for_first_kmer(TSeq const & read, PHIndex const & ph_index);
+std::vector<KmerLabel> query_index_for_first_kmer(TSeq const & read, PHIndex const & ph_index);
 
 template <typename TSeq>
-std::vector<KmerLabel>
-query_index_for_last_kmer(TSeq const & read, PHIndex const & ph_index);
+std::vector<KmerLabel> query_index_for_last_kmer(TSeq const & read, PHIndex const & ph_index);
 
 template <typename TSeq>
-std::vector<std::vector<KmerLabel> >
-query_index(TSeq const & read, PHIndex const & ph_index);
+std::vector<std::vector<KmerLabel>> query_index(TSeq const & read, PHIndex const & ph_index);
 
 /*
 template <typename TSeq>
@@ -39,7 +35,7 @@ query_index_hamming_distance1(TSeq const & read, PHIndex const & ph_index);
 */
 
 template <typename TSeq>
-std::vector<std::vector<KmerLabel> >
-query_index_hamming_distance1_without_index(TSeq const & read, PHIndex const & ph_index);
+std::vector<std::vector<KmerLabel>> query_index_hamming_distance1_without_index(TSeq const & read,
+                                                                                PHIndex const & ph_index);
 
 } // namespace gyper
