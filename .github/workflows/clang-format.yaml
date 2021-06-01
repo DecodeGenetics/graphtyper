@@ -1,0 +1,61 @@
+name: Format-check
+
+on: [ push, pull_request ]
+
+env:
+  TZ: Atlantic/Reykjavik
+
+defaults:
+  run:
+    shell: bash -ex {0}
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-20.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: "Clang12 Release C++20"
+            pkg: "clang-12"
+            cxx: "clang++-12"
+            cc: "clang-12"
+            cxx_flags: "-std=c++20"
+            build_type: Release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          path: src
+          fetch-depth: 2
+          submodules: recursive
+
+      - name: Add package source
+        run: |
+          echo 'APT::Acquire::Retries "5";' | sudo tee -a /etc/apt/apt.conf.d/80-retries > /dev/null
+          sudo add-apt-repository --no-update --yes "deb http://apt.llvm.org/focal/ llvm-toolchain-focal main"
+          sudo apt-get update
+      - name: Install CMake
+        run: sudo apt-get install --yes cmake
+
+      - name: Install clang-format
+        run: sudo apt-get install --yes ${{ matrix.pkg }}
+
+      - name: Tool versions
+        run: |
+          env cmake --version
+          env ${{ matrix.cxx }} --version
+      - name: Configure tests
+        env:
+          CXX: ${{ matrix.cxx }}
+          CC: ${{ matrix.cc }}
+        run: |
+          mkdir build
+          cd build
+          cmake ../src -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_CXX_FLAGS="${{ matrix.cxx_flags }}"
+      - name: Run tests
+        run: |
+          cd build
+          make check_format
