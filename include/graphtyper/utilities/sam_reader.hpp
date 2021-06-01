@@ -1,20 +1,18 @@
 #pragma once
 
-#include <string> // std::String
+#include <string>        // std::String
 #include <unordered_map> // std::unordered_map
-#include <utility> // std::pair
-#include <vector> // std::vector
+#include <utility>       // std::pair
+#include <vector>        // std::vector
 
 #include <seqan/basic.h>
-#include <seqan/sequence.h>
 #include <seqan/hts_io.h> // seqan::HtsFileIn, seqan::BamAlignmentRecord
+#include <seqan/sequence.h>
 
 #include <graphtyper/utilities/hash_seqan.hpp> // For std::unordered_map<seqan::String<char>, seqan::BamAlignmentRecord>
 
-
 namespace gyper
 {
-
 using TReadPair = std::pair<seqan::BamAlignmentRecord, seqan::BamAlignmentRecord>;
 using TReads = std::vector<TReadPair>;
 using TReadsFirst = std::unordered_map<seqan::String<char>, seqan::BamAlignmentRecord>;
@@ -34,7 +32,6 @@ private:
 
   TReadsFirst reads_first;
   TReads unpaired_reads;
-
 };
 
 } // namespace gyper

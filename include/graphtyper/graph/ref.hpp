@@ -6,7 +6,6 @@
 
 namespace gyper
 {
-
 class Ref
 {
 public:
@@ -24,7 +23,6 @@ public:
   bool operator==(Ref const & o);
   bool operator!=(Ref const & o);
   bool operator<(Ref const & o);
-
 };
 
 } // namespace gyper

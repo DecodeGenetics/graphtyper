@@ -245,3 +245,14 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/catch/single_include/)
 
 enable_testing(true)
 add_subdirectory(test)
+
+## Add clang-format check
+find_program(CLANG_FORMAT "clang-format-12")
+
+if (CLANG_FORMAT STREQUAL "" OR CLANG_FORMAT STREQUAL "CLANG_FORMAT-NOTFOUND")
+    find_program(CLANG_FORMAT "clang-format")
+endif()
+
+if (NOT CLANG_FORMAT STREQUAL "" AND NOT CLANG_FORMAT STREQUAL "CLANG_FORMAT-NOTFOUND")
+    add_custom_target (check_format "find" "${CMAKE_CURRENT_SOURCE_DIR}/src" "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}/test" "-name" "\"*.hpp\"" "-o" "-name" "\"*.cpp\"" "-exec" "${CLANG_FORMAT}" "--style=file" "--dry-run" "--Werror" "{}" "+" COMMENT "Checking all files format with clang-format.")
+endif()

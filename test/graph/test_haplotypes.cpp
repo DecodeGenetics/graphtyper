@@ -2,8 +2,8 @@
 #include <vector>
 
 #include <graphtyper/graph/graph.hpp>
-#include <graphtyper/graph/label.hpp>
 #include <graphtyper/graph/haplotype.hpp>
+#include <graphtyper/graph/label.hpp>
 #include <graphtyper/graph/var_record.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
 

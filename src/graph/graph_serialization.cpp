@@ -2,18 +2,15 @@
 #include <string>
 
 #include <cereal/archives/binary.hpp>
-#include <graphtyper/utilities/logging.hpp>
 
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/graph_serialization.hpp>
-
+#include <graphtyper/utilities/logging.hpp>
 
 namespace gyper
 {
-
-void
-save_graph(std::string const & graph_path)
+void save_graph(std::string const & graph_path)
 {
   std::ofstream ofs(graph_path.c_str(), std::ios::binary);
 
@@ -27,9 +24,7 @@ save_graph(std::string const & graph_path)
   oa << graph;
 }
 
-
-void
-load_graph(std::string const & graph_path)
+void load_graph(std::string const & graph_path)
 {
   gyper::graph.clear();
   gyper::graph = Graph();
@@ -50,9 +45,7 @@ load_graph(std::string const & graph_path)
   absolute_pos.calculate_offsets(graph.contigs);
 }
 
-
-Graph
-load_secondary_graph(std::string const & graph_path)
+Graph load_secondary_graph(std::string const & graph_path)
 {
   Graph second_graph = Graph();
   std::ifstream ifs(graph_path.c_str(), std::ios::binary);
@@ -72,6 +65,5 @@ load_secondary_graph(std::string const & graph_path)
 
   return second_graph;
 }
-
 
 } // namespace gyper

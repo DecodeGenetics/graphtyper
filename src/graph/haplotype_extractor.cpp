@@ -3,31 +3,28 @@
 #include <iostream>
 #include <map>
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 #include <paw/align.hpp>
-
-#include <graphtyper/utilities/logging.hpp>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/graph_serialization.hpp>
 #include <graphtyper/graph/haplotype_calls.hpp>
 #include <graphtyper/graph/haplotype_extractor.hpp>
-#include <graphtyper/typer/vcf_writer.hpp>
-#include <graphtyper/typer/vcf.hpp>
 #include <graphtyper/typer/variant.hpp>
 #include <graphtyper/typer/variant_candidate.hpp>
-#include <graphtyper/utilities/sequence_operations.hpp> // Remove prefix and suffix
-#include <graphtyper/utilities/options.hpp>
+#include <graphtyper/typer/vcf.hpp>
+#include <graphtyper/typer/vcf_writer.hpp>
 #include <graphtyper/utilities/graph_help_functions.hpp>
+#include <graphtyper/utilities/logging.hpp>
+#include <graphtyper/utilities/options.hpp>
+#include <graphtyper/utilities/sequence_operations.hpp> // Remove prefix and suffix
 #include <graphtyper/utilities/type_conversions.hpp>
-
 
 namespace
 {
-
 /*
 std::vector<gyper::HaplotypeCall>
 read_haplotype_calls(std::vector<std::string> const & haps_paths)
@@ -91,8 +88,7 @@ read_haplotype_calls_from_file(std::string const & haps_path)
 }
 */
 
-} // anon namespace
-
+} // namespace
 
 /*
 namespace gyper
@@ -293,8 +289,8 @@ find_variants_in_alignment(uint32_t const pos,
     assert(new_var.seqs[1].size() > 0);
     assert(new_var.is_normalized());
 
-    // its a sign of a problem if the new variant candidate is not normalized, most likely this means the 50bp where not enough
-    if (!new_var.is_normalized())
+    // its a sign of a problem if the new variant candidate is not normalized, most likely this means the 50bp where not
+enough if (!new_var.is_normalized())
     {
       print_log(log_severity::debug, "Removed variant candidate since it was not in normalized form "
                               , new_var.to_string());

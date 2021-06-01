@@ -8,7 +8,6 @@
 
 namespace gyper
 {
-
 class SnpEvent
 {
   friend class cereal::access;
@@ -33,6 +32,5 @@ private:
   template <class Archive>
   void serialize(Archive & ar, const unsigned int);
 };
-
 
 } // namespace gyper

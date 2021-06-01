@@ -1,20 +1,19 @@
-#include <catch.hpp>
-
-#include <stdio.h>
 #include <climits>
 #include <cstdio>
-#include <string>
-#include <iostream>
 #include <fstream>
-
-#include <graphtyper/graph/graph_serialization.hpp>
-#include <graphtyper/constants.hpp>
-#include <graphtyper/utilities/type_conversions.hpp>
-#include <graphtyper/utilities/kmer_help_functions.hpp>
+#include <iostream>
+#include <stdio.h>
+#include <string>
 
 #include <seqan/basic.h>
 #include <seqan/sequence.h>
 
+#include <graphtyper/constants.hpp>
+#include <graphtyper/graph/graph_serialization.hpp>
+#include <graphtyper/utilities/kmer_help_functions.hpp>
+#include <graphtyper/utilities/type_conversions.hpp>
+
+#include <catch.hpp>
 
 TEST_CASE("Converting reads", "[utils]")
 {
@@ -30,7 +29,6 @@ TEST_CASE("Converting reads", "[utils]")
     REQUIRE(to_dna_str(to_uint64(read, 31)) == kmer2);
   }
 }
-
 
 TEST_CASE("Mismatches of the last base")
 {
@@ -77,7 +75,6 @@ TEST_CASE("Mismatches of the last base")
   }
 }
 
-
 TEST_CASE("Mismatches of the first base")
 {
   using namespace gyper;
@@ -123,7 +120,6 @@ TEST_CASE("Mismatches of the first base")
   }
 }
 
-
 TEST_CASE("Hamming distance 1")
 {
   using namespace gyper;
@@ -134,34 +130,33 @@ TEST_CASE("Hamming distance 1")
     auto hamming1_array = to_uint64_vec_hamming_distance_1(to_uint64(kmer, 0));
 
     // We should find 32-mers in hamming distance 1
-    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-                                                                              0)) == hamming1_array.end());
-    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC",
-                                                                              0)) != hamming1_array.end());
-    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("AAAAAAAAAAAAAAAAAAAAAAAAAAAAGAAA",
-                                                                              0)) != hamming1_array.end());
-    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("AAAAAAAAAAAAAAAAAAAAAAAAATAAAAAA",
-                                                                              0)) != hamming1_array.end());
-    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("AAAAAAAAAAAAAAAAATAAAAAAAAAAAAAA",
-                                                                              0)) != hamming1_array.end());
-    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("AAAAAAAAAAAAAAAACAAAAAAAAAAAAAAA",
-                                                                              0)) != hamming1_array.end());
-    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("AAAAAAAAAAAAAAAAGAAAAAAAAAAAAAAA",
-                                                                              0)) != hamming1_array.end());
-    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("AAAAAAAAAAAAAAAATAAAAAAAAAAAAAAA",
-                                                                              0)) != hamming1_array.end());
-    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("AAAAAAAAAAAAAAATAAAAAAAAAAAAAAAA",
-                                                                              0)) != hamming1_array.end());
-    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("TAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-                                                                              0)) != hamming1_array.end());
-    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("AAAAGAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-                                                                              0)) != hamming1_array.end());
-    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("AAAAAAAAAAACAAAAAAAAAAAAAAAAAAAA",
-                                                                              0)) != hamming1_array.end());
+    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", 0)) ==
+            hamming1_array.end());
+    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC", 0)) !=
+            hamming1_array.end());
+    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("AAAAAAAAAAAAAAAAAAAAAAAAAAAAGAAA", 0)) !=
+            hamming1_array.end());
+    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("AAAAAAAAAAAAAAAAAAAAAAAAATAAAAAA", 0)) !=
+            hamming1_array.end());
+    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("AAAAAAAAAAAAAAAAATAAAAAAAAAAAAAA", 0)) !=
+            hamming1_array.end());
+    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("AAAAAAAAAAAAAAAACAAAAAAAAAAAAAAA", 0)) !=
+            hamming1_array.end());
+    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("AAAAAAAAAAAAAAAAGAAAAAAAAAAAAAAA", 0)) !=
+            hamming1_array.end());
+    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("AAAAAAAAAAAAAAAATAAAAAAAAAAAAAAA", 0)) !=
+            hamming1_array.end());
+    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("AAAAAAAAAAAAAAATAAAAAAAAAAAAAAAA", 0)) !=
+            hamming1_array.end());
+    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("TAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", 0)) !=
+            hamming1_array.end());
+    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("AAAAGAAAAAAAAAAAAAAAAAAAAAAAAAAA", 0)) !=
+            hamming1_array.end());
+    REQUIRE(std::find(hamming1_array.begin(), hamming1_array.end(), to_uint64("AAAAAAAAAAACAAAAAAAAAAAAAAAAAAAA", 0)) !=
+            hamming1_array.end());
 
     // The array should never contain the same 32-mer twice
     std::sort(hamming1_array.begin(), hamming1_array.end());
     REQUIRE(std::adjacent_find(hamming1_array.begin(), hamming1_array.end()) == hamming1_array.end());
   }
-
 }

@@ -4,7 +4,6 @@
 
 namespace bamshrink
 {
-
 struct Options
 {
   // Note: You must change defaults in gyper options as well
@@ -30,26 +29,21 @@ int main(Options & opts);
 
 } // namespace bamshrink
 
-
 namespace gyper
 {
+void bamshrink(std::string const chrom,
+               int begin,
+               int end,
+               std::string const path_in,
+               std::string const sam_index_in,
+               std::string const path_out,
+               double const avg_cov_by_readlen,
+               std::string const ref_fn);
 
-void
-bamshrink(std::string const chrom,
-          int begin,
-          int end,
-          std::string const path_in,
-          std::string const sam_index_in,
-          std::string const path_out,
-          double const avg_cov_by_readlen,
-          std::string const ref_fn);
-
-
-void
-bamshrink_multi(std::string const interval_fn,
-                std::string const path_in,
-                std::string const path_out,
-                double const avg_cov_by_readlen,
-                std::string const ref_fn);
+void bamshrink_multi(std::string const interval_fn,
+                     std::string const path_in,
+                     std::string const path_out,
+                     double const avg_cov_by_readlen,
+                     std::string const ref_fn);
 
 } // namespace gyper

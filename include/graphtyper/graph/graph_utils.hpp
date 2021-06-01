@@ -4,13 +4,11 @@
 #include <iterator>
 #include <vector> // std::vector
 
-uint32_t inline
-count_mismatches(std::vector<char> const & read,
-                 uint32_t read_offset,
-                 std::vector<char> const & graph_dna,
-                 uint32_t dna_index,
-                 uint32_t max_mismatches
-                 )
+uint32_t inline count_mismatches(std::vector<char> const & read,
+                                 uint32_t read_offset,
+                                 std::vector<char> const & graph_dna,
+                                 uint32_t dna_index,
+                                 uint32_t max_mismatches)
 {
   uint32_t mismatches = 0;
   auto read_it = read.begin() + read_offset;
@@ -38,14 +36,11 @@ count_mismatches(std::vector<char> const & read,
   return mismatches;
 }
 
-
-uint32_t inline
-count_mismatches_backward(std::vector<char> const & read,
-                          uint32_t read_offset,
-                          std::vector<char> const & graph_dna,
-                          uint32_t dna_index,
-                          uint32_t max_mismatches
-                          )
+uint32_t inline count_mismatches_backward(std::vector<char> const & read,
+                                          uint32_t read_offset,
+                                          std::vector<char> const & graph_dna,
+                                          uint32_t dna_index,
+                                          uint32_t max_mismatches)
 {
   uint32_t mismatches = 0;
   auto read_it = read.rbegin() + read_offset;
@@ -73,9 +68,10 @@ count_mismatches_backward(std::vector<char> const & read,
   return mismatches;
 }
 
-
-void inline
-add_node_dna_to_sequence(std::vector<char> & seq, gyper::Label const & label, uint32_t const from, uint32_t const to)
+void inline add_node_dna_to_sequence(std::vector<char> & seq,
+                                     gyper::Label const & label,
+                                     uint32_t const from,
+                                     uint32_t const to)
 {
   uint32_t const dna_end = label.order + label.dna.size();
 

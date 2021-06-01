@@ -2,21 +2,17 @@
 
 #include <array>
 #include <cstdint>
-#include <string>
-#include <sstream>
 #include <map>
+#include <sstream>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
-
 namespace gyper
 {
-
 std::array<char, 4> constexpr index2base = {'A', 'C', 'G', 'T'};
 
-long
-base2index(char const base);
-
+long base2index(char const base);
 
 struct BaseCount
 {
@@ -30,9 +26,7 @@ struct BaseCount
   std::string to_string() const;
 
   void add_base(char seq, char qual);
-
 };
-
 
 class Event
 {
@@ -48,25 +42,21 @@ public:
 
   Event() = default;
 
-  Event(uint32_t _pos, char _type)
-    : pos(_pos)
-    , type(_type)
-  {}
+  Event(uint32_t _pos, char _type) : pos(_pos), type(_type)
+  {
+  }
 
-  Event(uint32_t _pos, char _type, std::vector<char> && _sequence)
-    : pos{_pos}
-    , type{_type}
-    , sequence{std::forward<std::vector<char> >(_sequence)}
-  {}
+  Event(uint32_t _pos, char _type, std::vector<char> && _sequence) :
+    pos{_pos}, type{_type}, sequence{std::forward<std::vector<char>>(_sequence)}
+  {
+  }
 
-  inline std::string
-  to_string() const
+  inline std::string to_string() const
   {
     std::ostringstream ss;
     ss << pos << " " << type << ' ' << std::string(sequence.begin(), sequence.end());
     return ss.str();
   }
-
 
   /*********************
    * OPERATOR OVERLOAD *
@@ -75,7 +65,6 @@ public:
   bool operator!=(Event const & b) const;
   bool operator<(Event const & b) const;
 };
-
 
 class EventSupport
 {
@@ -111,12 +100,9 @@ public:
 
   uint32_t max_log_qual{0};
   int max_log_qual_file_i{-1};
-
-
 };
 
-
-//std::vector<uint8_t> get_phred_biallelic(uint32_t count, uint32_t anti_count, uint32_t eps);
+// std::vector<uint8_t> get_phred_biallelic(uint32_t count, uint32_t anti_count, uint32_t eps);
 uint32_t get_log_qual(uint32_t count, uint32_t anti_count, uint32_t eps = 7);
 uint32_t get_log_qual_double(double count, double anti_count, double eps = 7.0);
 
@@ -141,21 +127,17 @@ public:
 };
 */
 
+bool apply_indel_event(std::vector<char> & sequence,
+                       std::vector<int32_t> & ref_pos,
+                       Event const & indel_event,
+                       long const offset,
+                       bool const is_debug = false);
 
-bool
-apply_indel_event(std::vector<char> & sequence,
-                  std::vector<int32_t> & ref_pos,
-                  Event const & indel_event,
-                  long const offset,
-                  bool const is_debug = false);
+Event make_deletion_event(std::vector<char> const & reference_sequence, long ref_offset, int32_t pos, long count);
 
-Event
-make_deletion_event(std::vector<char> const & reference_sequence, long ref_offset, int32_t pos, long count);
+Event make_insertion_event(int32_t pos, std::vector<char> && event_sequence);
 
-Event
-make_insertion_event(int32_t pos, std::vector<char> && event_sequence);
-
-//using Tevents = phmap::node_hash_map<Event, uint32_t>;
+// using Tevents = phmap::node_hash_map<Event, uint32_t>;
 using Tindel_events = std::map<Event, EventSupport>; // maps events to count
 
 struct EventHash

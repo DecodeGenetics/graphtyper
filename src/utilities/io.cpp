@@ -1,27 +1,23 @@
+#include <fstream>
 #include <iostream>
 #include <sstream>
-#include <fstream>
 
-#include <graphtyper/utilities/logging.hpp>
-
-#include <seqan/basic.h>
 #include <seqan/bam_io.h>
-#include <seqan/sequence.h>
+#include <seqan/basic.h>
 #include <seqan/seq_io.h>
+#include <seqan/sequence.h>
 #include <seqan/stream.h>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/utilities/io.hpp>
+#include <graphtyper/utilities/logging.hpp>
 #include <graphtyper/utilities/string.hpp>
-
 
 namespace gyper
 {
-
-void
-get_sample_name_from_bam_header(std::string const & hts_filename,
-                                std::vector<std::string> & samples,
-                                std::unordered_map<std::string, int> & rg2sample_i)
+void get_sample_name_from_bam_header(std::string const & hts_filename,
+                                     std::vector<std::string> & samples,
+                                     std::unordered_map<std::string, int> & rg2sample_i)
 {
   seqan::HtsFileIn hts_file;
 
@@ -43,8 +39,8 @@ get_sample_name_from_bam_header(std::string const & hts_filename,
 
       if (pos_samp == std::string::npos || pos_id == std::string::npos)
       {
-        std::cerr << "[graphtyper::utilities::io] ERROR: Could not parse RG and sample from header line:"
-                  << line_it << std::endl;
+        std::cerr << "[graphtyper::utilities::io] ERROR: Could not parse RG and sample from header line:" << line_it
+                  << std::endl;
         std::exit(1);
       }
 
@@ -83,9 +79,7 @@ get_sample_name_from_bam_header(std::string const & hts_filename,
   }
 }
 
-
-std::unordered_map<std::string, long>
-get_contig_to_lengths(std::string const & fai_filename)
+std::unordered_map<std::string, long> get_contig_to_lengths(std::string const & fai_filename)
 {
   std::ifstream fai(fai_filename.c_str());
 
@@ -131,11 +125,9 @@ get_contig_to_lengths(std::string const & fai_filename)
   return contig_to_lengths;
 }
 
-
-std::vector<std::pair<seqan::CharString, seqan::Dna5String> >
-read_fasta_sequences(std::string const & fasta_filename)
+std::vector<std::pair<seqan::CharString, seqan::Dna5String>> read_fasta_sequences(std::string const & fasta_filename)
 {
-  std::vector<std::pair<seqan::CharString, seqan::Dna5String> > fasta_sequences;
+  std::vector<std::pair<seqan::CharString, seqan::Dna5String>> fasta_sequences;
 
   seqan::StringSet<seqan::CharString> ids;
   seqan::StringSet<seqan::Dna5String> seqs;
@@ -159,11 +151,9 @@ read_fasta_sequences(std::string const & fasta_filename)
   return fasta_sequences;
 }
 
-
-std::map<std::string, std::vector<seqan::Dna5String> >
-read_haplotypes_from_fasta(std::string const & fasta_filename)
+std::map<std::string, std::vector<seqan::Dna5String>> read_haplotypes_from_fasta(std::string const & fasta_filename)
 {
-  std::map<std::string, std::vector<seqan::Dna5String> > haplotypes;
+  std::map<std::string, std::vector<seqan::Dna5String>> haplotypes;
   seqan::SeqFileIn fasta_file(fasta_filename.c_str());
   seqan::StringSet<seqan::CharString> ids;
   seqan::StringSet<seqan::Dna5String> seqs;
@@ -225,9 +215,7 @@ read_haplotypes_from_fasta(std::string const & fasta_filename)
   return haplotypes;
 }
 
-
-void
-append_to_file(std::string && data, std::string const & file_name)
+void append_to_file(std::string && data, std::string const & file_name)
 {
   if (file_name == "-")
   {
@@ -250,9 +238,7 @@ append_to_file(std::string && data, std::string const & file_name)
   }
 }
 
-
-void
-write_to_file(std::string && data, std::string const & file_name)
+void write_to_file(std::string && data, std::string const & file_name)
 {
   if (file_name == "-")
   {
@@ -275,13 +261,10 @@ write_to_file(std::string && data, std::string const & file_name)
   }
 }
 
-
-void
-write_gzipped_to_file(std::stringstream & ss, std::string const & file_name, bool const append)
+void write_gzipped_to_file(std::stringstream & ss, std::string const & file_name, bool const append)
 {
   std::ofstream compressed(file_name.c_str(),
-                           append ? (std::ofstream::binary | std::ofstream::app) : std::ofstream::binary
-                           );
+                           append ? (std::ofstream::binary | std::ofstream::app) : std::ofstream::binary);
 
   if (!compressed.is_open())
   {
@@ -294,6 +277,5 @@ write_gzipped_to_file(std::stringstream & ss, std::string const & file_name, boo
 
   filter << ss.rdbuf();
 }
-
 
 } // namespace gyper

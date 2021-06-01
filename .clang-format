@@ -1,0 +1,71 @@
+# run on whole project with:
+#  find src/ include/ test/ -name "*.hpp" -o -name "*.cpp" | xargs clang-format -i --style=file
+---
+Language:        Cpp
+BasedOnStyle:  LLVM
+AlignOperands:   AlignAfterOperator
+AllowAllArgumentsOnNextLine: false
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+AlwaysBreakAfterDefinitionReturnType: None
+AlwaysBreakAfterReturnType: None
+AlwaysBreakBeforeMultilineStrings: true
+AlwaysBreakTemplateDeclarations: Yes
+BinPackArguments: false
+BinPackParameters: false
+BreakBeforeBraces: Allman
+BraceWrapping:
+  AfterCaseLabel:  true
+  AfterClass:      true
+  AfterControlStatement: Always
+  AfterEnum:       true
+  AfterFunction:   true
+  AfterNamespace:  true
+  AfterObjCDeclaration: true
+  AfterStruct:     true
+  AfterUnion:      true
+  AfterExternBlock: true
+  BeforeCatch:     true
+  BeforeElse:      true
+  BeforeLambdaBody: true
+  BeforeWhile:     true
+  IndentBraces:    false
+  SplitEmptyFunction: false
+  SplitEmptyRecord: false
+  SplitEmptyNamespace: false
+BreakBeforeInheritanceComma: true
+BreakConstructorInitializers: AfterColon
+BreakInheritanceList: AfterColon
+ColumnLimit:     120
+CommentPragmas:  \/\/!
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+ConstructorInitializerIndentWidth: 2
+ContinuationIndentWidth: 2
+DeriveLineEnding: false
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex:           '^<(sys/)?[a-z_]+(\.h)?>$'
+    Priority:        1
+  - Regex:           '^(<|")cereal/'
+    Priority:        2
+  - Regex:           '^(<|")parallel_hashmap/'
+    Priority:        3
+  - Regex:           '^(<|")paw/'
+    Priority:        4
+  - Regex:           '^(<|")seqan/'
+    Priority:        5
+  - Regex:           '^(<|")graphtyper/'
+    Priority:        10
+  - Regex:           '.*'
+    Priority:        100
+IndentExternBlock: false
+IndentGotoLabels: false
+IndentPPDirectives: AfterHash
+IndentWidth:     2
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+PenaltyReturnTypeOnItsOwnLine: 200
+PointerAlignment: Middle
+ReflowComments: true
+Standard: c++17
+TabWidth: 2

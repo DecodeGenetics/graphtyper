@@ -1,18 +1,17 @@
 #include <cassert>
-#include <cstdlib> // abs
 #include <cstdint> // uint32_t
-#include <ios>
+#include <cstdlib> // abs
 #include <iomanip>
+#include <ios>
 #include <unordered_map>
 #include <utility>
 
 #include <cereal/archives/binary.hpp>
-#include <graphtyper/utilities/logging.hpp>
 #include <cereal/types/map.hpp>
 #include <cereal/types/set.hpp>
 #include <cereal/types/string.hpp>
-#include <cereal/types/vector.hpp>
 #include <cereal/types/unordered_map.hpp>
+#include <cereal/types/vector.hpp>
 
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/graph.hpp>
@@ -23,15 +22,13 @@
 #include <graphtyper/typer/variant_support.hpp>
 #include <graphtyper/typer/vcf.hpp>
 #include <graphtyper/utilities/io.hpp>
+#include <graphtyper/utilities/logging.hpp>
 #include <graphtyper/utilities/options.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
 
-
 namespace
 {
-
-std::pair<double, long>
-get_abs_dev_strand_bias(std::vector<gyper::VariantSupport> const & supports)
+std::pair<double, long> get_abs_dev_strand_bias(std::vector<gyper::VariantSupport> const & supports)
 {
   long total_depth = 0;
   long total_reversed = 0;
@@ -47,9 +44,7 @@ get_abs_dev_strand_bias(std::vector<gyper::VariantSupport> const & supports)
   return std::pair<double, long>(abs_dev_sb, total_depth);
 }
 
-
-std::pair<double, long>
-get_abs_dev_read_bias(std::vector<gyper::VariantSupport> const & supports)
+std::pair<double, long> get_abs_dev_read_bias(std::vector<gyper::VariantSupport> const & supports)
 {
   long total_depth = 0;
   long total_first_read = 0;
@@ -64,15 +59,11 @@ get_abs_dev_read_bias(std::vector<gyper::VariantSupport> const & supports)
   return std::pair<double, long>(abs_dev_rb, total_depth);
 }
 
-
-} // anon namespace
-
+} // namespace
 
 namespace gyper
 {
-
-void
-VariantMap::add_variants(std::vector<VariantCandidate> && vars, long const sample_index)
+void VariantMap::add_variants(std::vector<VariantCandidate> && vars, long const sample_index)
 {
   assert(varmaps.size() > 0);
   assert(sample_index < static_cast<long>(varmaps.size()));
@@ -92,9 +83,8 @@ VariantMap::add_variants(std::vector<VariantCandidate> && vars, long const sampl
 
     if (it == varmap.end())
     {
-      it = varmap.insert(std::make_pair<VariantCandidate, VariantSupport>(
-                           VariantCandidate(var),
-                           VariantSupport())).first;
+      it =
+        varmap.insert(std::make_pair<VariantCandidate, VariantSupport>(VariantCandidate(var), VariantSupport())).first;
 
       // Expand to learn the true size
       it->second.is_indel = var.seqs[0].size() != var.seqs[1].size();
@@ -121,9 +111,7 @@ VariantMap::add_variants(std::vector<VariantCandidate> && vars, long const sampl
   }
 }
 
-
-void
-VariantMap::create_varmap_for_all(ReferenceDepth const & reference_depth)
+void VariantMap::create_varmap_for_all(ReferenceDepth const & reference_depth)
 {
   assert(varmaps.size() == reference_depth.depths.size());
   long const NUM_SAMPLES = static_cast<long>(varmaps.size());
@@ -169,11 +157,11 @@ VariantMap::create_varmap_for_all(ReferenceDepth const & reference_depth)
         }
       } // while(true)
 
-      #ifndef NDEBUG
+#ifndef NDEBUG
       if (new_min_support > minimum_variant_support)
         print_log(log_severity::debug, "[graphtyper::variant_map] Min support increased to ", new_min_support);
-      #endif // NDEBUG
-    } // if (varmap.size() > 50)
+#endif // NDEBUG
+    }  // if (varmap.size() > 50)
 
     double const min_ratio = minimum_variant_support_ratio;
 
@@ -190,10 +178,10 @@ VariantMap::create_varmap_for_all(ReferenceDepth const & reference_depth)
         // Check if ratio is above cutoff
         if (new_var_support.is_ratio_above_cutoff(min_ratio))
         {
-          // In this case, we can add the variant
-          #ifndef NDEBUG
+// In this case, we can add the variant
+#ifndef NDEBUG
           new_var_support.pn_index = static_cast<uint32_t>(i);
-          #endif // NDEBUG
+#endif // NDEBUG
 
           pool_varmap[var].push_back(new_var_support);
         }
@@ -211,12 +199,11 @@ VariantMap::create_varmap_for_all(ReferenceDepth const & reference_depth)
 #endif // NDEBUG
 }
 
-
-void
-VariantMap::filter_varmap_for_all()
+void VariantMap::filter_varmap_for_all()
 {
-  print_log(log_severity::debug, "[graphtyper::variant_map] Number of variants above minimum cutoff is "
-                          , pool_varmap.size());
+  print_log(log_severity::debug,
+            "[graphtyper::variant_map] Number of variants above minimum cutoff is ",
+            pool_varmap.size());
 
   // No need to filter no variants, in fact it will segfault
   if (pool_varmap.size() == 0)
@@ -224,7 +211,7 @@ VariantMap::filter_varmap_for_all()
 
   // Filter on strand bias
   //*
-  for (auto it = pool_varmap.begin(); it != pool_varmap.end();)  // no increment
+  for (auto it = pool_varmap.begin(); it != pool_varmap.end();) // no increment
   {
     // Skip read bias on indels
     bool is_any_hq = false;
@@ -251,11 +238,8 @@ VariantMap::filter_varmap_for_all()
       if (is_indel && abs_dev_sb > 0.07)
         abs_dev_sb -= 0.07;
 
-      if ((abs_dev_sb > 0.49999) ||
-          (abs_dev_sb > 0.45 && depth > 30) ||
-          (abs_dev_sb > 0.40 && depth > 80) ||
-          (abs_dev_sb > 0.37 && depth > 200) ||
-          (abs_dev_sb > 0.34 && depth > 500))
+      if ((abs_dev_sb > 0.49999) || (abs_dev_sb > 0.45 && depth > 30) || (abs_dev_sb > 0.40 && depth > 80) ||
+          (abs_dev_sb > 0.37 && depth > 200) || (abs_dev_sb > 0.34 && depth > 500))
       {
 #ifndef NDEBUG
         print_log(log_severity::debug, "Strand bias removed ", it->first.print(), " ", abs_dev_sb, " ", depth);
@@ -271,10 +255,8 @@ VariantMap::filter_varmap_for_all()
         double abs_dev_rb = abs_dev_rb_depth.first;
         long depth = abs_dev_rb_depth.second;
 
-        if ((abs_dev_rb > 0.49999 && depth > 10) ||
-            (abs_dev_rb > 0.45 && depth > 40) ||
-            (abs_dev_rb > 0.40 && depth > 100) ||
-            (abs_dev_rb > 0.35 && depth > 500))
+        if ((abs_dev_rb > 0.49999 && depth > 10) || (abs_dev_rb > 0.45 && depth > 40) ||
+            (abs_dev_rb > 0.40 && depth > 100) || (abs_dev_rb > 0.35 && depth > 500))
         {
 #ifndef NDEBUG
           print_log(log_severity::debug, "Read bias removed ", it->first.print(), " ", abs_dev_rb, " ", depth);
@@ -295,47 +277,49 @@ VariantMap::filter_varmap_for_all()
     long const max_variants_in_100bp_window = Options::const_instance()->soft_cap_of_variants_in_100_bp_window;
     assert(max_variants_in_100bp_window > 0);
 
-    print_log(log_severity::debug, "[graphtyper::variant_map] Soft cap of variants in 100 bp window is "
-                            , Options::const_instance()->soft_cap_of_variants_in_100_bp_window);
+    print_log(log_severity::debug,
+              "[graphtyper::variant_map] Soft cap of variants in 100 bp window is ",
+              Options::const_instance()->soft_cap_of_variants_in_100_bp_window);
 
     // Gather how many variants fall into each bucket (which covers 100 bp)
     std::vector<long> max_scores_in_bucket;
     auto window_it = pool_varmap.begin();
     long current_bucket = window_it->first.abs_pos / 100l;
 
-    auto filter_window =
-      [&max_scores_in_bucket, max_variants_in_100bp_window, this](PoolVarMap::iterator window_it)
+    auto filter_window = [&max_scores_in_bucket, max_variants_in_100bp_window, this](PoolVarMap::iterator window_it)
+    {
+      print_log(log_severity::debug, "[graphtyper::variant_map] Too many variants! ", max_scores_in_bucket.size());
+
+      // Find the minimum max score for passing a variant in this region
+      std::vector<long> sorted_max_scores_in_bucket(max_scores_in_bucket);
+      std::sort(sorted_max_scores_in_bucket.begin(), sorted_max_scores_in_bucket.end());
+      long const index_with_min_score = sorted_max_scores_in_bucket.size() - max_variants_in_100bp_window;
+      assert(index_with_min_score <= static_cast<long>(sorted_max_scores_in_bucket.size()));
+      long const min_score_pass = std::min(50l, sorted_max_scores_in_bucket[index_with_min_score]);
+
+      for (long s{0}; s < static_cast<long>(max_scores_in_bucket.size()); ++s)
       {
-        print_log(log_severity::debug, "[graphtyper::variant_map] Too many variants! ", max_scores_in_bucket.size());
-
-        // Find the minimum max score for passing a variant in this region
-        std::vector<long> sorted_max_scores_in_bucket(max_scores_in_bucket);
-        std::sort(sorted_max_scores_in_bucket.begin(), sorted_max_scores_in_bucket.end());
-        long const index_with_min_score = sorted_max_scores_in_bucket.size() -
-                                          max_variants_in_100bp_window;
-        assert(index_with_min_score <= static_cast<long>(sorted_max_scores_in_bucket.size()));
-        long const min_score_pass = std::min(50l, sorted_max_scores_in_bucket[index_with_min_score]);
-
-        for (long s{0}; s < static_cast<long>(max_scores_in_bucket.size()); ++s)
+        if (max_scores_in_bucket[s] >= min_score_pass)
         {
-          if (max_scores_in_bucket[s] >= min_score_pass)
-          {
-            ++window_it;
-          }
-          else
-          {
-#ifndef NDEBUG
-            print_log(log_severity::debug, "Due to too high graph complexity I erased the variant: "
-                                     , window_it->first.print()
-                                     , ". It had support in ", window_it->second.size()
-                                     , " samples and score of ", max_scores_in_bucket[s]);
-#endif // NDEBUG
-            window_it = pool_varmap.erase(window_it);
-          }
+          ++window_it;
         }
+        else
+        {
+#ifndef NDEBUG
+          print_log(log_severity::debug,
+                    "Due to too high graph complexity I erased the variant: ",
+                    window_it->first.print(),
+                    ". It had support in ",
+                    window_it->second.size(),
+                    " samples and score of ",
+                    max_scores_in_bucket[s]);
+#endif // NDEBUG
+          window_it = pool_varmap.erase(window_it);
+        }
+      }
 
-        return window_it; // return the new iterator
-      };
+      return window_it; // return the new iterator
+    };
 
     for (auto map_it = pool_varmap.begin(); map_it != pool_varmap.end(); ++map_it)
     {
@@ -379,18 +363,17 @@ VariantMap::filter_varmap_for_all()
     }
 
     // check final bucket
-    if (window_it != pool_varmap.end() &&
-        static_cast<long>(max_scores_in_bucket.size()) > max_variants_in_100bp_window)
+    if (window_it != pool_varmap.end() && static_cast<long>(max_scores_in_bucket.size()) > max_variants_in_100bp_window)
     {
       filter_window(window_it);
     }
   }
 
   /** Break down variants to check if they are duplicates */
-  //std::vector<VariantCandidate> broken_vars_to_add;
-  //std::vector<std::vector<VariantSupport> > supports_to_add;
+  // std::vector<VariantCandidate> broken_vars_to_add;
+  // std::vector<std::vector<VariantSupport> > supports_to_add;
 
-  for (auto map_it = pool_varmap.begin(); map_it != pool_varmap.end();)  // no increment
+  for (auto map_it = pool_varmap.begin(); map_it != pool_varmap.end();) // no increment
   {
     VariantCandidate var(map_it->first);
 
@@ -442,26 +425,24 @@ VariantMap::filter_varmap_for_all()
     }
 
     // Remove broken variants which are already in the varmap
-    new_broken_down_var_candidates.erase(
-      std::remove_if(new_broken_down_var_candidates.begin(),
-                     new_broken_down_var_candidates.end(),
-                     [&](VariantCandidate const & broken_var){
-        return pool_varmap.find(broken_var) != pool_varmap.end();
-      }), new_broken_down_var_candidates.end());
+    new_broken_down_var_candidates.erase(std::remove_if(new_broken_down_var_candidates.begin(),
+                                                        new_broken_down_var_candidates.end(),
+                                                        [&](VariantCandidate const & broken_var)
+                                                        { return pool_varmap.find(broken_var) != pool_varmap.end(); }),
+                                         new_broken_down_var_candidates.end());
 
     // Remove broken variants that are already in the graph
-    new_broken_down_var_candidates.erase(
-      std::remove_if(new_broken_down_var_candidates.begin(),
-                     new_broken_down_var_candidates.end(),
-                     [&](VariantCandidate const & broken_var){
-        return graph.is_variant_in_graph(Variant(broken_var));
-      }), new_broken_down_var_candidates.end());
+    new_broken_down_var_candidates.erase(std::remove_if(new_broken_down_var_candidates.begin(),
+                                                        new_broken_down_var_candidates.end(),
+                                                        [&](VariantCandidate const & broken_var)
+                                                        { return graph.is_variant_in_graph(Variant(broken_var)); }),
+                                         new_broken_down_var_candidates.end());
 
     if (new_broken_down_var_candidates.size() == 0)
     {
 #ifndef NDEBUG
       print_log(log_severity::debug, __HERE__, " Erased ", map_it->first.print());
-#endif // NDEBUG
+#endif                                    // NDEBUG
       map_it = pool_varmap.erase(map_it); // Erase the old variant
     }
     else
@@ -472,25 +453,20 @@ VariantMap::filter_varmap_for_all()
   //*/
 }
 
-
-void
-VariantMap::clear()
+void VariantMap::clear()
 {
   samples.clear();
   pool_varmap.clear();
   varmaps.clear();
 }
 
-
 #ifndef NDEBUG
-void
-VariantMap::write_stats(std::string const & prefix)
+void VariantMap::write_stats(std::string const & prefix)
 {
   auto const & pn = samples[0];
 
   // Determine filename
-  std::string const discovery_fn =
-    Options::const_instance()->stats + "/" + prefix + "_" + pn + "_discovery.tsv.gz";
+  std::string const discovery_fn = Options::const_instance()->stats + "/" + prefix + "_" + pn + "_discovery.tsv.gz";
 
   // Open the stream
   std::stringstream discovery_ss;
@@ -498,10 +474,10 @@ VariantMap::write_stats(std::string const & prefix)
   // Write header to the stream
   discovery_ss << "CHROM\tPOS\tREF\tALT\tSAMPLE\tGT\tAD\tDP\tHQ\tLQ\tPP\tMQ0\tCR\tVS\tG\tUP\tREV\t1\tSUP\tSUPR\tPL\n";
 
-  //for (auto const & sample_name : samples)
+  // for (auto const & sample_name : samples)
   //  discovery_ss << "\t" << sample_name;
 
-  //discovery_ss << '\n';
+  // discovery_ss << '\n';
 
   for (auto map_it = pool_varmap.begin(); map_it != pool_varmap.end(); ++map_it)
   {
@@ -521,11 +497,7 @@ VariantMap::write_stats(std::string const & prefix)
     // Add naive genotype calls
     std::sort(map_it->second.begin(),
               map_it->second.end(),
-              [](VariantSupport const & a, VariantSupport const & b) -> bool
-      {
-        return a.pn_index < b.pn_index;
-      }
-              );
+              [](VariantSupport const & a, VariantSupport const & b) -> bool { return a.pn_index < b.pn_index; });
 
     assert(Options::const_instance()->stats.size() > 0);
     std::size_t m = 0; // Index in map->second
@@ -563,9 +535,7 @@ VariantMap::write_stats(std::string const & prefix)
         phred[1] = phred1 < 255 ? phred1 : 255;
         phred[2] = phred2 < 255 ? phred2 : 255;
 
-        long const gt = std::distance(phred.begin(),
-                                      std::find(phred.begin(), phred.end(), 0u)
-                                      );
+        long const gt = std::distance(phred.begin(), std::find(phred.begin(), phred.end(), 0u));
 
         if (gt == 0)
           discovery_ss << "0/0\t";
@@ -576,40 +546,30 @@ VariantMap::write_stats(std::string const & prefix)
 
         discovery_ss.setf(std::ios::fixed);
         discovery_ss.precision(2);
-        discovery_ss << coverage[0] << ',' << coverage[1] << '\t'
-                     << var_support.depth << '\t'
-                     << var_support.hq_support << '\t'
-                     << var_support.lq_support << '\t'
-                     << var_support.proper_pairs << '\t'
-//                     << var_support.mapq0 << '\t'
-//                     << var_support.clipped << '\t'
-                     << var_support.var_size << '\t'
-                     << var_support.growth << '\t'
-                     << var_support.unique_positions.size() << '\t'
-                     << var_support.sequence_reversed << '\t'
-                     << var_support.first_in_pairs << '\t'
-                     << var_support.get_corrected_support() << '\t'
-                     << var_support.get_ratio() << '\t'
-                     << phred[0] << ',' << phred[1] << ',' << phred[2]
-                     << '\t';
+        discovery_ss << coverage[0] << ',' << coverage[1] << '\t' << var_support.depth << '\t' << var_support.hq_support
+                     << '\t' << var_support.lq_support << '\t' << var_support.proper_pairs
+                     << '\t'
+                     //                     << var_support.mapq0 << '\t'
+                     //                     << var_support.clipped << '\t'
+                     << var_support.var_size << '\t' << var_support.growth << '\t'
+                     << var_support.unique_positions.size() << '\t' << var_support.sequence_reversed << '\t'
+                     << var_support.first_in_pairs << '\t' << var_support.get_corrected_support() << '\t'
+                     << var_support.get_ratio() << '\t' << phred[0] << ',' << phred[1] << ',' << phred[2] << '\t';
 
         ++m;
       }
     }
 
     discovery_ss << '\n';
-    //new_variant_vcf.variants.push_back(std::move(var));
+    // new_variant_vcf.variants.push_back(std::move(var));
   }
 
   write_gzipped_to_file(discovery_ss, discovery_fn, false /*append*/);
 }
 
-
 #endif // NDEBUG
 
-
-void
-VariantMap::get_vcf(Vcf & new_variant_vcf, std::string const & output_name)
+void VariantMap::get_vcf(Vcf & new_variant_vcf, std::string const & output_name)
 {
   new_variant_vcf.open(WRITE_BGZF_MODE, output_name);
 
@@ -623,9 +583,7 @@ VariantMap::get_vcf(Vcf & new_variant_vcf, std::string const & output_name)
   }
 }
 
-
-void
-save_variant_map(std::string const & path, VariantMap const & map)
+void save_variant_map(std::string const & path, VariantMap const & map)
 {
   std::ofstream ofs(path.c_str(), std::ios::binary);
 
@@ -640,9 +598,7 @@ save_variant_map(std::string const & path, VariantMap const & map)
   oa << map;
 }
 
-
-VariantMap
-load_variant_map(std::string const & path)
+VariantMap load_variant_map(std::string const & path)
 {
   VariantMap map;
   std::ifstream ifs(path.c_str(), std::ios::binary);
@@ -659,17 +615,13 @@ load_variant_map(std::string const & path)
   return map;
 }
 
-
-void
-VariantMap::set_samples(std::vector<std::string> const & new_samples)
+void VariantMap::set_samples(std::vector<std::string> const & new_samples)
 {
   samples = new_samples;
   varmaps.resize(samples.size());
 }
 
-
-void
-VariantMap::load_many_variant_maps(std::string const & path)
+void VariantMap::load_many_variant_maps(std::string const & path)
 {
   std::vector<std::string> paths;
   std::ifstream ifs(path.c_str());
@@ -680,11 +632,9 @@ VariantMap::load_many_variant_maps(std::string const & path)
   this->load_many_variant_maps(paths);
 }
 
-
-void
-VariantMap::load_many_variant_maps(std::vector<std::string> const & paths)
+void VariantMap::load_many_variant_maps(std::vector<std::string> const & paths)
 {
-  this->pool_varmap.clear();  // Should be empty initially
+  this->pool_varmap.clear(); // Should be empty initially
 
   for (long p = 0; p < static_cast<long>(paths.size()); ++p)
   {
@@ -728,6 +678,5 @@ VariantMap::load_many_variant_maps(std::vector<std::string> const & paths)
     }
   }
 }
-
 
 } // namespace gyper

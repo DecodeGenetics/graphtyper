@@ -1,29 +1,26 @@
 #pragma once
 
-#include <map> // std::map
+#include <map>    // std::map
 #include <string> // std::string
-#include <vector> // std::vector
 #include <unordered_map>
+#include <vector> // std::vector
+
+#include <cereal/access.hpp>
 
 #include <graphtyper/typer/variant_candidate.hpp>
 #include <graphtyper/typer/variant_support.hpp>
 
-#include <cereal/access.hpp>
-
-
 namespace gyper
 {
-
 class ReferenceDepth;
 class Vcf;
 
 using VarMap = std::unordered_map<VariantCandidate, VariantSupport, VariantCandidateHash>;
-using PoolVarMap = std::map<VariantCandidate, std::vector<VariantSupport> >;
+using PoolVarMap = std::map<VariantCandidate, std::vector<VariantSupport>>;
 
 class VariantMap
 {
   friend class cereal::access;
-
 
 public:
   void set_samples(std::vector<std::string> const & new_samples);
@@ -45,7 +42,6 @@ public:
 
   void get_vcf(Vcf & new_variant_vcf, std::string const & output_name);
 
-
   //* Instance variables */
   std::vector<std::string> samples;
   PoolVarMap pool_varmap; /** \brief A varmap for all samples */
@@ -56,18 +52,14 @@ public:
   std::vector<VarMap> varmaps; /** \brief List of varmaps, one for each sample */
 
   template <class Archive>
-  void inline
-  serialize(Archive & ar, unsigned const int)
+  void inline serialize(Archive & ar, unsigned const int)
   {
     ar & samples;
     ar & pool_varmap;
     ar & minimum_variant_support;
     ar & minimum_variant_support_ratio;
   }
-
-
 };
-
 
 /**
  * \brief Saves a serialized version of the variant map.

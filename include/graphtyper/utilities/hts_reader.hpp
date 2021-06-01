@@ -1,20 +1,18 @@
 #pragma once
 
-#include <string> // std::string
-#include <vector> // std::vector
+#include <string>        // std::string
 #include <unordered_map> // std::unordered_map
+#include <vector>        // std::vector
+
+#include <graphtyper/utilities/hts_record.hpp>
+#include <graphtyper/utilities/hts_store.hpp>
+#include <graphtyper/utilities/hts_utils.hpp>
+#include <graphtyper/utilities/options.hpp>
 
 #include <htslib/sam.h>
 
-#include <graphtyper/utilities/hts_record.hpp>
-#include <graphtyper/utilities/hts_utils.hpp>
-#include <graphtyper/utilities/hts_store.hpp>
-#include <graphtyper/utilities/options.hpp>
-
-
 namespace gyper
 {
-
 class HtsReader
 {
 public:
@@ -27,16 +25,15 @@ public:
   std::vector<int> rg2sample_i; // uses the rg index to determine the sample index
 
 private:
-  int ret{0}; // return value of the most recently read record
-  bam1_t * rec{nullptr}; // The most recently read record
+  int ret{0};                    // return value of the most recently read record
+  bam1_t * rec{nullptr};         // The most recently read record
   std::vector<bam1_t *> records; // A bulk of records that have the same position.
   // TODO check if it is faster to first check if the records are sorted
   HtsStore & store;
   std::unordered_map<std::string, long> rg2index; // associates read groups with indices of that rg
-  std::string filename{}; // for log messages
+  std::string filename{};                         // for log messages
 
   void set_reference(std::string const & reference_path);
-
 
 public:
   HtsReader(HtsStore & _store);
@@ -57,4 +54,4 @@ public:
   long get_num_rg() const;
 };
 
-} // namespace hts
+} // namespace gyper

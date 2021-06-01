@@ -1,25 +1,20 @@
 #include <algorithm> // std::sort
-#include <iostream> // std::cout, std::cerr, std::endl
+#include <iostream>  // std::cout, std::cerr, std::endl
 
 #include <graphtyper/utilities/hts_reader.hpp>
-
 #include <graphtyper/utilities/logging.hpp>
 #include <graphtyper/utilities/string.hpp>
 
 #include <htslib/hfile.h>
 #include <htslib/hts.h>
 
-
 namespace gyper
 {
+HtsReader::HtsReader(HtsStore & _store) : store(_store)
+{
+}
 
-HtsReader::HtsReader(HtsStore & _store)
-  : store(_store)
-{}
-
-
-void
-HtsReader::open(std::string const & path, std::string const & region, std::string const & reference)
+void HtsReader::open(std::string const & path, std::string const & region, std::string const & reference)
 {
   filename = path;
   fp = hts_open(path.c_str(), "r");
@@ -37,7 +32,7 @@ HtsReader::open(std::string const & path, std::string const & region, std::strin
   if (!Options::const_instance()->get_sample_names_from_filename)
   {
     std::string const header_text(fp->bam_header->text, fp->bam_header->l_text);
-    std::vector<std::string_view> header_lines = split_on_delim(header_text,'\n');
+    std::vector<std::string_view> header_lines = split_on_delim(header_text, '\n');
 
     for (auto & line_it : header_lines)
     {
@@ -123,9 +118,7 @@ HtsReader::open(std::string const & path, std::string const & region, std::strin
   }
 }
 
-
-void
-HtsReader::close()
+void HtsReader::close()
 {
   if (hts_index)
   {
@@ -146,9 +139,7 @@ HtsReader::close()
   }
 }
 
-
-void
-HtsReader::set_reference(std::string const & reference_path)
+void HtsReader::set_reference(std::string const & reference_path)
 {
   if ((reference_path.size() == 0) || (reference_path.size() == 1 && reference_path[0] == '.'))
     return;
@@ -162,23 +153,17 @@ HtsReader::set_reference(std::string const & reference_path)
   }
 }
 
-
-void
-HtsReader::set_sample_index_offset(int const new_sample_index_offset)
+void HtsReader::set_sample_index_offset(int const new_sample_index_offset)
 {
   sample_index_offset = new_sample_index_offset;
 }
 
-
-void
-HtsReader::set_rg_index_offset(int new_rg_index_offset)
+void HtsReader::set_rg_index_offset(int new_rg_index_offset)
 {
   rg_index_offset = new_rg_index_offset;
 }
 
-
-bam1_t *
-HtsReader::get_next_read_in_order(bam1_t * old_record)
+bam1_t * HtsReader::get_next_read_in_order(bam1_t * old_record)
 {
   assert(old_record);
 
@@ -187,7 +172,7 @@ HtsReader::get_next_read_in_order(bam1_t * old_record)
   {
     bam1_t * record = *(records.end() - 1);
     records.pop_back();
-    store.push(old_record);   // We do not need this memory now
+    store.push(old_record); // We do not need this memory now
     return record;
   }
 
@@ -196,8 +181,7 @@ HtsReader::get_next_read_in_order(bam1_t * old_record)
   {
     if (ret < -1)
     {
-      print_log(log_severity::error, __HERE__, " htslib failed BAM/CRAM reading of ", filename
-                              , " and returned ", ret);
+      print_log(log_severity::error, __HERE__, " htslib failed BAM/CRAM reading of ", filename, " and returned ", ret);
       std::exit(1);
     }
 
@@ -250,9 +234,7 @@ HtsReader::get_next_read_in_order(bam1_t * old_record)
   return record;
 }
 
-
-bam1_t *
-HtsReader::get_next_read_in_order()
+bam1_t * HtsReader::get_next_read_in_order()
 {
   // If we have some records ready in the vector, return those first
   if (records.size() > 0)
@@ -267,8 +249,7 @@ HtsReader::get_next_read_in_order()
   {
     if (ret < -1)
     {
-      print_log(log_severity::error, __HERE__, " htslib failed BAM/CRAM reading of ", filename
-                              , " and returned ", ret);
+      print_log(log_severity::error, __HERE__, " htslib failed BAM/CRAM reading of ", filename, " and returned ", ret);
       std::exit(1);
     }
 
@@ -321,16 +302,13 @@ HtsReader::get_next_read_in_order()
   return record;
 }
 
-
-bam1_t *
-HtsReader::get_next_read()
+bam1_t * HtsReader::get_next_read()
 {
   if (ret < 0)
   {
     if (ret < -1)
     {
-      print_log(log_severity::error, __HERE__, " htslib failed BAM/CRAM reading of ", filename
-                              , " and returned ", ret);
+      print_log(log_severity::error, __HERE__, " htslib failed BAM/CRAM reading of ", filename, " and returned ", ret);
       std::exit(1);
     }
 
@@ -347,9 +325,7 @@ HtsReader::get_next_read()
   return record;
 }
 
-
-bam1_t *
-HtsReader::get_next_read(bam1_t * old_record)
+bam1_t * HtsReader::get_next_read(bam1_t * old_record)
 {
   assert(old_record);
 
@@ -357,8 +333,7 @@ HtsReader::get_next_read(bam1_t * old_record)
   {
     if (ret < -1)
     {
-      print_log(log_severity::error, __HERE__, " htslib failed BAM/CRAM reading of ", filename
-                              , " and returned ", ret);
+      print_log(log_severity::error, __HERE__, " htslib failed BAM/CRAM reading of ", filename, " and returned ", ret);
       std::exit(1);
     }
 
@@ -376,11 +351,9 @@ HtsReader::get_next_read(bam1_t * old_record)
   return record;
 }
 
-
-void
-HtsReader::get_sample_and_rg_index(long & sample_i, long & rg_i, bam1_t * rec) const
+void HtsReader::get_sample_and_rg_index(long & sample_i, long & rg_i, bam1_t * rec) const
 {
-  //assert(rg2index.size() > 0);
+  // assert(rg2index.size() > 0);
 
   if (rg2sample_i.size() <= 1)
   {
@@ -403,8 +376,7 @@ HtsReader::get_sample_and_rg_index(long & sample_i, long & rg_i, bam1_t * rec) c
 
     if (find_rg_it == rg2index.end())
     {
-      print_log(log_severity::error, __HERE__, " Unable to find read group ", read_group, " in "
-                              , filename);
+      print_log(log_severity::error, __HERE__, " Unable to find read group ", read_group, " in ", filename);
       std::exit(1);
     }
 
@@ -414,13 +386,10 @@ HtsReader::get_sample_and_rg_index(long & sample_i, long & rg_i, bam1_t * rec) c
   }
 }
 
-
-long
-HtsReader::get_num_rg() const
+long HtsReader::get_num_rg() const
 {
   assert(rg2index.size() == rg2sample_i.size());
   return std::max(1l, static_cast<long>(rg2sample_i.size()));
 }
-
 
 } // namespace gyper
