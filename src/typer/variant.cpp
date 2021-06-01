@@ -1591,17 +1591,9 @@ std::vector<Variant> break_down_variant(Variant && var,
   {
     // We need to make sure there is a matching first base
     if (not var.is_with_matching_first_bases())
-    {
-      if (!var.add_base_in_front())
-      {
-        // Could not add a first base. Add N
-        for (auto & seq : var.seqs)
-          seq.insert(seq.begin(), 'N');
-      }
-    }
+      var.add_base_in_front(true); // Add N
 
     std::vector<Variant> new_broken_down_snps = break_multi_snps(std::move(var));
-
     std::move(new_broken_down_snps.begin(), new_broken_down_snps.end(), std::back_inserter(broken_down_vars));
   }
   else if (!is_no_variant_overlapping)
@@ -1623,9 +1615,9 @@ std::vector<Variant> break_down_variant(Variant && var,
     // Make everything biallelic
     std::vector<Variant> broken_down_vars2;
 
-    for (auto && var : broken_down_vars)
+    for (auto && broken_var : broken_down_vars)
     {
-      auto new_vars = make_biallelic(std::move(var));
+      auto new_vars = make_biallelic(std::move(broken_var));
       std::move(new_vars.begin(), new_vars.end(), std::back_inserter(broken_down_vars2));
     }
 
@@ -1916,12 +1908,11 @@ void find_variant_sequences(gyper::Variant & new_var, gyper::Variant const & old
   new_var.seqs = std::move(new_seqs);
 }
 
-std::vector<Variant> break_multi_snps(Variant const && var)
+std::vector<Variant> break_multi_snps(Variant && var)
 {
   uint32_t const pos = var.abs_pos;
   std::vector<std::vector<char>> const & seqs = var.seqs;
   std::vector<Variant> new_vars;
-  // assert(var.infos.count("SBF1") == 1);
 
   for (long j = 0; j < static_cast<long>(seqs[0].size()); ++j)
   {

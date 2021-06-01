@@ -98,7 +98,7 @@ std::vector<Variant> break_down_variant(Variant && variant,
 std::vector<Variant> break_down_skyr(Variant && var, long const reach);
 std::vector<Variant> extract_sequences_from_aligned_variant(Variant const && variant, std::size_t const THRESHOLD);
 std::vector<Variant> simplify_complex_haplotype(Variant && variant, std::size_t const THRESHOLD);
-std::vector<Variant> break_multi_snps(Variant const && var);
+std::vector<Variant> break_multi_snps(Variant && var);
 SampleCall bin_phred(Variant const & new_var,
                      Variant const & old_var,
                      SampleCall const & old_call,
