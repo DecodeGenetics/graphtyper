@@ -28,7 +28,7 @@
 #include <graphtyper/utilities/system.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
 
-#include "tbx.h"
+#include "tbx.h" // from htslib
 
 namespace
 {
@@ -49,7 +49,6 @@ std::vector<uint8_t> get_haplotype_phred(gyper::HapSample const & sample)
   assert(!sample.log_score.empty());
   long const num = sample.log_score.size();
   std::vector<uint8_t> hap_phred;
-  // hap_phred.reserve(num);
 
   // First find out what the maximum log score is
   uint16_t const max_log_score = *std::max_element(sample.log_score.begin(), sample.log_score.end());
@@ -81,81 +80,10 @@ std::vector<uint8_t> get_haplotype_phred(gyper::HapSample const & sample)
   return hap_phred;
 }
 
-/*
-std::vector<std::vector<uint8_t> >
-get_genotype_phred(gyper::HapSample const & sample,
-                   gyper::Genotype const & gts)
-{
-  using namespace gyper;
-
-  uint32_t cnum = gt.num;
-
-  std::vector<uint8_t> hap_phred = get_haplotype_phred(sample, cnum);
-  std::vector<std::vector<uint8_t> > phred(gts.size());
-
-  auto find_it = std::find_if(hap_phred.begin(), hap_phred.end(), [](uint8_t const val){
-      return val != 0;
-    });
-
-  if (find_it == hap_phred.end())
-  {
-    // Every PHRED score is 0
-    for (long i = 0; i < static_cast<long>(gts.size()); ++i)
-    {
-      auto const n = static_cast<long>(gts[i].num) * static_cast<long>(gts[i].num + 1) / 2;
-      phred[i] = std::vector<uint8_t>(n, 0u);
-    }
-
-    return phred;
-  }
-
-  // Some PHRED scores are not 0
-  for (long i = 0; i < static_cast<long>(gts.size()); ++i)
-  {
-    auto const n = static_cast<long>(gts[i].num) * static_cast<long>(gts[i].num + 1) / 2;
-    phred[i] = std::vector<uint8_t>(n, 255u);
-  }
-
-  for (long i = 0; i < static_cast<long>(hap_phred.size()); ++i)
-  {
-    // No need to consider this case
-    if (hap_phred[i] == 255u)
-      continue;
-
-    std::pair<uint32_t, uint32_t> call = to_pair(uint32_t(i));
-
-    uint32_t nnum = cnum;
-    uint32_t rem1 = call.first;
-    uint32_t rem2 = call.second;
-
-    for (unsigned j = 0; j < gts.size(); ++j)
-    {
-      nnum /= gts[j].num;
-      assert(nnum != 0);
-      uint32_t const call1 = rem1 / nnum;
-      uint32_t const call2 = rem2 / nnum;
-      uint32_t const index = call1 > call2 ?
-                             static_cast<uint32_t>(to_index(call2, call1)) :
-                             static_cast<uint32_t>(to_index(call1, call2));
-
-      phred[j][index] = std::min(phred[j][index], hap_phred[i]);
-      rem1 %= nnum;
-      rem2 %= nnum;
-    }
-  }
-
-  return phred;
-}
-*/
-
 } // namespace
 
 namespace gyper
 {
-Vcf::Vcf()
-{
-}
-
 Vcf::Vcf(VCF_FILE_MODE const _filemode, std::string const & _filename)
 {
   open(_filemode, _filename);
@@ -436,7 +364,7 @@ bool Vcf::read_record(bool const SITES_ONLY)
       if (pp_field != -1)
       {
         std::string pp_str = get_string_at_tab_index(sample_string, sample_string_colon, pp_field);
-        new_call.alt_proper_pair_depth = static_cast<uint8_t>(std::stoul(std::move(pp_str)));
+        new_call.alt_proper_pair_depth = static_cast<uint8_t>(std::stoul(pp_str));
       }
 
       // Parse FT
@@ -903,9 +831,7 @@ void Vcf::write_record(Variant const & var,
     if (var.infos.count("ABHet") == 1 && var.infos.at("ABHet") != std::string("-1") &&
         std::stod(var.infos.at("ABHet")) < 0.175)
     {
-      if (!is_pass)
-        bgzf_stream.ss << ";";
-
+      // is_pass is trivially false
       bgzf_stream.ss << "LowABHet";
       is_pass = false;
     }
@@ -939,7 +865,7 @@ void Vcf::write_record(Variant const & var,
       std::stringstream ss(find_aa_score_it->second);
       bool is_good_aa{false};
 
-      for (double num; ss >> num;)
+      for (double num{0.0}; ss >> num;)
       {
         if (num > AA_SCORE_THRESHOLD)
           is_good_aa = true;
@@ -1056,7 +982,7 @@ void Vcf::write_record(Variant const & var,
       if (is_sv)
       {
         bgzf_stream.ss << ":";
-        long filter = call.check_filter(gq);
+        long const filter = call.check_filter(gq);
 
         if (filter == 0)
         {
@@ -1148,26 +1074,31 @@ void Vcf::write_records(uint32_t const region_begin,
 
     if (a.abs_pos < b.abs_pos)
       return true;
-    else if (a.abs_pos > b.abs_pos)
+
+    if (a.abs_pos > b.abs_pos)
       return false;
 
     // order is snp, insertion, deletion
-    long const order_a = (a.type == 'I') + 2 * (a.type == 'D');
-    long const order_b = (b.type == 'I') + 2 * (b.type == 'D');
+    long const order_a = static_cast<int>(a.type == 'I') + 2 * static_cast<int>(a.type == 'D');
+    long const order_b = static_cast<int>(b.type == 'I') + 2 * static_cast<int>(b.type == 'D');
 
     if (order_a < order_b)
       return true;
-    else if (order_a > order_b)
+
+    if (order_a > order_b)
       return false;
 
     if (a.seqs.size() >= 2 && b.seqs.size() >= 2)
     {
-      auto const a_vt = (a.seqs[0].size() > a.seqs[1].size()) + 2 * (a.seqs[0].size() == a.seqs[1].size());
-      auto const b_vt = (b.seqs[0].size() > b.seqs[1].size()) + 2 * (b.seqs[0].size() == b.seqs[1].size());
+      auto const a_vt = static_cast<int>(a.seqs[0].size() > a.seqs[1].size()) +
+                        2 * static_cast<int>(a.seqs[0].size() == a.seqs[1].size());
+      auto const b_vt = static_cast<int>(b.seqs[0].size() > b.seqs[1].size()) +
+                        2 * static_cast<int>(b.seqs[0].size() == b.seqs[1].size());
 
       if (a_vt < b_vt)
         return true;
-      else if (a_vt > b_vt)
+
+      if (a_vt > b_vt)
         return false;
     }
 
@@ -1256,62 +1187,6 @@ void Vcf::write_records(std::string const & region, bool const FILTER_ZERO_QUAL,
   this->write_records(region_begin, region_end, FILTER_ZERO_QUAL, is_dropping_genotypes, variants);
 }
 
-/*
-void
-Vcf::write_segments()
-{
-  print_log(log_severity::debug, "[graphtyper::vcf] Writing "
-                           << segments.size()
-                           << " segments to "
-                          , filename);
-
-  for (auto const & segment : segments)
-  {
-    assert(sample_names.size() == segment.segment_calls.size());
-    auto contig_pos = absolute_pos.get_contig_position(segment.id, gyper::graph.contigs);
-
-    // Write CHROM and POS
-    bgzf_stream.ss << contig_pos.first << "\t" << contig_pos.second;
-
-    // Write the ID
-    bgzf_stream.ss << "\t" << contig_pos.first << ":" << contig_pos.second << ":" << segment.var_type;
-
-    if (segment.segment_name.size() > 0)
-      bgzf_stream << ":" << segment.segment_name;
-    else if (segment.extra_id != -1)
-      bgzf_stream << ":" << std::to_string(segment.extra_id);
-
-    // Write the sequences
-    bgzf_stream << "\t" << segment.get_ref_string() << "\t" << segment.get_alt_string();
-
-    // Parse QUAL
-    bgzf_stream << "\t" << ".";
-
-    // Parse FILTER
-    bgzf_stream << "\t" << ".";
-
-    // Parse INFO
-    bgzf_stream << "\t" << "RefLen=" << std::to_string(segment.ref_size);
-
-    // Parse FORMAT
-    bgzf_stream << "\t" << "GT:PL";
-
-    for (auto const & segment_call : segment.segment_calls)
-    {
-      bgzf_stream << "\t" << segment_call.call.first << "/" << segment_call.call.second << ":";
-
-      assert(segment_call.phred.size() > 1);
-      bgzf_stream << std::to_string(static_cast<uint16_t>(segment_call.phred[0]));
-
-      for (unsigned p = 1; p < segment_call.phred.size(); ++p)
-        bgzf_stream << "," << std::to_string(static_cast<uint16_t>(segment_call.phred[p]));
-    }
-
-    bgzf_stream << "\n";
-  }
-}
-*/
-
 void Vcf::close_vcf_file()
 {
   bgzf_stream.close();
@@ -1326,8 +1201,12 @@ void Vcf::write_tbi_index() const
 {
   bool const is_csi = Options::const_instance()->is_csi;
 
-  int ret =
-    is_csi ? tbx_index_build(filename.c_str(), 14, &tbx_conf_vcf) : tbx_index_build(filename.c_str(), 0, &tbx_conf_vcf);
+  int ret;
+
+  if (is_csi)
+    ret = tbx_index_build(filename.c_str(), 14, &tbx_conf_vcf);
+  else
+    ret = tbx_index_build(filename.c_str(), 0, &tbx_conf_vcf);
 
   if (ret < 0)
     print_log(log_severity::warning, __HERE__, " Could not build VCF index");
@@ -1623,130 +1502,6 @@ void Vcf::add_haplotype(Haplotype & haplotype, int32_t const phase_set)
   variants.push_back(std::move(new_var));
 }
 
-/*
-void
-Vcf::add_haplotypes_for_extraction(std::vector<HaplotypeCall> const & hap_calls, bool const is_splitting_vars)
-{
-  assert(graph.size() > 0);
-  bool const is_sv_graph = graph.is_sv_graph;
-
-  for (long i{0}; i < static_cast<long>(hap_calls.size()); ++i)
-  {
-    auto & hap_call = hap_calls[i];
-    auto const & gts = hap_call.gts;
-
-    assert(hap_call.calls.size() >= 1);
-    assert(hap_call.calls[0] == 0);
-
-    // Only add variants if there is something else than the reference called
-    if (hap_call.calls.size() >= 2)
-    {
-      Variant var(gts, hap_call.calls);
-
-      if (is_sv_graph)
-      {
-        // Reformat SVs when we have an SV graph
-        for (int a = 1; a < static_cast<int>(var.seqs.size()); ++a)
-        {
-          auto & seq = var.seqs[a];
-          auto find_it = std::find(seq.cbegin(), seq.cend(), '<');
-
-          if (std::distance(find_it, seq.cend()) > 11)
-          {
-            std::istringstream ss {
-              std::string(find_it + 4, find_it + 11)
-            };
-            long sv_id;
-            ss >> sv_id;
-
-            // If we can't parse correctly the SV ID so we ignore it
-            assert(ss.eof());
-            assert(sv_id < static_cast<long>(graph.SVs.size()));
-
-            auto const & sv = graph.SVs[sv_id];
-            std::string const sv_allele = std::string(1, var.seqs[0][0]) + sv.get_allele();
-            var.seqs[a] = std::vector<char>(sv_allele.cbegin(), sv_allele.cend());
-            var.infos["SVTYPE"] = sv.get_type();
-            var.infos["SVLEN"] = sv.type == DEL ?
-                                 std::to_string(-sv.length) :
-                                 std::to_string(sv.length);
-
-            var.infos["SVSIZE"] = std::to_string(sv.length);
-
-            if (sv.old_variant_id.size() > 0)
-              var.infos["OLD_VARIANT_ID"] = sv.old_variant_id;
-          }
-        }
-
-        this->variants.push_back(std::move(var));
-      }
-      else
-      {
-        // Split variants further down if they are large and the graph is not an SV graph
-        long constexpr SPLIT_THRESHOLD = 25;
-
-        if (is_splitting_vars && var.seqs.size() >= 3 && std::all_of(var.seqs.begin(),
-                                                                     var.seqs.end(),
-                                                                     [](std::vector<char> const & seq)
-          {
-            return static_cast<long>(seq.size()) > SPLIT_THRESHOLD + 25;
-          })
-            )
-        {
-          //std::cout << var.to_string() << "\n";
-          paw::Skyr skyr(var.seqs);
-
-          bool constexpr is_normalize {
-            false
-          };                                  // The events must not be normalized
-          bool constexpr use_asterisks {
-            false
-          };                                   // We should not use asterisks
-          skyr.find_all_edits(is_normalize);
-          skyr.find_variants_from_edits();
-          skyr.populate_variants_with_calls(use_asterisks);
-          std::vector<paw::Variant> spl_vars = skyr.split_variants(SPLIT_THRESHOLD);
-
-          if (spl_vars.size() == 1)
-          {
-            this->variants.push_back(std::move(var));
-          }
-          else
-          {
-            //BOOST_LOG_TRIVIAL(debug) << "Variant to be splitted: " << var.to_string();
-
-            for (auto & spl_var : spl_vars)
-            {
-              Variant new_var;
-              new_var.abs_pos = var.abs_pos + spl_var.pos;
-              bool is_any_zero_size = false;
-
-              for (auto const & variant_seq : spl_var.seqs)
-              {
-                if (variant_seq.size() == 0)
-                  is_any_zero_size = true;
-
-                new_var.seqs.push_back(std::vector<char>(variant_seq.begin(), variant_seq.end()));
-              }
-
-              if (is_any_zero_size)
-                new_var.add_base_in_front(true); // Add N is true
-
-              //BOOST_LOG_TRIVIAL(debug) << "...into " << new_var.to_string();
-              this->variants.push_back(std::move(new_var));
-            }
-          }
-        }
-        else
-        {
-          this->variants.push_back(std::move(var));
-        }
-      }
-    }
-  }
-}
-*/
-
 /** Non-member functions */
 std::vector<std::size_t> get_all_pos(std::string const & line, char const delim)
 {
@@ -1761,11 +1516,9 @@ std::vector<std::size_t> get_all_pos(std::string const & line, char const delim)
       tabs.push_back(pos);
       return tabs;
     }
-    else
-    {
-      ++pos;
-      tabs.push_back(pos);
-    }
+
+    ++pos;
+    tabs.push_back(pos);
   }
 }
 
@@ -1777,8 +1530,8 @@ std::string get_string_at_tab_index(std::string const & line, std::vector<std::s
 
   if (tabs[index + 1] == std::string::npos)
     return line.substr(tabs[index], std::string::npos);
-  else
-    return line.substr(tabs[index], tabs[index + 1] - tabs[index] - 1);
+
+  return line.substr(tabs[index], tabs[index + 1] - tabs[index] - 1);
 }
 
 template <typename Archive>
@@ -1807,8 +1560,7 @@ void save_vcf(Vcf const & vcf, std::string const & filename)
 
   long n_batch{0};
   long v_begin{0};
-  long n_alleles{
-    0}; // sqaured number of alleles. We use square because that better capture better the memory requirement
+  long n_alleles{0}; // squared number of alleles, squared because it captures better the memory requirement
   long const MAX_ALLELES = Options::const_instance()->num_alleles_in_batch; // max number of squared alleles in batch
   create_dir(filename);
 

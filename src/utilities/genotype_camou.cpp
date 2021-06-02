@@ -118,7 +118,7 @@ void genotype_camou(std::string const & interval_fn,
 
   if (Options::const_instance()->no_bamshrink)
   {
-    shrinked_sams = std::move(sams);
+    shrinked_sams = sams;
   }
   else
   {

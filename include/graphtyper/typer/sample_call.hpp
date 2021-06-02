@@ -45,7 +45,7 @@ public:
   std::pair<uint16_t, uint16_t> get_gt_call() const;
   uint8_t get_gq() const;
   uint8_t get_lowest_phred_not_with(uint16_t allele) const;
-  int8_t check_filter(long gq) const;
+  long check_filter(long gq) const;
 
 private:
   template <class Archive>

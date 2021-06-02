@@ -35,7 +35,7 @@ class Vcf
   friend class cereal::access;
 
 public:
-  Vcf();
+  Vcf() = default;
   explicit Vcf(VCF_FILE_MODE _filemode, std::string const & filename);
   Vcf(Vcf const &) = delete;
   Vcf(Vcf &&) = delete;
@@ -83,7 +83,7 @@ public:
 
   // Adding data
   void add_hla_haplotypes(std::vector<Haplotype> & haplotypes,
-                          std::vector<std::unordered_map<uint32_t, uint32_t>> const & allele_hap_gts_ptr);
+                          std::vector<std::unordered_map<uint32_t, uint32_t>> const & all_hap_gts);
   void add_haplotype(Haplotype & haplotype, int32_t phase_set = -1);
 
   void add_haplotypes_for_extraction(std::vector<HaplotypeCall> const & hap_calls, bool const is_splitting_vars);

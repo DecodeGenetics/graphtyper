@@ -46,8 +46,8 @@ private:
 
   gzFile file;             // file handle for compressed file
   char buffer[bufferSize]; // data buffer
-  char opened;             // open/close state of stream
-  int mode;                // I/O mode
+  bool opened;             // open/close state of stream
+  int mode{0};             // I/O mode
 
   int flush_buffer()
   {
@@ -61,7 +61,7 @@ private:
   }
 
 public:
-  gzstreambuf() : opened(0)
+  gzstreambuf() : opened(false)
   {
     setp(buffer, buffer + (bufferSize - 1));
     setg(buffer + 4,  // beginning of putback area
@@ -69,7 +69,8 @@ public:
          buffer + 4); // end position
                       // ASSERT: both input & output capabilities will not be used together
   }
-  int is_open()
+
+  bool inline is_open() const
   {
     return opened;
   }
@@ -78,26 +79,32 @@ public:
   {
     close();
   }
+
   gzstreambuf * open(const char * name, int open_mode)
   {
     if (is_open())
       return (gzstreambuf *)0;
+
     mode = open_mode;
+
     // no append nor read/write mode
     if ((mode & std::ios::ate) || (mode & std::ios::app) || ((mode & std::ios::in) && (mode & std::ios::out)))
       return (gzstreambuf *)0;
+
     char fmode[10];
     char * fmodeptr = fmode;
-    if (mode & std::ios::in)
+
+    if ((mode & std::ios::in) != 0)
       *fmodeptr++ = 'r';
-    else if (mode & std::ios::out)
+    else if ((mode & std::ios::out) != 0)
       *fmodeptr++ = 'w';
+
     *fmodeptr++ = 'b';
     *fmodeptr = '\0';
     file = gzopen(name, fmode);
     if (file == 0)
       return (gzstreambuf *)0;
-    opened = 1;
+    opened = true;
     return this;
   }
 
@@ -106,7 +113,7 @@ public:
     if (is_open())
     {
       sync();
-      opened = 0;
+      opened = false;
       if (gzclose(file) == Z_OK)
         return this;
     }

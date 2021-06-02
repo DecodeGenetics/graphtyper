@@ -74,8 +74,16 @@ std::vector<std::string> run_bamshrink(std::vector<std::string> const & sams,
     ss << tmp << "/bams/" << basename << ".bam";
     std::string path_out = ss.str();
     output_paths.push_back(path_out);
-    bamshrink_station
-      .add_work(bamshrink, bs_region.chr, bs_region.begin, bs_region.end, sam, sam_index, path_out, avg_cov, ref_fn);
+
+    bamshrink_station.add_work(bamshrink, // function name
+                               bs_region.chr,
+                               bs_region.begin,
+                               bs_region.end,
+                               sam,
+                               sam_index,
+                               path_out,
+                               avg_cov,
+                               ref_fn);
   }
 
   // Process the last sam on the main thread
@@ -92,7 +100,7 @@ std::vector<std::string> run_bamshrink(std::vector<std::string> const & sams,
     output_paths.push_back(path_out);
 
     bamshrink_station.add_to_thread(Options::const_instance()->threads - 1,
-                                    bamshrink,
+                                    bamshrink, // function name
                                     bs_region.chr,
                                     bs_region.begin,
                                     bs_region.end,
@@ -371,11 +379,11 @@ void genotype(std::string ref_path,
 
   if (copts.no_bamshrink)
   {
-    shrinked_sams = std::move(sams);
+    shrinked_sams = sams;
   }
   else
   {
-    print_log(log_severity::info, "Running bamShrink, which copies read data to tempory disk.");
+    print_log(log_severity::info, "Running bamShrink, which copies read data to temporary disk.");
     std::string bamshrink_ref_path;
 
     if (copts.force_use_input_ref_for_cram_reading)
@@ -665,7 +673,7 @@ void genotype(std::string ref_path,
   if (!copts.no_cleanup)
   {
     print_log(log_severity::info, "Cleaning up temporary files.");
-    remove_file_tree(tmp.c_str());
+    remove_file_tree(tmp);
   }
   else
   {
@@ -689,13 +697,13 @@ void genotype_regions(std::string const & ref_path,
                       std::vector<double> const & avg_cov_by_readlen,
                       bool const is_copy_reference)
 {
-  auto & opts = *(gyper::Options::instance());
   long const NUM_SAMPLES = sams.size();
 
   // parameter adjustment based on cohort size
   // default aln: 4 and 0.21, dis:0.30 and 8, ext: 9 and 2
   if (NUM_SAMPLES >= 4)
   {
+    auto & opts = *(gyper::Options::instance());
     // default aln: 5 and 0.23, dis:0.30 and 9, ext: 15 and 2
     ++opts.genotype_aln_min_support;
     ++opts.genotype_dis_min_support;
