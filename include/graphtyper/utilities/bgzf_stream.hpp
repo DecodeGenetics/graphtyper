@@ -55,14 +55,14 @@ inline BGZF_stream & BGZF_stream::operator<<(T const & x)
 
 inline void BGZF_stream::check_cache()
 {
-  if (static_cast<long>(ss.tellp()) > this->MAX_CACHE_SIZE)
+  if (static_cast<long>(ss.tellp()) > MAX_CACHE_SIZE)
     flush();
 }
 
 inline void BGZF_stream::flush()
 {
   // Write stringstream to BGZF file
-  if (!fp)
+  if (fp == nullptr)
   {
     std::cout << ss.str(); // Write uncompressed to stdout
   }
@@ -85,33 +85,29 @@ inline void BGZF_stream::flush()
 
 inline int BGZF_stream::write(void const * data, std::size_t length)
 {
-  if (!fp)
+  if (fp == nullptr)
   {
     std::cout << std::string(reinterpret_cast<const char *>(data), length);
     return length;
   }
-  else
-  {
-    return bgzf_write(fp, data, length);
-  }
+
+  return bgzf_write(fp, data, length);
 }
 
 inline int BGZF_stream::write(std::string const & str)
 {
-  if (!fp)
+  if (fp == nullptr)
   {
     std::cout << str;
     return str.size();
   }
-  else
-  {
-    return bgzf_write(fp, str.data(), str.size());
-  }
+
+  return bgzf_write(fp, str.data(), str.size());
 }
 
 inline void BGZF_stream::open(std::string const & _filename, std::string const & _filemode, long const _n_threads)
 {
-  if (fp)
+  if (fp != nullptr)
     close();
 
   if (_filename.size() > 0 && _filename != "-")
@@ -130,14 +126,14 @@ inline void BGZF_stream::open(std::string const & _filename, std::string const &
 
 inline bool BGZF_stream::is_open() const
 {
-  return fp;
+  return fp != nullptr;
 }
 
 inline void BGZF_stream::close()
 {
   flush();
 
-  if (fp)
+  if (fp != nullptr)
   {
     int ret = bgzf_close(fp);
 

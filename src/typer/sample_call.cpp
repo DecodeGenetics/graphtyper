@@ -155,7 +155,7 @@ uint8_t SampleCall::get_lowest_phred_not_with(uint16_t allele) const
   return min_phred;
 }
 
-int8_t SampleCall::check_filter(long gq) const
+long SampleCall::check_filter(long gq) const
 {
   if (filter < 0)
   {

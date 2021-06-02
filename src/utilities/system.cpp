@@ -66,7 +66,7 @@ std::string current_sec()
   char buf[32];
   time_structure = *localtime(&now);
   strftime(buf, sizeof(buf), "%y%m%d_%H%M%S", &time_structure);
-  std::string const sec(buf);
+  std::string sec(buf);
   return sec;
 }
 

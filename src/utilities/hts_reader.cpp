@@ -47,13 +47,13 @@ void HtsReader::open(std::string const & path, std::string const & region, std::
           std::exit(1);
         }
 
-        std::size_t pos_id_ends = line_it.find("\t", pos_id + 1);
+        std::size_t pos_id_ends = line_it.find('\t', pos_id + 1);
 
         // Check if this is the last field
         if (pos_id_ends == std::string::npos)
           pos_id_ends = line_it.size();
 
-        std::size_t pos_samp_ends = line_it.find("\t", pos_samp + 1);
+        std::size_t pos_samp_ends = line_it.find('\t', pos_samp + 1);
 
         // Check if this is the last field
         if (pos_samp_ends == std::string::npos)

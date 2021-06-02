@@ -25,7 +25,7 @@
 namespace gyper
 {
 void genotype_hla(std::string ref_path,
-                  std::string const & hla_vcf,
+                  std::string const & hla_vcf_fn,
                   std::string const & interval_fn,
                   std::vector<std::string> const & sams,
                   std::vector<std::string> const & sam_index_paths,
@@ -70,7 +70,7 @@ void genotype_hla(std::string ref_path,
 
   if (copts.no_bamshrink)
   {
-    shrinked_sams = std::move(sams);
+    shrinked_sams = sams;
   }
   else
   {
@@ -108,16 +108,13 @@ void genotype_hla(std::string ref_path,
       bool constexpr use_index{true};
 
       print_log(log_severity::info, "Constructing graph.");
-
-      gyper::construct_graph(ref_path, hla_vcf, padded_region.to_string(), is_sv_graph, use_index);
-
+      gyper::construct_graph(ref_path, hla_vcf_fn, padded_region.to_string(), is_sv_graph, use_index);
       print_log(log_severity::info, "Calculating contig offsets.");
-
       absolute_pos.calculate_offsets(gyper::graph.contigs);
     }
 
     print_log(log_severity::info, "Reading input HLA VCF.");
-    gyper::Vcf hla(READ_BGZF_MODE, hla_vcf);
+    gyper::Vcf hla(READ_BGZF_MODE, hla_vcf_fn);
     hla.read();
 
     hla.set_filemode(WRITE_BGZF_MODE);
@@ -148,6 +145,7 @@ void genotype_hla(std::string ref_path,
               event2hap_gt[event] = std::pair<uint32_t, uint32_t>(h, v_e);
           }
         }
+
         // Haplotype hap;
         // hap.add_genotype(Genotype(var_node.get_label().order, ref_node.out_degree(), uint32_t(v)));
         // haplotypes.push_back(std::move(hap));
@@ -172,7 +170,6 @@ void genotype_hla(std::string ref_path,
     }
 
     std::vector<std::unordered_map<uint32_t, uint32_t>> allele_hap_gts(hla.sample_names.size());
-    // std::vector<std::unordered_set<long> > allele_events(hla.sample_names.size());
 
     for (long s{0}; s < static_cast<long>(hla.sample_names.size()); ++s)
     {
@@ -182,7 +179,7 @@ void genotype_hla(std::string ref_path,
       {
         if (var.infos.count("FEATURE") == 0 || var.infos.at("FEATURE") != "exon")
         {
-          // BOOST_LOG_TRIVIAL(info) << __HERE__ << " Skipping " << var.infos.at("FEATURE");
+          print_log(log_severity::debug, __HERE__, " Skipping ", var.infos.at("FEATURE"));
           continue;
         }
 
@@ -197,12 +194,7 @@ void genotype_hla(std::string ref_path,
         if (sample_call.coverage[0] == 0)
         {
           allele_hap_gt.insert(find_it->second);
-          // allele_events[s].insert(gt_id);
         }
-        // else
-        //{
-        //  allele_events[s].insert(-gt_id);
-        //}
       }
 
       // Add reference genotypes
@@ -247,19 +239,6 @@ void genotype_hla(std::string ref_path,
 
     print_log(log_severity::info, "Merging output VCFs.");
 
-    // for (auto & path : paths)
-    //  path += "_calls.vcf.gz";
-
-    // VCF merge
-    {
-      // Append _calls.vcf.gz
-      // for (auto & path : paths)
-      //  path += "_calls.vcf.gz";
-
-      //> FILTER_ZERO_QUAL, force_no_variant_overlapping
-      // vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", genomic_region.to_string(), false, false, true);
-    }
-
     if (copts.force_ignore_segment)
     {
       vcf_merge_and_break(paths, tmp + "/graphtyper.vcf.gz", genomic_region.to_string(), false, false, true);
@@ -294,8 +273,6 @@ void genotype_hla(std::string ref_path,
           new_seqs.push_back(seq);
         }
 
-        // TODO Remove unused HLA alleles
-        // if (new_seqs.size() < var.seqs.size())
         long const old_cnum = var.seqs.size();
         long const cnum = new_seqs.size();
 
@@ -390,7 +367,6 @@ void genotype_hla(std::string ref_path,
 
           if (new_var.seqs.size() < 100)
             hla_vcf.write_record(new_var, ".4digit", false, false);
-          // hla_vcf.variants.push_back(std::move(new_var));
         }
       }
 
@@ -440,7 +416,6 @@ void genotype_hla(std::string ref_path,
 
           new_var.generate_infos();
           hla_vcf.write_record(new_var, ".2digit", false, false);
-          // hla_vcf.variants.push_back(std::move(new_var));
         }
       }
 
@@ -448,8 +423,6 @@ void genotype_hla(std::string ref_path,
       hla_vcf.write_tbi_index();
     }
   }
-
-  // gather segments from VCF
 
   // Copy final VCFs
   auto copy_vcf_to_system = [&](std::string const & name, std::string const & extension) -> void
