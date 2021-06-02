@@ -1,0 +1,27 @@
+---
+Checks: >
+  -*,
+  performance-*,
+  bugprone-*,
+    -bugprone-narrowing-conversions,
+#  readability-*,
+#    -readability-magic-numbers,
+#    -readability-qualified-auto,
+#    -readability-braces-around-statements,
+#    -readability-uppercase-literal-suffix,
+#    -readability-avoid-const-params-in-decls,
+#    -readability-function-size,
+#    -readability-function-cognitive-complexity,
+#    -readability-container-size-empty
+#  clang-analyzer-*,
+#    -clang-analyzer-osx*,
+#  modernize-*,
+#    -modernize-use-trailing-return-type,
+
+WarningsAsErrors: ''
+#HeaderFilterRegex: 'graphtyper/'
+AnalyzeTemporaryDtors: false
+FormatStyle:     none
+CheckOptions:
+ - { key: readability-identifier-naming.NamespaceCase, value: lower_case }
+...
