@@ -1,4 +1,5 @@
 #include <algorithm> // std::swap
+#include <cmath>     // std::lround
 #include <limits>
 #include <sstream> // std::stringstream
 #include <string>  // std::string
@@ -35,8 +36,6 @@ void update_per_allele_stats(std::size_t const num_seqs,
                              gyper::Variant const & var,
                              gyper::Variant & new_var)
 {
-  // assert(var.infos.count("SBF1") > 0);
-
   // Check if any infos to update
   if (var.stats.per_allele.size() == 0)
     return;
@@ -759,7 +758,7 @@ std::vector<int8_t> Variant::generate_infos()
       if (stats.seqdepth > 0)
       {
         double mapq = std::sqrt(mapq_squared / static_cast<double>(stats.seqdepth));
-        info_mq = static_cast<long>(mapq + 0.5);
+        info_mq = std::lround(mapq);
         infos["MQ"] = std::to_string(info_mq);
       }
       else
@@ -774,9 +773,7 @@ std::vector<int8_t> Variant::generate_infos()
     assert(stats.per_allele.size() == seqs.size());
 
     for (long a{1}; a < static_cast<long>(stats.per_allele.size()); ++a)
-    {
-      is_good_alt[a - 1] = stats.per_allele[a].ac > 0;
-    }
+      is_good_alt[a - 1] = static_cast<int8_t>(stats.per_allele[a].ac > 0);
 
     // erase stats that don't make sense in segment calling
     infos.erase("ABHet");
@@ -824,11 +821,11 @@ std::vector<int8_t> Variant::generate_infos()
 
         if (alt_depth > 0)
         {
-          sd_ss << (static_cast<double>(per_al.score_diff) / static_cast<double>(alt_depth));
-          mm_ss << (static_cast<double>(per_al.mismatches) / static_cast<double>(alt_depth) / 10.0);
-          cr_ss << (static_cast<double>(per_al.clipped_bp) / static_cast<double>(alt_depth) / 10.0);
-          mq_ss << static_cast<long>(
-            std::sqrt(static_cast<double>(per_al.mapq_squared) / static_cast<double>(alt_depth)) + 0.5);
+          double const alt_depth_d = static_cast<double>(alt_depth);
+          sd_ss << (static_cast<double>(per_al.score_diff) / alt_depth_d);
+          mm_ss << (static_cast<double>(per_al.mismatches) / alt_depth_d / 10.0);
+          cr_ss << (static_cast<double>(per_al.clipped_bp) / alt_depth_d / 10.0);
+          mq_ss << std::lround(std::sqrt(static_cast<double>(per_al.mapq_squared) / alt_depth_d));
         }
         else
         {
@@ -879,12 +876,9 @@ std::vector<int8_t> Variant::generate_infos()
           double const sb = _sb >= 0.0 ? _sb : -_sb;
           assert(sb >= 0.0);
           double const mm = static_cast<double>(per_al.mismatches) / alt_seq_depth / 10.0;
-          long const sd = static_cast<double>(per_al.score_diff) / alt_seq_depth + 0.5;
+          long const sd = std::lround(static_cast<double>(per_al.score_diff) / alt_seq_depth);
           double const cr = static_cast<double>(per_al.clipped_bp) / alt_seq_depth / 10.0;
-          long const mq = std::sqrt(static_cast<double>(per_al.mapq_squared) / alt_seq_depth) + 0.5;
-
-          // BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << sb << "," << alt_seq_depth << "," << mm
-          //                        << "," << sd << "," << cr << "," << mq;
+          long const mq = std::lround(std::sqrt(static_cast<double>(per_al.mapq_squared) / alt_seq_depth));
 
           double score = get_aa_score(info_abhom, sb, mm, sd, qd, cr, mq);
 
@@ -910,21 +904,23 @@ std::vector<int8_t> Variant::generate_infos()
         }
       }
 
-      std::ostringstream ss;
-      ss.precision(4);
-      ss << aa_score[0];
-
-      for (long s{1}; s < static_cast<long>(aa_score.size()); ++s)
       {
-        ss.precision(4);
-        ss << "," << aa_score[s];
-      }
+        std::ostringstream aa_ss;
+        aa_ss.precision(4);
+        aa_ss << aa_score[0];
 
-      infos["AAScore"] = ss.str();
+        for (long s{1}; s < static_cast<long>(aa_score.size()); ++s)
+        {
+          aa_ss.precision(4);
+          aa_ss << "," << aa_score[s];
+        }
+
+        infos["AAScore"] = aa_ss.str();
+      }
 
       // Logistic regression quality filter (LOGF).
       {
-        long const info_cr = infos.count("CR") ? std::stol(infos.at("CR")) : 0;
+        long const info_cr = infos.count("CR") > 0 ? std::stol(infos.at("CR")) : 0;
         long const ab_het_bin = static_cast<long>(info_ab_het * 10.0 + 0.00001);
         long const sbalt_bin = static_cast<long>(info_sbalt * 10.0 + 0.00001);
         double const cr_by_seqdepth = static_cast<double>(info_cr) / static_cast<double>(stats.seqdepth);
@@ -945,10 +941,10 @@ std::vector<int8_t> Variant::generate_infos()
         double const logf =
           get_logf(info_abhom, cr_by_seqdepth, info_mq, info_pass_ratio, gt_yield, info_qd, ab_het_bin, sbalt_bin);
 
-        std::ostringstream ss;
-        ss.precision(4);
-        ss << logf;
-        infos["LOGF"] = ss.str();
+        std::ostringstream logf_ss;
+        logf_ss.precision(4);
+        logf_ss << logf;
+        infos["LOGF"] = logf_ss.str();
       }
     }
 
@@ -972,10 +968,10 @@ std::vector<int8_t> Variant::generate_infos()
       // assert(s < static_cast<long>(maximum_variant_support.size()));
       double const qd = qd_alt[a];
 
-      is_good_alt[a] = aa_score[a] >= 0.05 && qd > 1.0 && per_al.maximum_alt_support >= 3 &&
-                       per_al.maximum_alt_support_ratio >= 0.175 &&
-                       (seqs.size() < 71 || (qd > 1.25 && per_al.maximum_alt_support_ratio >= 0.2)) &&
-                       (seqs.size() < 131 || (qd > 1.5 && per_al.maximum_alt_support_ratio >= 0.225));
+      is_good_alt[a] = static_cast<int>(aa_score[a] >= 0.05 && qd > 1.0 && per_al.maximum_alt_support >= 3 &&
+                                        per_al.maximum_alt_support_ratio >= 0.175 &&
+                                        (seqs.size() < 71 || (qd > 1.25 && per_al.maximum_alt_support_ratio >= 0.2)) &&
+                                        (seqs.size() < 131 || (qd > 1.5 && per_al.maximum_alt_support_ratio >= 0.225)));
 
 #ifndef NDEBUG
       if (is_good_alt[a] == 0)
@@ -983,8 +979,7 @@ std::vector<int8_t> Variant::generate_infos()
         print_log(log_severity::info,
                   __HERE__,
                   " In variant=",
-                  to_string(true) // skip calls
-                  ,
+                  to_string(true), // skip calls
                   " bad alt=",
                   std::string(seqs[a + 1].begin(), seqs[a + 1].end()),
                   " MaxAAS=",
@@ -1415,23 +1410,18 @@ std::string Variant::determine_variant_type() const
       return "TG";
     }
   }
-  else if (num_non_ones == 0)
-  {
+
+  if (num_non_ones == 0)
     return "SG";
-  }
-  else if (seqs.size() - num_non_ones == 1) // Check if the variant is an indel
-  {
+
+  if (seqs.size() - num_non_ones == 1) // Check if the variant is an indel
     return "IG";
-  }
-  else if (seqs.size() - num_non_ones == 2 && seqs[seqs.size() - 1].size() == 1 && seqs[seqs.size() - 1][0] == '*')
-  {
-    // Indel with missing allele
-    return "IG";
-  }
-  else // Otherwise the variant is complex
-  {
-    return "XG";
-  }
+
+  if (seqs.size() - num_non_ones == 2 && seqs[seqs.size() - 1].size() == 1 && seqs[seqs.size() - 1][0] == '*')
+    return "IG"; // Indel with missing allele
+
+  // Otherwise the variant is complex
+  return "XG";
 }
 
 uint64_t Variant::get_qual() const
@@ -1469,8 +1459,8 @@ double Variant::get_qual_by_depth() const
 
   if (total_depth == 0)
     return 0.0;
-  else
-    return static_cast<double>(total_qual) / static_cast<double>(total_depth);
+
+  return static_cast<double>(total_qual) / static_cast<double>(total_depth);
 }
 
 std::vector<double> Variant::get_qual_by_depth_per_alt_allele() const
@@ -1712,7 +1702,8 @@ std::vector<Variant> extract_sequences_from_aligned_variant(Variant const && var
       find_variant_sequences(new_var, var);
       matches_handle(new_vars, std::move(new_var)); // Uses new_var, so don't move this anywhere else
       match_length = -1;
-      // new_var = Variant();   // Create a new one
+
+      new_var = Variant(); // Create a new one
       new_var.abs_pos = original_pos + i - ref_gaps + 1;
       new_var.seqs = std::vector<std::vector<char>>(var.seqs.size());
       // new_var.abs_pos = original_pos + i - ref_gaps;
