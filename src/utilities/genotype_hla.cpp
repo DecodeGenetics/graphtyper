@@ -20,6 +20,7 @@
 #include <graphtyper/utilities/hts_parallel_reader.hpp>
 #include <graphtyper/utilities/logging.hpp>
 #include <graphtyper/utilities/options.hpp>
+#include <graphtyper/utilities/string.hpp>
 #include <graphtyper/utilities/system.hpp>
 
 namespace gyper
@@ -311,9 +312,22 @@ void genotype_hla(std::string ref_path,
 
       hla_vcf.open_for_writing(Options::const_instance()->threads);
       hla_vcf.write_header();
+      assert(hla_vcf.variants.size() > 0);
 
       if (hla_vcf.variants[0].seqs.size() < 100)
+      {
         hla_vcf.write_record(hla_vcf.variants[0], ".all", false, false);
+      }
+      else
+      {
+        print_log(log_severity::info,
+                  "Skipping all HLA allele calling because there are more than 99 called HLA alleles (",
+                  hla_vcf.variants[0].seqs.size(),
+                  ")");
+      }
+
+      // Create a tree of HLA alleles
+      std::map<long, std::map<long, std::string>> hla_tree;
 
       // Add 4 digit variant
       {
@@ -324,13 +338,8 @@ void genotype_hla(std::string ref_path,
 
         for (long a{0}; a < static_cast<long>(var.seqs.size()); ++a)
         {
-          auto const & seq = var.seqs[a];
-          auto find_it = std::find(seq.begin(), seq.end(), ':');
-          assert(find_it != seq.end());
-
-          if (find_it != seq.end())
-            find_it = std::find(std::next(find_it), seq.end(), ':');
-
+          auto const & seq = var.seqs[a]; // i.e. <HLA-DRB1*15:01:01:01>
+          auto find_it = find_nth_element(seq.begin(), seq.end(), ':', 2);
           std::string new_allele(seq.begin(), find_it);
 
           if (new_allele.back() != '>')
@@ -366,7 +375,16 @@ void genotype_hla(std::string ref_path,
           new_var.generate_infos();
 
           if (new_var.seqs.size() < 100)
+          {
             hla_vcf.write_record(new_var, ".4digit", false, false);
+          }
+          else
+          {
+            print_log(log_severity::info,
+                      "Skipping 4-digit calling because there are more than 99 4-digit HLA types (",
+                      new_var.seqs.size(),
+                      ")");
+          }
         }
       }
 
@@ -380,7 +398,8 @@ void genotype_hla(std::string ref_path,
         for (long a{0}; a < static_cast<long>(var.seqs.size()); ++a)
         {
           auto const & seq = var.seqs[a];
-          auto find_it = std::find(seq.begin(), seq.end(), ':');
+          auto find_it = find_nth_element(seq.begin(), seq.end(), ':', 1);
+          assert(find_it == std::find(seq.begin(), seq.end(), ':'));
 
           std::string new_allele(seq.begin(), find_it);
 
@@ -415,8 +434,14 @@ void genotype_hla(std::string ref_path,
           }
 
           new_var.generate_infos();
+
+          if (new_var.seqs.size() >= 100)
+            print_log(log_severity::warning, "More than 99 2-digit HLA types (", new_var.seqs.size(), ")");
+
           hla_vcf.write_record(new_var, ".2digit", false, false);
         }
+
+        // Populate tree
       }
 
       hla_vcf.close_vcf_file();
