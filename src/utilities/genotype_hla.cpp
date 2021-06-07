@@ -1,6 +1,8 @@
 #include <fstream>
+#include <numeric> // std::iota
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <graphtyper/graph/absolute_position.hpp>
@@ -22,6 +24,26 @@
 #include <graphtyper/utilities/options.hpp>
 #include <graphtyper/utilities/string.hpp>
 #include <graphtyper/utilities/system.hpp>
+
+namespace
+{
+struct AlleleNode
+{
+  int ac{0};
+  int digit{0};
+
+  bool operator<(AlleleNode const & o) const
+  {
+    return ac < o.ac;
+  }
+
+  bool operator==(AlleleNode const & o) const
+  {
+    return ac == o.ac;
+  }
+};
+
+} // namespace
 
 namespace gyper
 {
@@ -160,16 +182,24 @@ void genotype_hla(std::string ref_path,
 
     for (Variant const & var : hla.variants)
     {
-      if (var.infos.count("FEATURE") == 0 || var.infos.at("FEATURE") != "exon")
+      if (var.infos.count("FEATURE") == 0 || var.infos.count("GT_ID") == 0)
+      {
+        // Records without INFO/FEATURE or/and INFO/GT_ID should be ignored for calling (but are included in the graph)
         continue;
+      }
+
+      if (var.infos.at("FEATURE") != "exon")
+      {
+        continue;
+      }
 
       long const gt_id = std::stol(var.infos.at("GT_ID"));
       auto find_it = event2hap_gt.find(gt_id);
       assert(find_it != event2hap_gt.end());
-
       exon_haps.insert(find_it->second.first);
     }
 
+    print_log(log_severity::info, "Got ", exon_haps.size(), " exonic variant records.");
     std::vector<std::unordered_map<uint32_t, uint32_t>> allele_hap_gts(hla.sample_names.size());
 
     for (long s{0}; s < static_cast<long>(hla.sample_names.size()); ++s)
@@ -178,13 +208,23 @@ void genotype_hla(std::string ref_path,
 
       for (Variant const & var : hla.variants)
       {
-        if (var.infos.count("FEATURE") == 0 || var.infos.at("FEATURE") != "exon")
+        auto find_feature_it = var.infos.find("FEATURE");
+        auto find_gt_id_it = var.infos.find("GT_ID");
+
+        if (find_feature_it == var.infos.end() || find_gt_id_it == var.infos.end())
+        {
+          // Records without INFO/FEATURE or/and INFO/GT_ID should be ignored for calling (but are included in the
+          // graph)
+          continue;
+        }
+
+        if (find_feature_it->second != "exon")
         {
           print_log(log_severity::debug, __HERE__, " Skipping ", var.infos.at("FEATURE"));
           continue;
         }
 
-        long const gt_id = std::stol(var.infos.at("GT_ID"));
+        long const gt_id = std::stol(find_gt_id_it->second);
         assert(s < static_cast<long>(var.calls.size()));
         SampleCall const & sample_call = var.calls[s];
         assert(sample_call.coverage.size() == 2);
@@ -250,6 +290,7 @@ void genotype_hla(std::string ref_path,
       vcf_merge_and_return(hla_vcf, paths, tmp + "/graphtyper.vcf.gz");
       assert(hla_vcf.variants.size() == 1);
       Variant & var = hla_vcf.variants[0];
+      int constexpr MAX_ALLELES{99}; // Maximum number of allowed HLA alleles
 
       {
         // Fix sequences names
@@ -267,7 +308,7 @@ void genotype_hla(std::string ref_path,
           }
 
           std::string const & hla_allele = hla.sample_names[s];
-          std::vector<char> seq; // = var.seqs[s];
+          std::vector<char> seq;
           seq.push_back('<');
           std::copy(hla_allele.begin(), hla_allele.end(), std::back_inserter(seq));
           seq.push_back('>');
@@ -294,13 +335,11 @@ void genotype_hla(std::string ref_path,
               if (x > 0 && is_pass_alt[x - 1] == 0)
                 continue;
 
-              // BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << x << "," << y;
               long const i = to_index(x, y);
               new_phred.push_back(call.phred[i]);
             }
           }
 
-          // BOOST_LOG_TRIVIAL(warning) << __HERE__ << " " << new_phred.size() << " " << ((cnum * (cnum + 1)) / 2);
           assert(static_cast<long>(new_phred.size()) == ((cnum * (cnum + 1)) / 2));
           call.phred = new_phred;
         }
@@ -314,22 +353,27 @@ void genotype_hla(std::string ref_path,
       hla_vcf.write_header();
       assert(hla_vcf.variants.size() > 0);
 
-      if (hla_vcf.variants[0].seqs.size() < 100)
+      if (hla_vcf.variants[0].seqs.size() <= MAX_ALLELES)
       {
         hla_vcf.write_record(hla_vcf.variants[0], ".all", false, false);
       }
       else
       {
         print_log(log_severity::info,
-                  "Skipping all HLA allele calling because there are more than 99 called HLA alleles (",
+                  "Skipping all HLA allele calling because there are more than ",
+                  MAX_ALLELES,
+                  " called HLA alleles (",
                   hla_vcf.variants[0].seqs.size(),
                   ")");
       }
 
       // Create a tree of HLA alleles
-      std::map<long, std::map<long, std::string>> hla_tree;
+      std::unordered_set<std::string> common_4digit;
+      int num_2digit_seqs{1};
+      bool is_retry_4digit{false}; // Is set to try if we are retrying 4-digit calling
 
-      // Add 4 digit variant
+      // Add 2 and 4 digit variant
+      for (int d{2}; d < 6; d += 2)
       {
         std::unordered_map<std::string, long> seen_alleles;
         std::vector<long> old2new(var.seqs.size(), 0);
@@ -339,19 +383,59 @@ void genotype_hla(std::string ref_path,
         for (long a{0}; a < static_cast<long>(var.seqs.size()); ++a)
         {
           auto const & seq = var.seqs[a]; // i.e. <HLA-DRB1*15:01:01:01>
-          auto find_it = find_nth_element(seq.begin(), seq.end(), ':', 2);
-          std::string new_allele(seq.begin(), find_it);
+          std::optional<std::string> new_allele;
 
-          if (new_allele.back() != '>')
-            new_allele.push_back('>');
+          if (d == 4 && !common_4digit.empty())
+          {
+            // special case: We are retrying 4-digit HLA calling.
+            // In this case we must first check if 4-digit allele is common
+            assert(seq.begin() != seq.end());
 
-          auto find_allele_it = seen_alleles.find(new_allele);
+            auto find_it = find_nth_occurence(seq.begin(), seq.end(), ':', 2);
+            std::string four_digit_allele(seq.begin(), find_it);
+            assert(!four_digit_allele.empty());
+
+            if (four_digit_allele.empty() || four_digit_allele.back() != '>')
+              four_digit_allele.push_back('>');
+
+            if (common_4digit.count(four_digit_allele) > 0)
+            {
+              // 4digit HLA allele is common, just add 4-digit version
+#ifndef NDEBUG
+              print_log(log_severity::debug, __HERE__, " Adding 4digit ", four_digit_allele);
+#endif // NDEBUG
+
+              new_allele = std::move(four_digit_allele);
+            }
+            else
+            {
+              // 4digit HLA allele is not common, add XX version
+              auto find_2digit_it = find_nth_occurence(seq.begin(), seq.end(), ':', 1);
+              std::string two_digit_allele(seq.begin(), find_2digit_it);
+              assert(!two_digit_allele.empty());
+              assert(two_digit_allele.back() != '>');
+              two_digit_allele += std::string(":XX>");
+              // print_log(log_severity::info, __HERE__, " Adding 2digit ", two_digit_allele);
+              new_allele = std::move(two_digit_allele);
+            }
+          }
+          else
+          {
+            auto find_it = find_nth_occurence(seq.begin(), seq.end(), ':', d / 2);
+            new_allele = std::string(seq.begin(), find_it);
+
+            if (new_allele->empty() || new_allele->back() != '>')
+              new_allele->push_back('>');
+          }
+
+          assert(new_allele);
+          auto find_allele_it = seen_alleles.find(new_allele.value());
 
           if (find_allele_it == seen_alleles.end())
           {
-            seen_alleles[new_allele] = new_var.seqs.size();
+            seen_alleles[new_allele.value()] = new_var.seqs.size();
             old2new[a] = new_var.seqs.size();
-            new_var.seqs.push_back(std::vector<char>(new_allele.begin(), new_allele.end()));
+            new_var.seqs.push_back(std::vector<char>(new_allele->begin(), new_allele->end()));
           }
           else
           {
@@ -361,87 +445,95 @@ void genotype_hla(std::string ref_path,
 
         assert(seen_alleles.size() == new_var.seqs.size());
 
-        if (new_var.seqs.size() > 1)
+        if (new_var.seqs.size() <= 1)
         {
-          new_var.calls.reserve(var.calls.size());
+          print_log(log_severity::info, "Skipping ", d, "-digit calling because there is only a single allele called.");
+          continue;
+        }
 
-          // fix calls
-          for (long s{0}; s < static_cast<long>(var.calls.size()); ++s)
+        new_var.calls.reserve(var.calls.size());
+
+        // fix calls
+        for (long s{0}; s < static_cast<long>(var.calls.size()); ++s)
+        {
+          SampleCall new_call = bin_phred(new_var, var, var.calls[s], old2new);
+          new_var.calls.push_back(std::move(new_call));
+        }
+
+        new_var.generate_infos();
+        bool const is_skipping = static_cast<long>(new_var.seqs.size()) > MAX_ALLELES;
+
+        if (!is_skipping)
+        {
+          hla_vcf.write_record(new_var, "." + std::to_string(d) + "digit", false, false);
+        }
+        else
+        {
+          if (d == 2)
           {
-            SampleCall new_call = bin_phred(new_var, var, var.calls[s], old2new);
-            new_var.calls.push_back(std::move(new_call));
-          }
-
-          new_var.generate_infos();
-
-          if (new_var.seqs.size() < 100)
-          {
-            hla_vcf.write_record(new_var, ".4digit", false, false);
+            print_log(log_severity::warning,
+                      "Skipping ",
+                      d,
+                      "-digit calling because there are more than ",
+                      MAX_ALLELES,
+                      " alleles (",
+                      new_var.seqs.size(),
+                      ")");
           }
           else
           {
             print_log(log_severity::info,
-                      "Skipping 4-digit calling because there are more than 99 4-digit HLA types (",
+                      "Skipping ",
+                      d,
+                      "-digit calling because there are more than ",
+                      MAX_ALLELES,
+                      " alleles (",
                       new_var.seqs.size(),
                       ")");
           }
         }
-      }
 
-      // Add 2 digit variant
-      {
-        std::unordered_map<std::string, long> seen_alleles;
-        std::vector<long> old2new(var.seqs.size(), 0);
-        Variant new_var;
-        new_var.abs_pos = var.abs_pos;
-
-        for (long a{0}; a < static_cast<long>(var.seqs.size()); ++a)
+        if (d == 2)
         {
-          auto const & seq = var.seqs[a];
-          auto find_it = find_nth_element(seq.begin(), seq.end(), ':', 1);
-          assert(find_it == std::find(seq.begin(), seq.end(), ':'));
-
-          std::string new_allele(seq.begin(), find_it);
-
-          if (new_allele.back() != '>')
-            new_allele.push_back('>');
-
-          auto find_allele_it = seen_alleles.find(new_allele);
-
-          if (find_allele_it == seen_alleles.end())
-          {
-            seen_alleles[new_allele] = new_var.seqs.size();
-            old2new[a] = new_var.seqs.size();
-            new_var.seqs.push_back(std::vector<char>(new_allele.begin(), new_allele.end()));
-          }
-          else
-          {
-            old2new[a] = find_allele_it->second;
-          }
+          // take note how many 2digit alleles are called altogether
+          num_2digit_seqs = new_var.seqs.size();
         }
-
-        assert(seen_alleles.size() == new_var.seqs.size());
-
-        if (new_var.seqs.size() > 1)
+        else if (d == 4 && is_skipping && !is_retry_4digit && MAX_ALLELES > num_2digit_seqs)
         {
-          new_var.calls.reserve(var.calls.size());
+          // Find top MAX_ALLELES-num_2digit_seqs 4 digit alleles
+          auto const & per_allele = new_var.stats.per_allele;
+          int const n_alleles = static_cast<int>(per_allele.size());
+          assert(n_alleles == static_cast<int>(new_var.seqs.size()));
+          std::vector<uint32_t> ac(per_allele.size());
 
-          // fix calls
-          for (long s{0}; s < static_cast<long>(var.calls.size()); ++s)
+          for (int i{0}; i < n_alleles; ++i)
+            ac[i] = per_allele[i].ac;
+
+          assert(per_allele.size() == new_var.seqs.size());
+          std::vector<uint32_t> idx(new_var.seqs.size());
+          std::iota(idx.begin(), idx.end(), 0); // Get a vector with indices for every allele
+          std::sort(idx.begin(), idx.end(), [&ac](uint32_t idx1, uint32_t idx2) { return ac[idx1] > ac[idx2]; });
+
+          for (int j{0}; j < (MAX_ALLELES - num_2digit_seqs); ++j)
           {
-            SampleCall new_call = bin_phred(new_var, var, var.calls[s], old2new);
-            new_var.calls.push_back(std::move(new_call));
+#ifndef NDEBUG
+            print_log(
+              log_severity::debug,
+              __HERE__,
+              " Common allele: ",
+              std::string_view(reinterpret_cast<char *>(new_var.seqs[idx[j]].data()), new_var.seqs[idx[j]].size()));
+#endif // NDEBUG
+
+            // If there aren't any reliable 4digit calls then don't add that allele
+            if (ac[idx[j]] == 0)
+              continue;
+
+            common_4digit.insert(std::string(new_var.seqs[idx[j]].begin(), new_var.seqs[idx[j]].end()));
           }
 
-          new_var.generate_infos();
-
-          if (new_var.seqs.size() >= 100)
-            print_log(log_severity::warning, "More than 99 2-digit HLA types (", new_var.seqs.size(), ")");
-
-          hla_vcf.write_record(new_var, ".2digit", false, false);
+          d -= 2;                 // Retry 4-digit calling
+          is_retry_4digit = true; // Prevents endless loop of retries
         }
-
-        // Populate tree
       }
 
       hla_vcf.close_vcf_file();
@@ -468,7 +560,7 @@ void genotype_hla(std::string ref_path,
   if (!copts.no_cleanup)
   {
     print_log(log_severity::info, "Cleaning up temporary files.");
-    remove_file_tree(tmp.c_str());
+    remove_file_tree(tmp);
   }
   else
   {
@@ -488,7 +580,7 @@ void genotype_hla(std::string ref_path,
   graph = Graph();
 }
 
-void genotype_hla_regions(std::string ref_path,
+void genotype_hla_regions(std::string const & ref_path,
                           std::string const & hla_vcf,
                           std::string const & interval_fn,
                           std::vector<std::string> const & sams,

@@ -110,7 +110,7 @@ inline int64_t stoi64(std::string_view str)
 
 // Returns an iterator to the nth occurence of an element (char). Expects n>=1.
 template <typename Tit>
-inline Tit find_nth_element(Tit begin, Tit end, char const element, int n)
+inline Tit find_nth_occurence(Tit begin, Tit end, char const element, int n)
 {
   assert(n >= 1);
   int count{0};

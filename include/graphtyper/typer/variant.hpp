@@ -39,9 +39,9 @@ public:
   Variant & operator=(Variant && o) noexcept;
   ~Variant() = default;
 
-  Variant(Genotype const & gt);
+  explicit Variant(Genotype const & gt);
   // Variant(std::vector<Genotype> const & gts, std::vector<uint16_t> const & hap_calls);
-  Variant(VariantCandidate const & var_candidate) noexcept;
+  explicit Variant(VariantCandidate const & var_candidate) noexcept;
 
   /******************
    * CLASS MODIFERS *
