@@ -375,6 +375,7 @@ void genotype_hla(std::string ref_path,
       // Add 2 and 4 digit variant
       for (int d{2}; d < 6; d += 2)
       {
+        // Maps alleles to their index position in new_var.seqs vector
         std::unordered_map<std::string, long> seen_alleles;
         std::vector<long> old2new(var.seqs.size(), 0);
         Variant new_var;
@@ -385,7 +386,7 @@ void genotype_hla(std::string ref_path,
           auto const & seq = var.seqs[a]; // i.e. <HLA-DRB1*15:01:01:01>
           std::optional<std::string> new_allele;
 
-          if (d == 4 && !common_4digit.empty())
+          if (d == 4 && is_retry_4digit)
           {
             // special case: We are retrying 4-digit HLA calling.
             // In this case we must first check if 4-digit allele is common
@@ -453,7 +454,7 @@ void genotype_hla(std::string ref_path,
 
         new_var.calls.reserve(var.calls.size());
 
-        // fix calls
+        // bin PHRED values in calls
         for (long s{0}; s < static_cast<long>(var.calls.size()); ++s)
         {
           SampleCall new_call = bin_phred(new_var, var, var.calls[s], old2new);
@@ -504,31 +505,47 @@ void genotype_hla(std::string ref_path,
           auto const & per_allele = new_var.stats.per_allele;
           int const n_alleles = static_cast<int>(per_allele.size());
           assert(n_alleles == static_cast<int>(new_var.seqs.size()));
+
+          // Get allele count of each HLA allele
           std::vector<uint32_t> ac(per_allele.size());
 
           for (int i{0}; i < n_alleles; ++i)
-            ac[i] = per_allele[i].ac;
+            ac[i] = per_allele[i].pass_ac;
 
           assert(per_allele.size() == new_var.seqs.size());
+
+          // Get a vector with indices for every allele
           std::vector<uint32_t> idx(new_var.seqs.size());
-          std::iota(idx.begin(), idx.end(), 0); // Get a vector with indices for every allele
+          std::iota(idx.begin(), idx.end(), 0);
+
+          // Sort the indices by their allele count (highest first)
           std::sort(idx.begin(), idx.end(), [&ac](uint32_t idx1, uint32_t idx2) { return ac[idx1] > ac[idx2]; });
 
           for (int j{0}; j < (MAX_ALLELES - num_2digit_seqs); ++j)
           {
-#ifndef NDEBUG
-            print_log(
-              log_severity::debug,
-              __HERE__,
-              " Common allele: ",
-              std::string_view(reinterpret_cast<char *>(new_var.seqs[idx[j]].data()), new_var.seqs[idx[j]].size()));
-#endif // NDEBUG
+            if (j >= static_cast<int>(idx.size())) // edge case
+              break;
+
+            uint32_t const index = idx[j];
+            assert(index < new_var.seqs.size());
+            assert(index < ac.size());
 
             // If there aren't any reliable 4digit calls then don't add that allele
-            if (ac[idx[j]] == 0)
+            if (ac[index] == 0)
               continue;
 
-            common_4digit.insert(std::string(new_var.seqs[idx[j]].begin(), new_var.seqs[idx[j]].end()));
+#ifndef NDEBUG
+            print_log(
+              log_severity::info,
+              __HERE__,
+              " Common allele: ",
+              std::string_view(reinterpret_cast<char *>(new_var.seqs[index].data()), new_var.seqs[index].size()),
+              " with ac = ",
+              ac[index]);
+#endif // NDEBUG
+
+            // Add the most common HLA alleles to 'common_4digit' set
+            common_4digit.insert(std::string(new_var.seqs[index].begin(), new_var.seqs[index].end()));
           }
 
           d -= 2;                 // Retry 4-digit calling
