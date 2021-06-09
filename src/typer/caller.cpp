@@ -490,7 +490,6 @@ std::vector<std::string> call(
       for (long j{0}; j < num_splits; ++j)
       {
         long const split_advance = (advance / num_splits) + (j < (advance % num_splits));
-        assert(split_advance > 0);
 
         // ..just in case, no point in having empty work
         if (split_advance == 0)
@@ -1507,10 +1506,7 @@ void run_first_pass(bam1_t * hts_rec,
   } // for (long b{0}; b < static_cast<long>(buckets.size()); ++b)
 
   // Add sample haplotypes to pool haplotypes
-#ifndef NDEBUG
-  // check for errors in sample_haplotypes
-  // assert(check_haplotypes(sample_haplotypes));
-#endif // NDEBUG
+  // assert(check_haplotypes(sample_haplotypes)); // check for errors in sample_haplotypes
 
   if (is_first_in_pool)
   {
@@ -1519,7 +1515,7 @@ void run_first_pass(bam1_t * hts_rec,
   else
   {
     merge_haplotypes(pool_haplotypes, sample_haplotypes);
-    // assert(check_haplotypes(pool_haplotypes));
+    assert(check_haplotypes(pool_haplotypes)); // check for errors after merging haplotypes
   }
 }
 
@@ -1646,29 +1642,18 @@ void run_first_pass_lr(bam1_t * hts_rec,
           char qual = *(qual_it + read_pos);
           assert(qual <= 60);
 
-          if ( // read_base == ref ||
-            (ref != 'A' && ref != 'C' && ref != 'G' && ref != 'T') ||
-            (read_base != 'A' && read_base != 'C' && read_base != 'G' && read_base != 'T'))
+          if (qual == 0 || (ref != 'A' && ref != 'C' && ref != 'G' && ref != 'T') ||
+              (read_base != 'A' && read_base != 'C' && read_base != 'G' && read_base != 'T'))
           {
             continue;
           }
 
-          // if (core.qual <= 20)
-          //  qual = qual / 5;
-          // else if (core.qual <= 40 && qual >= 4)
-          //  qual = qual / 4;
-          // else if (qual >= 4)
-          //  qual = qual / 2;
-          //
-          // if (qual > 0 && qual < 5)
-          //  qual = 5;
-          // else if (qual > 10)
-          //  qual = 10;
+          // transform qual to range 12-27
+          long const tr_qual = 12l + std::lround((static_cast<double>(qual) * 22.0) / 60.0);
 
-          // BOOST_LOG_TRIVIAL(info) << __HERE__ << " adding base " << read_base << "," << static_cast<long>(qual)
-          //                        << " @ " << (ref_pos + region_begin)
-          //                        << " " << region_begin << " " << REF_SIZE << " ";
-
+          assert(tr_qual >= 12l);
+          assert(tr_qual <= 36l);
+          qual = static_cast<char>(tr_qual);
           add_base_to_bucket(buckets, ref_pos + region_begin, read_base, qual, region_begin, BUCKET_SIZE);
         }
 
@@ -3437,14 +3422,14 @@ void streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
         if (first != ref_index && (((qs[first] - qs[second]) >= 25) || ((qs[first] - qs[third]) >= 40)))
         {
           SnpEvent snp_event(region_begin + pos + p, index2base[first]);
-          snp_events.insert(std::move(snp_event));
+          snp_events.insert(snp_event);
         }
 
         if (second != ref_index && (qs[second] - qs[third]) >= 40 &&
             ((static_cast<double>(qs[second]) / static_cast<double>(qs[0] + qs[1] + qs[2] + qs[3])) > 0.3))
         {
           SnpEvent snp_event(region_begin + pos + p, index2base[second]);
-          snp_events.insert(std::move(snp_event));
+          snp_events.insert(snp_event);
         }
       }
     }
@@ -3542,13 +3527,14 @@ void streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
           }
         }
 
-        long const call_total_depth = new_call.get_unique_depth();
+        long const total_qualsum = base_count.get_total_qualsum();
 
         // PHRED
         // auto max_it = std::max_element(base_count.acgt_qualsum.begin(), base_count.acgt_qualsum.end());
         // assert(max_it != base_count.acgt_qualsum.end());
         long i{0};
-        long constexpr ERROR_PHRED{25}; // Penalty of non-support
+        // long constexpr ERROR_PHRED{25}; // Penalty of non-support
+
         // TODO use base_count.acgt_qualsum when calculating PL
         for (long y{0}; y < cnum; ++y)
         {
@@ -3561,7 +3547,7 @@ void streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
             if (x == y)
             {
               long const x_idx = seq_base2index[y];
-              new_phred[i] = ERROR_PHRED * (call_total_depth - base_count.acgt[x_idx]);
+              new_phred[i] = total_qualsum - base_count.acgt_qualsum[x_idx]; // Total qualsum of all bases except x_idx
             }
             else
             {
@@ -3569,7 +3555,7 @@ void streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
               long const y_idx = seq_base2index[y];
               assert(x_idx != y_idx);
 
-              new_phred[i] = ERROR_PHRED * (call_total_depth - base_count.acgt[x_idx] - base_count.acgt[y_idx]) +
+              new_phred[i] = total_qualsum - base_count.acgt_qualsum[x_idx] - base_count.acgt_qualsum[y_idx] +
                              3 * (base_count.acgt[x_idx] + base_count.acgt[y_idx]);
             }
           }

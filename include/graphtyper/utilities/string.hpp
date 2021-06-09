@@ -108,4 +108,13 @@ inline int64_t stoi64(std::string_view str)
 }
 #endif
 
+// Returns an iterator to the nth occurence of an element (char). Expects n>=1.
+template <typename Tit>
+inline Tit find_nth_occurence(Tit begin, Tit end, char const element, int n)
+{
+  assert(n >= 1);
+  int count{0};
+  return std::find_if(begin, end, [&count, element, n](char x) { return x == element && ++count == n; });
+}
+
 } // namespace gyper
