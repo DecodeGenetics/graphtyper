@@ -46,6 +46,11 @@ long BaseCount::get_depth_with_deleted() const
   return acgt[0] + acgt[1] + acgt[2] + acgt[3] + deleted;
 }
 
+long BaseCount::get_total_qualsum() const
+{
+  return acgt_qualsum[0] + acgt_qualsum[1] + acgt_qualsum[2] + acgt_qualsum[3];
+}
+
 std::string BaseCount::to_string() const
 {
   std::ostringstream ss;

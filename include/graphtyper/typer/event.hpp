@@ -21,8 +21,9 @@ struct BaseCount
   int32_t deleted{0};
   int32_t unknown{0};
 
-  long get_depth_without_deleted() const;
-  long get_depth_with_deleted() const;
+  long get_depth_without_deleted() const; // does not include unknown
+  long get_depth_with_deleted() const;    // does not include unknown
+  long get_total_qualsum() const;         // only includes unique bases (A,C,G,T)
   std::string to_string() const;
 
   void add_base(char seq, char qual);

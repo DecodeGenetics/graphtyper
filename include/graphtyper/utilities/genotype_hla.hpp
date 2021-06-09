@@ -7,7 +7,7 @@
 
 namespace gyper
 {
-void genotype_hla_regions(std::string ref_path,
+void genotype_hla_regions(std::string const & ref_path,
                           std::string const & hla_vcf,
                           std::string const & interval_fn,
                           std::vector<std::string> const & sams,
