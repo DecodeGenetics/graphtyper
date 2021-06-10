@@ -468,30 +468,30 @@ void genotype_hla(std::string ref_path,
         {
           hla_vcf.write_record(new_var, "." + std::to_string(d) + "digit", false, false);
         }
+        else if (d == 2)
+        {
+          // If we are skipping 2-digit then what are we even doing
+          print_log(log_severity::warning,
+                    "In ",
+                    d,
+                    "-digit calling there are more than ",
+                    MAX_ALLELES,
+                    " alleles (",
+                    new_var.seqs.size(),
+                    ") but I will try to write the record anyway.");
+
+          hla_vcf.write_record(new_var, "." + std::to_string(d) + "digit", false, false);
+        }
         else
         {
-          if (d == 2)
-          {
-            print_log(log_severity::warning,
-                      "Skipping ",
-                      d,
-                      "-digit calling because there are more than ",
-                      MAX_ALLELES,
-                      " alleles (",
-                      new_var.seqs.size(),
-                      ")");
-          }
-          else
-          {
-            print_log(log_severity::info,
-                      "Skipping ",
-                      d,
-                      "-digit calling because there are more than ",
-                      MAX_ALLELES,
-                      " alleles (",
-                      new_var.seqs.size(),
-                      ")");
-          }
+          print_log(log_severity::info,
+                    "Skipping ",
+                    d,
+                    "-digit calling because there are more than ",
+                    MAX_ALLELES,
+                    " alleles (",
+                    new_var.seqs.size(),
+                    ")");
         }
 
         if (d == 2)
