@@ -1033,7 +1033,7 @@ void Vcf::write_record(Variant const & var,
         bgzf_stream.ss << ',' << static_cast<uint16_t>(call.phred[p]);
 
       // Check if this should be added
-      // bgzf_stream.check_cache();
+      bgzf_stream.check_cache();
     }
   }
 

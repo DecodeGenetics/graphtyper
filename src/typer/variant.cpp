@@ -313,7 +313,8 @@ void Variant::scan_calls()
     assert(seqs.size() == sample_call.coverage.size());
     assert(call.first < seqs.size());
     assert(call.second < seqs.size());
-    long const filter = sample_call.check_filter(sample_call.get_gq());
+    long const genotype_quality = sample_call.get_gq();
+    long const filter = sample_call.check_filter(genotype_quality);
 
     {
       auto pl_non_zero = [](uint8_t const pl) -> bool { return pl != 0; };
@@ -383,8 +384,12 @@ void Variant::scan_calls()
       assert(call.first < static_cast<long>(stats.per_allele.size()));
       assert(call.second < static_cast<long>(stats.per_allele.size()));
 
-      ++stats.per_allele[call.first].ac;
-      ++stats.per_allele[call.second].ac;
+      // Do not count allele count for GQ in segment calling, due to filtering purposes.
+      if (!Options::const_instance()->is_segment_calling || genotype_quality > 0)
+      {
+        ++stats.per_allele[call.first].ac;
+        ++stats.per_allele[call.second].ac;
+      }
 
       if (filter == 0) // PASS
       {

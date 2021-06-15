@@ -302,10 +302,7 @@ void genotype_hla(std::string ref_path,
         for (long s{0}; s < static_cast<long>(hla.sample_names.size()); ++s)
         {
           if (s > 0 && is_pass_alt[s - 1] == 0)
-          {
-            // BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << s << " " << static_cast<long>(is_pass_alt[s - 1]);
             continue;
-          }
 
           std::string const & hla_allele = hla.sample_names[s];
           std::vector<char> seq;
@@ -313,6 +310,11 @@ void genotype_hla(std::string ref_path,
           std::copy(hla_allele.begin(), hla_allele.end(), std::back_inserter(seq));
           seq.push_back('>');
           new_seqs.push_back(seq);
+        }
+
+        for (auto const & new_seq : new_seqs)
+        {
+          print_log(log_severity::info, "Called contig sequence: ", std::string(new_seq.begin(), new_seq.end()));
         }
 
         long const old_cnum = var.seqs.size();
@@ -466,6 +468,7 @@ void genotype_hla(std::string ref_path,
 
         if (!is_skipping)
         {
+          print_log(log_severity::info, d, "-digit calling.");
           hla_vcf.write_record(new_var, "." + std::to_string(d) + "digit", false, false);
         }
         else if (d == 2)

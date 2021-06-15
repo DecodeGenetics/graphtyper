@@ -122,12 +122,11 @@ void vcf_merge_and_return(gyper::Vcf & vcf, std::vector<std::string> & vcfs, std
     }
 
     // Add strand bias, this must happend before the INFO is generated
-    // stats.add_stats(var.infos);
-
     if (var.calls.size() != vcf.sample_names.size())
     {
       print_log(log_severity::error,
-                "Number of calls a variant had did not matches the number of samples ",
+                __HERE__,
+                " Number of calls a variant had did not matches the number of samples ",
                 var.calls.size(),
                 " vs. ",
                 vcf.sample_names.size());
