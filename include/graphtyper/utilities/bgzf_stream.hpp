@@ -69,12 +69,18 @@ inline void BGZF_stream::flush()
   else
   {
     std::string str = ss.str();
-    int ret = bgzf_write(fp, str.data(), str.size());
+    int written_length = bgzf_write(fp, str.data(), str.size());
 
-    if (ret < 0)
+    if (written_length < 0)
     {
-      std::cerr << "[bgzf_stream] ERROR: Writing to BGZF file failed. No space left on device?" << std::endl;
+      std::cerr << "[bgzf_stream] ERROR: Writing to BGZF file failed. "
+                << "Exit code: " << written_length << " . No space left on device?" << std::endl;
       std::exit(1);
+    }
+    else if (written_length != static_cast<long>(str.size()))
+    {
+      std::cerr << "[bgzf] WARNING: Mismatch between size written and expected: " << written_length
+                << " != " << str.size();
     }
   }
 
@@ -91,7 +97,20 @@ inline int BGZF_stream::write(void const * data, std::size_t length)
     return length;
   }
 
-  return bgzf_write(fp, data, length);
+  int const written_length = bgzf_write(fp, data, length);
+
+  if (written_length < 0)
+  {
+    std::cerr << "[bgzf_stream] ERROR: Writing to BGZF file failed. "
+              << "Exit code: " << written_length << " . No space left on device?" << std::endl;
+    std::exit(1);
+  }
+  else if (written_length != static_cast<long>(length))
+  {
+    std::cerr << "[bgzf] WARNING: Mismatch between size written and expected: " << written_length << " != " << length;
+  }
+
+  return written_length != static_cast<long>(length);
 }
 
 inline int BGZF_stream::write(std::string const & str)
@@ -102,7 +121,21 @@ inline int BGZF_stream::write(std::string const & str)
     return str.size();
   }
 
-  return bgzf_write(fp, str.data(), str.size());
+  std::size_t const length = str.size();
+  int const written_length = bgzf_write(fp, str.data(), length);
+
+  if (written_length < 0)
+  {
+    std::cerr << "[bgzf_stream] ERROR: Writing to BGZF file failed. "
+              << "Exit code: " << written_length << " . No space left on device?" << std::endl;
+    std::exit(1);
+  }
+  else if (written_length != static_cast<long>(length))
+  {
+    std::cerr << "[bgzf] WARNING: Mismatch between size written and expected: " << written_length << " != " << length;
+  }
+
+  return written_length != static_cast<long>(length);
 }
 
 inline void BGZF_stream::open(std::string const & _filename, std::string const & _filemode, long const _n_threads)
