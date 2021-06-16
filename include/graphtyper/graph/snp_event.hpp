@@ -4,14 +4,13 @@
 #include <sstream>
 #include <string>
 
-#include <boost/serialization/access.hpp>
+#include <cereal/access.hpp>
 
 namespace gyper
 {
-
 class SnpEvent
 {
-  friend class boost::serialization::access;
+  friend class cereal::access;
 
 public:
   uint32_t pos{0};
@@ -33,6 +32,5 @@ private:
   template <class Archive>
   void serialize(Archive & ar, const unsigned int);
 };
-
 
 } // namespace gyper

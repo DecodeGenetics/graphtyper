@@ -3,22 +3,19 @@
 #include <string>
 #include <vector>
 
-#include <boost/serialization/access.hpp>
+#include <cereal/access.hpp>
 
 #include <graphtyper/constants.hpp>
 
-
 namespace gyper
 {
-
 class RefNode;
 class VarNode;
 class Alt;
 
-
 class Label
 {
-  friend class boost::serialization::access;
+  friend class cereal::access;
   friend class gyper::RefNode;
   friend class gyper::VarNode;
 

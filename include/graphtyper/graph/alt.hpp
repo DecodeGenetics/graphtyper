@@ -5,15 +5,13 @@
 #include <unordered_set>
 #include <vector>
 
-
 namespace gyper
 {
-
 class Alt
 {
 public:
-  //int32_t non_merge_start{-1};
-  //int32_t non_merge_end{-1};
+  // int32_t non_merge_start{-1};
+  // int32_t non_merge_end{-1};
   std::vector<char> seq;
   std::unordered_set<long> events;
   std::unordered_set<long> anti_events;
@@ -34,7 +32,6 @@ public:
 
   Alt & operator=(Alt const &) = default;
   Alt & operator=(Alt &&) = default;
-
 };
 
 bool compare_two_alts(Alt const & lhs, Alt const & rhs);

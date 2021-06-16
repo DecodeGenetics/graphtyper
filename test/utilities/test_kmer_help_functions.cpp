@@ -1,23 +1,21 @@
-#include <catch.hpp>
-
-#include <stdio.h>
 #include <climits>
 #include <cstdio>
-#include <string>
-#include <iostream>
 #include <fstream>
+#include <iostream>
+#include <stdio.h>
+#include <string>
 
 #include <seqan/basic.h>
-#include <seqan/stream.h>
 #include <seqan/sequence.h>
 #include <seqan/stream.h>
 
-#include <graphtyper/graph/graph_serialization.hpp>
 #include <graphtyper/constants.hpp>
+#include <graphtyper/graph/graph_serialization.hpp>
 #include <graphtyper/index/kmer_label.hpp>
-#include <graphtyper/utilities/type_conversions.hpp>
 #include <graphtyper/utilities/kmer_help_functions.hpp>
+#include <graphtyper/utilities/type_conversions.hpp>
 
+#include <catch.hpp>
 
 TEST_CASE("Get the number of kmers in a dna string")
 {
@@ -38,14 +36,11 @@ TEST_CASE("Get the number of kmers in a dna string")
   SECTION("3 kmers (32 + 31 + 31 = 94)")
   {
     REQUIRE(get_num_kmers(seqan::Dna5String(
-                            "AAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAA")) ==
-            2);
+              "AAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAA")) == 2);
     REQUIRE(get_num_kmers(seqan::Dna5String(
-                            "AAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAG")) ==
-            3);
+              "AAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAG")) == 3);
     REQUIRE(get_num_kmers(seqan::Dna5String(
-                            "AAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAGA")) ==
-            3);
+              "AAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAGA")) == 3);
   }
 }
 
@@ -58,21 +53,20 @@ TEST_CASE("Get the ith kmers in a dna string")
     seqan::Dna5String kmer1 = "AAAACAAAAGAAAACAAAAGAAAACAAAAGAT";
     REQUIRE(get_ith_kmer(kmer1, 0u) == kmer1);
     REQUIRE(get_ith_kmer(seqan::Dna5String("AAAACAAAAGAAAACAAAAGAAAACAAAAGATT"), 0u) == kmer1);
-    REQUIRE(get_ith_kmer(seqan::Dna5String("AAAACAAAAGAAAACAAAAGAAAACAAAAGATTT"),
-                         0u) == seqan::Dna5String("AAACAAAAGAAAACAAAAGAAAACAAAAGATT"));
+    REQUIRE(get_ith_kmer(seqan::Dna5String("AAAACAAAAGAAAACAAAAGAAAACAAAAGATTT"), 0u) ==
+            seqan::Dna5String("AAACAAAAGAAAACAAAAGAAAACAAAAGATT"));
   }
 
   SECTION("2 kmers (32 + 31 = 63)")
   {
-    REQUIRE(get_ith_kmer(seqan::Dna5String("AAAACAAAAGAAACCAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAG"), 0u)
-            == seqan::Dna5String("AAAAGAAAACAAAAGATAAAACAAAAGAAAAC"));
-    REQUIRE(get_ith_kmer(seqan::Dna5String("AAAACAAAAGAAACCAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAGA"), 0u)
-            == seqan::Dna5String("AAAACAAAAGAAACCAAAAGAAAACAAAAGAT"));
-    REQUIRE(get_ith_kmer(seqan::Dna5String("AAAACAAAAGAAACCAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAGA"), 1u)
-            == seqan::Dna5String("TAAAACAAAAGAAAACAAAAGAAAACAAAAGA"));
+    REQUIRE(get_ith_kmer(seqan::Dna5String("AAAACAAAAGAAACCAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAG"), 0u) ==
+            seqan::Dna5String("AAAAGAAAACAAAAGATAAAACAAAAGAAAAC"));
+    REQUIRE(get_ith_kmer(seqan::Dna5String("AAAACAAAAGAAACCAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAGA"), 0u) ==
+            seqan::Dna5String("AAAACAAAAGAAACCAAAAGAAAACAAAAGAT"));
+    REQUIRE(get_ith_kmer(seqan::Dna5String("AAAACAAAAGAAACCAAAAGAAAACAAAAGATAAAACAAAAGAAAACAAAAGAAAACAAAAGA"), 1u) ==
+            seqan::Dna5String("TAAAACAAAAGAAAACAAAAGAAAACAAAAGA"));
   }
 }
-
 
 TEST_CASE("Get multiple uint64_t with Iupac reads")
 {

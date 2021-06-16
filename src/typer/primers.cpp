@@ -2,32 +2,27 @@
 #include <string>
 #include <unordered_set>
 
-#include <boost/algorithm/string.hpp>
-#include <boost/log/trivial.hpp>
-
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/graph.hpp>
-#include <graphtyper/typer/path.hpp>
 #include <graphtyper/typer/genotype_paths.hpp>
+#include <graphtyper/typer/path.hpp>
 #include <graphtyper/typer/primers.hpp>
+#include <graphtyper/utilities/logging.hpp>
+#include <graphtyper/utilities/string.hpp>
 #include <graphtyper/utilities/system.hpp>
-
 
 namespace gyper
 {
-
 Primers::Primers(std::string const & primer_bedpe)
 {
   read(primer_bedpe);
 }
 
-
-void
-Primers::read(std::string const & primer_bedpe)
+void Primers::read(std::string const & primer_bedpe)
 {
   if (!gyper::is_file(primer_bedpe))
   {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << "] Could not find file " << primer_bedpe;
+    print_log(log_severity::error, __HERE__, "] Could not find file ", primer_bedpe);
     std::exit(1);
   }
 
@@ -36,37 +31,38 @@ Primers::read(std::string const & primer_bedpe)
 
   if (!fs.is_open())
   {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << "] Could not open file " << primer_bedpe;
+    print_log(log_severity::error, __HERE__, "] Could not open file ", primer_bedpe);
     std::exit(1);
   }
 
   std::string line;
-  std::vector<std::string> fields;
 
   while (std::getline(fs, line))
   {
-    boost::split(fields, line, boost::is_any_of("\t"));
+    std::vector<std::string_view> fields = split_on_delim(line, '\t');
 
     if (fields.size() < 6)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Expected at least 6 fields in Primer BEDPE, got " << fields.size();
+      print_log(log_severity::error, __HERE__, " Expected at least 6 fields in Primer BEDPE, got ", fields.size());
       std::exit(1);
     }
 
-    GenomicRegion left_region(fields[0], std::stol(fields[1]), std::stol(fields[2]));
-    GenomicRegion right_region(fields[3], std::stol(fields[4]), std::stol(fields[5]));
+    GenomicRegion left_region(fields[0], stoi64(fields[1]), stoi64(fields[2]));
+    GenomicRegion right_region(fields[3], stoi64(fields[4]), stoi64(fields[5]));
 
-    BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Got primer regions " << left_region.to_string() << " "
-                             << right_region.to_string();
+    print_log(log_severity::debug,
+              __HERE__,
+              " Got primer regions ",
+              left_region.to_string(),
+              " ",
+              right_region.to_string());
 
     left.push_back(std::move(left_region));
     right.push_back(std::move(right_region));
   }
 }
 
-
-void
-Primers::check(GenotypePaths & genos) const
+void Primers::check(GenotypePaths & genos) const
 {
   bool const is_reversed = (genos.flags & IS_SEQ_REVERSED) != 0;
 
@@ -76,9 +72,7 @@ Primers::check(GenotypePaths & genos) const
     check_left(genos);
 }
 
-
-void
-Primers::check_left(GenotypePaths & genos) const
+void Primers::check_left(GenotypePaths & genos) const
 {
   for (auto & path : genos.paths)
   {
@@ -109,7 +103,7 @@ Primers::check_left(GenotypePaths & genos) const
           {
             if (std::find(var_orders.begin(), var_orders.end(), path.var_order[i]) != var_orders.end())
             {
-              BOOST_LOG_TRIVIAL(debug) << __HERE__ << " LEFT Removed var_order=" << path.var_order[i];
+              print_log(log_severity::debug, __HERE__, " LEFT Removed var_order=", path.var_order[i]);
 
               // Found a var_order inside the region
               path.erase_ref_support(i);
@@ -121,9 +115,7 @@ Primers::check_left(GenotypePaths & genos) const
   }
 }
 
-
-void
-Primers::check_right(GenotypePaths & genos) const
+void Primers::check_right(GenotypePaths & genos) const
 {
   for (auto & path : genos.paths)
   {
@@ -154,7 +146,7 @@ Primers::check_right(GenotypePaths & genos) const
           {
             if (std::find(var_orders.begin(), var_orders.end(), path.var_order[i]) != var_orders.end())
             {
-              BOOST_LOG_TRIVIAL(debug) << __HERE__ << " RIGHT Removed var_order=" << path.var_order[i];
+              print_log(log_severity::debug, __HERE__, " RIGHT Removed var_order=", path.var_order[i]);
 
               // Found a var_order inside the region
               path.erase_ref_support(i);
@@ -165,6 +157,5 @@ Primers::check_right(GenotypePaths & genos) const
     }
   }
 }
-
 
 } // namespace gyper

@@ -1,31 +1,27 @@
 #include <algorithm> // std::sort
-#include <iostream> // std::cout, std::cerr, std::endl
+#include <iostream>  // std::cout, std::cerr, std::endl
 
 #include <graphtyper/utilities/hts_reader.hpp>
-
-#include <boost/algorithm/string.hpp>
-#include <boost/log/trivial.hpp>
+#include <graphtyper/utilities/logging.hpp>
+#include <graphtyper/utilities/string.hpp>
 
 #include <htslib/hfile.h>
 #include <htslib/hts.h>
 
-
 namespace gyper
 {
-
-HtsReader::HtsReader(HtsStore & _store)
-  : store(_store)
-{}
-
-
-void
-HtsReader::open(std::string const & path, std::string const & region, std::string const & reference)
+HtsReader::HtsReader(HtsStore & _store) : store(_store)
 {
+}
+
+void HtsReader::open(std::string const & path, std::string const & region, std::string const & reference)
+{
+  filename = path;
   fp = hts_open(path.c_str(), "r");
 
   if (!fp)
   {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not open BAM/CRAM file " << path;
+    print_log(log_severity::error, __HERE__, " Could not open BAM/CRAM file ", path);
     std::exit(1);
   }
 
@@ -36,47 +32,44 @@ HtsReader::open(std::string const & path, std::string const & region, std::strin
   if (!Options::const_instance()->get_sample_names_from_filename)
   {
     std::string const header_text(fp->bam_header->text, fp->bam_header->l_text);
-    std::vector<std::string> header_lines;
-
-    // Split the header text into lines
-    boost::split(header_lines, header_text, boost::is_any_of("\n"));
+    std::vector<std::string_view> header_lines = split_on_delim(header_text, '\n');
 
     for (auto & line_it : header_lines)
     {
-      if (boost::starts_with(line_it, "@RG"))
+      if (starts_with(line_it, "@RG"))
       {
         std::size_t const pos_id = line_it.find("\tID:");
         std::size_t const pos_samp = line_it.rfind("\tSM:");
 
         if (pos_samp == std::string::npos || pos_id == std::string::npos)
         {
-          BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not parse RG and sample from header line: " << line_it;
+          print_log(log_severity::error, __HERE__, " Could not parse RG and sample from header line: ", line_it);
           std::exit(1);
         }
 
-        std::size_t pos_id_ends = line_it.find("\t", pos_id + 1);
+        std::size_t pos_id_ends = line_it.find('\t', pos_id + 1);
 
         // Check if this is the last field
         if (pos_id_ends == std::string::npos)
           pos_id_ends = line_it.size();
 
-        std::size_t pos_samp_ends = line_it.find("\t", pos_samp + 1);
+        std::size_t pos_samp_ends = line_it.find('\t', pos_samp + 1);
 
         // Check if this is the last field
         if (pos_samp_ends == std::string::npos)
           pos_samp_ends = line_it.size();
 
-        std::string new_id = line_it.substr(pos_id + 4, pos_id_ends - pos_id - 4);
-        std::string new_sample = line_it.substr(pos_samp + 4, pos_samp_ends - pos_samp - 4);
-        BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Added RG: '" << new_id << "' => '" << new_sample << "'";
-        rg2index[new_id] = rg2sample_i.size();
+        std::string new_id = std::string{line_it.substr(pos_id + 4, pos_id_ends - pos_id - 4)};
+        std::string new_sample = std::string{line_it.substr(pos_samp + 4, pos_samp_ends - pos_samp - 4)};
+        print_log(log_severity::debug, __HERE__, " Added RG: '", new_id, "' => '", new_sample, "'");
+        rg2index[std::move(new_id)] = rg2sample_i.size();
         auto find_it = std::find(samples.begin(), samples.end(), new_sample);
 
         // check if this is a new sample
         if (find_it == samples.end())
         {
           rg2sample_i.push_back(samples.size());
-          samples.push_back(new_sample);
+          samples.push_back(std::move(new_sample));
         }
         else
         {
@@ -109,7 +102,7 @@ HtsReader::open(std::string const & path, std::string const & region, std::strin
 
     if (!hts_index)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Failed to load index at '" << path << "'";
+      print_log(log_severity::error, __HERE__, " Failed to load index at '", path, "'");
       std::exit(1);
     }
 
@@ -117,7 +110,7 @@ HtsReader::open(std::string const & path, std::string const & region, std::strin
 
     if (!hts_iter)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Failed to query region '" << region << "'";
+      print_log(log_severity::error, __HERE__, " Failed to query region '", region, "'");
       std::exit(1);
     }
 
@@ -125,9 +118,7 @@ HtsReader::open(std::string const & path, std::string const & region, std::strin
   }
 }
 
-
-void
-HtsReader::close()
+void HtsReader::close()
 {
   if (hts_index)
   {
@@ -148,9 +139,7 @@ HtsReader::close()
   }
 }
 
-
-void
-HtsReader::set_reference(std::string const & reference_path)
+void HtsReader::set_reference(std::string const & reference_path)
 {
   if ((reference_path.size() == 0) || (reference_path.size() == 1 && reference_path[0] == '.'))
     return;
@@ -159,28 +148,22 @@ HtsReader::set_reference(std::string const & reference_path)
 
   if (ret2 != 0)
   {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << " Could not open reference FASTA file with filename " << reference_path;
+    print_log(log_severity::error, __HERE__, " Could not open reference FASTA file with filename ", reference_path);
     std::exit(1);
   }
 }
 
-
-void
-HtsReader::set_sample_index_offset(int const new_sample_index_offset)
+void HtsReader::set_sample_index_offset(int const new_sample_index_offset)
 {
   sample_index_offset = new_sample_index_offset;
 }
 
-
-void
-HtsReader::set_rg_index_offset(int new_rg_index_offset)
+void HtsReader::set_rg_index_offset(int new_rg_index_offset)
 {
   rg_index_offset = new_rg_index_offset;
 }
 
-
-bam1_t *
-HtsReader::get_next_read_in_order(bam1_t * old_record)
+bam1_t * HtsReader::get_next_read_in_order(bam1_t * old_record)
 {
   assert(old_record);
 
@@ -189,7 +172,7 @@ HtsReader::get_next_read_in_order(bam1_t * old_record)
   {
     bam1_t * record = *(records.end() - 1);
     records.pop_back();
-    store.push(old_record);   // We do not need this memory now
+    store.push(old_record); // We do not need this memory now
     return record;
   }
 
@@ -198,7 +181,7 @@ HtsReader::get_next_read_in_order(bam1_t * old_record)
   {
     if (ret < -1)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " htslib failed BAM/CRAM reading and returned " << ret;
+      print_log(log_severity::error, __HERE__, " htslib failed BAM/CRAM reading of ", filename, " and returned ", ret);
       std::exit(1);
     }
 
@@ -251,9 +234,7 @@ HtsReader::get_next_read_in_order(bam1_t * old_record)
   return record;
 }
 
-
-bam1_t *
-HtsReader::get_next_read_in_order()
+bam1_t * HtsReader::get_next_read_in_order()
 {
   // If we have some records ready in the vector, return those first
   if (records.size() > 0)
@@ -268,7 +249,7 @@ HtsReader::get_next_read_in_order()
   {
     if (ret < -1)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " htslib failed BAM/CRAM reading and returned " << ret;
+      print_log(log_severity::error, __HERE__, " htslib failed BAM/CRAM reading of ", filename, " and returned ", ret);
       std::exit(1);
     }
 
@@ -321,15 +302,13 @@ HtsReader::get_next_read_in_order()
   return record;
 }
 
-
-bam1_t *
-HtsReader::get_next_read()
+bam1_t * HtsReader::get_next_read()
 {
   if (ret < 0)
   {
     if (ret < -1)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " htslib failed BAM/CRAM reading and returned " << ret;
+      print_log(log_severity::error, __HERE__, " htslib failed BAM/CRAM reading of ", filename, " and returned ", ret);
       std::exit(1);
     }
 
@@ -346,9 +325,7 @@ HtsReader::get_next_read()
   return record;
 }
 
-
-bam1_t *
-HtsReader::get_next_read(bam1_t * old_record)
+bam1_t * HtsReader::get_next_read(bam1_t * old_record)
 {
   assert(old_record);
 
@@ -356,7 +333,7 @@ HtsReader::get_next_read(bam1_t * old_record)
   {
     if (ret < -1)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " htslib failed BAM/CRAM reading and returned " << ret;
+      print_log(log_severity::error, __HERE__, " htslib failed BAM/CRAM reading of ", filename, " and returned ", ret);
       std::exit(1);
     }
 
@@ -374,11 +351,9 @@ HtsReader::get_next_read(bam1_t * old_record)
   return record;
 }
 
-
-void
-HtsReader::get_sample_and_rg_index(long & sample_i, long & rg_i, bam1_t * rec) const
+void HtsReader::get_sample_and_rg_index(long & sample_i, long & rg_i, bam1_t * rec) const
 {
-  //assert(rg2index.size() > 0);
+  // assert(rg2index.size() > 0);
 
   if (rg2sample_i.size() <= 1)
   {
@@ -392,7 +367,7 @@ HtsReader::get_sample_and_rg_index(long & sample_i, long & rg_i, bam1_t * rec) c
 
     if (!rg_tag)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Unable to find RG tag in read.";
+      print_log(log_severity::error, __HERE__, " Unable to find RG tag in read in file ", filename);
       std::exit(1);
     }
 
@@ -401,7 +376,7 @@ HtsReader::get_sample_and_rg_index(long & sample_i, long & rg_i, bam1_t * rec) c
 
     if (find_rg_it == rg2index.end())
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Unable to find read group. " << read_group;
+      print_log(log_severity::error, __HERE__, " Unable to find read group ", read_group, " in ", filename);
       std::exit(1);
     }
 
@@ -411,13 +386,10 @@ HtsReader::get_sample_and_rg_index(long & sample_i, long & rg_i, bam1_t * rec) c
   }
 }
 
-
-long
-HtsReader::get_num_rg() const
+long HtsReader::get_num_rg() const
 {
   assert(rg2index.size() == rg2sample_i.size());
   return std::max(1l, static_cast<long>(rg2sample_i.size()));
 }
-
 
 } // namespace gyper

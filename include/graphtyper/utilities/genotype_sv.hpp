@@ -5,10 +5,8 @@
 
 #include <graphtyper/graph/genomic_region.hpp>
 
-
 namespace gyper
 {
-
 /*
 void
 genotype_sv(std::string const & interval_fn,
@@ -19,13 +17,12 @@ genotype_sv(std::string const & interval_fn,
             std::string const & output_path);
 */
 
-void
-genotype_sv_regions(std::string ref_path,
-                    std::string const & sv_vcf,
-                    std::vector<std::string> const & sams,
-                    std::vector<double> const & avg_cov_by_readlen,
-                    std::vector<GenomicRegion> const & regions,
-                    std::string const & output_path,
-                    bool const is_copy_reference);
+void genotype_sv_regions(std::string ref_path,
+                         std::string const & sv_vcf,
+                         std::vector<std::string> const & sams,
+                         std::vector<double> const & avg_cov_by_readlen,
+                         std::vector<GenomicRegion> const & regions,
+                         std::string const & output_path,
+                         bool const is_copy_reference);
 
 } // namespace gyper

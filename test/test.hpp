@@ -1,18 +1,19 @@
-namespace gyper
+#pragma once
+
+#include <iostream>
+
+#include <graphtyper/utilities/logging.hpp>
+
+inline void setup_logging()
 {
+  if (gyper::log_singleton == nullptr)
+    gyper::log_singleton =
+      std::unique_ptr<gyper::log_singleton_t>{new gyper::log_singleton_t{gyper::log_severity::debug, std::clog}};
+}
 
-class Logger
+// this is a global variable during whose initialisation the log_singleton is also initialised
+inline int IGNOREME = []()
 {
-//public:
-//  static Options * instance(); // Gets the only instance (singleton pattern)
-//  static const Options * const_instance(); // const version of instance()
-
-private:
-  Logger(); // Prevent construction of new instances
-  Logger(Logger const &); // Prevent copy-construction
-  Logger & operator=(Logger const &); // Prevent copy-assignment
-
-  static Logger * _instance;
-};
-
-} // namespace gyper
+  setup_logging();
+  return 0;
+}();

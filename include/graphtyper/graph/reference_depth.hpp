@@ -5,13 +5,10 @@
 
 #include <graphtyper/graph/graph.hpp>
 
-
 namespace gyper
 {
-
 class GenotypePaths;
 class VariantCandidate;
-
 
 class ReferenceDepth
 {
@@ -19,7 +16,7 @@ public:
   ReferenceDepth();
 
   uint32_t reference_offset = 0;
-  std::vector<std::vector<uint16_t> > depths{};
+  std::vector<std::vector<uint16_t>> depths{};
 
   /***************
    * INFORMATION *
@@ -35,8 +32,7 @@ public:
   uint16_t get_read_depth(VariantCandidate const & var, long sample_index) const;
   uint16_t get_read_depth(uint32_t abs_pos, long sample_index) const;
   uint64_t get_total_read_depth_of_samples(VariantCandidate const & var,
-                                           std::vector<uint32_t> const & sample_indexes
-                                           ) const;
+                                           std::vector<uint32_t> const & sample_indexes) const;
 
   /****************
    * MODIFICATION *

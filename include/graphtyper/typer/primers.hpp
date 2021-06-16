@@ -7,10 +7,8 @@
 
 #include <graphtyper/graph/genomic_region.hpp>
 
-
 namespace gyper
 {
-
 class GenotypePaths;
 class Graph;
 
@@ -30,7 +28,6 @@ public:
   // Read the primer BEDPE
   void read(std::string const & primer_bedpe);
   void reset_var_orders_to_check(Graph const & graph);
-
 
   //* const */
   void check(GenotypePaths & genos) const;

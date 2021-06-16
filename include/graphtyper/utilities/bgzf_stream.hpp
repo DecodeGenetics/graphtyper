@@ -5,16 +5,15 @@
 #include <iostream> // std::cout
 #include <memory>
 #include <sstream> // std::stringstream
-#include <string> // std::string
+#include <string>  // std::string
+
+#include <graphtyper/constants.hpp>
 
 #define INCLUDE_SEQAN_STREAM_IOSTREAM_BGZF_H_
 #include "bgzf.h" // part of htslib
 
-
 namespace gyper
 {
-
-
 class BGZF_stream
 {
 private:
@@ -40,48 +39,48 @@ public:
   bool is_open() const;
   void close(); // Close BGZF file
 
-  long MAX_CACHE_SIZE{1000000ll};
+  std::string filename{};
+  std::string filemode{};
+  long n_threads{1};
+  long static constexpr MAX_CACHE_SIZE{50000ll};
 };
 
-
 template <class T>
-inline
-BGZF_stream &
-BGZF_stream::operator<<(T const & x)
+inline BGZF_stream & BGZF_stream::operator<<(T const & x)
 {
   // Add to stringstream
   ss << x;
   return *this;
 }
 
-
-inline
-void
-BGZF_stream::check_cache()
+inline void BGZF_stream::check_cache()
 {
-  if (static_cast<long>(ss.tellp()) > this->MAX_CACHE_SIZE)
+  if (static_cast<long>(ss.tellp()) > MAX_CACHE_SIZE)
     flush();
 }
 
-
-inline
-void
-BGZF_stream::flush()
+inline void BGZF_stream::flush()
 {
   // Write stringstream to BGZF file
-  if (!fp)
+  if (fp == nullptr)
   {
     std::cout << ss.str(); // Write uncompressed to stdout
   }
   else
   {
     std::string str = ss.str();
-    int ret = bgzf_write(fp, str.data(), str.size());
+    int written_length = bgzf_write(fp, str.data(), str.size());
 
-    if (ret < 0)
+    if (written_length < 0)
     {
-      std::cerr << "[bgzf_stream] ERROR: Writing to BGZF file failed. No free space on device?" << std::endl;
+      std::cerr << "[bgzf_stream] ERROR: Writing to BGZF file failed. "
+                << "Exit code: " << written_length << " . No space left on device?" << std::endl;
       std::exit(1);
+    }
+    else if (written_length != static_cast<long>(str.size()))
+    {
+      std::cerr << "[bgzf] WARNING: Mismatch between size written and expected: " << written_length
+                << " != " << str.size();
     }
   }
 
@@ -90,82 +89,100 @@ BGZF_stream::flush()
   ss.clear();
 }
 
-
-inline
-int
-BGZF_stream::write(void const * data, std::size_t length)
+inline int BGZF_stream::write(void const * data, std::size_t length)
 {
-  if (!fp)
+  if (fp == nullptr)
   {
     std::cout << std::string(reinterpret_cast<const char *>(data), length);
     return length;
   }
-  else
+
+  int const written_length = bgzf_write(fp, data, length);
+
+  if (written_length < 0)
   {
-    return bgzf_write(fp, data, length);
+    std::cerr << "[bgzf_stream] ERROR: Writing to BGZF file failed. "
+              << "Exit code: " << written_length << " . No space left on device?" << std::endl;
+    std::exit(1);
   }
+  else if (written_length != static_cast<long>(length))
+  {
+    std::cerr << "[bgzf] WARNING: Mismatch between size written and expected: " << written_length << " != " << length;
+  }
+
+  return written_length != static_cast<long>(length);
 }
 
-
-inline
-int
-BGZF_stream::write(std::string const & str)
+inline int BGZF_stream::write(std::string const & str)
 {
-  if (!fp)
+  if (fp == nullptr)
   {
     std::cout << str;
     return str.size();
   }
-  else
+
+  std::size_t const length = str.size();
+  int const written_length = bgzf_write(fp, str.data(), length);
+
+  if (written_length < 0)
   {
-    return bgzf_write(fp, str.data(), str.size());
+    std::cerr << "[bgzf_stream] ERROR: Writing to BGZF file failed. "
+              << "Exit code: " << written_length << " . No space left on device?" << std::endl;
+    std::exit(1);
   }
+  else if (written_length != static_cast<long>(length))
+  {
+    std::cerr << "[bgzf] WARNING: Mismatch between size written and expected: " << written_length << " != " << length;
+  }
+
+  return written_length != static_cast<long>(length);
 }
 
-
-inline
-void
-BGZF_stream::open(std::string const & filename, std::string const & filemode, long const n_threads)
+inline void BGZF_stream::open(std::string const & _filename, std::string const & _filemode, long const _n_threads)
 {
-  if (fp)
+  if (fp != nullptr)
     close();
 
-  if (filename.size() > 0 && filename != "-")
+  if (_filename.size() > 0 && _filename != "-")
   {
-    fp = bgzf_open(filename.c_str(), filemode.c_str());
+    fp = bgzf_open(_filename.c_str(), _filemode.c_str());
 
-    if (n_threads > 1)
-      bgzf_mt(fp, n_threads, 256);
+    if (_n_threads > 1)
+      bgzf_mt(fp, _n_threads, 256);
   }
+
+  // Options are stored for uncompressed sample names writing
+  this->filename = _filename;
+  this->filemode = _filemode;
+  this->n_threads = _n_threads;
 }
 
-
-inline bool
-BGZF_stream::is_open() const
+inline bool BGZF_stream::is_open() const
 {
-  return fp;
+  return fp != nullptr;
 }
 
-
-inline
-void
-BGZF_stream::close()
+inline void BGZF_stream::close()
 {
   flush();
 
-  if (fp)
+  if (fp != nullptr)
   {
-    bgzf_close(fp);
+    int ret = bgzf_close(fp);
+
+    if (ret != 0)
+    {
+      std::cerr << " " << __HERE__ << "[bgzf_stream] ERROR: Failed closing bgzf file " << filename << "\n";
+      std::exit(1);
+    }
+
     fp = nullptr;
   }
 }
 
-
-inline
-BGZF_stream::~BGZF_stream()
+inline BGZF_stream::~BGZF_stream()
 {
   close();
 }
-
 
 } // namespace gyper

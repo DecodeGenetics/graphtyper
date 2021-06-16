@@ -1,20 +1,18 @@
 #include <string>
 #include <vector>
 
-#include <catch.hpp>
-
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
+#include <cereal/archives/binary.hpp>
 
 #include <graphtyper/graph/graph.hpp>
+#include <graphtyper/utilities/logging.hpp>
 #include <graphtyper/utilities/system.hpp>
 
+#include <catch.hpp>
 
-inline void
-create_test_graph(std::string const & fasta,
-                  std::string const & vcf,
-                  std::string const & region,
-                  bool const use_absolute_positions = true)
+inline void create_test_graph(std::string const & fasta,
+                              std::string const & vcf,
+                              std::string const & region,
+                              bool const use_absolute_positions = true)
 {
   gyper::GenomicRegion const genomic_region(region);
   std::stringstream vcf_path;
@@ -22,8 +20,14 @@ create_test_graph(std::string const & fasta,
   std::stringstream reference_path;
   reference_path << gyper_SOURCE_DIRECTORY << fasta;
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Creating a graph for " << reference_path.str() << " "
-                           << vcf_path.str() << " at region " << region;
+  gyper::print_log(gyper::log_severity::debug,
+                   __HERE__,
+                   " Creating a graph for ",
+                   reference_path.str(),
+                   " ",
+                   vcf_path.str(),
+                   " at region ",
+                   region);
 
   gyper::construct_graph(reference_path.str(), vcf_path.str(), region, use_absolute_positions);
   std::stringstream graph_path;
@@ -42,7 +46,7 @@ create_test_graph(std::string const & fasta,
   {
     std::ofstream ofs(graph_path.str().c_str(), std::ios::binary);
     REQUIRE(ofs.is_open());
-    boost::archive::binary_oarchive oa(ofs);
+    cereal::BinaryOutputArchive oa(ofs);
     oa << gyper::graph;
   }
 
@@ -51,7 +55,7 @@ create_test_graph(std::string const & fasta,
     gyper::Graph new_graph;
     std::ifstream ifs(graph_path.str().c_str(), std::ios::binary);
     REQUIRE(ifs.is_open());
-    boost::archive::binary_iarchive ia(ifs);
+    cereal::BinaryInputArchive ia(ifs);
     ia >> new_graph;
 
     REQUIRE(new_graph.size() == gyper::graph.size());

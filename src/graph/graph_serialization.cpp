@@ -1,37 +1,30 @@
 #include <fstream>
 #include <string>
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
-#include <boost/log/trivial.hpp>
+#include <cereal/archives/binary.hpp>
 
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/graph_serialization.hpp>
-
+#include <graphtyper/utilities/logging.hpp>
 
 namespace gyper
 {
-
-void
-save_graph(std::string const & graph_path)
+void save_graph(std::string const & graph_path)
 {
   std::ofstream ofs(graph_path.c_str(), std::ios::binary);
 
   if (!ofs.is_open())
   {
-    BOOST_LOG_TRIVIAL(fatal) << "[graphtyper::constructor] Could not save graph at '" <<
-      graph_path << "'";
+    print_log(log_severity::error, "[graphtyper::constructor] Could not save graph at '", graph_path, "'");
     std::exit(1);
   }
 
-  boost::archive::binary_oarchive oa(ofs);
+  cereal::BinaryOutputArchive oa(ofs);
   oa << graph;
 }
 
-
-void
-load_graph(std::string const & graph_path)
+void load_graph(std::string const & graph_path)
 {
   gyper::graph.clear();
   gyper::graph = Graph();
@@ -39,12 +32,11 @@ load_graph(std::string const & graph_path)
 
   if (!ifs.is_open())
   {
-    BOOST_LOG_TRIVIAL(fatal) << "[graphtyper::constructor] Could not load graph at '" <<
-      graph_path << "'";
+    print_log(log_severity::error, "[graphtyper::constructor] Could not load graph at '", graph_path, "'");
     std::exit(1);
   }
 
-  boost::archive::binary_iarchive ia(ifs);
+  cereal::BinaryInputArchive ia(ifs);
   ia >> graph;
   assert(graph.size() > 0u);
 
@@ -53,21 +45,18 @@ load_graph(std::string const & graph_path)
   absolute_pos.calculate_offsets(graph.contigs);
 }
 
-
-Graph
-load_secondary_graph(std::string const & graph_path)
+Graph load_secondary_graph(std::string const & graph_path)
 {
   Graph second_graph = Graph();
   std::ifstream ifs(graph_path.c_str(), std::ios::binary);
 
   if (!ifs.is_open())
   {
-    BOOST_LOG_TRIVIAL(fatal) << "[graphtyper::constructor] Could not load graph at '" <<
-      graph_path << "'";
+    print_log(log_severity::error, "[graphtyper::constructor] Could not load graph at '", graph_path, "'");
     std::exit(1);
   }
 
-  boost::archive::binary_iarchive ia(ifs);
+  cereal::BinaryInputArchive ia(ifs);
   ia >> second_graph;
   assert(second_graph.size() > 0u);
 
@@ -76,6 +65,5 @@ load_secondary_graph(std::string const & graph_path)
 
   return second_graph;
 }
-
 
 } // namespace gyper

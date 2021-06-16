@@ -1,17 +1,15 @@
 #pragma once
 
 #include <string>
+
 #include <htslib/sam.h>
 
 namespace gyper
 {
-
 class HtsParallelReader;
-
 
 class HtsWriter
 {
-
 private:
   htsFile * fp = nullptr; // htslib file pointer
 
@@ -29,7 +27,6 @@ public:
 
   // write a hts record
   void write(bam1_t * hts_rec);
-
 };
 
 } // namespace gyper

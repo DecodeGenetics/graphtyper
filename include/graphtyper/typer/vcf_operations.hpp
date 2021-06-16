@@ -3,14 +3,11 @@
 #include <string>
 #include <vector>
 
-
 namespace gyper
 {
-
 class Vcf;
 
-void
-vcf_merge_and_return(gyper::Vcf & vcf, std::vector<std::string> & vcfs, std::string const & output);
+void vcf_merge_and_return(gyper::Vcf & vcf, std::vector<std::string> & vcfs, std::string const & output);
 
 void vcf_merge(std::vector<std::string> & vcfs, std::string const & output);
 
@@ -23,11 +20,10 @@ void vcf_concatenate(std::vector<std::string> const & vcfs,
 
 void vcf_break_down(std::string const & vcf, std::string const & output, std::string const & region);
 
-void
-vcf_merge_and_filter(std::vector<std::string> const & vcfs,
-                     std::string const & output,
-                     std::map<std::pair<uint16_t, uint16_t>,
-                              std::map<std::pair<uint16_t, uint16_t>, int8_t> > const & ph);
+void vcf_merge_and_filter(
+  std::vector<std::string> const & vcfs,
+  std::string const & output,
+  std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t>> const & ph);
 
 void vcf_merge_and_break(std::vector<std::string> const & vcfs,
                          std::string const & output,

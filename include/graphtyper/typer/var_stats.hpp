@@ -1,18 +1,17 @@
 #pragma once
 
 #include <cstdint> // intX_t, uintX_t
-#include <map> // std::map
-#include <string> // std::string
-#include <vector> // std::vector
+#include <map>     // std::map
+#include <string>  // std::string
+#include <vector>  // std::vector
 
-#include <boost/serialization/access.hpp>
-#include <boost/serialization/utility.hpp>
+#include <cereal/access.hpp>
+#include <cereal/types/utility.hpp>
 
 #include <graphtyper/graph/read_strand.hpp>
 
 namespace gyper
 {
-
 struct VarStatsPerAllele
 {
   uint64_t clipped_bp{0u};
@@ -29,10 +28,8 @@ struct VarStatsPerAllele
   std::pair<uint32_t, uint32_t> het_multi_allele_depth{0u, 0u};
   std::pair<uint32_t, uint32_t> hom_multi_allele_depth{0u, 0u};
 
-
   template <class Archive>
-  void
-  serialize(Archive & ar, unsigned int /*version*/)
+  void serialize(Archive & ar, unsigned int /*version*/)
   {
     ar & clipped_bp;
     ar & mapq_squared;
@@ -48,14 +45,11 @@ struct VarStatsPerAllele
     ar & het_multi_allele_depth;
     ar & hom_multi_allele_depth;
   }
-
-
 };
-
 
 class VarStats
 {
-  friend class boost::serialization::access;
+  friend class cereal::access;
 
 public:
   /** Stats per allele (excluding ReadStrand) */
@@ -81,7 +75,8 @@ public:
   uint64_t seqdepth{0};
 
   std::pair<uint32_t, uint32_t> het_allele_depth = {0ul, 0ul}; // First is the first call, second is the second call
-  std::pair<uint32_t, uint32_t> hom_allele_depth = {0ul, 0ul}; // First is the called allele, second is not the called one
+  std::pair<uint32_t, uint32_t> hom_allele_depth = {0ul,
+                                                    0ul}; // First is the called allele, second is not the called one
 
   /**
    * CONSTRUCTORS

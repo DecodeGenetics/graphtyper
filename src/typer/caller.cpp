@@ -1,22 +1,20 @@
-#include <cassert> // assert
-#include <limits> // std::numeric_limits<T>
-#include <memory> // std::unique_ptr
-#include <sstream> // std::ostringstream
-#include <string> // std::string
+#include <cassert>       // assert
+#include <limits>        // std::numeric_limits<T>
+#include <memory>        // std::unique_ptr
+#include <sstream>       // std::ostringstream
+#include <string>        // std::string
 #include <unordered_map> // std::unordered_map
-#include <vector> // std::vector
+#include <vector>        // std::vector
+
+#include <parallel_hashmap/phmap.h>
 
 #include <paw/align.hpp>
 #include <paw/station.hpp>
 
 #include <seqan/basic.h>
-#include <seqan/sequence.h>
-#include <seqan/seq_io.h>
 #include <seqan/hts_io.h>
-
-#include <boost/log/trivial.hpp> // BOOST_LOG_TRIVIAL
-
-#include <parallel_hashmap/phmap.h>
+#include <seqan/seq_io.h>
+#include <seqan/sequence.h>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/absolute_position.hpp> // gyper::absolute_pos
@@ -37,216 +35,47 @@
 #include <graphtyper/typer/variant_map.hpp>
 #include <graphtyper/typer/vcf.hpp>
 #include <graphtyper/utilities/hts_parallel_reader.hpp> // gyper::HtsParallelReader
-#include <graphtyper/utilities/hts_reader.hpp> // gyper::HtsReader
+#include <graphtyper/utilities/hts_reader.hpp>          // gyper::HtsReader
 #include <graphtyper/utilities/io.hpp>
+#include <graphtyper/utilities/logging.hpp> // BOOST_LOG_TRIVIAL
 #include <graphtyper/utilities/options.hpp> // gyper::Options
-
 
 namespace
 {
-
 #ifndef NDEBUG
 std::string const debug_read_name = "HISEQ1:33:H9YY4ADXX:1:2110:2792:58362/2";
-long debug_event_pos{15001};
-char debug_event_type{'X'};
-std::size_t debug_event_size{1};
+long debug_event_pos{50812009};
+char debug_event_type{'I'};
+std::size_t debug_event_size{19};
 #endif // NDEBUG
 
-
-#ifndef NDEBUG
-bool
-check_haplotypes(std::map<gyper::Event, std::map<gyper::Event, int8_t> > const & haplotypes)
+void merge_haplotypes2(std::map<gyper::Event, phmap::flat_hash_set<gyper::Event, gyper::EventHash>> & into,
+                       std::map<gyper::Event, phmap::flat_hash_set<gyper::Event, gyper::EventHash>> & from)
 {
-  bool is_ok{true};
-
-  for (auto event_it = haplotypes.begin(); event_it != haplotypes.end(); ++event_it)
+  if (into.size() == 0)
   {
-    gyper::Event const & event = event_it->first;
-    auto const & other_haps = event_it->second;
-    long count{0};
-
-    for (auto event_it2 = std::next(event_it);
-         event_it2 != haplotypes.end() && event_it2->first.pos < (event.pos + 100l);
-         ++event_it2, ++count)
-    {
-      gyper::Event const & other_event = event_it2->first;
-
-      if (other_haps.count(other_event) == 0)
-      {
-        BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Missing event link "
-                                   << event.to_string() << " "
-                                   << other_event.to_string();
-        is_ok = false;
-      }
-    }
-
-    if (count != static_cast<long>(other_haps.size()))
-    {
-      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " count mismatch " << count << " != " << other_haps.size();
-      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " " << event.to_string();
-
-      for (auto event_it2 = std::next(event_it);
-           event_it2 != haplotypes.end() && event_it2->first.pos < (event.pos + 100l);
-           ++event_it2)
-      {
-        gyper::Event const & other_event = event_it2->first;
-        BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << other_event.to_string();
-      }
-
-      for (auto const & o : other_haps)
-      {
-        BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << o.first.to_string() << " "
-                                << static_cast<long>(o.second);
-      }
-
-      is_ok = false;
-    }
+    into = std::move(from);
   }
-
-  return is_ok;
-}
-
-
-#endif // NDEBUG
-
-
-void
-merge_haplotypes(std::map<gyper::Event, std::map<gyper::Event, int8_t> > & into,
-                 std::map<gyper::Event, std::map<gyper::Event, int8_t> > & from)
-{
-  using namespace gyper;
-
-  // go through into and find variants not in from, and add anti hap support accordingly
-  for (auto it = into.begin(); it != into.end(); ++it)
+  else
   {
-    Event const & event_into = it->first;
-    std::map<gyper::Event, int8_t> & haplotype_into = it->second;
-
-    auto find_it = from.find(event_into);
-
-    if (find_it == from.end())
+    for (auto from_it = from.begin(); from_it != from.end(); ++from_it)
     {
-      // BOOST_LOG_TRIVIAL(info) << __HERE__ << " Did not find " << event_into.to_string();
+      auto insert_p = into.insert(*from_it);
 
-      for (auto & into2 : haplotype_into)
+      if (!insert_p.second)
       {
-        find_it = from.find(into2.first);
-
-        if (find_it != from.end())
-        {
-          into2.second |= gyper::IS_ANY_ANTI_HAP_SUPPORT;
-        } // else do nothing, the variant is phase completely irrelevant to "from"
-      }
-    }
-    else
-    {
-      // found
-      for (auto & into2 : haplotype_into)
-      {
-        auto find_it2 = haplotype_into.find(into2.first);
-
-        if (find_it2 != haplotype_into.end())
-        {
-          // found
-          into2.second |= find_it2->second;
-        }
-        else
-        {
-          into2.second |= gyper::IS_ANY_ANTI_HAP_SUPPORT;
-        }
+        std::move(from_it->second.begin(),
+                  from_it->second.end(),
+                  std::inserter(insert_p.first->second, insert_p.first->second.begin()));
       }
     }
   }
 
-  for (auto it = from.begin(); it != from.end(); ++it)
-  {
-    //Event const & first_from_event = it->first;
-    auto insert_it = into.insert(*it);
-    bool const is_inserted = insert_it.second;
-
-    if (is_inserted)
-    {
-      //BOOST_LOG_TRIVIAL(info) << __HERE__ << " new event I hadnt seen before: " << it->first.to_string();
-      // add anti-support for the event in previous events
-      Event const & inserted_event = insert_it.first->first;
-      std::map<Event, std::map<Event, int8_t> >::iterator prev_it(insert_it.first);
-
-      // Go back to previous events and make sure they have this event
-      while (prev_it != into.begin())
-      {
-        --prev_it;
-
-        if ((prev_it->first.pos + 100l) <= inserted_event.pos)
-          break;
-
-        // insert it if it isn't already there
-        if (prev_it->second.count(inserted_event) == 0)
-          prev_it->second[inserted_event] = gyper::IS_ANY_ANTI_HAP_SUPPORT;
-      }
-
-      // also, go forward and add anti support to all (nearby) events that this one is missing
-      for (auto forw_it = std::next(insert_it.first);
-           forw_it != into.end() && forw_it->first.pos < (inserted_event.pos + 100l);
-           ++forw_it)
-      {
-        Event const & next_event = forw_it->first;
-        std::map<Event, int8_t> & inserted_hap = insert_it.first->second;
-
-        // insert it if it isn't already there
-        if (inserted_hap.count(next_event) == 0)
-          inserted_hap[next_event] = gyper::IS_ANY_ANTI_HAP_SUPPORT;
-      }
-    }
-    else
-    {
-      // We have seen this variant before
-      std::map<Event, int8_t> & into_haplotypes = insert_it.first->second;
-      std::map<Event, int8_t> const & from_haplotypes = it->second;
-
-      // Add anti hap support to any variants not found in "from"
-      for (auto into_hap_it = into_haplotypes.begin();
-           into_hap_it != into_haplotypes.end();
-           ++into_hap_it)
-      {
-        Event const & into_next_event = into_hap_it->first;
-        int8_t & flags = into_hap_it->second;
-
-        auto find_it = from_haplotypes.find(into_next_event);
-
-        if (find_it == from_haplotypes.end())
-          flags |= IS_ANY_ANTI_HAP_SUPPORT;
-        else
-          flags |= find_it->second;
-      }
-
-      for (auto from_hap_it = from_haplotypes.begin(); from_hap_it != from_haplotypes.end(); ++from_hap_it)
-      {
-        Event const & second_from_event = from_hap_it->first;
-        auto find_snp_hap_it = into_haplotypes.find(second_from_event);
-
-        if (find_snp_hap_it != into_haplotypes.end())
-        {
-          find_snp_hap_it->second |= from_hap_it->second; // Found
-        }
-        else
-        {
-          //// Not found
-          // this means we saw the first event in a previous pool but not the second event,
-          // therefore it is safe to say they are not on the same haplotype from that previous pool
-          std::pair<Event, int8_t> new_value = *from_hap_it;
-          new_value.second |= gyper::IS_ANY_ANTI_HAP_SUPPORT;
-          into_haplotypes.insert(std::move(new_value));
-        }
-      }
-    }
-  }
-
+  // Clear memory asap
   from.clear();
 }
 
-
-bool
-is_clipped(bam1_t const & b, uint32_t const min_count = 1)
+bool is_clipped(bam1_t const & b, uint32_t const min_count = 1)
 {
   if (b.core.n_cigar == 0)
     return false;
@@ -260,7 +89,6 @@ is_clipped(bam1_t const & b, uint32_t const min_count = 1)
 
   if ((opAndCnt & 15) == 4 && cigar_count >= min_count)
   {
-
     return true;
   }
 
@@ -270,31 +98,26 @@ is_clipped(bam1_t const & b, uint32_t const min_count = 1)
 
   if ((opAndCnt & 15) == 4 && cigar_count >= min_count)
   {
-    //std::cerr << "MIDNSHP=X*******"[opAndCnt & 15] << " last ";
+    // std::cerr << "MIDNSHP=X*******"[opAndCnt & 15] << " last ";
     return true;
   }
 
   return false;
 }
 
-
-void
-_determine_num_jobs_and_num_parts(long & jobs,
-                                  long & num_parts,
-                                  long const NUM_SAMPLES)
+void _determine_num_jobs_and_num_parts(long const & jobs, long & num_parts, long const NUM_SAMPLES)
 {
   using namespace gyper;
 
   gyper::Options const & copts = *(Options::const_instance());
-  jobs = copts.threads;
   num_parts = jobs;
   long const MAX_FILES_OPEN = copts.max_files_open > jobs ? copts.max_files_open : jobs;
 
   if (jobs >= NUM_SAMPLES)
   {
-    // Special case where there are more threads than samples OR more threads than max files open. POOL_SIZE is 1
+    // Special case where there are more threads than samples OR more threads than max files open.
+    // In this case, each threads gets 1 sample
     num_parts = std::min(NUM_SAMPLES, MAX_FILES_OPEN);
-    jobs = num_parts;
   }
   else if (NUM_SAMPLES > MAX_FILES_OPEN)
   {
@@ -307,30 +130,27 @@ _determine_num_jobs_and_num_parts(long & jobs,
   // else num_parts and jobs unchanged
 }
 
-
-} // anon namespace
-
+} // namespace
 
 namespace gyper
 {
-
-/*
-std::vector<std::string>
-call_segments(std::vector<std::string> const & hts_paths,
-              std::vector<double> const & avg_cov_by_readlen,
-              std::string const & graph_path,
-              PHIndex const & ph_index,
-              std::string const & output_dir,
-              std::string const & reference_fn,
-              std::string const & region,
-              std::string const & segment)
+std::vector<std::string> call(
+  std::vector<std::string> const & hts_paths,
+  std::vector<double> const & avg_cov_by_readlen,
+  std::string const & graph_path,
+  PHIndex const & ph_index,
+  std::string const & output_dir,
+  std::string const & reference_fn,
+  std::string const & region,
+  Primers const * primers,
+  std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t>> & ph,
+  bool const is_writing_calls_vcf,
+  bool const is_writing_hap,
+  std::vector<std::unordered_map<uint32_t, uint32_t>> * allele_hap_gts_ptr)
 {
-
-  BOOST_LOG_TRIVIAL(info) << __HERE__ << " Start calling segments.";
-
   if (hts_paths.size() == 0)
   {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << " No input BAM/CRAM files.";
+    print_log(log_severity::error, __HERE__, " No input BAM/CRAM files.");
     std::exit(1);
   }
 
@@ -339,174 +159,155 @@ call_segments(std::vector<std::string> const & hts_paths,
     load_graph(graph_path); // Loads the graph into the global variable 'graph'
   }
 
-  // split hts paths
-  std::vector<std::string> paths;
-  std::vector<std::unique_ptr<std::vector<std::string> > > spl_hts_paths;
-  std::vector<std::unique_ptr<std::vector<double> > > spl_avg_cov;
-
-  assert(Options::const_instance()->max_files_open > 0);
-
-  long jobs{1}; // Running jobs
-  long num_parts{1}; // Number of parts to split the work into
-  long const NUM_SAMPLES{static_cast<long>(hts_paths.size())};
-
-  _determine_num_jobs_and_num_parts(jobs, num_parts, NUM_SAMPLES);
-
-  {
-    auto it = hts_paths.begin();
-    auto cov_it = avg_cov_by_readlen.begin();
-
-    for (long i = 0; i < num_parts; ++i)
-    {
-      long const advance = NUM_SAMPLES / num_parts + (i < (NUM_SAMPLES % num_parts));
-
-      auto end_it = it + advance;
-      assert(std::distance(hts_paths.begin(), end_it) <= NUM_SAMPLES);
-      spl_hts_paths.emplace_back(new std::vector<std::string>(it, end_it));
-      it = end_it;
-
-      auto cov_end_it = cov_it + advance;
-      spl_avg_cov.emplace_back(new std::vector<double>(cov_it, cov_end_it));
-      cov_it = cov_end_it;
-    }
-  }
-
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Number of pools = " << spl_hts_paths.size();
-  long const NUM_POOLS = spl_hts_paths.size();
-  paths.resize(NUM_POOLS);
-
-  {
-    paw::Station call_station(jobs); // last parameter is queue_size
-
-    // Push all but the last pool to the thread pool
-    {
-      bool constexpr is_writing_calls_vcf{false};
-      bool constexpr is_writing_hap{false};
-
-      for (long i{0}; i < (NUM_POOLS - 1l); ++i)
-      {
-        call_station.add_work(parallel_reader_genotype_only,
-                              &paths[i],
-                              spl_hts_paths[i].get(),
-                              spl_avg_cov[i].get(),
-                              &output_dir,
-                              &reference_fn,
-                              &region,
-                              &ph_index,
-                              nullptr,
-                              nullptr,
-                              is_writing_calls_vcf,
-                              is_writing_hap);
-      }
-
-      // Do the last pool on the current thread
-      call_station.add_to_thread(jobs - 1,
-                                 parallel_reader_genotype_only,
-                                 &paths[NUM_POOLS - 1],
-                                 spl_hts_paths[NUM_POOLS - 1].get(),
-                                 spl_avg_cov[NUM_POOLS - 1].get(),
-                                 &output_dir,
-                                 &reference_fn,
-                                 &region,
-                                 &ph_index,
-                                 nullptr,
-                                 nullptr,
-                                 is_writing_calls_vcf,
-                                 is_writing_hap);
-    }
-
-    std::string thread_info = call_station.join();
-    BOOST_LOG_TRIVIAL(info) << "Finished calling. Thread work: " << thread_info;
-  }
-
-  //BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Estimating the likelihoods of few different segments.";
-  //
-  //std::ostringstream segment_calls_path;
-  //segment_calls_path << output_dir << "/" << pn << "_segments.vcf.gz";
-  //segment_calling(segment, *writer, segment_calls_path.str(), samples);
-  //
-  //BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Finished calling all samples.";
-  return paths;
-}
-*/
-
-
-std::vector<std::string>
-call(std::vector<std::string> const & hts_paths,
-     std::vector<double> const & avg_cov_by_readlen,
-     std::string const & graph_path,
-     PHIndex const & ph_index,
-     std::string const & output_dir,
-     std::string const & reference_fn,
-     std::string const & region,
-     Primers const * primers,
-     std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t> > & ph,
-     bool const is_writing_calls_vcf,
-     bool const is_writing_hap,
-     std::vector<std::unordered_map<uint32_t, uint32_t> > * allele_hap_gts_ptr)
-{
-  if (hts_paths.size() == 0)
-  {
-    BOOST_LOG_TRIVIAL(error) << __HERE__ << " No input BAM/CRAM files.";
-    std::exit(1);
-  }
-
-  if (graph_path.size() > 0)
-  {
-    load_graph(graph_path); // Loads the graph into the global variable 'graph'
-  }
-
-  using TMap = std::map<std::pair<uint16_t, uint16_t>,
-                        std::map<std::pair<uint16_t, uint16_t>, int8_t> >;
+  using TMap = std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t>>;
 
   // Split hts_paths
   std::vector<std::string> paths;
-  std::vector<std::unique_ptr<std::vector<std::string> > > spl_hts_paths;
-  std::vector<std::unique_ptr<std::vector<double> > > spl_avg_cov;
+  std::vector<std::unique_ptr<std::vector<std::string>>> spl_hts_paths;
+  std::vector<std::unique_ptr<std::vector<double>>> spl_avg_cov;
   std::vector<TMap> spl_ph;
   assert(Options::const_instance()->max_files_open > 0);
 
-  long jobs{1}; // Running jobs
-  long num_parts{1}; // Number of parts to split the work into
+  long jobs{Options::const_instance()->threads}; // Running jobs
+  long num_parts{1};                             // Number of parts to split the work into
   long const NUM_SAMPLES{static_cast<long>(hts_paths.size())};
 
   _determine_num_jobs_and_num_parts(jobs, num_parts, NUM_SAMPLES);
 
-  assert(jobs >= 1);
-  spl_ph.resize(jobs);
+  if (jobs > num_parts)
+    jobs = num_parts;
 
+  assert(jobs >= 1);
+  spl_ph.resize(jobs); // spl_ph per thread
+
+  auto emplace_paths = [&spl_hts_paths, &spl_avg_cov](std::vector<std::string>::const_iterator & hts_paths_it,
+                                                      std::vector<double>::const_iterator & cov_it,
+                                                      long const num_parts,
+                                                      long const num_parts_start,
+                                                      long const num_parts_total,
+                                                      long const num_samples,
+                                                      long const num_splits)
   {
-    auto it = hts_paths.begin();
+    assert(num_parts > 0);
+    assert(num_samples > 0);
+    assert(num_splits > 0);
+
+    for (long i{num_parts_start}; i < (num_parts + num_parts_start); ++i)
+    {
+      long const advance = num_samples / num_parts_total + (i < (num_samples % num_parts_total));
+      assert(advance > 0);
+
+      auto next_it = hts_paths_it;
+      auto cov_next_it = cov_it;
+
+      for (long j{0}; j < num_splits; ++j)
+      {
+        long const split_advance = (advance / num_splits) + (j < (advance % num_splits));
+
+        // ..just in case, no point in having empty work
+        if (split_advance == 0)
+          continue;
+
+        std::advance(next_it, split_advance);
+        std::advance(cov_next_it, split_advance);
+
+        spl_hts_paths.emplace_back(new std::vector<std::string>(hts_paths_it, next_it));
+        hts_paths_it = next_it;
+
+        spl_avg_cov.emplace_back(new std::vector<double>(cov_it, cov_next_it));
+        cov_it = cov_next_it;
+      }
+    }
+  };
+
+  // jobs=4, NUM_SAMPLES=1000, num_parts=4
+  if (jobs <= 2 || NUM_SAMPLES <= 20 || NUM_SAMPLES < (4 * jobs))
+  {
+    // special case where there are 4 or less samples allocated to each thread (or we have few threads..)
+    auto hts_paths_it = hts_paths.begin();
     auto cov_it = avg_cov_by_readlen.begin();
 
-    for (long i = 0; i < num_parts; ++i)
+    emplace_paths(hts_paths_it, cov_it, num_parts, 0, num_parts, NUM_SAMPLES, 1);
+
+    // make sure everything is consumed
+    assert(hts_paths_it == hts_paths.end());
+    assert(cov_it == avg_cov_by_readlen.end());
+  }
+  else if (num_parts < (4 * jobs))
+  {
+    // BOOST_LOG_TRIVIAL(info) << __HERE__ << " Case 2: Some threads get less than 4 \"work packages\""
+    //                        << " and there are more than 4 samples allocated to each thread";
+
+    // Some threads do not get two "work packages" and there are more than 4 samples allocated to each thread
+    long const num_samples_first = NUM_SAMPLES / 2;
+    long current_phase_parts = jobs;
+    assert(jobs > 1);
+    _determine_num_jobs_and_num_parts(jobs - 1, current_phase_parts, num_samples_first); // skip main thread
+
+    auto hts_paths_it = hts_paths.begin();
+    auto cov_it = avg_cov_by_readlen.begin();
+
+    //#ifndef NDEBUG
+    //    BOOST_LOG_TRIVIAL(info) << __HERE__ << " " <<
+    //#endif // NDEBUG
+
+    emplace_paths(hts_paths_it, cov_it, current_phase_parts, 0, current_phase_parts, num_samples_first, 1);
+
+    assert(hts_paths_it == (hts_paths.begin() + num_samples_first));
+    assert(cov_it == (avg_cov_by_readlen.begin() + num_samples_first));
+
+    long const num_samples_second = NUM_SAMPLES / 4;
+
+    if (num_samples_second > 0)
     {
-      long const advance = NUM_SAMPLES / num_parts + (i < (NUM_SAMPLES % num_parts));
+      current_phase_parts = jobs;
+      assert(jobs > 1);
+      _determine_num_jobs_and_num_parts(jobs, current_phase_parts, num_samples_second);
 
-      auto end_it = it + advance;
-      assert(std::distance(hts_paths.begin(), end_it) <= NUM_SAMPLES);
-      spl_hts_paths.emplace_back(new std::vector<std::string>(it, end_it));
-      it = end_it;
+      emplace_paths(hts_paths_it, cov_it, current_phase_parts, 0, current_phase_parts, num_samples_second, 2);
 
-      auto cov_end_it = cov_it + advance;
-      spl_avg_cov.emplace_back(new std::vector<double>(cov_it, cov_end_it));
-      cov_it = cov_end_it;
-
-      //spl_ph.emplace_back(new TMap());
+      assert(hts_paths_it == (hts_paths.begin() + num_samples_first + num_samples_second));
+      assert(cov_it == (avg_cov_by_readlen.begin() + num_samples_first + num_samples_second));
     }
+
+    // long const num_parts_remaining = num_parts - num_parts_three_quarters;
+    long const num_samples_remaining = NUM_SAMPLES - num_samples_first - num_samples_second;
+    assert(num_samples_remaining > 0);
+    _determine_num_jobs_and_num_parts(jobs, current_phase_parts, num_samples_remaining);
+
+    emplace_paths(hts_paths_it, cov_it, current_phase_parts, 0, current_phase_parts, num_samples_remaining, 4);
+
+    // make sure everything is consumed
+    assert(hts_paths_it == hts_paths.end());
+    assert(cov_it == avg_cov_by_readlen.end());
+  }
+  else
+  {
+    // BOOST_LOG_TRIVIAL(info) << __HERE__ << " Case 3: We reduce the size of the last two packages "
+    //                        << "by half when there are threads*2 packages left";
+    // There are more than 4 sample per thread and more jobs than threads
+    // In this case we reduce the size of the last two "work packages" by half when there are threads*2 packages left
+    auto hts_paths_it = hts_paths.begin();
+    auto cov_it = avg_cov_by_readlen.begin();
+    assert(num_parts >= (2 * jobs));
+    long const first_phase_parts = num_parts - 2 * jobs;
+
+    emplace_paths(hts_paths_it, cov_it, first_phase_parts, 0, num_parts, NUM_SAMPLES, 1);
+    emplace_paths(hts_paths_it, cov_it, jobs, first_phase_parts, num_parts, NUM_SAMPLES, 2);
+    emplace_paths(hts_paths_it, cov_it, jobs, first_phase_parts + jobs, num_parts, NUM_SAMPLES, 4);
+
+    // make sure everything is consumed
+    assert(hts_paths_it == hts_paths.end());
+    assert(cov_it == avg_cov_by_readlen.end());
   }
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Number of pools = " << spl_hts_paths.size();
-  //long const NUM_POOLS = spl_hts_paths.size();
-  long const NUM_POOLS = num_parts;
+  print_log(log_severity::debug, __HERE__, " Number of pools = ", spl_hts_paths.size());
+  long const NUM_POOLS = spl_hts_paths.size();
   paths.resize(NUM_POOLS);
 
   // Run in parallel
   {
     paw::Station call_station(jobs); // last parameter is queue_size
-
-    // Push all but the last pool to the thread pool
-    //BOOST_LOG_TRIVIAL(info) << "No variant discovery";
 
     for (long i{0}; i < (NUM_POOLS - 1l); ++i)
     {
@@ -543,7 +344,7 @@ call(std::vector<std::string> const & hts_paths,
                                allele_hap_gts_ptr);
 
     std::string thread_info = call_station.join();
-    BOOST_LOG_TRIVIAL(info) << "Finished calling. Thread work: " << thread_info;
+    print_log(log_severity::info, "Finished calling. Thread work: ", thread_info);
   }
 
   if (is_writing_hap)
@@ -554,8 +355,7 @@ call(std::vector<std::string> const & hts_paths,
     for (long i{1}; i < static_cast<long>(spl_ph.size()); ++i)
     {
       // merge
-      std::map<std::pair<uint16_t, uint16_t>,
-               std::map<std::pair<uint16_t, uint16_t>, int8_t> > & ph_parts = spl_ph[i];
+      std::map<std::pair<uint16_t, uint16_t>, std::map<std::pair<uint16_t, uint16_t>, int8_t>> & ph_parts = spl_ph[i];
 
       for (auto && ph_part : ph_parts)
       {
@@ -566,13 +366,10 @@ call(std::vector<std::string> const & hts_paths,
 
         if (insert1_it.second)
         {
-          continue;   // not found
+          continue; // not found
         }
 #ifndef NDEBUG
-        else
-        {
-          assert(ph_part.second.size() == old_size);
-        }
+        assert(ph_part.second.size() == old_size);
 #endif // NDEBUG
 
         std::map<std::pair<uint16_t, uint16_t>, int8_t> & ph2_map = ph_part.second;
@@ -584,7 +381,7 @@ call(std::vector<std::string> const & hts_paths,
           auto insert2_it = insert1_it.first->second.insert(ph2);
 
           if (insert2_it.second)
-            continue;   // not found
+            continue; // not found
 
           int8_t & flags = insert2_it.first->second;
           flags |= new_flags;
@@ -595,27 +392,24 @@ call(std::vector<std::string> const & hts_paths,
     }
   }
 
-  BOOST_LOG_TRIVIAL(info) << "Finished a calling pass for all samples.";
+  // BOOST_LOG_TRIVIAL(info) << "Finished a calling pass for all samples.";
   return paths;
 }
 
-
-void
-run_first_pass(bam1_t * hts_rec,
-               HtsReader & hts_reader,
-               long file_i,
-               bool const is_first_in_pool,
-               std::vector<BucketFirstPass> & buckets,
-               std::map<Event, std::map<Event, int8_t> > & pool_haplotypes,
-               long const BUCKET_SIZE,
-               long const region_begin,
-               std::vector<char> const & reference_sequence)
+void run_first_pass(bam1_t * hts_rec,
+                    HtsReader & hts_reader,
+                    long file_i,
+                    std::vector<BucketFirstPass> & buckets,
+                    std::map<Event, phmap::flat_hash_set<Event, EventHash>> & pool_haplotypes,
+                    long const BUCKET_SIZE,
+                    long const region_begin,
+                    std::vector<char> const & reference_sequence)
 {
   long const REF_SIZE{static_cast<long>(reference_sequence.size())};
   int32_t global_max_pos_end{0};
   std::vector<uint32_t> cov_up(REF_SIZE);
   std::vector<uint32_t> cov_down(REF_SIZE);
-  std::map<Event, std::map<Event, int8_t> > sample_haplotypes;
+  std::map<Event, phmap::flat_hash_set<Event, EventHash>> sample_haplotypes;
 
   // make sure the buckets are empty
 #ifndef NDEBUG
@@ -640,9 +434,8 @@ run_first_pass(bam1_t * hts_rec,
     if (!hts_rec)
       break;
 
-    std::array<char, 16> static constexpr CIGAR_MAP = {{
-      'M', 'I', 'D', 'N', 'S', 'H', 'P', '=', 'X', 'B', '*', '*', '*', '*', '*', '*'
-    }};
+    std::array<char, 16> static constexpr CIGAR_MAP = {
+      {'M', 'I', 'D', 'N', 'S', 'H', 'P', '=', 'X', 'B', '*', '*', '*', '*', '*', '*'}};
 
     auto const & core = hts_rec->core;
     auto it = hts_rec->data;
@@ -667,13 +460,13 @@ run_first_pass(bam1_t * hts_rec,
 
     if (ref_offset >= REF_SIZE)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Unexpected ref_offset = " << ref_offset;
+      print_log(log_severity::error, __HERE__, " Unexpected ref_offset = ", ref_offset);
       std::exit(1);
     }
 
     Read read;
     read.name = reinterpret_cast<char *>(it);
-    //read.mate_pos = static_cast<int32_t>(core.mpos);
+    // read.mate_pos = static_cast<int32_t>(core.mpos);
 
     if ((core.flag & IS_FIRST_IN_PAIR) != 0u)
       read.name.append("/1");
@@ -685,7 +478,6 @@ run_first_pass(bam1_t * hts_rec,
 
     for (int i = 0; i < core.l_qseq; ++i)
       read.sequence[i] = seq_nt16_str[bam_seqi(seq_it, i)];
-
 
     auto const qual_it = bam_get_qual(hts_rec);
     std::vector<std::map<Event, EventSupport>::iterator> cigar_events;
@@ -700,15 +492,15 @@ run_first_pass(bam1_t * hts_rec,
       char const cigar_operation = CIGAR_MAP[opAndCnt & 15];
       assert(cigar_count > 0);
 
+      if (ref_offset >= REF_SIZE)
+        break;
+
       switch (cigar_operation)
       {
       case 'M':
-      case '=':       // '=' and 'X' are typically not used by aligners (at least not by default),
-      case 'X':       // but we keep it here just in case
+      case '=': // '=' and 'X' are typically not used by aligners (at least not by default),
+      case 'X': // but we keep it here just in case
       {
-        //assert((ref_offset + cigar_count - 1l) < REF_SIZE);
-        //auto ref_it = reference_sequence.begin() + ref_offset;
-
         for (long r{0}; r < cigar_count; ++r)
         {
           long const ref_pos = ref_offset + r;
@@ -725,8 +517,7 @@ run_first_pass(bam1_t * hts_rec,
           assert(read_pos < static_cast<long>(read.sequence.size()));
           char const read_base = read.sequence[read_pos];
 
-          if (read_base == ref ||
-              (ref != 'A' && ref != 'C' && ref != 'G' && ref != 'T') ||
+          if (read_base == ref || (ref != 'A' && ref != 'C' && ref != 'G' && ref != 'T') ||
               (read_base != 'A' && read_base != 'C' && read_base != 'G' && read_base != 'T'))
           {
             continue;
@@ -737,10 +528,16 @@ run_first_pass(bam1_t * hts_rec,
 #ifndef NDEBUG
           if (debug_event_type == 'X' && new_snp_event.pos == debug_event_pos)
           {
-            BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << new_snp_event.to_string()
-                                    << " in file_i=" << file_i
-                                    << " core.pos=" << core.pos
-                                    << " read=" << read.name;
+            print_log(log_severity::info,
+                      __HERE__,
+                      " ",
+                      new_snp_event.to_string(),
+                      " in file_i=",
+                      file_i,
+                      " core.pos=",
+                      core.pos,
+                      " read=",
+                      read.name);
           }
 #endif // NDEBUG
 
@@ -772,12 +569,12 @@ run_first_pass(bam1_t * hts_rec,
             if (event_support.uniq_pos1 != core.pos)
             {
               // due to something in bamshrink, the input is not always sorted
-              //assert(core.pos > event_support.uniq_pos1);
+              // assert(core.pos > event_support.uniq_pos1);
               event_support.uniq_pos2 = core.pos;
             }
           }
-          else if (event_support.uniq_pos3 == -1
-                  && event_support.uniq_pos2 != core.pos /*&& event_support.uniq_pos1 != core.pos*/)
+          else if (event_support.uniq_pos3 == -1 &&
+                   event_support.uniq_pos2 != core.pos /*&& event_support.uniq_pos1 != core.pos*/)
           {
             assert(event_support.uniq_pos1 != core.pos); // should not happend if input is sorted
             event_support.uniq_pos3 = core.pos;
@@ -801,27 +598,21 @@ run_first_pass(bam1_t * hts_rec,
       {
         assert(cigar_count > 0);
 
-        auto begin_it = read_offset < static_cast<long>(read.sequence.size()) ?
-                        read.sequence.begin() + read_offset :
-                        read.sequence.end();
+        auto begin_it = read_offset < static_cast<long>(read.sequence.size()) ? read.sequence.begin() + read_offset
+                                                                              : read.sequence.end();
 
-        auto end_it = (read_offset + cigar_count) < static_cast<long>(read.sequence.size()) ?
-                      read.sequence.begin() + read_offset + cigar_count :
-                      read.sequence.end();
+        auto end_it = (read_offset + cigar_count) < static_cast<long>(read.sequence.size())
+                      ? read.sequence.begin() + read_offset + cigar_count
+                      : read.sequence.end();
 
         if (begin_it == end_it)
           break;
 
         // Make sure all bases are ACGT
-        if (std::all_of(begin_it,
-                        end_it,
-                        [](char c){
-              return c == 'A' || c == 'C' || c == 'G' || c == 'T';
-            }))
+        if (std::all_of(begin_it, end_it, [](char c) { return c == 'A' || c == 'C' || c == 'G' || c == 'T'; }))
         {
           std::vector<char> event_sequence(begin_it, end_it);
-          Event new_event = make_insertion_event(region_begin + ref_offset,
-                                                 std::move(event_sequence));
+          Event new_event = make_insertion_event(region_begin + ref_offset, std::move(event_sequence));
 
           // Add to bucket events
           auto indel_event_it = add_indel_event_to_bucket(buckets,
@@ -833,7 +624,7 @@ run_first_pass(bam1_t * hts_rec,
 
 #ifndef NDEBUG
           if (read.name == debug_read_name)
-            BOOST_LOG_TRIVIAL(info) << __HERE__ << " new ins=" << indel_event_it->first.to_string();
+            print_log(log_severity::info, __HERE__, " new ins=", indel_event_it->first.to_string());
 #endif // NDEBUG
 
           auto & event_support = indel_event_it->second;
@@ -843,14 +634,13 @@ run_first_pass(bam1_t * hts_rec,
             event_support.max_mapq = core.qual;
 
           event_support.proper_pairs += ((read.flags & IS_PROPER_PAIR) != 0);
-          //event_support.first_in_pairs += ((read.flags & IS_FIRST_IN_PAIR) != 0);
+          // event_support.first_in_pairs += ((read.flags & IS_FIRST_IN_PAIR) != 0);
           event_support.sequence_reversed += ((read.flags & IS_SEQ_REVERSED) != 0);
           event_support.clipped += is_read_clipped;
-
-          read_offset += cigar_count;
           cigar_events.push_back(indel_event_it);
         }
 
+        read_offset += cigar_count;
         break;
       }
 
@@ -859,34 +649,42 @@ run_first_pass(bam1_t * hts_rec,
         assert(cigar_count > 0);
 
         if (ref_offset + cigar_count >= REF_SIZE)
+        {
+          ref_offset += cigar_count;
           break;
+        }
 
-        Event new_event =
-          make_deletion_event(reference_sequence, ref_offset, region_begin + ref_offset, cigar_count);
+        Event new_event = make_deletion_event(reference_sequence, ref_offset, region_begin + ref_offset, cigar_count);
 
-        auto indel_event_it = add_indel_event_to_bucket(buckets,
-                                                        std::move(new_event),
-                                                        region_begin,
-                                                        BUCKET_SIZE,
-                                                        reference_sequence,
-                                                        ref_offset);
+        if (std::all_of(new_event.sequence.begin(),
+                        new_event.sequence.end(),
+                        [](char c) { return c == 'A' || c == 'C' || c == 'G' || c == 'T'; }))
+        {
+          auto indel_event_it = add_indel_event_to_bucket(buckets,
+                                                          std::move(new_event),
+                                                          region_begin,
+                                                          BUCKET_SIZE,
+                                                          reference_sequence,
+                                                          ref_offset);
 #ifndef NDEBUG
-        if (read.name == debug_read_name)
-          BOOST_LOG_TRIVIAL(info) << __HERE__ << " new del=" << indel_event_it->first.to_string();
+          if (read.name == debug_read_name)
+            print_log(log_severity::info, __HERE__, " new del=", indel_event_it->first.to_string());
 #endif // NDEBUG
 
-        auto & event_support = indel_event_it->second;
-        ++event_support.hq_count;
+          auto & event_support = indel_event_it->second;
+          ++event_support.hq_count;
 
-        if (core.qual != 255 && core.qual > event_support.max_mapq)
-          event_support.max_mapq = core.qual;
+          if (core.qual != 255 && core.qual > event_support.max_mapq)
+            event_support.max_mapq = core.qual;
 
-        event_support.proper_pairs += ((read.flags & IS_PROPER_PAIR) != 0);
-        //event_support.first_in_pairs += ((read.flags & IS_FIRST_IN_PAIR) != 0);
-        event_support.sequence_reversed += ((read.flags & IS_SEQ_REVERSED) != 0);
-        event_support.clipped += is_read_clipped;
+          event_support.proper_pairs += ((read.flags & IS_PROPER_PAIR) != 0);
+          // event_support.first_in_pairs += ((read.flags & IS_FIRST_IN_PAIR) != 0);
+          event_support.sequence_reversed += ((read.flags & IS_SEQ_REVERSED) != 0);
+          event_support.clipped += is_read_clipped;
+          cigar_events.push_back(indel_event_it);
+        }
+
         ref_offset += cigar_count;
-        cigar_events.push_back(indel_event_it);
         break;
       }
 
@@ -945,8 +743,14 @@ run_first_pass(bam1_t * hts_rec,
 #ifndef NDEBUG
     if (hts_rec->core.pos < prev_pos)
     {
-      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " file_i=" << file_i << " is not sorted. "
-                                 << hts_rec->core.pos << " < " << prev_pos;
+      print_log(log_severity::warning,
+                __HERE__,
+                " file_i=",
+                file_i,
+                " is not sorted. ",
+                hts_rec->core.pos,
+                " < ",
+                prev_pos);
       assert(hts_rec->core.pos >= prev_pos);
     }
 #endif
@@ -962,23 +766,22 @@ run_first_pass(bam1_t * hts_rec,
 
   long const NUM_BUCKETS{static_cast<long>(buckets.size())};
 
-  auto update_coverage =
-    [&cov_up, &cov_down](long & cov, long const pos, long const b, long const BUCKET_SIZE) -> void
+  auto update_coverage = [&cov_up, &cov_down](long & cov, long const pos, long const b, long const BUCKET_SIZE) -> void
+  {
+    long offset{pos + 1};
+
+    if (offset > b * BUCKET_SIZE)
     {
-      long offset{pos + 1};
+      offset = b * BUCKET_SIZE;
 
-      if (offset > b * BUCKET_SIZE)
+      // Add coverage until naive begin
+      while (offset <= pos)
       {
-        offset = b * BUCKET_SIZE;
-
-        // Add coverage until naive begin
-        while (offset <= pos)
-        {
-          cov += (static_cast<long>(cov_up[offset]) - static_cast<long>(cov_down[offset]));
-          ++offset;
-        }
+        cov += (static_cast<long>(cov_up[offset]) - static_cast<long>(cov_down[offset]));
+        ++offset;
       }
-    };
+    }
+  };
 
   // Remove SNPs with low support
   {
@@ -988,7 +791,7 @@ run_first_pass(bam1_t * hts_rec,
     {
       auto & bucket = buckets[b];
 
-      for (auto snp_it = bucket.events.begin(); snp_it != bucket.events.end();)  // no increment
+      for (auto snp_it = bucket.events.begin(); snp_it != bucket.events.end();) // no increment
       {
         Event const & snp = snp_it->first;
 
@@ -1009,8 +812,14 @@ run_first_pass(bam1_t * hts_rec,
 #ifndef NDEBUG
           if (debug_event_type == 'X' && snp.pos == debug_event_pos)
           {
-            BOOST_LOG_TRIVIAL(info) << __HERE__ << " debug snp has good support " << snp.to_string() << " "
-                                    << info.to_string() << " file_i=" << file_i;
+            print_log(log_severity::info,
+                      __HERE__,
+                      " debug snp has good support ",
+                      snp.to_string(),
+                      " ",
+                      info.to_string(),
+                      " file_i=",
+                      file_i);
           }
 #endif // DEBUG
           ++snp_it;
@@ -1020,8 +829,14 @@ run_first_pass(bam1_t * hts_rec,
 #ifndef NDEBUG
           if (debug_event_type == 'X' && snp.pos == debug_event_pos)
           {
-            BOOST_LOG_TRIVIAL(info) << __HERE__ << " debug snp has bad support " << snp.to_string() << " "
-                                    << info.to_string() << " file_i=" << file_i;
+            print_log(log_severity::info,
+                      __HERE__,
+                      " debug snp has bad support ",
+                      snp.to_string(),
+                      " ",
+                      info.to_string(),
+                      " file_i=",
+                      file_i);
           }
 #endif // DEBUG
 
@@ -1053,7 +868,7 @@ run_first_pass(bam1_t * hts_rec,
     auto & bucket = buckets[b];
 
     // Remove bad indels
-    for (Tindel_events::iterator it = bucket.events.begin(); it != bucket.events.end();)  // no increment
+    for (Tindel_events::iterator it = bucket.events.begin(); it != bucket.events.end();) // no increment
     {
       Event const & indel = it->first;
 
@@ -1071,25 +886,39 @@ run_first_pass(bam1_t * hts_rec,
       long const naive_begin = std::max(0l, indel.pos - naive_pad - region_begin);
       long const naive_end = std::min(REF_SIZE, indel.pos + indel_info.span + naive_pad - region_begin);
 
-      double const correction = indel.type == 'I' ?
-                                static_cast<double>(indel.sequence.size() / 2.0 + 8.0) / 8.0 :
-                                static_cast<double>(indel.sequence.size() / 3.0 + 10.0) / 10.0;
+      double const correction = indel.type == 'I' ? static_cast<double>(indel.sequence.size() / 2.0 + 8.0) / 8.0
+                                                  : static_cast<double>(indel.sequence.size() / 3.0 + 10.0) / 10.0;
 
       double const count = correction * (indel_info.hq_count + indel_info.lq_count);
 
 #ifndef NDEBUG
       if (debug_event_type == indel.type && debug_event_pos == indel.pos && debug_event_size == indel.sequence.size())
       {
-        BOOST_LOG_TRIVIAL(info) << __HERE__ << "Indel [pos,pos+span], size [begin,end]: "
-                                << indel.to_string() << " ["
-                                << region_begin << " "
-                                <<  indel.pos << "," << (indel.pos + indel_info.span)
-                                << "] " << indel.sequence.size() << " " << correction
-                                << " [" << naive_begin << "," << naive_end << "]"
-                                << " count=" << count << " depth=" << depth;
+        print_log(log_severity::info,
+                  __HERE__,
+                  "Indel [pos,pos+span], size [begin,end]: ",
+                  indel.to_string(),
+                  " [",
+                  region_begin,
+                  " ",
+                  indel.pos,
+                  ",",
+                  (indel.pos + indel_info.span),
+                  "] ",
+                  indel.sequence.size(),
+                  " ",
+                  correction,
+                  " [",
+                  naive_begin,
+                  ",",
+                  naive_end,
+                  "]",
+                  " count=",
+                  count,
+                  " depth=",
+                  depth);
       }
 #endif // NDEBUG
-
 
       long cov{depth}; // starting coverage depth
       long offset{naive_begin};
@@ -1126,21 +955,25 @@ run_first_pass(bam1_t * hts_rec,
       double const anti_count_d{corrected_cov - count};
       uint32_t log_qual = get_log_qual_double(count, anti_count_d, 10.0);
 
-      if (indel_info.hq_count >= 6 &&
-          count >= 8.0 &&
-          log_qual >= 60 &&
-          indel_info.sequence_reversed > 0 &&
-          indel_info.sequence_reversed < indel_info.hq_count &&
-          indel_info.proper_pairs >= 3 &&
-          indel_info.max_mapq >= 20 &&
-          (indel_info.clipped == 0 || (indel_info.clipped + 3) <= indel_info.hq_count))
+      if (indel_info.hq_count >= 6 && count >= 8.0 && log_qual >= 60 && indel_info.sequence_reversed > 0 &&
+          indel_info.sequence_reversed < indel_info.hq_count && indel_info.proper_pairs >= 3 &&
+          indel_info.max_mapq >= 20 && (indel_info.clipped == 0 || (indel_info.clipped + 3) <= indel_info.hq_count))
       {
 #ifndef NDEBUG
         if (debug_event_type == indel.type && debug_event_pos == indel.pos && debug_event_size == indel.sequence.size())
         {
-          BOOST_LOG_TRIVIAL(info) << __HERE__ << " Indel has good support in file_i,log_qual="
-                                  << file_i << "," << log_qual << "," << count << "," << anti_count_d
-                                  << " cov=" << cov;
+          print_log(log_severity::info,
+                    __HERE__,
+                    " Indel has good support in file_i,log_qual=",
+                    file_i,
+                    ",",
+                    log_qual,
+                    ",",
+                    count,
+                    ",",
+                    anti_count_d,
+                    " cov=",
+                    cov);
         }
 #endif // NDEBUG
 
@@ -1151,22 +984,29 @@ run_first_pass(bam1_t * hts_rec,
 
         ++it;
       }
-      else if (count >= 3.0 &&
-               log_qual > 0 &&
-               //indel_info.sequence_reversed > 0 &&
-               //indel_info.sequence_reversed < indel_info.hq_count &&
-               indel_info.proper_pairs >= 1 &&
-               (indel_info.hq_count >= 5 || indel_info.max_mapq >= 25) &&
-               indel_info.max_mapq >= 10 &&
-               indel_info.clipped < indel_info.hq_count)
+      else if (count >= 3.0 && log_qual > 0 &&
+               // indel_info.sequence_reversed > 0 &&
+               // indel_info.sequence_reversed < indel_info.hq_count &&
+               indel_info.proper_pairs >= 1 && (indel_info.hq_count >= 5 || indel_info.max_mapq >= 25) &&
+               /*indel_info.hq_count >= 2 &&*/
+               indel_info.max_mapq >= 10 && indel_info.clipped < indel_info.hq_count)
       {
         // Realignment support, meaning low support but needs realignment to confirm/deny
 #ifndef NDEBUG
         if (debug_event_type == indel.type && debug_event_pos == indel.pos && debug_event_size == indel.sequence.size())
         {
-          BOOST_LOG_TRIVIAL(info) << __HERE__ << " Indel has realignment support in file_i,log_qual,count,acount="
-                                  << file_i << "," << log_qual << "," << count << "," << anti_count_d
-                                  << " cov=" << cov;
+          print_log(log_severity::info,
+                    __HERE__,
+                    " Indel has realignment support in file_i,log_qual,count,acount=",
+                    file_i,
+                    ",",
+                    log_qual,
+                    ",",
+                    count,
+                    ",",
+                    anti_count_d,
+                    " cov=",
+                    cov);
         }
 #endif // NDEBUG
 
@@ -1179,13 +1019,22 @@ run_first_pass(bam1_t * hts_rec,
       else
       {
         // erase indel if it is not good enough
-        //BOOST_LOG_TRIVIAL(info) << __HERE__ << " erasing indel=" << indel.to_string();
+        // BOOST_LOG_TRIVIAL(info) << __HERE__ << " erasing indel=" << indel.to_string();
 #ifndef NDEBUG
         if (debug_event_type == indel.type && debug_event_pos == indel.pos && debug_event_size == indel.sequence.size())
         {
-          BOOST_LOG_TRIVIAL(info) << __HERE__ << " erasing indel with bad support in file_i,log_qual,count,acount="
-                                  << file_i << "," << log_qual << "," << count << "," << anti_count_d
-                                  << " cov=" << cov;
+          print_log(log_severity::info,
+                    __HERE__,
+                    " erasing indel with bad support in file_i,log_qual,count,acount=",
+                    file_i,
+                    ",",
+                    log_qual,
+                    ",",
+                    count,
+                    ",",
+                    anti_count_d,
+                    " cov=",
+                    cov);
         }
 #endif // NDEBUG
         it = bucket.events.erase(it);
@@ -1212,10 +1061,10 @@ run_first_pass(bam1_t * hts_rec,
   // Find HQ SNPs and their haplotypes
   for (long b{0}; b < NUM_BUCKETS; ++b)
   {
-    auto const & bucket = buckets[b];
+    auto & bucket = buckets[b];
 
     // Check event phase
-    for (auto event_it = bucket.events.begin(); event_it != bucket.events.end(); ++event_it)
+    for (auto event_it = bucket.events.begin(); event_it != bucket.events.end();) // no increment
     {
       Event const & event = event_it->first;
       EventSupport const & info = event_it->second;
@@ -1223,8 +1072,8 @@ run_first_pass(bam1_t * hts_rec,
       long const begin = std::max(0l, event.pos - region_begin);
       long cov{depth}; // starting coverage depth
 
-      auto it_bool = sample_haplotypes.insert({event, std::map<Event, int8_t>()});
-      std::map<Event, int8_t> & haplotypes = it_bool.first->second;
+      auto it_bool = sample_haplotypes.insert({event, phmap::flat_hash_set<Event, EventHash>()});
+      phmap::flat_hash_set<Event, EventHash> & haplotypes = it_bool.first->second;
 
       assert(begin >= b * BUCKET_SIZE);
       update_coverage(cov, begin, b, BUCKET_SIZE);
@@ -1238,56 +1087,55 @@ run_first_pass(bam1_t * hts_rec,
       // 2 anti support
       // 3 ambigous
       auto is_good_support =
-        [&cov_down, &region_begin, &support_ratio]
-          (long local_cov,
-          long local_offset,
-          std::map<Event, EventSupport>::const_iterator event_it,
-          std::map<Event, EventSupport>::const_iterator event_it2,
-          std::map<Event, uint16_t>::const_iterator find_it,
-          std::map<Event, uint16_t> const & map) -> uint16_t
+        [&cov_down, &region_begin, &support_ratio](long local_cov,
+                                                   long local_offset,
+                                                   std::map<Event, EventSupport>::const_iterator event_it,
+                                                   std::map<Event, EventSupport>::const_iterator event_it2,
+                                                   std::map<Event, uint16_t>::const_iterator find_it,
+                                                   std::map<Event, uint16_t> const & map) -> uint16_t
+      {
+        bool const is_indel = event_it->first.type != 'X' || event_it2->first.type != 'X';
+
+        if (is_indel)
         {
-          bool const is_indel = event_it->first.type != 'X' || event_it2->first.type != 'X';
-
-          if (is_indel)
-          {
-            // at least one is an indel
-            if (find_it == map.end() || find_it->second == 0)
-            {
-              return IS_ANY_ANTI_HAP_SUPPORT;
-            }
-            else
-            {
-              return IS_ANY_HAP_SUPPORT | IS_ANY_ANTI_HAP_SUPPORT;
-            }
-          }
-
-          long const end = std::max(0l, static_cast<long>(event_it2->first.pos) - region_begin);
-
-          // reduce coverage by reads who do not overlap the whole interval
-          while (local_offset <= end)
-          {
-            local_cov -= static_cast<long>(cov_down[local_offset]);
-            ++local_offset;
-          }
-
-          // Make sure there is some coverage
-          if (local_cov <= 2)
-            return 0; // low coverage
-
-          double const support = find_it == map.end() ? 0.0 : find_it->second;
-
-          // both are snps
-          if ((support / static_cast<double>(local_cov) / support_ratio) < 0.22)
+          // at least one is an indel
+          if (find_it == map.end() || find_it->second == 0)
           {
             return IS_ANY_ANTI_HAP_SUPPORT;
           }
-          else if ((support / static_cast<double>(local_cov) / support_ratio) > 0.78)
+          else
           {
-            return IS_ANY_HAP_SUPPORT;
+            return IS_ANY_HAP_SUPPORT | IS_ANY_ANTI_HAP_SUPPORT;
           }
+        }
 
-          return IS_ANY_ANTI_HAP_SUPPORT | IS_ANY_HAP_SUPPORT;
-        };
+        long const end = std::max(0l, static_cast<long>(event_it2->first.pos) - region_begin);
+
+        // reduce coverage by reads who do not overlap the whole interval
+        while (local_offset <= end)
+        {
+          local_cov -= static_cast<long>(cov_down[local_offset]);
+          ++local_offset;
+        }
+
+        // Make sure there is some coverage
+        if (local_cov <= 2)
+          return 0; // low coverage
+
+        double const support = find_it == map.end() ? 0.0 : find_it->second;
+
+        // both are snps
+        if ((support / static_cast<double>(local_cov) / support_ratio) < 0.22)
+        {
+          return IS_ANY_ANTI_HAP_SUPPORT;
+        }
+        else if ((support / static_cast<double>(local_cov) / support_ratio) > 0.78)
+        {
+          return IS_ANY_HAP_SUPPORT;
+        }
+
+        return IS_ANY_ANTI_HAP_SUPPORT | IS_ANY_HAP_SUPPORT;
+      };
 
       // check this bucket
       for (auto event_it2 = std::next(event_it); event_it2 != bucket.events.end(); ++event_it2)
@@ -1297,13 +1145,14 @@ run_first_pass(bam1_t * hts_rec,
         if (other_event.pos == event.pos && other_event.type == event.type)
         {
           // If they share a position and type they trivially cant share haplotype
-          haplotypes[other_event] |= IS_ANY_ANTI_HAP_SUPPORT;
           continue;
         }
 
         auto find_it = info.phase.find(other_event);
         uint16_t const flags = is_good_support(cov, begin + 1, event_it, event_it2, find_it, info.phase);
-        haplotypes[other_event] |= flags;
+
+        if ((flags & IS_ANY_HAP_SUPPORT) != 0u)
+          haplotypes.insert(other_event);
       }
 
       // check next bucket
@@ -1318,7 +1167,9 @@ run_first_pass(bam1_t * hts_rec,
           assert(other_event.pos < (event.pos + 2 * BUCKET_SIZE));
           auto find_it = info.phase.find(other_event);
           uint16_t const flags = is_good_support(cov, begin + 1, event_it, event_it2, find_it, info.phase);
-          haplotypes[other_event] |= flags;
+
+          if ((flags & IS_ANY_HAP_SUPPORT) != 0u)
+            haplotypes.insert(other_event);
         }
       }
 
@@ -1337,9 +1188,17 @@ run_first_pass(bam1_t * hts_rec,
 
           auto find_it = info.phase.find(other_event);
           uint16_t const flags = is_good_support(cov, begin + 1, event_it, event_it2, find_it, info.phase);
-          haplotypes[other_event] |= flags;
+
+          if ((flags & IS_ANY_HAP_SUPPORT) != 0u)
+            haplotypes.insert(other_event);
         }
       }
+
+      // remove SNP events, they are stored in the ph map from now on
+      if (event_it->first.type == 'X')
+        event_it = bucket.events.erase(event_it);
+      else
+        ++event_it;
     }
 
     // Add coverage from bucket b
@@ -1357,44 +1216,29 @@ run_first_pass(bam1_t * hts_rec,
     }
   } // for (long b{0}; b < static_cast<long>(buckets.size()); ++b)
 
-  // Add sample haplotypes to pool haplotypes
-#ifndef NDEBUG
-  // check for errors in sample_haplotypes
-  assert(check_haplotypes(sample_haplotypes));
-#endif // NDEBUG
-
-  if (is_first_in_pool)
-  {
-    pool_haplotypes = std::move(sample_haplotypes);
-  }
-  else
-  {
-    merge_haplotypes(pool_haplotypes, sample_haplotypes);
-    assert(check_haplotypes(pool_haplotypes));
-  }
+  merge_haplotypes2(pool_haplotypes, sample_haplotypes);
 }
 
-
-void
-run_first_pass_lr(bam1_t * hts_rec,
-                  HtsReader & hts_reader,
-                  long file_i,
-                  std::vector<BucketLR> & buckets,
-                  long const BUCKET_SIZE,
-                  long const region_begin,
-                  std::vector<char> const & reference_sequence)
+void run_first_pass_lr(bam1_t * hts_rec,
+                       HtsReader & hts_reader,
+                       long file_i,
+                       std::vector<BucketLR> & buckets,
+                       long const BUCKET_SIZE,
+                       long const region_begin,
+                       std::vector<char> const & reference_sequence)
 {
   long const REF_SIZE{static_cast<long>(reference_sequence.size())};
-  //std::vector<uint32_t> cov_up(REF_SIZE);
-  //std::vector<uint32_t> cov_down(REF_SIZE);
-  //long constexpr MAX_READ_SIZE{1000000};
+  // std::vector<uint32_t> cov_up(REF_SIZE);
+  // std::vector<uint32_t> cov_down(REF_SIZE);
+  // long constexpr MAX_READ_SIZE{1000000};
   Options const & copts = *(Options::const_instance());
 
   while (true)
   {
     assert(hts_rec);
 
-    while (hts_rec->core.n_cigar == 0 || hts_rec->core.l_qseq < 150 || hts_rec->core.qual < copts.lr_mapq_filter)
+    while (hts_rec->core.n_cigar == 0 || hts_rec->core.l_qseq < 150 || hts_rec->core.qual < copts.lr_mapq_filter ||
+           (hts_rec->core.flag & copts.sam_flag_filter) != 0u)
     {
       hts_rec = hts_reader.get_next_read(hts_rec);
 
@@ -1405,9 +1249,8 @@ run_first_pass_lr(bam1_t * hts_rec,
     if (!hts_rec)
       break;
 
-    std::array<char, 16> static constexpr CIGAR_MAP = {{
-      'M', 'I', 'D', 'N', 'S', 'H', 'P', '=', 'X', 'B', '*', '*', '*', '*', '*', '*'
-    }};
+    std::array<char, 16> static constexpr CIGAR_MAP = {
+      {'M', 'I', 'D', 'N', 'S', 'H', 'P', '=', 'X', 'B', '*', '*', '*', '*', '*', '*'}};
 
     auto const & core = hts_rec->core;
     auto it = hts_rec->data;
@@ -1423,7 +1266,7 @@ run_first_pass_lr(bam1_t * hts_rec,
 
     if (ref_offset >= REF_SIZE)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Unexpected ref_offset = " << ref_offset;
+      print_log(log_severity::error, __HERE__, " Unexpected ref_offset = ", ref_offset);
       std::exit(1);
     }
 
@@ -1431,7 +1274,7 @@ run_first_pass_lr(bam1_t * hts_rec,
     read.name = reinterpret_cast<char *>(it);
     assert(static_cast<long>(read.name.size()) <= core.l_qname);
 
-    //BOOST_LOG_TRIVIAL(info) << __HERE__ << " working on read=" << read.name;
+    // BOOST_LOG_TRIVIAL(info) << __HERE__ << " working on read=" << read.name;
 
     read.flags = core.flag;
     read.sequence.resize(core.l_qseq);
@@ -1441,8 +1284,8 @@ run_first_pass_lr(bam1_t * hts_rec,
 
     auto const qual_it = bam_get_qual(hts_rec);
 
-    //uint32_t const clip_threshold = core.l_qseq < 5 ? 1 : (core.l_qseq / 5);
-    //bool const is_read_clipped = is_clipped(*hts_rec, clip_threshold);
+    // uint32_t const clip_threshold = core.l_qseq < 5 ? 1 : (core.l_qseq / 5);
+    // bool const is_read_clipped = is_clipped(*hts_rec, clip_threshold);
 
     for (long i{0}; i < N_CIGAR; ++i)
     {
@@ -1457,11 +1300,11 @@ run_first_pass_lr(bam1_t * hts_rec,
       switch (cigar_operation)
       {
       case 'M':
-      case '=':       // '=' and 'X' are typically not used by aligners (at least not by default),
-      case 'X':       // but we keep it here just in case
+      case '=': // '=' and 'X' are typically not used by aligners (at least not by default),
+      case 'X': // but we keep it here just in case
       {
-        //assert((ref_offset + cigar_count - 1l) < REF_SIZE);
-        //auto ref_it = reference_sequence.begin() + ref_offset;
+        // assert((ref_offset + cigar_count - 1l) < REF_SIZE);
+        // auto ref_it = reference_sequence.begin() + ref_offset;
 
         if ((ref_offset + static_cast<long>(cigar_count)) < 0)
         {
@@ -1485,8 +1328,12 @@ run_first_pass_lr(bam1_t * hts_rec,
 
           if (read_pos >= static_cast<long>(read.sequence.size()))
           {
-            BOOST_LOG_TRIVIAL(warning) << __HERE__ << " read_pos >= sequence.size() : "
-                                       << read_pos << " >= " << read.sequence.size();
+            print_log(log_severity::warning,
+                      __HERE__,
+                      " read_pos >= sequence.size() : ",
+                      read_pos,
+                      " >= ",
+                      read.sequence.size());
             break;
           }
 
@@ -1495,29 +1342,18 @@ run_first_pass_lr(bam1_t * hts_rec,
           char qual = *(qual_it + read_pos);
           assert(qual <= 60);
 
-          if (//read_base == ref ||
-            (ref != 'A' && ref != 'C' && ref != 'G' && ref != 'T') ||
-            (read_base != 'A' && read_base != 'C' && read_base != 'G' && read_base != 'T'))
+          if (qual == 0 || (ref != 'A' && ref != 'C' && ref != 'G' && ref != 'T') ||
+              (read_base != 'A' && read_base != 'C' && read_base != 'G' && read_base != 'T'))
           {
             continue;
           }
 
-          if (core.qual <= 20)
-            qual = qual / 5;
-          else if (core.qual <= 40 && qual >= 4)
-            qual = qual / 4;
-          else if (qual >= 4)
-            qual = qual / 2;
+          // transform qual to range 12-27
+          long const tr_qual = 12l + std::lround((static_cast<double>(qual) * 22.0) / 60.0);
 
-          if (qual > 0 && qual < 5)
-            qual = 5;
-          else if (qual > 10)
-            qual = 10;
-
-          //BOOST_LOG_TRIVIAL(info) << __HERE__ << " adding base " << read_base << "," << static_cast<long>(qual)
-          //                        << " @ " << (ref_pos + region_begin)
-          //                        << " " << region_begin << " " << REF_SIZE << " ";
-
+          assert(tr_qual >= 12l);
+          assert(tr_qual <= 36l);
+          qual = static_cast<char>(tr_qual);
           add_base_to_bucket(buckets, ref_pos + region_begin, read_base, qual, region_begin, BUCKET_SIZE);
         }
 
@@ -1536,13 +1372,12 @@ run_first_pass_lr(bam1_t * hts_rec,
 
         assert(cigar_count > 0);
 
-        auto begin_it = read_offset < static_cast<long>(read.sequence.size()) ?
-                        read.sequence.begin() + read_offset :
-                        read.sequence.end();
+        auto begin_it = read_offset < static_cast<long>(read.sequence.size()) ? read.sequence.begin() + read_offset
+                                                                              : read.sequence.end();
 
-        auto end_it = (read_offset + cigar_count) < static_cast<long>(read.sequence.size()) ?
-                      read.sequence.begin() + read_offset + cigar_count :
-                      read.sequence.end();
+        auto end_it = (read_offset + cigar_count) < static_cast<long>(read.sequence.size())
+                      ? read.sequence.begin() + read_offset + cigar_count
+                      : read.sequence.end();
 
         if (begin_it == end_it)
         {
@@ -1572,7 +1407,7 @@ run_first_pass_lr(bam1_t * hts_rec,
 
 #ifndef NDEBUG
           if (read.name == debug_read_name)
-            BOOST_LOG_TRIVIAL(info) << __HERE__ << " new ins=" << indel_event_it->first.to_string();
+            print_log(log_severity::info, __HERE__, " new ins=", indel_event_it->first.to_string());
 #endif // NDEBUG
 
           auto & event_support = indel_event_it->second;
@@ -1616,7 +1451,7 @@ run_first_pass_lr(bam1_t * hts_rec,
                                                         ref_offset);
 #ifndef NDEBUG
         if (read.name == debug_read_name)
-          BOOST_LOG_TRIVIAL(info) << __HERE__ << " new del=" << indel_event_it->first.to_string();
+          print_log(log_severity::info, __HERE__, " new del=", indel_event_it->first.to_string());
 #endif // NDEBUG
 
         auto & event_support = indel_event_it->second;
@@ -1643,15 +1478,15 @@ run_first_pass_lr(bam1_t * hts_rec,
       }
     }
 
-    //read.alignment.pos = static_cast<int32_t>(core.pos);
-    //read.alignment.pos_end = region_begin + std::min(ref_offset, REF_SIZE - 1);
+    // read.alignment.pos = static_cast<int32_t>(core.pos);
+    // read.alignment.pos_end = region_begin + std::min(ref_offset, REF_SIZE - 1);
     //
-    //assert((read.alignment.pos - region_begin) >= 0);
-    //assert((read.alignment.pos - region_begin) < static_cast<long>(cov_up.size()));
+    // assert((read.alignment.pos - region_begin) >= 0);
+    // assert((read.alignment.pos - region_begin) < static_cast<long>(cov_up.size()));
     //++cov_up[read.alignment.pos - region_begin];
     //
-    //assert((read.alignment.pos_end - region_begin) >= 0);
-    //assert((read.alignment.pos_end - region_begin) < static_cast<long>(cov_down.size()));
+    // assert((read.alignment.pos_end - region_begin) >= 0);
+    // assert((read.alignment.pos_end - region_begin) < static_cast<long>(cov_down.size()));
     //++cov_down[read.alignment.pos_end - region_begin];
 
     // test if the input is sorted
@@ -1664,8 +1499,14 @@ run_first_pass_lr(bam1_t * hts_rec,
 
     if (hts_rec->core.pos < prev_pos)
     {
-      BOOST_LOG_TRIVIAL(warning) << __HERE__ << " file_i=" << file_i << " is not sorted. "
-                                 << hts_rec->core.pos << " < " << prev_pos;
+      print_log(log_severity::warning,
+                __HERE__,
+                " file_i=",
+                file_i,
+                " is not sorted. ",
+                hts_rec->core.pos,
+                " < ",
+                prev_pos);
       assert(hts_rec->core.pos >= prev_pos);
 
       while (hts_rec && hts_rec->core.pos < prev_pos)
@@ -1726,13 +1567,13 @@ run_first_pass_lr(bam1_t * hts_rec,
 #ifndef NDEBUG
       if (debug_event_type == indel.type && debug_event_pos == indel.pos && debug_event_size == indel.sequence.size())
       {
-        BOOST_LOG_TRIVIAL(info) << __HERE__ << "Indel [pos,pos+span], size [begin,end]: "
+        print_log(log_severity::info, __HERE__, "Indel [pos,pos+span], size [begin,end]: "
                                 << indel.to_string() << " ["
                                 << region_begin << " "
                                 <<  indel.pos << "," << (indel.pos + indel_info.span)
                                 << "] " << indel.sequence.size() << " " << correction
                                 << " [" << naive_begin << "," << naive_end << "]"
-                                << " count=" << count << " depth=" << depth;
+                               , " count=", count, " depth=", depth);
       }
 #endif // NDEBUG
 
@@ -1784,9 +1625,9 @@ run_first_pass_lr(bam1_t * hts_rec,
 #ifndef NDEBUG
         if (debug_event_type == indel.type && debug_event_pos == indel.pos && debug_event_size == indel.sequence.size())
         {
-          BOOST_LOG_TRIVIAL(info) << __HERE__ << " Indel has good support in file_i,log_qual="
+          print_log(log_severity::info, __HERE__, " Indel has good support in file_i,log_qual="
                                   << file_i << "," << log_qual << "," << count << "," << anti_count_d
-                                  << " cov=" << cov;
+                                 , " cov=", cov);
         }
 #endif // NDEBUG
 
@@ -1809,9 +1650,9 @@ run_first_pass_lr(bam1_t * hts_rec,
 #ifndef NDEBUG
         if (debug_event_type == indel.type && debug_event_pos == indel.pos && debug_event_size == indel.sequence.size())
         {
-          BOOST_LOG_TRIVIAL(info) << __HERE__ << " Indel has realignment support in file_i,log_qual,count,acount="
+          print_log(log_severity::info, __HERE__, " Indel has realignment support in file_i,log_qual,count,acount="
                                   << file_i << "," << log_qual << "," << count << "," << anti_count_d
-                                  << " cov=" << cov;
+                                 , " cov=", cov);
         }
 #endif // NDEBUG
 
@@ -1828,9 +1669,9 @@ run_first_pass_lr(bam1_t * hts_rec,
 #ifndef NDEBUG
         if (debug_event_type == indel.type && debug_event_pos == indel.pos && debug_event_size == indel.sequence.size())
         {
-          BOOST_LOG_TRIVIAL(info) << __HERE__ << " erasing indel with bad support in file_i,log_qual,count,acount="
+          print_log(log_severity::info, __HERE__, " erasing indel with bad support in file_i,log_qual,count,acount="
                                   << file_i << "," << log_qual << "," << count << "," << anti_count_d
-                                  << " cov=" << cov;
+                                 , " cov=", cov);
         }
 #endif // NDEBUG
         it = bucket.events.erase(it);
@@ -1854,14 +1695,12 @@ run_first_pass_lr(bam1_t * hts_rec,
   */
 }
 
-
-void
-realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indels,
-                  std::vector<Bucket> & buckets,
-                  long const max_read_size,
-                  long const BUCKET_SIZE,
-                  long const region_begin,
-                  std::vector<char> const & reference_sequence)
+void realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indels,
+                       std::vector<Bucket> & buckets,
+                       long const max_read_size,
+                       long const BUCKET_SIZE,
+                       long const region_begin,
+                       std::vector<char> const & reference_sequence)
 {
   long const REF_SIZE = reference_sequence.size();
   long const PAD{50}; // TODO make an option
@@ -1884,28 +1723,23 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
     long const indel_span = indel.pos + indel_info.span;
 
 #ifndef NDEBUG
-    if (debug_event_type == indel.type &&
-        debug_event_pos == indel.pos &&
-        debug_event_size == indel.sequence.size())
+    if (debug_event_type == indel.type && debug_event_pos == indel.pos && debug_event_size == indel.sequence.size())
     {
-      BOOST_LOG_TRIVIAL(info) << __HERE__ << " Realignment to indel=" << indel.to_string() << " span="
-                              << indel_info.span;
+      print_log(log_severity::info, __HERE__, " Realignment to indel=", indel.to_string(), " span=", indel_info.span);
     }
 #endif // NDEBUG
 
-    //create reference sequence with the indel
+    // create reference sequence with the indel
     long const begin_padded = std::max(0l, indel.pos - max_read_size - 2 * PAD - region_begin);
     assert(begin_padded < REF_SIZE);
     long const end_padded = indel.pos + max_read_size + 2 * PAD - region_begin;
 
-    auto end_it = end_padded >= REF_SIZE ?
-                  reference_sequence.end() :
-                  reference_sequence.begin() + end_padded;
+    auto end_it = end_padded >= REF_SIZE ? reference_sequence.end() : reference_sequence.begin() + end_padded;
 
     std::vector<char> new_ref(reference_sequence.begin() + begin_padded, end_it);
     std::vector<int32_t> ref_pos(new_ref.size());
     std::iota(ref_pos.begin(), ref_pos.end(), 0);
-    //BOOST_LOG_TRIVIAL(info) << "New ref before:\n" << std::string(new_ref.begin(), new_ref.end());
+    // BOOST_LOG_TRIVIAL(info) << "New ref before:\n" << std::string(new_ref.begin(), new_ref.end());
 
     {
       bool const is_applied = apply_indel_event(new_ref, ref_pos, indel, begin_padded + region_begin);
@@ -1915,7 +1749,7 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
         continue;
     }
 
-    //BOOST_LOG_TRIVIAL(info) << "New ref after:\n" << std::string(new_ref.begin(), new_ref.end());
+    // BOOST_LOG_TRIVIAL(info) << "New ref after:\n" << std::string(new_ref.begin(), new_ref.end());
     assert(buckets.size() > 0);
     long b = begin_padded / BUCKET_SIZE;
     long b_end = std::min(static_cast<long>(buckets.size()) - 1, end_padded / BUCKET_SIZE);
@@ -1929,7 +1763,7 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
       --b;
 
     // Check any reads that might overlap the indel
-    for ( ; b <= b_end; ++b)
+    for (; b <= b_end; ++b)
     {
       assert(b >= 0);
       assert(b < static_cast<long>(buckets.size()));
@@ -1943,7 +1777,7 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
 #ifndef NDEBUG
         if (read.name == debug_read_name)
         {
-          BOOST_LOG_TRIVIAL(info) << __HERE__ << " Found read=" << debug_read_name;
+          print_log(log_severity::info, __HERE__, " Found read=", debug_read_name);
         }
 #endif // NDEBUG
 
@@ -1956,15 +1790,17 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
 
         if ((read.alignment.num_clipped_end == 0 && read.alignment.pos_end < static_cast<long>(indel.pos)) ||
             (read.alignment.pos_end + read.alignment.num_clipped_end +
-             std::min(static_cast<long>(read.alignment.num_clipped_end), PAD) < indel.pos) ||
+               std::min(static_cast<long>(read.alignment.num_clipped_end), PAD) <
+             indel.pos) ||
             (read.alignment.num_clipped_begin == 0 && read.alignment.pos > indel_span) ||
             (read.alignment.pos - read.alignment.num_clipped_begin -
-             std::min(static_cast<long>(read.alignment.num_clipped_begin), PAD) > indel_span))
+               std::min(static_cast<long>(read.alignment.num_clipped_begin), PAD) >
+             indel_span))
         {
           continue;
         }
 
-        //if (read.alignment.score == static_cast<long>(read.sequence.size())) // Cannot improve score
+        // if (read.alignment.score == static_cast<long>(read.sequence.size())) // Cannot improve score
         //  continue; // I cannot make this optimization unless I also add anti-support
         assert(new_ref == new_ref_stable);
         assert(ref_pos == ref_pos_stable);
@@ -1986,7 +1822,7 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
 #ifndef NDEBUG
               if (read.name == debug_read_name)
               {
-                BOOST_LOG_TRIVIAL(info) << __HERE__ << " Applied event " << it->event_it->first.to_string();
+                print_log(log_severity::info, __HERE__, " Applied event ", it->event_it->first.to_string());
               }
 #endif // NDEBUG
 
@@ -1999,7 +1835,7 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
               if (read.name == debug_read_name)
               {
                 apply_indel_event(new_ref, ref_pos, indel_event, begin_padded + region_begin, true);
-                BOOST_LOG_TRIVIAL(info) << __HERE__ << " Could not apply event " << it->event_it->first.to_string();
+                print_log(log_severity::info, __HERE__, " Could not apply event ", it->event_it->first.to_string());
               }
 #endif // NDEBUG
 
@@ -2016,8 +1852,8 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
         ++_alignment_counter;
 #endif // NDEBUG
         assert(opts.get_alignment_results());
-        //paw::AlignmentResults<Tuint> & ac = opts.get_alignment_cache();
-        //auto const clip = opts.get_alignment_results()->apply_clipping(ac,
+        // paw::AlignmentResults<Tuint> & ac = opts.get_alignment_cache();
+        // auto const clip = opts.get_alignment_results()->apply_clipping(ac,
         //                                                               read.sequence,
         //                                                               new_ref,
         //                                                               opts.get_match(),
@@ -2027,13 +1863,13 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
         //                                                               opts.get_clip());
 
         paw::AlignmentResults<Tuint> const & ar = *opts.get_alignment_results();
-        //auto p = ar.get_database_begin_end(read.sequence, new_ref);
+        // auto p = ar.get_database_begin_end(read.sequence, new_ref);
 
         if (ar.database_begin == 0 || ar.database_end == static_cast<long>(new_ref.size()))
         {
-          //auto aligned_strings = ar.get_aligned_strings(read.sequence, new_ref);
+          // auto aligned_strings = ar.get_aligned_strings(read.sequence, new_ref);
           //
-          //BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Insufficient padding in read alignment, skipping read. "
+          // BOOST_LOG_TRIVIAL(warning) << __HERE__ << " Insufficient padding in read alignment, skipping read. "
           //                           << read.to_string() << "\n"
           //                           << aligned_strings.first << '\n'
           //                           << aligned_strings.second;
@@ -2050,11 +1886,22 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
 #ifndef NDEBUG
         if (read.name == debug_read_name)
         {
-          //if (clip.first > 0 || clip.second < static_cast<long>(read.sequence.size()))
+          // if (clip.first > 0 || clip.second < static_cast<long>(read.sequence.size()))
           {
-            BOOST_LOG_TRIVIAL(debug) << __HERE__ << " name=" << read.name << " pos=" << read.alignment.pos
-                                     << " begin,end_clip="  << ar.clip_begin << "," << ar.clip_end
-                                     << " old_score=" << old_score << " new_score=" << ar.score;
+            print_log(log_severity::debug,
+                      __HERE__,
+                      " name=",
+                      read.name,
+                      " pos=",
+                      read.alignment.pos,
+                      " begin,end_clip=",
+                      ar.clip_begin,
+                      ",",
+                      ar.clip_end,
+                      " old_score=",
+                      old_score,
+                      " new_score=",
+                      ar.score);
           }
         }
 #endif // NDEBUG
@@ -2064,17 +1911,18 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
           // If the score is worse and the sequence is not clipped it is anti-support
           if (ar.score < old_score)
           {
-//#ifndef NDEBUG
-//            if (read.name == debug_read_name)
-//            {
-//              auto aligned_strings = ar.get_aligned_strings(read.sequence, new_ref);
-//
-//              BOOST_LOG_TRIVIAL(debug) << __HERE__ << " ANTI old_score, new_score, read = " << old_score << ", "
-//                                       << ar.score << ", "
-//                                       << read.name << '\n' << aligned_strings.first << '\n'
-//                                       << aligned_strings.second;
-//            }
-//#endif // NDEBUG
+            //#ifndef NDEBUG
+            //            if (read.name == debug_read_name)
+            //            {
+            //              auto aligned_strings = ar.get_aligned_strings(read.sequence, new_ref);
+            //
+            //              BOOST_LOG_TRIVIAL(debug) << __HERE__ << " ANTI old_score, new_score, read = " << old_score
+            //              << ", "
+            //                                       << ar.score << ", "
+            //                                       << read.name << '\n' << aligned_strings.first << '\n'
+            //                                       << aligned_strings.second;
+            //            }
+            //#endif // NDEBUG
 
             read.alignment.add_indel_event(READ_ANTI_SUPPORT, read.flags, read.mapq, indel_it);
           }
@@ -2085,8 +1933,7 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
 #ifndef NDEBUG
             if (read.name == debug_read_name)
             {
-              BOOST_LOG_TRIVIAL(debug) << __HERE__ << " SAME SCORE " << old_score
-                                       << " read=" << read.to_string();
+              print_log(log_severity::debug, __HERE__, " SAME SCORE ", old_score, " read=", read.to_string());
             }
 #endif // NDEBUG
 
@@ -2110,15 +1957,21 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
         {
           long const _next_alignment_pos = ref_pos[ar.database_begin] + region_begin + begin_padded;
 
-          if (read.alignment.pos > (_next_alignment_pos + 300) ||
-              _next_alignment_pos > (read.alignment.pos + 300))
+          if (read.alignment.pos > (_next_alignment_pos + 300) || _next_alignment_pos > (read.alignment.pos + 300))
           {
-            BOOST_LOG_TRIVIAL(warning) << __HERE__ << " change pos from="
-                                       << read.alignment.pos << " to="
-                                       << _next_alignment_pos
-                                       << " ("
-                                       << ref_pos[ar.database_begin] << " + " << region_begin << " + " << begin_padded
-                                       << ")";
+            print_log(log_severity::warning,
+                      __HERE__,
+                      " change pos from=",
+                      read.alignment.pos,
+                      " to=",
+                      _next_alignment_pos,
+                      " (",
+                      ref_pos[ar.database_begin],
+                      " + ",
+                      region_begin,
+                      " + ",
+                      begin_padded,
+                      ")");
           }
         }
 #endif // NDEBUG
@@ -2142,14 +1995,14 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
           read.alignment.num_ins_begin = num_ins;
         }
 
-//#ifndef NDEBUG
-//        if (read.name == debug_read_name)
-//        {
-//          auto aligned_strings = ar.get_aligned_strings(read.sequence, new_ref);
-//          BOOST_LOG_TRIVIAL(info) << __HERE__ << " score=" << ar.score << "\n"
-//                                  << aligned_strings.first << "\n" << aligned_strings.second;
-//        }
-//#endif // NDEBUG
+        //#ifndef NDEBUG
+        //        if (read.name == debug_read_name)
+        //        {
+        //          auto aligned_strings = ar.get_aligned_strings(read.sequence, new_ref);
+        //          BOOST_LOG_TRIVIAL(info) << __HERE__ << " score=" << ar.score << "\n"
+        //                                  << aligned_strings.first << "\n" << aligned_strings.second;
+        //        }
+        //#endif // NDEBUG
 
         if (reset_new_ref)
         {
@@ -2162,7 +2015,7 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
 
   /*
 #ifndef NDEBUG
-  BOOST_LOG_TRIVIAL(info) << __HERE__ << " alignment counter = " << _alignment_counter;
+  print_log(log_severity::info, __HERE__, " alignment counter = ", _alignment_counter);
 #endif // NDEBUG
   */
   // Print counts etc
@@ -2174,9 +2027,8 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
     if (indel_info.has_indel_good_support)
       continue;
 
-    double const correction = indel.type == 'I' ?
-                              static_cast<double>(indel.sequence.size() / 2.0 + 8.0) / 8.0 :
-                              static_cast<double>(indel.sequence.size() / 3.0 + 10.0) / 10.0;
+    double const correction = indel.type == 'I' ? static_cast<double>(indel.sequence.size() / 2.0 + 8.0) / 8.0
+                                                : static_cast<double>(indel.sequence.size() / 3.0 + 10.0) / 10.0;
 
     double const count = correction * (indel_info.hq_count + indel_info.lq_count);
 
@@ -2185,16 +2037,24 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
                                (indel_info.span >= 15 && indel_info.hq_count >= 3 && count >= 4.5);
 
 #ifndef NDEBUG
-    if (debug_event_type == indel.type &&
-        debug_event_pos == indel.pos &&
-        debug_event_size == indel.sequence.size())
+    if (debug_event_type == indel.type && debug_event_pos == indel.pos && debug_event_size == indel.sequence.size())
     {
-      BOOST_LOG_TRIVIAL(info) << __HERE__ << " Realignment results for indel=" << indel.to_string() << " "
-                              << indel_info.hq_count << "," << indel_info.anti_count
-                              << " log_qual=" << indel_info.log_qual(10)
-                              << " info=" << indel_info.to_string()
-                              << " is_good_count=" << is_good_count
-                              << " is_good_info=" << indel_info.is_good_indel();
+      print_log(log_severity::info,
+                __HERE__,
+                " Realignment results for indel=",
+                indel.to_string(),
+                " ",
+                indel_info.hq_count,
+                ",",
+                indel_info.anti_count,
+                " log_qual=",
+                indel_info.log_qual(10),
+                " info=",
+                indel_info.to_string(),
+                " is_good_count=",
+                is_good_count,
+                " is_good_info=",
+                indel_info.is_good_indel());
     }
 #endif // NDEBUG
 
@@ -2212,15 +2072,13 @@ realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_indel
   }
 }
 
-
-void
-read_hts_and_return_realignment_indels(bam1_t * hts_rec,
-                                       HtsReader & hts_reader,
-                                       std::vector<Bucket> & buckets,
-                                       long & max_read_size,
-                                       long const BUCKET_SIZE,
-                                       long const region_begin,
-                                       std::vector<char> const & reference_sequence)
+void read_hts_and_return_realignment_indels(bam1_t * hts_rec,
+                                            HtsReader & hts_reader,
+                                            std::vector<Bucket> & buckets,
+                                            long & max_read_size,
+                                            long const BUCKET_SIZE,
+                                            long const region_begin,
+                                            std::vector<char> const & reference_sequence)
 {
   long const REF_SIZE{static_cast<long>(reference_sequence.size())};
   int32_t global_max_pos_end{0};
@@ -2240,9 +2098,8 @@ read_hts_and_return_realignment_indels(bam1_t * hts_rec,
     if (!hts_rec)
       break;
 
-    std::array<char, 16> static constexpr CIGAR_MAP = {{
-      'M', 'I', 'D', 'N', 'S', 'H', 'P', '=', 'X', 'B', '*', '*', '*', '*', '*', '*'
-    }};
+    std::array<char, 16> static constexpr CIGAR_MAP = {
+      {'M', 'I', 'D', 'N', 'S', 'H', 'P', '=', 'X', 'B', '*', '*', '*', '*', '*', '*'}};
 
     auto const & core = hts_rec->core;
     auto it = hts_rec->data;
@@ -2268,7 +2125,7 @@ read_hts_and_return_realignment_indels(bam1_t * hts_rec,
 
     if (ref_offset < 0 || ref_offset >= REF_SIZE)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " Unexpected ref_offset = " << ref_offset;
+      print_log(log_severity::error, __HERE__, " Unexpected ref_offset = ", ref_offset);
       std::exit(1);
     }
 
@@ -2283,7 +2140,7 @@ read_hts_and_return_realignment_indels(bam1_t * hts_rec,
 #ifndef NDEBUG
     if (read.name == debug_read_name)
     {
-      BOOST_LOG_TRIVIAL(info) << __HERE__ << " Found debug read=" << debug_read_name;
+      print_log(log_severity::info, __HERE__, " Found debug read=", debug_read_name);
     }
 #endif // NDEBUG
 
@@ -2312,9 +2169,11 @@ read_hts_and_return_realignment_indels(bam1_t * hts_rec,
       if (ref_offset >= REF_SIZE)
       {
 #ifndef NDEBUG
-        BOOST_LOG_TRIVIAL(warning) << __HERE__ << " While processing read="
-                                   << reinterpret_cast<char *>(hts_rec->data)
-                                   << " went beyond the region if interest";
+        print_log(log_severity::warning,
+                  __HERE__,
+                  " While processing read=",
+                  reinterpret_cast<char *>(hts_rec->data),
+                  " went beyond the region if interest");
 #endif // NDEBUG
         break;
       }
@@ -2330,8 +2189,8 @@ read_hts_and_return_realignment_indels(bam1_t * hts_rec,
       switch (cigar_operation)
       {
       case 'M':
-      case '=':       // '=' and 'X' are typically not used by aligners (at least not by default),
-      case 'X':       // but we keep it here just in case
+      case '=': // '=' and 'X' are typically not used by aligners (at least not by default),
+      case 'X': // but we keep it here just in case
       {
         assert(ref_offset < REF_SIZE);
         auto ref_it = reference_sequence.begin() + ref_offset;
@@ -2359,13 +2218,12 @@ read_hts_and_return_realignment_indels(bam1_t * hts_rec,
       {
         assert(count > 0);
 
-        auto begin_it = read_offset < static_cast<long>(read.sequence.size()) ?
-                        read.sequence.begin() + read_offset :
-                        read.sequence.end();
+        auto begin_it = read_offset < static_cast<long>(read.sequence.size()) ? read.sequence.begin() + read_offset
+                                                                              : read.sequence.end();
 
-        auto end_it = (read_offset + count) < static_cast<long>(read.sequence.size()) ?
-                      read.sequence.begin() + read_offset + count :
-                      read.sequence.end();
+        auto end_it = (read_offset + count) < static_cast<long>(read.sequence.size())
+                      ? read.sequence.begin() + read_offset + count
+                      : read.sequence.end();
 
         if (begin_it == end_it)
         {
@@ -2374,16 +2232,14 @@ read_hts_and_return_realignment_indels(bam1_t * hts_rec,
 
         std::vector<char> event_sequence(begin_it, end_it);
 
-        Event new_event = make_insertion_event(region_begin + ref_offset,
-                                               std::move(event_sequence));
+        Event new_event = make_insertion_event(region_begin + ref_offset, std::move(event_sequence));
 
-        auto indel_event_it =
-          add_indel_event_to_bucket(buckets,
-                                    std::move(new_event),
-                                    region_begin,
-                                    BUCKET_SIZE,
-                                    reference_sequence,
-                                    ref_offset);
+        auto indel_event_it = add_indel_event_to_bucket(buckets,
+                                                        std::move(new_event),
+                                                        region_begin,
+                                                        BUCKET_SIZE,
+                                                        reference_sequence,
+                                                        ref_offset);
 
         if (!indel_event_it->second.has_realignment_support)
           read.alignment.score -= (SCORE_GAP_OPEN + (count - 1) * SCORE_GAP_EXTEND);
@@ -2402,23 +2258,23 @@ read_hts_and_return_realignment_indels(bam1_t * hts_rec,
         if (ref_offset + count >= REF_SIZE)
         {
 #ifndef NDEBUG
-          BOOST_LOG_TRIVIAL(warning) << __HERE__ << " While processing read="
-                                     << reinterpret_cast<char *>(hts_rec->data)
-                                     << " went beyond the region if interest";
+          print_log(log_severity::warning,
+                    __HERE__,
+                    " While processing read=",
+                    reinterpret_cast<char *>(hts_rec->data),
+                    " went beyond the region if interest");
 #endif // NDEBUG
           break;
         }
 
-        Event new_event =
-          make_deletion_event(reference_sequence, ref_offset, region_begin + ref_offset, count);
+        Event new_event = make_deletion_event(reference_sequence, ref_offset, region_begin + ref_offset, count);
 
-        auto indel_event_it =
-          add_indel_event_to_bucket(buckets,
-                                    std::move(new_event),
-                                    region_begin,
-                                    BUCKET_SIZE,
-                                    reference_sequence,
-                                    ref_offset);
+        auto indel_event_it = add_indel_event_to_bucket(buckets,
+                                                        std::move(new_event),
+                                                        region_begin,
+                                                        BUCKET_SIZE,
+                                                        reference_sequence,
+                                                        ref_offset);
 
         if (!indel_event_it->second.has_realignment_support)
           read.alignment.score -= (SCORE_GAP_OPEN + (count - 1) * SCORE_GAP_EXTEND);
@@ -2440,7 +2296,7 @@ read_hts_and_return_realignment_indels(bam1_t * hts_rec,
         }
         else
         {
-          //if ((i + 1 != N_CIGAR) && (i + 2 != N_CIGAR))
+          // if ((i + 1 != N_CIGAR) && (i + 2 != N_CIGAR))
           //{
           //  // write cigar
           //  std::ostringstream ss;
@@ -2495,22 +2351,20 @@ read_hts_and_return_realignment_indels(bam1_t * hts_rec,
   // realign
 }
 
-
-void
-parallel_first_pass(std::vector<std::string> * hts_paths_ptr,
-                    std::map<Event, std::map<Event, int8_t> > * pool_haplotypes_ptr,
-                    std::vector<std::vector<BucketFirstPass> > * file_buckets_first_pass_ptr,
-                    std::vector<std::string> * sample_names_ptr,
-                    std::vector<char> * reference_sequence_ptr,
-                    long const BUCKET_SIZE,
-                    long const region_begin,
-                    long const lowest_file_i)
+void parallel_first_pass(std::vector<std::string> * hts_paths_ptr,
+                         std::map<Event, phmap::flat_hash_set<Event, EventHash>> * pool_haplotypes_ptr,
+                         std::vector<std::vector<BucketFirstPass>> * file_buckets_first_pass_ptr,
+                         std::vector<std::string> * sample_names_ptr,
+                         std::vector<char> * reference_sequence_ptr,
+                         long const BUCKET_SIZE,
+                         long const region_begin,
+                         long const lowest_file_i)
 {
   assert(hts_paths_ptr);
   assert(pool_haplotypes_ptr);
 
   std::vector<std::string> const & hts_paths = *hts_paths_ptr;
-  std::map<Event, std::map<Event, int8_t> > & pool_haplotypes = *pool_haplotypes_ptr;
+  std::map<Event, phmap::flat_hash_set<Event, EventHash>> & pool_haplotypes = *pool_haplotypes_ptr;
   std::vector<char> const & reference_sequence = *reference_sequence_ptr;
 
   for (long i{0}; i < static_cast<long>(hts_paths.size()); ++i)
@@ -2525,8 +2379,10 @@ parallel_first_pass(std::vector<std::string> * hts_paths_ptr,
     // Add sample
     if (hts_reader.samples.size() > 1)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " We found file with multiple samples, sorry, "
-                               << "this is currently not supported.";
+      print_log(log_severity::error,
+                __HERE__,
+                " We found file with multiple samples, sorry, ",
+                "this is currently not supported.");
       std::exit(1);
     }
 
@@ -2546,7 +2402,6 @@ parallel_first_pass(std::vector<std::string> * hts_paths_ptr,
     run_first_pass(hts_rec,
                    hts_reader,
                    lowest_file_i + i,
-                   i == 0, // is_first_in_pool
                    (*file_buckets_first_pass_ptr)[lowest_file_i + i],
                    pool_haplotypes,
                    BUCKET_SIZE,
@@ -2558,16 +2413,14 @@ parallel_first_pass(std::vector<std::string> * hts_paths_ptr,
   } // for (long file_i{0}; file_i < static_cast<long>(hts_paths.size()); ++file_i)
 }
 
-
-void
-parallel_first_pass_lr(std::vector<std::string> * hts_paths_ptr,
-                       std::vector<std::vector<BucketLR> > * file_buckets_first_pass_ptr,
-                       std::vector<std::string> * sample_names_ptr,
-                       std::vector<char> * reference_sequence_ptr,
-                       std::string const * region_str_ptr,
-                       long const BUCKET_SIZE,
-                       long const region_begin,
-                       long const lowest_file_i)
+void parallel_first_pass_lr(std::vector<std::string> * hts_paths_ptr,
+                            std::vector<std::vector<BucketLR>> * file_buckets_first_pass_ptr,
+                            std::vector<std::string> * sample_names_ptr,
+                            std::vector<char> * reference_sequence_ptr,
+                            std::string const * region_str_ptr,
+                            long const BUCKET_SIZE,
+                            long const region_begin,
+                            long const lowest_file_i)
 {
   assert(hts_paths_ptr);
 
@@ -2587,8 +2440,10 @@ parallel_first_pass_lr(std::vector<std::string> * hts_paths_ptr,
     // Add sample
     if (hts_reader.samples.size() > 1)
     {
-      BOOST_LOG_TRIVIAL(error) << __HERE__ << " We found file with multiple samples, sorry, "
-                               << "this is currently not supported.";
+      print_log(log_severity::error,
+                __HERE__,
+                " We found file with multiple samples, sorry, ",
+                "this is currently not supported.");
       std::exit(1);
     }
 
@@ -2618,15 +2473,13 @@ parallel_first_pass_lr(std::vector<std::string> * hts_paths_ptr,
   } // for (long file_i{0}; file_i < static_cast<long>(hts_paths.size()); ++file_i)
 }
 
-
-void
-parallel_second_pass(std::string const * hts_path_ptr,
-                     std::vector<char> const * reference_sequence_ptr,
-                     Tindel_events * indel_events_ptr,
-                     std::vector<Tindel_events::iterator> * indel_to_realign_ptr,
-                     long const BUCKET_SIZE,
-                     long const NUM_BUCKETS,
-                     long const region_begin)
+void parallel_second_pass(std::string const * hts_path_ptr,
+                          std::vector<char> const * reference_sequence_ptr,
+                          Tindel_events * indel_events_ptr,
+                          std::vector<Tindel_events::iterator> * indel_to_realign_ptr,
+                          long const BUCKET_SIZE,
+                          long const NUM_BUCKETS,
+                          long const region_begin)
 {
   if (indel_to_realign_ptr->size() == 0)
     return;
@@ -2707,30 +2560,28 @@ parallel_second_pass(std::string const * hts_path_ptr,
     }
   }
 
-  std::sort(nearby_good_events.begin(), nearby_good_events.end(),
-            [](Tindel_events::iterator const & a,
-               Tindel_events::iterator const & b) -> bool
-    {
-      return a->first.pos < b->first.pos;
-    });
+  std::sort(nearby_good_events.begin(),
+            nearby_good_events.end(),
+            [](Tindel_events::iterator const & a, Tindel_events::iterator const & b) -> bool
+            { return a->first.pos < b->first.pos; });
 
   auto end_unique_it = std::unique(nearby_good_events.begin(), nearby_good_events.end());
   std::move(nearby_good_events.begin(), end_unique_it, std::back_inserter(indel_to_realign));
 
-  std::sort(indel_to_realign.begin(), indel_to_realign.end(),
-            [](Tindel_events::iterator const & a,
-               Tindel_events::iterator const & b) -> bool
-    {
-      return a->second.has_indel_good_support > b->second.has_indel_good_support ||
-      (a->second.has_indel_good_support == b->second.has_indel_good_support && a->first.pos < b->first.pos);
-    });
+  std::sort(indel_to_realign.begin(),
+            indel_to_realign.end(),
+            [](Tindel_events::iterator const & a, Tindel_events::iterator const & b) -> bool
+            {
+              return a->second.has_indel_good_support > b->second.has_indel_good_support ||
+                     (a->second.has_indel_good_support == b->second.has_indel_good_support &&
+                      a->first.pos < b->first.pos);
+            });
 
 #ifndef NDEBUG
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Nearby realignment indels="
-                           << nearby_good_events.size();
+  print_log(log_severity::debug, __HERE__, " Nearby realignment indels=", nearby_good_events.size());
 #endif // NDEBUG
 
-  realign_to_indels(indel_to_realign, //realignment_indels,
+  realign_to_indels(indel_to_realign, // realignment_indels,
                     buckets,
                     max_read_size,
                     BUCKET_SIZE,
@@ -2738,16 +2589,14 @@ parallel_second_pass(std::string const * hts_path_ptr,
                     reference_sequence);
 
 #ifndef NDEBUG
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Realignment DONE.";
+  print_log(log_severity::debug, __HERE__, " Realignment DONE.");
 #endif // NDEBUG
 }
 
-
-void
-streamlined_discovery(std::vector<std::string> const & hts_paths,
-                      std::string const & ref_path,
-                      std::string const & region_str,
-                      gyper::Vcf & vcf)
+void streamlined_discovery(std::vector<std::string> const & hts_paths,
+                           std::string const & ref_path,
+                           std::string const & region_str,
+                           gyper::Vcf & vcf)
 {
   long const NUM_FILES = hts_paths.size();
   GenomicRegion genomic_region(region_str);
@@ -2759,8 +2608,8 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
   std::vector<std::string> sample_names;
   sample_names.resize(NUM_FILES);
 
-  std::vector<std::unique_ptr<std::vector<std::string> > > spl_hts_paths{};
-  std::vector<std::unique_ptr<std::map<Event, std::map<Event, int8_t> > > > spl_snp_hq_haplotypes{};
+  std::vector<std::unique_ptr<std::vector<std::string>>> spl_hts_paths{};
+  std::vector<std::unique_ptr<std::map<Event, phmap::flat_hash_set<Event, EventHash>>>> spl_snp_hq_haplotypes{};
   long jobs{1};
 
   {
@@ -2777,29 +2626,29 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
         auto end_it = it + NUM_FILES / num_parts + (i < (NUM_FILES % num_parts));
         assert(std::distance(hts_paths.cbegin(), end_it) <= NUM_FILES);
         spl_hts_paths.emplace_back(new std::vector<std::string>(it, end_it));
-        spl_snp_hq_haplotypes.emplace_back(new std::map<Event, std::map<Event, int8_t> >());
+        spl_snp_hq_haplotypes.emplace_back(new std::map<Event, phmap::flat_hash_set<Event, EventHash>>());
         it = end_it;
       }
     }
   }
 
 #ifndef NDEBUG
-  BOOST_LOG_TRIVIAL(info) << __HERE__ << " First discovery pass starting.";
+  print_log(log_severity::info, __HERE__, " First discovery pass starting.");
 #endif // NDEBUG
 
   long const NUM_POOLS{static_cast<long>(spl_hts_paths.size())};
 
 #ifndef NDEBUG
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Number of pools = " << NUM_POOLS;
+  print_log(log_severity::debug, __HERE__, " Number of pools = ", NUM_POOLS);
 #endif // NDEBUG
 
   Tindel_events indel_events;
   long NUM_BUCKETS{0};
-  std::map<Event, std::map<Event, int8_t> > haplotypes;
+  std::map<Event, phmap::flat_hash_set<Event, EventHash>> haplotypes;
 
   // FIRST PASS
   {
-    std::vector<std::vector<BucketFirstPass> > file_buckets_first_pass(NUM_FILES);
+    std::vector<std::vector<BucketFirstPass>> file_buckets_first_pass(NUM_FILES);
 
     // Parallel first pass
     {
@@ -2841,10 +2690,8 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
 
     for (long i{1}; i < NUM_POOLS; ++i)
     {
-      std::map<Event, std::map<Event, int8_t> > & pool_haplotypes = *spl_snp_hq_haplotypes[i];
-      assert(check_haplotypes(pool_haplotypes));
-      merge_haplotypes(haplotypes, pool_haplotypes);
-      assert(check_haplotypes(haplotypes));
+      std::map<Event, phmap::flat_hash_set<Event, EventHash>> & pool_haplotypes = *spl_snp_hq_haplotypes[i];
+      merge_haplotypes2(haplotypes, pool_haplotypes);
     }
 
     // Create buckets for second pass
@@ -2860,16 +2707,21 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
         for (auto && indel_event : bucket_first.events)
         {
           // Only add indels
+          assert(indel_event.first.type != 'X');
+
           if (indel_event.first.type == 'X')
             continue;
 
 #ifndef NDEBUG
-          if (debug_event_type == indel_event.first.type &&
-              debug_event_pos == indel_event.first.pos &&
+          if (debug_event_type == indel_event.first.type && debug_event_pos == indel_event.first.pos &&
               debug_event_size == indel_event.first.sequence.size())
           {
-            BOOST_LOG_TRIVIAL(info) << __HERE__ << " Indel=" << indel_event.first.to_string()
-                                    << " good_support=" << indel_event.second.has_indel_good_support;
+            print_log(log_severity::info,
+                      __HERE__,
+                      " Indel=",
+                      indel_event.first.to_string(),
+                      " good_support=",
+                      indel_event.second.has_indel_good_support);
           }
 #endif
 
@@ -2897,12 +2749,12 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
 
   // FIRST PASS ENDS
 #ifndef NDEBUG
-  BOOST_LOG_TRIVIAL(info) << __HERE__ << " First pass DONE. Starting second pass.";
+  print_log(log_severity::info, __HERE__, " First pass DONE. Starting second pass.");
 #endif // NDEBUG
 
   // SECOND PASS BEGINS
   {
-    std::vector<std::vector<Tindel_events::iterator> > indel_to_realign;
+    std::vector<std::vector<Tindel_events::iterator>> indel_to_realign;
     indel_to_realign.resize(NUM_FILES);
 
     // Add indels to events
@@ -2917,13 +2769,17 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
       if (!it->second.has_indel_good_support)
       {
 #ifndef NDEBUG
-        if (debug_event_type == it->first.type &&
-            debug_event_pos == it->first.pos &&
+        if (debug_event_type == it->first.type && debug_event_pos == it->first.pos &&
             debug_event_size == it->first.sequence.size())
         {
-          BOOST_LOG_TRIVIAL(info) << __HERE__ << " realignment indel=" << it->first.to_string()
-                                  << " qual,file_i="
-                                  << it->second.max_log_qual << " " << it->second.max_log_qual_file_i;
+          print_log(log_severity::info,
+                    __HERE__,
+                    " realignment indel=",
+                    it->first.to_string(),
+                    " qual,file_i=",
+                    it->second.max_log_qual,
+                    " ",
+                    it->second.max_log_qual_file_i);
         }
 #endif // NDEBUG
 
@@ -3019,9 +2875,7 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
       }
 
       {
-        std::ostringstream ss_hap;
         std::ostringstream ss_anti;
-        bool is_hap_stream_empty{true};
         bool is_anti_stream_empty{true};
         long next_event_index = event_index + 1;
 
@@ -3046,36 +2900,19 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
 
           auto find_event_it = event_it->second.find(next_event);
 
-          if (find_event_it != event_it->second.end())
+          if (find_event_it == event_it->second.end())
           {
-            // found
-            if (find_event_it->second == IS_ANY_HAP_SUPPORT)
-            {
-              // ONLY haplotype support
-              if (is_hap_stream_empty)
-                is_hap_stream_empty = false;
-              else
-                ss_hap << ',';
+            // anti haplotype support
+            if (is_anti_stream_empty)
+              is_anti_stream_empty = false;
+            else
+              ss_anti << ',';
 
-              ss_hap << next_event_index;
-            }
-            else if (find_event_it->second == IS_ANY_ANTI_HAP_SUPPORT)
-            {
-              // ONLY anti haplotype support
-              if (is_anti_stream_empty)
-                is_anti_stream_empty = false;
-              else
-                ss_anti << ',';
-
-              ss_anti << next_event_index;
-            }
+            ss_anti << next_event_index;
           }
         }
 
         variant.infos["GT_ID"] = std::to_string(event_index);
-
-        if (!is_hap_stream_empty)
-          variant.infos["GT_HAPLOTYPE"] = ss_hap.str();
 
         if (!is_anti_stream_empty)
           variant.infos["GT_ANTI_HAPLOTYPE"] = ss_anti.str();
@@ -3086,14 +2923,12 @@ streamlined_discovery(std::vector<std::string> const & hts_paths,
   }
 }
 
-
-void
-streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
-                          std::string const & ref_path,
-                          std::string const & region_str,
-                          gyper::Vcf & vcf)
+void streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
+                               std::string const & ref_path,
+                               std::string const & region_str,
+                               gyper::Vcf & vcf)
 {
-  BOOST_LOG_TRIVIAL(info) << "Start lr WIP on region " << region_str;
+  print_log(log_severity::info, "Start lr WIP on region ", region_str);
 
   long const NUM_FILES = hts_paths.size();
   GenomicRegion genomic_region(region_str);
@@ -3106,7 +2941,7 @@ streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
   std::vector<std::string> sample_names;
   sample_names.resize(NUM_FILES);
 
-  std::vector<std::unique_ptr<std::vector<std::string> > > spl_hts_paths{};
+  std::vector<std::unique_ptr<std::vector<std::string>>> spl_hts_paths{};
   long jobs{1};
 
   {
@@ -3128,22 +2963,22 @@ streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
   }
 
 #ifndef NDEBUG
-  BOOST_LOG_TRIVIAL(info) << __HERE__ << " First pass starting.";
+  print_log(log_severity::info, __HERE__, " First pass starting.");
 #endif // NDEBUG
 
   long const NUM_POOLS{static_cast<long>(spl_hts_paths.size())};
 
 #ifndef NDEBUG
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Number of pools = " << NUM_POOLS;
+  print_log(log_severity::debug, __HERE__, " Number of pools = ", NUM_POOLS);
 #endif // NDEBUG
 
-  //Tindel_events indel_events;
-  //Tindel_events events;
+  // Tindel_events indel_events;
+  // Tindel_events events;
   long num_buckets{0};
   std::set<SnpEvent> snp_events;
 
   // FIRST PASS
-  std::vector<std::vector<BucketLR> > file_buckets_first_pass(NUM_FILES);
+  std::vector<std::vector<BucketLR>> file_buckets_first_pass(NUM_FILES);
 
   // Parallel first pass
   {
@@ -3182,7 +3017,7 @@ streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
 
   // Merge files that have the same sample
   std::vector<std::string> new_sample_names;
-  std::vector<std::vector<BucketLR> > new_file_buckets;
+  std::vector<std::vector<BucketLR>> new_file_buckets;
   std::unordered_map<std::string, long> seen_sample_names;
 
   for (long s{0}; s < NUM_FILES; ++s)
@@ -3256,12 +3091,7 @@ streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
         std::array<int64_t, 4> const & qs = base_count.acgt_qualsum;
         std::array<long, 4> idx{{0, 1, 2, 3}};
 
-        std::sort(idx.begin(),
-                  idx.end(),
-                  [&qs](int64_t i1, int64_t i2)
-          {
-            return qs[i1] < qs[i2];
-          });
+        std::sort(idx.begin(), idx.end(), [&qs](int64_t i1, int64_t i2) { return qs[i1] < qs[i2]; });
 
         long const first = idx[3];
         long const second = idx[2];
@@ -3270,21 +3100,20 @@ streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
         if (first != ref_index && (((qs[first] - qs[second]) >= 25) || ((qs[first] - qs[third]) >= 40)))
         {
           SnpEvent snp_event(region_begin + pos + p, index2base[first]);
-          snp_events.insert(std::move(snp_event));
+          snp_events.insert(snp_event);
         }
 
-        if (second != ref_index &&
-            (qs[second] - qs[third]) >= 40 &&
+        if (second != ref_index && (qs[second] - qs[third]) >= 40 &&
             ((static_cast<double>(qs[second]) / static_cast<double>(qs[0] + qs[1] + qs[2] + qs[3])) > 0.3))
         {
           SnpEvent snp_event(region_begin + pos + p, index2base[second]);
-          snp_events.insert(std::move(snp_event));
+          snp_events.insert(snp_event);
         }
       }
     }
   }
 
-  BOOST_LOG_TRIVIAL(info) << __HERE__ << " Number of events: " << snp_events.size();
+  print_log(log_severity::info, __HERE__, " Number of events: ", snp_events.size());
 
   for (auto snp_event_it = snp_events.begin(); snp_event_it != snp_events.end(); ++snp_event_it)
   {
@@ -3376,27 +3205,27 @@ streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
           }
         }
 
-        // PHRED
-        //auto max_it = std::max_element(base_count.acgt_qualsum.begin(), base_count.acgt_qualsum.end());
-        //assert(max_it != base_count.acgt_qualsum.end());
-        long i{0};
+        long const total_qualsum = base_count.get_total_qualsum();
 
+        // PHRED
+        // auto max_it = std::max_element(base_count.acgt_qualsum.begin(), base_count.acgt_qualsum.end());
+        // assert(max_it != base_count.acgt_qualsum.end());
+        long i{0};
+        // long constexpr ERROR_PHRED{25}; // Penalty of non-support
+
+        // TODO use base_count.acgt_qualsum when calculating PL
         for (long y{0}; y < cnum; ++y)
         {
           for (long x{0}; x <= y; ++x, ++i)
           {
             assert(i < static_cast<long>(new_phred.size()));
             assert(i < static_cast<long>(new_call.phred.size()));
+            assert(new_phred[i] == 0); // not previously set
 
             if (x == y)
             {
               long const x_idx = seq_base2index[y];
-
-              for (long u{0}; u < 4; ++u)
-              {
-                if (u == x_idx)
-                  new_phred[i] += (3 * base_count.acgt_qualsum[u]) / 2;
-              }
+              new_phred[i] = total_qualsum - base_count.acgt_qualsum[x_idx]; // Total qualsum of all bases except x_idx
             }
             else
             {
@@ -3404,22 +3233,20 @@ streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
               long const y_idx = seq_base2index[y];
               assert(x_idx != y_idx);
 
-              for (long u{0}; u < 4; ++u)
-              {
-                if (u == x_idx || u == y_idx)
-                  new_phred[i] += (3 * (base_count.acgt_qualsum[u] - 2 * base_count.acgt[u])) / 2;
-              }
+              new_phred[i] = total_qualsum - base_count.acgt_qualsum[x_idx] - base_count.acgt_qualsum[y_idx] +
+                             3 * (base_count.acgt[x_idx] + base_count.acgt[y_idx]);
             }
           }
         }
 
-        auto max_it = std::max_element(new_phred.begin(), new_phred.end());
-        assert(max_it != new_phred.end());
-        long const max_score = *max_it;
+        // Normalize phred score such that there is at least PHRED likelihood score equal to 0
+        auto min_it = std::min_element(new_phred.begin(), new_phred.end());
+        assert(min_it != new_phred.end());
+        long const min_score = *min_it; // find the smallest score
 
         for (i = 0; i < pl_len; ++i)
         {
-          long const pl = max_score - new_phred[i];
+          long const pl = new_phred[i] - min_score; // substract the lowest PL to get a 0
           new_call.phred[i] = pl < 255 ? pl : 255;
         }
       }
@@ -3442,9 +3269,8 @@ streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
   vcf.sample_names = std::move(new_sample_names);
 
 #ifndef NDEBUG
-  BOOST_LOG_TRIVIAL(info) << __HERE__ << " WIP done";
+  print_log(log_severity::info, __HERE__, " WIP done");
 #endif // NDEBUG
 }
-
 
 } // namespace gyper

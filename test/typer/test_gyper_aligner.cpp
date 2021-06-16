@@ -1,19 +1,18 @@
-#include <catch.hpp>
-
-#include <stdio.h>
 #include <climits>
 #include <cstdio>
-#include <string>
-#include <iostream>
 #include <fstream>
+#include <iostream>
+#include <stdio.h>
+#include <string>
 
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/index/rocksdb.hpp>
-#include <graphtyper/utilities/type_conversions.hpp> // to_uint64()
 #include <graphtyper/typer/aligner.hpp>
+#include <graphtyper/utilities/type_conversions.hpp> // to_uint64()
 
-typedef gyper::Aligner<gyper::SimpleGraph, gyper::Index<gyper::RocksDB> > TAligner;
+#include <catch.hpp>
 
+typedef gyper::Aligner<gyper::SimpleGraph, gyper::Index<gyper::RocksDB>> TAligner;
 
 TEST_CASE("Align read from start", "[align]")
 {
@@ -25,7 +24,6 @@ TEST_CASE("Align read from start", "[align]")
   seqan::String<seqan::Dna> query = "TTTCCCCAGGTTTCCCCAGGTTTCCCCAGGTTTGCCCAGGTTTCCCCAGGTTTCCCCTTTGGA";
   aligner.align_read_from_start(query);
 }
-
 
 TEST_CASE("GENERAL PURPOSE", "[align]")
 {

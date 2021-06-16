@@ -2,11 +2,12 @@ cmake_minimum_required (VERSION 3.2)
 project (graphtyper)
 
 include(ExternalProject)
+include(CheckIncludeFileCXX)
 
 # The version number
 set (graphtyper_VERSION_MAJOR 2)
 set (graphtyper_VERSION_MINOR 7)
-set (graphtyper_VERSION_PATCH 1)
+set (graphtyper_VERSION_PATCH 2)
 set(STATIC_DIR "" CACHE STRING "If set, GraphTyper will be built as a static binary using libraries from the given STATIC_DIR.")
 
 # Get the current working branch
@@ -42,12 +43,12 @@ execute_process(
 )
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
-set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wfatal-errors -pedantic -Wno-variadic-macros -std=c++11 -DSEQAN_HAS_ZLIB=1 -DSEQAN_USE_HTSLIB=1 -DSEQAN_ENABLE_TESTING=0 -DSEQAN_ENABLE_DEBUG=0")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wfatal-errors -pedantic -Wno-variadic-macros -std=c++17 -DSEQAN_HAS_ZLIB=1 -DSEQAN_USE_HTSLIB=1 -DSEQAN_ENABLE_TESTING=0 -DSEQAN_ENABLE_DEBUG=0")
 
 if(CMAKE_BUILD_TYPE STREQUAL "DEBUG" OR CMAKE_BUILD_TYPE STREQUAL "Debug")
   message(STATUS "Building in debug mode.")
   set (CMAKE_CXX_FLAGS "-g -O0 -DDEBUG ${CMAKE_CXX_FLAGS}")
-elseif(CMAKE_BUILD_TYPE STREQUAL "RELDEB" OR CMAKE_BUILD_TYPE STREQUAL "Reldeb")
+elseif(CMAKE_BUILD_TYPE STREQUAL "RELDEB" OR CMAKE_BUILD_TYPE STREQUAL "Reldeb" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
   message(STATUS "Building in release (with assertions and debug info) mode.")
   set (CMAKE_CXX_FLAGS "-g -O3 -DDEBUG ${CMAKE_CXX_FLAGS}")
 elseif(CMAKE_BUILD_TYPE STREQUAL "PROFILING" OR CMAKE_BUILD_TYPE STREQUAL "Profiling")
@@ -80,21 +81,6 @@ if (DEFINED LDFLAGS)
   message (STATUS "Custom LDFLAGS: ${MYLDFLAGS}")
 endif()
 
-# Find external libraries
-## boost
-if (NOT DEFINED Boost_USE_STATIC_LIBS)
-  set(Boost_USE_STATIC_LIBS ON)
-endif()
-
-if (NOT Boost_USE_STATIC_LIBS)
-  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DBOOST_LOG_DYN_LINK")
-endif()
-
-message (STATUS "Checking for Boost: USE_STATIC_LIBS=${Boost_USE_STATIC_LIBS}")
-find_package(Boost 1.57.0 REQUIRED COMPONENTS system iostreams log_setup log thread serialization filesystem REQUIRED)
-message (STATUS "Boost include directory: ${Boost_INCLUDE_DIR}")
-include_directories(SYSTEM ${Boost_INCLUDE_DIR})
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I ${Boost_INCLUDE_DIR}")
 
 ## libdeflate
 ExternalProject_Add(
@@ -103,7 +89,9 @@ ExternalProject_Add(
   BUILD_IN_SOURCE 1
   PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/libdeflate
   CONFIGURE_COMMAND ""
-  BUILD_COMMAND $(MAKE) -C ${CMAKE_CURRENT_SOURCE_DIR}/libdeflate "CFLAGS=-fPIC -O3" libdeflate.a
+  BUILD_COMMAND $(MAKE) -C ${CMAKE_CURRENT_SOURCE_DIR}/libdeflate
+    "CC=${CMAKE_C_COMPILER}"
+    "CFLAGS=-fPIC -O3 ${CMAKE_C_FLAGS}" libdeflate.a
   INSTALL_COMMAND ""
 )
 
@@ -124,9 +112,10 @@ ExternalProject_Add(
   BUILD_IN_SOURCE 1
   PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/htslib
   CONFIGURE_COMMAND autoheader COMMAND autoconf COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/htslib/configure --disable-libcurl --disable-gcs --with-libdeflate
-  "CFLAGS=${MYCFLAGS} -I${CMAKE_CURRENT_SOURCE_DIR}/libdeflate"
-  "LDFLAGS=${MYLDFLAGS} -L${CMAKE_CURRENT_SOURCE_DIR}/libdeflate"
-  BUILD_COMMAND $(MAKE) -C ${CMAKE_CURRENT_SOURCE_DIR}/htslib "CFLAGS=-g -Wall -O3 -I${CMAKE_CURRENT_SOURCE_DIR}/libdeflate" libhts.a
+    "CFLAGS=${MYCFLAGS} -g -Wall -O3 ${CMAKE_C_FLAGS} -I${CMAKE_CURRENT_SOURCE_DIR}/libdeflate"
+    "LDFLAGS=${MYLDFLAGS} -L${CMAKE_CURRENT_SOURCE_DIR}/libdeflate"
+    "CC=${CMAKE_C_COMPILER}"
+  BUILD_COMMAND $(MAKE) -C ${CMAKE_CURRENT_SOURCE_DIR}/htslib libhts.a
   INSTALL_COMMAND ""
 )
 
@@ -150,7 +139,7 @@ ExternalProject_Add(
   BUILD_IN_SOURCE 1
   PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/paw
   CONFIGURE_COMMAND ""
-  BUILD_COMMAND mkdir -p ${CMAKE_CURRENT_SOURCE_DIR}/paw/build COMMAND cmake -H${CMAKE_CURRENT_SOURCE_DIR}/paw -B${CMAKE_CURRENT_SOURCE_DIR}/paw/build -DFORCE_AVX512=1 COMMAND $(MAKE) -C ${CMAKE_CURRENT_SOURCE_DIR}/paw/build static
+  BUILD_COMMAND mkdir -p ${CMAKE_CURRENT_SOURCE_DIR}/paw/build COMMAND ${CMAKE_COMMAND} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -H${CMAKE_CURRENT_SOURCE_DIR}/paw -B${CMAKE_CURRENT_SOURCE_DIR}/paw/build -DFORCE_AVX512=1 COMMAND $(MAKE) -C ${CMAKE_CURRENT_SOURCE_DIR}/paw/build static
   INSTALL_COMMAND "")
 
 
@@ -170,6 +159,17 @@ find_package(Threads)
 
 ## SeqAn
 include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/seqan/include)
+
+## CEREAL
+if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cereal)
+    set (CMAKE_REQUIRED_INCLUDES    ${CMAKE_INCLUDE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cereal/include)
+    include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/cereal/include)
+    message (STATUS "Cereal submodule found. Adding it to INCLUDES.")
+endif()
+check_include_file_cxx (cereal/cereal.hpp _HAVE_CEREAL)
+if (NOT _HAVE_CEREAL)
+    message (FATAL_ERROR "Cereal has not been found but is required.")
+endif()
 
 ## Executables go to a "bin" folder.
 set(EXECUTABLE_OUTPUT_PATH ../bin)
@@ -197,7 +197,6 @@ if(STATIC_DIR STREQUAL "")
     htslib
     paw
     libdeflate
-    ${Boost_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
     ${ZLIB_LIBRARIES}
     ${BZIP2_LIBRARIES}
@@ -206,6 +205,11 @@ if(STATIC_DIR STREQUAL "")
   if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     message(STATUS "Using GCC")
     list(APPEND graphtyper_all_libraries "rt")
+    list(APPEND graphtyper_all_libraries "stdc++fs")
+  elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+    message(STATUS "Using Clang")
+  else()
+    message(WARNING "Unsupported compiler")
   endif ()
 
   # If lzma is optional for htslib
@@ -224,22 +228,12 @@ else(STATIC_DIR STREQUAL "")
     htslib
     paw
     libdeflate
-    ${STATIC_DIR}/libboost_system.a
-    ${STATIC_DIR}/libboost_iostreams.a
-    ${STATIC_DIR}/libboost_log_setup.a
-    ${STATIC_DIR}/libboost_log.a
-    ${STATIC_DIR}/libboost_thread.a
-    ${STATIC_DIR}/libboost_serialization.a
-    ${STATIC_DIR}/libboost_filesystem.a
-    ${STATIC_DIR}/libboost_regex.a
-    ${STATIC_DIR}/libboost_date_time.a
-    ${STATIC_DIR}/libboost_chrono.a
-    ${STATIC_DIR}/libboost_atomic.a
     ${STATIC_DIR}/libpthread.a
     ${STATIC_DIR}/libz.a
     ${STATIC_DIR}/libbz2.a
     ${STATIC_DIR}/liblzma.a
     ${STATIC_DIR}/librt.a
+    ${STATIC_DIR}/libstdc++fs.a
 )
 endif(STATIC_DIR STREQUAL "")
 
@@ -251,3 +245,14 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/catch/single_include/)
 
 enable_testing(true)
 add_subdirectory(test)
+
+## Add clang-format check
+find_program(CLANG_FORMAT "clang-format-12")
+
+if (CLANG_FORMAT STREQUAL "" OR CLANG_FORMAT STREQUAL "CLANG_FORMAT-NOTFOUND")
+    find_program(CLANG_FORMAT "clang-format")
+endif()
+
+if (NOT CLANG_FORMAT STREQUAL "" AND NOT CLANG_FORMAT STREQUAL "CLANG_FORMAT-NOTFOUND")
+    add_custom_target (check_format "find" "${CMAKE_CURRENT_SOURCE_DIR}/src" "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}/test" "-name" "\"*.hpp\"" "-o" "-name" "\"*.cpp\"" "-exec" "${CLANG_FORMAT}" "--style=file" "--dry-run" "--Werror" "{}" "+" COMMENT "Checking all files format with clang-format.")
+endif()

@@ -2,15 +2,13 @@
 
 #include <cstdint>
 
-#include <boost/serialization/access.hpp>
-
+#include <cereal/access.hpp>
 
 namespace gyper
 {
-
 class Genotype
 {
-  friend class boost::serialization::access;
+  friend class cereal::access;
 
 public:
   uint32_t id;

@@ -11,7 +11,6 @@
 
 namespace gyper
 {
-
 // Forward declarations
 class Graph;
 class KmerLabel;
@@ -24,7 +23,6 @@ struct GenotypePathsDetails
   std::string read_group;
 };
 
-
 class GenotypePaths
 {
 public:
@@ -35,14 +33,14 @@ public:
   uint16_t flags{0};
   uint32_t longest_path_length{0};
   uint32_t original_pos{0}; // 0-based position from global alignment
-  uint8_t score_diff{0}; // AS-XS from bwa
-//  uint8_t original_clipped_bp{0};
+  uint8_t score_diff{0};    // AS-XS from bwa
+                            //  uint8_t original_clipped_bp{0};
   uint8_t mapq{255};
   int32_t ml_insert_size{INSERT_SIZE_WHEN_NOT_PROPER_PAIR};
 
 #ifndef NDEBUG
   std::unique_ptr<GenotypePathsDetails> details; // Only used when statistics are kept
-#endif // NDEBUG
+#endif                                           // NDEBUG
 
   /****************
    * CONSTRUCTORS *
@@ -86,7 +84,7 @@ public:
   void remove_non_ref_paths_when_read_matches_ref();
   void remove_fully_special_paths();
 
-  //std::vector<VariantCandidate> find_new_variants() const;
+  // std::vector<VariantCandidate> find_new_variants() const;
 
   void update_longest_path_size();
 
@@ -94,7 +92,7 @@ public:
    * CLASS INFORMATION *
    *********************/
   std::size_t longest_path_size() const;
-//  std::vector<Path> longest_paths() const;
+  //  std::vector<Path> longest_paths() const;
   bool all_paths_unique() const;
   bool all_paths_fully_aligned() const;
   bool is_purely_reference() const;
@@ -105,7 +103,6 @@ public:
 #endif // NDEBUG
 
   bool is_proper_pair() const;
-
 };
 
 int compare_pair_of_genotype_paths(GenotypePaths const & geno1, GenotypePaths const & geno2);

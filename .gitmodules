@@ -23,3 +23,6 @@
 	path = libdeflate
 	url = https://github.com/ebiggers/libdeflate.git
 	ignore = dirty
+[submodule "cereal"]
+	path = cereal
+	url = https://github.com/USCiLab/cereal.git

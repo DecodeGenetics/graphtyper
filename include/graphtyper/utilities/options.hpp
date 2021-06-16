@@ -6,10 +6,8 @@
 
 #include <graphtyper/constants.hpp>
 
-
 namespace gyper
 {
-
 class Options
 {
 public:
@@ -35,6 +33,7 @@ public:
   uint32_t split_var_threshold{SPLIT_VAR_THRESHOLD};
   bool is_segment_calling{false};
   bool force_ignore_segment{false};
+  bool uncompressed_sample_names{false};
 
   /****
    * FILTERING OPTIONS
@@ -51,7 +50,7 @@ public:
    * GENERAL OPTIONS *
    *******************/
   std::vector<std::string> regions = {"."}; // "." means the entire SAM file is read
-  std::string stats{}; // Filename for statistics file
+  std::string stats{};                      // Filename for statistics file
 
   /*********************
    * BAMSHRINK OPTIONS *
@@ -115,19 +114,18 @@ public:
   /*******************
    * LOGGING OPTIONS *
    *******************/
-//  boost::shared_ptr<boost::log::sinks::synchronous_sink<boost::log::sinks::text_file_backend> > sink;
+  //  boost::shared_ptr<boost::log::sinks::synchronous_sink<boost::log::sinks::text_file_backend> > sink;
 
   /***********
    * METHODS *
    ***********/
-  static Options * instance(); // Gets the only instance (singleton pattern)
+  static Options * instance();             // Gets the only instance (singleton pattern)
   static const Options * const_instance(); // const version of instance()
   void print();
 
-
 private:
-  Options(); // Prevent construction of new instances
-  Options(Options const &); // Prevent copy-construction
+  Options();                            // Prevent construction of new instances
+  Options(Options const &);             // Prevent copy-construction
   Options & operator=(Options const &); // Prevent copy-assignment
 
   static Options * _instance;

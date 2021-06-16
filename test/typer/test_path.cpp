@@ -1,19 +1,19 @@
-#include <catch.hpp>
-
-#include <stdio.h>
 #include <climits>
 #include <cstdio>
-#include <string>
-#include <iostream>
 #include <fstream>
+#include <iostream>
+#include <stdio.h>
+#include <string>
 
 #include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/graph_serialization.hpp>
-#include <graphtyper/index/ph_index.hpp>
 #include <graphtyper/index/indexer.hpp>
-#include <graphtyper/utilities/type_conversions.hpp> // to_uint64()
-#include <graphtyper/typer/path.hpp>
 #include <graphtyper/index/kmer_label.hpp>
+#include <graphtyper/index/ph_index.hpp>
+#include <graphtyper/typer/path.hpp>
+#include <graphtyper/utilities/type_conversions.hpp> // to_uint64()
+
+#include <catch.hpp>
 
 /*
 // TODO: This needs to be updated
@@ -118,7 +118,6 @@ TEST_CASE("Sucessful merging of two paths")
   }
   */
 }
-
 
 /**
 // TODO: This needs to be updated

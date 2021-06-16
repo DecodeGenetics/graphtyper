@@ -1,0 +1,25 @@
+# EditorConfig is awesome: https://EditorConfig.org
+
+# top-most EditorConfig file
+root = true
+
+# Unix-style newlines with a newline ending every file
+[**]
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+charset = utf-8
+
+# Makefiles should always use tabs
+[Makefile]
+indent_style = tab
+
+# Indentation override for all JS under lib directory
+[src/**.cpp]
+indent_style = space
+indent_size = 2
+
+[include/**.hpp]
+indent_style = space
+indent_size = 2
+

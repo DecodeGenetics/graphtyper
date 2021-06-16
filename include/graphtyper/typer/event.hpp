@@ -2,21 +2,17 @@
 
 #include <array>
 #include <cstdint>
-#include <string>
-#include <sstream>
 #include <map>
+#include <sstream>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
-
 namespace gyper
 {
-
 std::array<char, 4> constexpr index2base = {'A', 'C', 'G', 'T'};
 
-long
-base2index(char const base);
-
+long base2index(char const base);
 
 struct BaseCount
 {
@@ -25,14 +21,13 @@ struct BaseCount
   int32_t deleted{0};
   int32_t unknown{0};
 
-  long get_depth_without_deleted() const;
-  long get_depth_with_deleted() const;
+  long get_depth_without_deleted() const; // does not include unknown
+  long get_depth_with_deleted() const;    // does not include unknown
+  long get_total_qualsum() const;         // only includes unique bases (A,C,G,T)
   std::string to_string() const;
 
   void add_base(char seq, char qual);
-
 };
-
 
 class Event
 {
@@ -48,25 +43,21 @@ public:
 
   Event() = default;
 
-  Event(uint32_t _pos, char _type)
-    : pos(_pos)
-    , type(_type)
-  {}
+  Event(uint32_t _pos, char _type) : pos(_pos), type(_type)
+  {
+  }
 
-  Event(uint32_t _pos, char _type, std::vector<char> && _sequence)
-    : pos{_pos}
-    , type{_type}
-    , sequence{std::forward<std::vector<char> >(_sequence)}
-  {}
+  Event(uint32_t _pos, char _type, std::vector<char> && _sequence) :
+    pos{_pos}, type{_type}, sequence{std::forward<std::vector<char>>(_sequence)}
+  {
+  }
 
-  inline std::string
-  to_string() const
+  inline std::string to_string() const
   {
     std::ostringstream ss;
     ss << pos << " " << type << ' ' << std::string(sequence.begin(), sequence.end());
     return ss.str();
   }
-
 
   /*********************
    * OPERATOR OVERLOAD *
@@ -75,7 +66,6 @@ public:
   bool operator!=(Event const & b) const;
   bool operator<(Event const & b) const;
 };
-
 
 class EventSupport
 {
@@ -96,7 +86,7 @@ public:
   void clear();
   int get_raw_support() const;
   double corrected_support() const;
-  bool has_good_support(long const cov) const;
+  bool has_good_support(long cov) const;
   std::string to_string() const;
   uint32_t log_qual(uint32_t eps = 7) const;
   bool is_good_indel(uint32_t eps = 7) const;
@@ -111,12 +101,9 @@ public:
 
   uint32_t max_log_qual{0};
   int max_log_qual_file_i{-1};
-
-
 };
 
-
-//std::vector<uint8_t> get_phred_biallelic(uint32_t count, uint32_t anti_count, uint32_t eps);
+// std::vector<uint8_t> get_phred_biallelic(uint32_t count, uint32_t anti_count, uint32_t eps);
 uint32_t get_log_qual(uint32_t count, uint32_t anti_count, uint32_t eps = 7);
 uint32_t get_log_qual_double(double count, double anti_count, double eps = 7.0);
 
@@ -141,52 +128,22 @@ public:
 };
 */
 
+bool apply_indel_event(std::vector<char> & sequence,
+                       std::vector<int32_t> & ref_pos,
+                       Event const & indel_event,
+                       long const offset,
+                       bool const is_debug = false);
 
-bool
-apply_indel_event(std::vector<char> & sequence,
-                  std::vector<int32_t> & ref_pos,
-                  Event const & indel_event,
-                  long const offset,
-                  bool const is_debug = false);
+Event make_deletion_event(std::vector<char> const & reference_sequence, long ref_offset, int32_t pos, long count);
 
-Event
-make_deletion_event(std::vector<char> const & reference_sequence, long ref_offset, int32_t pos, long count);
+Event make_insertion_event(int32_t pos, std::vector<char> && event_sequence);
 
-Event
-make_insertion_event(int32_t pos, std::vector<char> && event_sequence);
-
-} // namespace gyper
-
-
-namespace std
-{
-
-template <>
-struct hash<gyper::Event>
-{
-  size_t
-  operator()(gyper::Event const & event)
-  {
-    size_t h1 = std::hash<uint32_t>()(event.pos);
-    size_t h2 = std::hash<char>()(event.type);
-    size_t h3 = 42 ^ event.sequence.size();
-
-    for (auto const & seq : event.sequence)
-      h3 ^= std::hash<char>()(seq);
-
-    return h1 ^ (h2 << 1) ^ (h3 + 0x9e3779b9);
-  }
-
-
-};
-
-} // namespace std
-
-
-namespace gyper
-{
-
-//using Tevents = phmap::node_hash_map<Event, uint32_t>;
+// using Tevents = phmap::node_hash_map<Event, uint32_t>;
 using Tindel_events = std::map<Event, EventSupport>; // maps events to count
+
+struct EventHash
+{
+  std::size_t operator()(gyper::Event const & e) const;
+};
 
 } // namespace gyper

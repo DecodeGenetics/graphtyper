@@ -1,17 +1,14 @@
-#include <string>
 #include <iostream>
-
-#include <htslib/sam.h>
+#include <string>
 
 #include <graphtyper/utilities/hts_parallel_reader.hpp>
 #include <graphtyper/utilities/hts_writer.hpp>
 
+#include <htslib/sam.h>
 
 namespace gyper
 {
-
-void
-HtsWriter::open(std::string const & path)
+void HtsWriter::open(std::string const & path)
 {
   fp = hts_open(path.c_str(), "wb");
 
@@ -22,9 +19,7 @@ HtsWriter::open(std::string const & path)
   }
 }
 
-
-void
-HtsWriter::close()
+void HtsWriter::close()
 {
   if (fp)
   {
@@ -33,9 +28,7 @@ HtsWriter::close()
   }
 }
 
-
-void
-HtsWriter::copy_header(HtsParallelReader const & hts_preader)
+void HtsWriter::copy_header(HtsParallelReader const & hts_preader)
 {
   if (!fp)
   {
@@ -54,9 +47,7 @@ HtsWriter::copy_header(HtsParallelReader const & hts_preader)
   }
 }
 
-
-void
-HtsWriter::write(bam1_t * hts_rec)
+void HtsWriter::write(bam1_t * hts_rec)
 {
   if (!fp)
   {
@@ -72,6 +63,5 @@ HtsWriter::write(bam1_t * hts_rec)
     std::exit(1);
   }
 }
-
 
 } // namespace gyper

@@ -1,12 +1,11 @@
 #include <fstream>
 #include <string>
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
-#include <boost/log/trivial.hpp>
-#include <boost/serialization/vector.hpp>
+#include <cereal/archives/binary.hpp>
+#include <cereal/types/vector.hpp>
 
 #include <graphtyper/graph/haplotype_calls.hpp>
+#include <graphtyper/utilities/logging.hpp>
 
 /*
 
@@ -67,9 +66,9 @@ HaplotypeCall::make_calls_unique()
 }
 */
 
-//template <class Archive>
-//void
-//HaplotypeCall::serialize(Archive & ar, unsigned const int /*version*/)
+// template <class Archive>
+// void
+// HaplotypeCall::serialize(Archive & ar, unsigned const int /*version*/)
 //{
 //  ar & calls;
 //  ar & num_samples;
@@ -81,14 +80,14 @@ HaplotypeCall::make_calls_unique()
 ////
 ///// HaplotypeCalls
 ////
-//HaplotypeCalls::HaplotypeCalls(std::vector<HaplotypeCall> const & _hap_calls)
+// HaplotypeCalls::HaplotypeCalls(std::vector<HaplotypeCall> const & _hap_calls)
 //  : hap_calls(_hap_calls)
 //{}
 //
 //
-//template <typename Archive>
-//void
-//HaplotypeCalls::serialize(Archive & ar, unsigned const int /*version*/)
+// template <typename Archive>
+// void
+// HaplotypeCalls::serialize(Archive & ar, unsigned const int /*version*/)
 //{
 //  ar & hap_calls;
 //}
@@ -98,17 +97,17 @@ HaplotypeCall::make_calls_unique()
 // * EXPLICIT INSTANTIATIONS *
 // ***************************/
 //
-//template void HaplotypeCalls::serialize<boost::archive::binary_iarchive>(boost::archive::binary_iarchive &,
+// template void HaplotypeCalls::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &,
 //                                                                         const unsigned int);
-//template void HaplotypeCalls::serialize<boost::archive::binary_oarchive>(boost::archive::binary_oarchive &,
+// template void HaplotypeCalls::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputArchive &,
 //                                                                         const unsigned int);
 //
 ///*********************************
 // * FUNCTIONS TO MAKE LIFE EASIER *
 // *********************************/
 //
-//void
-//save_calls(HaplotypeCalls & calls, std::string const & filename)
+// void
+// save_calls(HaplotypeCalls & calls, std::string const & filename)
 //{
 //  std::ofstream ofs(filename.c_str(), std::ios::binary);
 //
@@ -120,13 +119,13 @@ HaplotypeCall::make_calls_unique()
 //    std::exit(1);
 //  }
 //
-//  boost::archive::binary_oarchive oa(ofs);
+//  cereal::BinaryOutputArchive oa(ofs);
 //  oa << calls;
 //}
 //
 //
-//std::vector<HaplotypeCall>
-//load_calls(std::string const & filename)
+// std::vector<HaplotypeCall>
+// load_calls(std::string const & filename)
 //{
 //  HaplotypeCalls calls{};
 //  std::ifstream ifs(filename.c_str(), std::ios::binary);
@@ -137,7 +136,7 @@ HaplotypeCall::make_calls_unique()
 //    std::exit(1);
 //  }
 //
-//  boost::archive::binary_iarchive ia(ifs);
+//  cereal::BinaryInputArchive ia(ifs);
 //  ia >> calls;
 //  return calls.get_hap_calls();
 //}

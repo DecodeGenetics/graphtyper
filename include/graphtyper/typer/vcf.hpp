@@ -1,12 +1,12 @@
 #pragma once
 
 #include <memory>
-#include <string> // std::string
+#include <string>        // std::string
 #include <unordered_map> // std::unordered_map
 #include <unordered_set> // std::unordered_map
-#include <vector> // std::vector
+#include <vector>        // std::vector
 
-#include <boost/serialization/access.hpp>
+#include <cereal/access.hpp>
 
 #include <graphtyper/constants.hpp>
 #include <graphtyper/graph/genotype.hpp>
@@ -16,10 +16,8 @@
 #include <graphtyper/utilities/bgzf_stream.hpp>
 #include <graphtyper/utilities/gzstream.hpp>
 
-
 namespace gyper
 {
-
 class HaplotypeCall;
 
 enum VCF_FILE_MODE
@@ -32,13 +30,12 @@ enum VCF_FILE_MODE
   WRITE_MODE
 };
 
-
 class Vcf
 {
-  friend class boost::serialization::access;
+  friend class cereal::access;
 
 public:
-  Vcf();
+  Vcf() = default;
   explicit Vcf(VCF_FILE_MODE _filemode, std::string const & filename);
   Vcf(Vcf const &) = delete;
   Vcf(Vcf &&) = delete;
@@ -86,7 +83,7 @@ public:
 
   // Adding data
   void add_hla_haplotypes(std::vector<Haplotype> & haplotypes,
-                          std::vector<std::unordered_map<uint32_t, uint32_t> > const & allele_hap_gts_ptr);
+                          std::vector<std::unordered_map<uint32_t, uint32_t>> const & all_hap_gts);
   void add_haplotype(Haplotype & haplotype, int32_t phase_set = -1);
 
   void add_haplotypes_for_extraction(std::vector<HaplotypeCall> const & hap_calls, bool const is_splitting_vars);
@@ -103,9 +100,7 @@ private:
 };
 
 std::vector<std::size_t> get_all_pos(std::string const & line, char const delim = '\t');
-std::string get_string_at_tab_index(std::string const & line,
-                                    std::vector<std::size_t> const & tabs,
-                                    int index);
+std::string get_string_at_tab_index(std::string const & line, std::vector<std::size_t> const & tabs, int index);
 
 void save_vcf(Vcf const & vcf, std::string const & filename);
 void load_vcf(Vcf & vcf, std::string const & filename, long n_batch);

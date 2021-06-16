@@ -3,20 +3,18 @@
 #include <unordered_set>
 #include <vector>
 
-#include <boost/serialization/access.hpp>
+#include <cereal/access.hpp>
 
 #include <graphtyper/graph/label.hpp>
 
-
 namespace gyper
 {
-
 class Ref;
 class Alt;
 
 class RefNode
 {
-  friend class boost::serialization::access;
+  friend class cereal::access;
 
 public:
   Label label{};
@@ -38,10 +36,9 @@ private:
   void serialize(Archive & ar, const unsigned int);
 };
 
-
 class VarNode
 {
-  friend class boost::serialization::access;
+  friend class cereal::access;
 
 public:
   Label label{};
@@ -50,9 +47,10 @@ public:
   std::unordered_set<long> anti_events;
 
   VarNode() = default;
-  //VarNode(Label && l, TNodeIndex && ori, std::unordered_set<long> && events) noexcept;
+  // VarNode(Label && l, TNodeIndex && ori, std::unordered_set<long> && events) noexcept;
 
-  VarNode(Label && l, TNodeIndex && ori,
+  VarNode(Label && l,
+          TNodeIndex && ori,
           std::unordered_set<long> && events,
           std::unordered_set<long> && anti_events) noexcept;
 
@@ -68,6 +66,5 @@ private:
   template <class Archive>
   void serialize(Archive & ar, const unsigned int);
 };
-
 
 } // namespace gyper

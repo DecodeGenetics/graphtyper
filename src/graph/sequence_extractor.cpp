@@ -2,16 +2,13 @@
 #include <sstream>
 
 #include <graphtyper/graph/graph.hpp>
-#include <graphtyper/graph/sequence_extractor.hpp>
 #include <graphtyper/graph/graph_serialization.hpp> // gyper::load_graph
+#include <graphtyper/graph/sequence_extractor.hpp>
 #include <graphtyper/utilities/io.hpp>
-
 
 namespace gyper
 {
-
-void
-extract_to_fasta(std::string const & file_name, std::string const & graph_path, uint64_t n, uint64_t b, uint64_t e)
+void extract_to_fasta(std::string const & file_name, std::string const & graph_path, uint64_t n, uint64_t b, uint64_t e)
 {
   load_graph(graph_path);
 
@@ -31,6 +28,5 @@ extract_to_fasta(std::string const & file_name, std::string const & graph_path, 
     ss.str(std::string());
   }
 }
-
 
 } // namespace gyper

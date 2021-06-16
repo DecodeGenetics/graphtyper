@@ -1,29 +1,28 @@
 #pragma once
 
-#include <map> // std::map
+#include <map>    // std::map
 #include <string> // std::string
 #include <vector> // std::vector
 
-#include <boost/serialization/access.hpp>
+#include <cereal/access.hpp>
 
-#include <graphtyper/graph/genotype.hpp> // gyper::Genotype
-#include <graphtyper/graph/haplotype.hpp> // gyper::Haplotype
+#include <graphtyper/graph/genotype.hpp>    // gyper::Genotype
+#include <graphtyper/graph/haplotype.hpp>   // gyper::Haplotype
 #include <graphtyper/typer/sample_call.hpp> // gyper::SampleCall
 #include <graphtyper/typer/var_stats.hpp>
 #include <graphtyper/utilities/options.hpp>
 
 namespace gyper
 {
-
 class VariantCandidate;
 
 class Variant
 {
-  friend class boost::serialization::access;
+  friend class cereal::access;
 
 public:
   long abs_pos{0};
-  std::vector<std::vector<char> > seqs;
+  std::vector<std::vector<char>> seqs;
   std::vector<SampleCall> calls;
   VarStats stats;
   std::map<std::string, std::string> infos;
@@ -40,9 +39,9 @@ public:
   Variant & operator=(Variant && o) noexcept;
   ~Variant() = default;
 
-  Variant(Genotype const & gt);
-  //Variant(std::vector<Genotype> const & gts, std::vector<uint16_t> const & hap_calls);
-  Variant(VariantCandidate const & var_candidate) noexcept;
+  explicit Variant(Genotype const & gt);
+  // Variant(std::vector<Genotype> const & gts, std::vector<uint16_t> const & hap_calls);
+  explicit Variant(VariantCandidate const & var_candidate) noexcept;
 
   /******************
    * CLASS MODIFERS *
@@ -69,7 +68,7 @@ public:
   uint64_t get_seq_depth() const;
   uint64_t get_seq_depth_of_allele(uint16_t const allele_id) const;
   std::vector<uint64_t> get_seq_depth_of_all_alleles() const;
-  uint64_t get_qual() const; // Gets quality of a record
+  uint64_t get_qual() const;        // Gets quality of a record
   double get_qual_by_depth() const; // Gets total quality by depth (QD) of a record
   std::vector<double> get_qual_by_depth_per_alt_allele() const;
 
@@ -99,12 +98,11 @@ std::vector<Variant> break_down_variant(Variant && variant,
 std::vector<Variant> break_down_skyr(Variant && var, long const reach);
 std::vector<Variant> extract_sequences_from_aligned_variant(Variant const && variant, std::size_t const THRESHOLD);
 std::vector<Variant> simplify_complex_haplotype(Variant && variant, std::size_t const THRESHOLD);
-std::vector<Variant> break_multi_snps(Variant const && var);
-SampleCall
-bin_phred(Variant const & new_var,
-          Variant const & old_var,
-          SampleCall const & old_call,
-          std::vector<long> const & new2old);
+std::vector<Variant> break_multi_snps(Variant && var);
+SampleCall bin_phred(Variant const & new_var,
+                     Variant const & old_var,
+                     SampleCall const & old_call,
+                     std::vector<long> const & new2old);
 void find_variant_sequences(gyper::Variant & new_var, gyper::Variant const & old_var);
 
 } // namespace gyper

@@ -2,15 +2,13 @@
 
 #include <cstdint>
 
-#include <boost/serialization/access.hpp>
-
+#include <cereal/access.hpp>
 
 namespace gyper
 {
-
 class ReadStrand
 {
-  friend class boost::serialization::access;
+  friend class cereal::access;
 
 public:
   uint32_t r1_forward{0u};
@@ -30,7 +28,6 @@ public:
 private:
   template <class Archive>
   void serialize(Archive & ar, unsigned int version);
-
 };
 
 } // namespace gyper

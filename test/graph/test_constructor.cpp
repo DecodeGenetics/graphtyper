@@ -1,32 +1,26 @@
-#include <catch.hpp>
-
 #include <cstdio>
-#include <string>
-#include <iostream>
 #include <fstream>
-#include <vector>
-#include <sys/types.h>
+#include <iostream>
+#include <string>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <vector>
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
-#include <boost/log/trivial.hpp>
-#include <boost/log/utility/setup/console.hpp>
+#include <cereal/archives/binary.hpp>
 
 #include <graphtyper/constants.hpp>
-#include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/constructor.hpp>
+#include <graphtyper/graph/graph.hpp>
 #include <graphtyper/graph/graph_serialization.hpp>
-#include <graphtyper/utilities/type_conversions.hpp>
 #include <graphtyper/utilities/options.hpp>
-#include <graphtyper/constants.hpp>
+#include <graphtyper/utilities/type_conversions.hpp>
 
 #include "../help_functions.hpp" // create_test_graph
-
+#include <catch.hpp>
 
 TEST_CASE("Construct test graph (chr1) (not with absolute positions)")
 {
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: Construct test graph (chr1)";
+  gyper::print_log(gyper::log_severity::debug, __HERE__, " TEST CASE: Construct test graph (chr1)");
 
   create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr1", false);
 
@@ -68,12 +62,13 @@ TEST_CASE("Construct test graph (chr1) (not with absolute positions)")
   }
 }
 
-
 TEST_CASE("Construct test graph (chr1)")
 {
   using namespace gyper;
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: Construct test graph (chr1) but with absolute positions.";
+  gyper::print_log(gyper::log_severity::debug,
+                   __HERE__,
+                   " TEST CASE: Construct test graph (chr1) but with absolute positions.");
   create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr1", true);
 
   REQUIRE(graph.ref_nodes.size() == 2);
@@ -114,13 +109,12 @@ TEST_CASE("Construct test graph (chr1)")
   }
 }
 
-
 TEST_CASE("Construct test graph (chr2)")
 {
   using namespace gyper;
 
   Options::instance()->add_all_variants = false;
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Construct test graph (chr2).";
+  gyper::print_log(gyper::log_severity::debug, __HERE__, " Construct test graph (chr2).");
   create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr2", true);
 
   REQUIRE(graph.ref_nodes.size() == 3);
@@ -172,7 +166,6 @@ TEST_CASE("Construct test graph (chr2)")
   }
 }
 
-
 TEST_CASE("Construct test graph (chr3)")
 {
   using namespace gyper;
@@ -180,7 +173,7 @@ TEST_CASE("Construct test graph (chr3)")
   // AAAACAAAATAAAACAAAATAAAAGAAAACAAAATAAAACAAAATAAAAGAAAACATTATAAAACA
   // chr3 31 rs4 A G,GA
 
-  BOOST_LOG_TRIVIAL(debug) << "[" << __HERE__ << "] TEST CASE: Construct test graph (chr3).";
+  gyper::print_log(gyper::log_severity::debug, "[", __HERE__, "] TEST CASE: Construct test graph (chr3).");
   create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr3", true);
 
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
@@ -226,18 +219,19 @@ TEST_CASE("Construct test graph (chr3)")
   }
 }
 
-
 TEST_CASE("Construct test graph (chr8) in a region that fully overlaps only a second indel")
 {
   using namespace gyper;
   Options::instance()->add_all_variants = false;
 
   // TGCAAATCTCATATATATATATATATATATATATATATATATATATTTTTTTTTTTTTTTTTTTTTTTTTTTTTTCCAA
-  //chr8 31 ATATATATATATATATTTTTTTTTTTT,A
-  //chr8 39 ATATATATTTTTTTTTTT,A
+  // chr8 31 ATATATATATATATATTTTTTTTTTTT,A
+  // chr8 39 ATATATATTTTTTTTTTT,A
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: Construct test graph (chr8) in a region "
-                           << "that fully overlaps only a second indel";
+  gyper::print_log(gyper::log_severity::debug,
+                   __HERE__,
+                   " TEST CASE: Construct test graph (chr8) in a region ",
+                   "that fully overlaps only a second indel");
 
   create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr8:1-56", true);
 
@@ -281,7 +275,6 @@ TEST_CASE("Construct test graph (chr8) in a region that fully overlaps only a se
   }
 }
 
-
 /*
 TEST_CASE("Construct test graph with SV deletion (chr5)")
 {
@@ -311,10 +304,12 @@ TEST_CASE("Construct test graph with SV deletion (chr5)")
 
   SECTION("The nodes have the correct bases")
   {
-    REQUIRE(ref_nodes[0].get_label().dna == to_vec("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"));
-    REQUIRE(var_nodes[0].get_label().dna == to_vec("A"));
-    REQUIRE(var_nodes[1].get_label().dna == to_vec("AGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT<SV:0000000<"));
-    REQUIRE(ref_nodes[1].get_label().dna == to_vec("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"));
+    REQUIRE(ref_nodes[0].get_label().dna ==
+to_vec("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")); REQUIRE(var_nodes[0].get_label().dna
+== to_vec("A")); REQUIRE(var_nodes[1].get_label().dna ==
+to_vec("AGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT<SV:0000000<"));
+    REQUIRE(ref_nodes[1].get_label().dna ==
+to_vec("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"));
   }
 
   SECTION("The nodes should have the correct order")
@@ -354,12 +349,15 @@ TEST_CASE("Construct test graph with SV duplication (chr6)")
 
   SECTION("The nodes have the correct bases")
   {
-    REQUIRE(ref_nodes[0].get_label().dna == to_vec("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACCCC"));
+    REQUIRE(ref_nodes[0].get_label().dna ==
+to_vec("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACCCC"));
     REQUIRE(var_nodes[0].get_label().dna == to_vec("C"));
-    REQUIRE(var_nodes[1].get_label().dna == to_vec("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGTTTTTTTTTTTT<SV:0000000>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACCCCCCCCCC"));
+    REQUIRE(var_nodes[1].get_label().dna ==
+to_vec("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGTTTTTTTTTTTT<SV:0000000>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACCCCCCCCCC"));
     std::vector<char> const & ref_dna = ref_nodes[1].get_label().dna;
     REQUIRE(ref_dna.size() >= 66);
-    REQUIRE(std::vector<char>(ref_dna.begin(), ref_dna.begin() + 66) == to_vec("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCG"));
+    REQUIRE(std::vector<char>(ref_dna.begin(), ref_dna.begin() + 66) ==
+to_vec("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCG"));
   }
 
   SECTION("The nodes should have the correct order")
@@ -397,12 +395,15 @@ TEST_CASE("Construct test graph with SV duplication (chr7)")
 
   SECTION("The nodes have the correct bases")
   {
-    REQUIRE(ref_nodes[0].get_label().dna == to_vec("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"));
-    REQUIRE(var_nodes[0].get_label().dna == to_vec("A"));
-    //REQUIRE(var_nodes[1].get_label().dna == to_vec("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGTTTTTTTTTTTT<SV:0000000>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACCCCCCCCCC"));
+    REQUIRE(ref_nodes[0].get_label().dna ==
+to_vec("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")); REQUIRE(var_nodes[0].get_label().dna
+== to_vec("A"));
+    //REQUIRE(var_nodes[1].get_label().dna ==
+to_vec("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGTTTTTTTTTTTT<SV:0000000>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACCCCCCCCCC"));
     std::vector<char> const & ref_dna = ref_nodes[1].get_label().dna;
     REQUIRE(ref_dna.size() >= 71);
-    REQUIRE(std::vector<char>(ref_dna.begin(), ref_dna.begin() + 71) == to_vec("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCG"));
+    REQUIRE(std::vector<char>(ref_dna.begin(), ref_dna.begin() + 71) ==
+to_vec("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCG"));
   }
 
   //SECTION("The nodes should have the correct order")
@@ -414,7 +415,6 @@ TEST_CASE("Construct test graph with SV duplication (chr7)")
   //}
 }
 */
-
 
 /*
 TEST_CASE("Construct test graph (chromosome 1, without chr in front)")
@@ -469,7 +469,7 @@ TEST_CASE("Construct test graph with anti events (chr9)")
   using namespace gyper;
   Options::instance()->add_all_variants = true;
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: Construct test graph (chr9).";
+  gyper::print_log(gyper::log_severity::debug, __HERE__, " TEST CASE: Construct test graph (chr9).");
   create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr9", true);
 
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
@@ -502,13 +502,12 @@ TEST_CASE("Construct test graph with anti events (chr9)")
   Options::instance()->add_all_variants = false;
 }
 
-
 TEST_CASE("Construct test graph with anti events (chr10)")
 {
   using namespace gyper;
   Options::instance()->add_all_variants = true;
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: Construct test graph (chr10).";
+  gyper::print_log(gyper::log_severity::debug, __HERE__, " TEST CASE: Construct test graph (chr10).");
   create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr10", true);
 
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
@@ -541,13 +540,12 @@ TEST_CASE("Construct test graph with anti events (chr10)")
   Options::instance()->add_all_variants = false;
 }
 
-
 TEST_CASE("Construct test graph with anti events (chr11)")
 {
   using namespace gyper;
   Options::instance()->add_all_variants = true;
 
-  BOOST_LOG_TRIVIAL(debug) << __HERE__ << " TEST CASE: Construct test graph (chr11).";
+  gyper::print_log(gyper::log_severity::debug, __HERE__, " TEST CASE: Construct test graph (chr11).");
   create_test_graph("/test/data/reference/index_test.fa", "/test/data/reference/index_test.vcf.gz", "chr11", true);
 
   std::vector<gyper::RefNode> const & ref_nodes = graph.ref_nodes;
