@@ -52,21 +52,26 @@ std::size_t debug_event_size{19};
 void merge_haplotypes2(std::map<gyper::Event, phmap::flat_hash_set<gyper::Event, gyper::EventHash>> & into,
                        std::map<gyper::Event, phmap::flat_hash_set<gyper::Event, gyper::EventHash>> & from)
 {
-  for (auto it = from.begin(); it != from.end(); ++it)
+  if (into.size() == 0)
   {
-    // Event const & first_from_event = it->first;
-    auto insert_p = into.insert(*it);
-
-    if (!insert_p.second)
+    into = std::move(from);
+  }
+  else
+  {
+    for (auto from_it = from.begin(); from_it != from.end(); ++from_it)
     {
-      // not inserted
-      auto insert_it = insert_p.first;
+      auto insert_p = into.insert(*from_it);
 
-      for (auto el_it = it->second.begin(); el_it != it->second.end(); ++el_it)
-        insert_it->second.insert(*el_it);
+      if (!insert_p.second)
+      {
+        std::move(from_it->second.begin(),
+                  from_it->second.end(),
+                  std::inserter(insert_p.first->second, insert_p.first->second.begin()));
+      }
     }
   }
 
+  // Clear memory asap
   from.clear();
 }
 
@@ -129,122 +134,6 @@ void _determine_num_jobs_and_num_parts(long const & jobs, long & num_parts, long
 
 namespace gyper
 {
-/*
-std::vector<std::string>
-call_segments(std::vector<std::string> const & hts_paths,
-              std::vector<double> const & avg_cov_by_readlen,
-              std::string const & graph_path,
-              PHIndex const & ph_index,
-              std::string const & output_dir,
-              std::string const & reference_fn,
-              std::string const & region,
-              std::string const & segment)
-{
-
-  print_log(log_severity::info, __HERE__, " Start calling segments.");
-
-  if (hts_paths.size() == 0)
-  {
-    print_log(log_severity::error, __HERE__, " No input BAM/CRAM files.");
-    std::exit(1);
-  }
-
-  if (graph_path.size() > 0)
-  {
-    load_graph(graph_path); // Loads the graph into the global variable 'graph'
-  }
-
-  // split hts paths
-  std::vector<std::string> paths;
-  std::vector<std::unique_ptr<std::vector<std::string> > > spl_hts_paths;
-  std::vector<std::unique_ptr<std::vector<double> > > spl_avg_cov;
-
-  assert(Options::const_instance()->max_files_open > 0);
-
-  long jobs{1}; // Running jobs
-  long num_parts{1}; // Number of parts to split the work into
-  long const NUM_SAMPLES{static_cast<long>(hts_paths.size())};
-
-  _determine_num_jobs_and_num_parts(jobs, num_parts, NUM_SAMPLES);
-
-  {
-    auto it = hts_paths.begin();
-    auto cov_it = avg_cov_by_readlen.begin();
-
-    for (long i = 0; i < num_parts; ++i)
-    {
-      long const advance = NUM_SAMPLES / num_parts + (i < (NUM_SAMPLES % num_parts));
-
-      auto end_it = it + advance;
-      assert(std::distance(hts_paths.begin(), end_it) <= NUM_SAMPLES);
-      spl_hts_paths.emplace_back(new std::vector<std::string>(it, end_it));
-      it = end_it;
-
-      auto cov_end_it = cov_it + advance;
-      spl_avg_cov.emplace_back(new std::vector<double>(cov_it, cov_end_it));
-      cov_it = cov_end_it;
-    }
-  }
-
-  print_log(log_severity::debug, __HERE__, " Number of pools = ", spl_hts_paths.size());
-  long const NUM_POOLS = spl_hts_paths.size();
-  paths.resize(NUM_POOLS);
-
-  {
-    paw::Station call_station(jobs); // last parameter is queue_size
-
-    // Push all but the last pool to the thread pool
-    {
-      bool constexpr is_writing_calls_vcf{false};
-      bool constexpr is_writing_hap{false};
-
-      for (long i{0}; i < (NUM_POOLS - 1l); ++i)
-      {
-        call_station.add_work(parallel_reader_genotype_only,
-                              &paths[i],
-                              spl_hts_paths[i].get(),
-                              spl_avg_cov[i].get(),
-                              &output_dir,
-                              &reference_fn,
-                              &region,
-                              &ph_index,
-                              nullptr,
-                              nullptr,
-                              is_writing_calls_vcf,
-                              is_writing_hap);
-      }
-
-      // Do the last pool on the current thread
-      call_station.add_to_thread(jobs - 1,
-                                 parallel_reader_genotype_only,
-                                 &paths[NUM_POOLS - 1],
-                                 spl_hts_paths[NUM_POOLS - 1].get(),
-                                 spl_avg_cov[NUM_POOLS - 1].get(),
-                                 &output_dir,
-                                 &reference_fn,
-                                 &region,
-                                 &ph_index,
-                                 nullptr,
-                                 nullptr,
-                                 is_writing_calls_vcf,
-                                 is_writing_hap);
-    }
-
-    std::string thread_info = call_station.join();
-    print_log(log_severity::info, "Finished calling. Thread work: ", thread_info);
-  }
-
-  //BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Estimating the likelihoods of few different segments.";
-  //
-  //std::ostringstream segment_calls_path;
-  //segment_calls_path << output_dir << "/" << pn << "_segments.vcf.gz";
-  //segment_calling(segment, *writer, segment_calls_path.str(), samples);
-  //
-  //BOOST_LOG_TRIVIAL(debug) << __HERE__ << " Finished calling all samples.";
-  return paths;
-}
-*/
-
 std::vector<std::string> call(
   std::vector<std::string> const & hts_paths,
   std::vector<double> const & avg_cov_by_readlen,
@@ -480,10 +369,7 @@ std::vector<std::string> call(
           continue; // not found
         }
 #ifndef NDEBUG
-        else
-        {
-          assert(ph_part.second.size() == old_size);
-        }
+        assert(ph_part.second.size() == old_size);
 #endif // NDEBUG
 
         std::map<std::pair<uint16_t, uint16_t>, int8_t> & ph2_map = ph_part.second;
@@ -513,7 +399,6 @@ std::vector<std::string> call(
 void run_first_pass(bam1_t * hts_rec,
                     HtsReader & hts_reader,
                     long file_i,
-                    bool const is_first_in_pool,
                     std::vector<BucketFirstPass> & buckets,
                     std::map<Event, phmap::flat_hash_set<Event, EventHash>> & pool_haplotypes,
                     long const BUCKET_SIZE,
@@ -616,9 +501,6 @@ void run_first_pass(bam1_t * hts_rec,
       case '=': // '=' and 'X' are typically not used by aligners (at least not by default),
       case 'X': // but we keep it here just in case
       {
-        // assert((ref_offset + cigar_count - 1l) < REF_SIZE);
-        // auto ref_it = reference_sequence.begin() + ref_offset;
-
         for (long r{0}; r < cigar_count; ++r)
         {
           long const ref_pos = ref_offset + r;
@@ -1334,14 +1216,7 @@ void run_first_pass(bam1_t * hts_rec,
     }
   } // for (long b{0}; b < static_cast<long>(buckets.size()); ++b)
 
-  if (is_first_in_pool)
-  {
-    pool_haplotypes = std::move(sample_haplotypes);
-  }
-  else
-  {
-    merge_haplotypes2(pool_haplotypes, sample_haplotypes);
-  }
+  merge_haplotypes2(pool_haplotypes, sample_haplotypes);
 }
 
 void run_first_pass_lr(bam1_t * hts_rec,
@@ -2527,7 +2402,6 @@ void parallel_first_pass(std::vector<std::string> * hts_paths_ptr,
     run_first_pass(hts_rec,
                    hts_reader,
                    lowest_file_i + i,
-                   i == 0, // is_first_in_pool
                    (*file_buckets_first_pass_ptr)[lowest_file_i + i],
                    pool_haplotypes,
                    BUCKET_SIZE,
