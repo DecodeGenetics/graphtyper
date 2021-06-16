@@ -284,7 +284,7 @@ void genotype_hla(std::string ref_path,
       vcf_merge_and_return(hla_vcf, paths, tmp + "/graphtyper.vcf.gz");
       assert(hla_vcf.variants.size() == 1);
       Variant & var = hla_vcf.variants[0];
-      int constexpr MAX_ALLELES{99}; // Maximum number of allowed HLA alleles
+      int constexpr MAX_ALLELES{80}; // Maximum number of allowed HLA alleles
 
       {
         // Fix sequences names
