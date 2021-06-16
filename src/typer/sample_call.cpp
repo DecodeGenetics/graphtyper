@@ -103,7 +103,7 @@ std::pair<uint16_t, uint16_t> SampleCall::get_gt_call() const
 
   std::cerr << std::endl;
   assert(false);
-  return std::make_pair<uint16_t, uint16_t>(0xFFFFu, 0xFFFFu);
+  return std::make_pair<uint16_t, uint16_t>(0, 0);
 }
 
 uint8_t SampleCall::get_gq() const
