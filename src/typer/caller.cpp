@@ -49,197 +49,21 @@ char debug_event_type{'I'};
 std::size_t debug_event_size{19};
 #endif // NDEBUG
 
-#ifndef NDEBUG
-bool check_haplotypes(
-  std::map<gyper::Event, std::unordered_map<gyper::Event, int8_t, gyper::EventHash>> const & haplotypes)
+void merge_haplotypes2(std::map<gyper::Event, phmap::flat_hash_set<gyper::Event, gyper::EventHash>> & into,
+                       std::map<gyper::Event, phmap::flat_hash_set<gyper::Event, gyper::EventHash>> & from)
 {
-  bool is_ok{true};
-
-  for (auto event_it = haplotypes.begin(); event_it != haplotypes.end(); ++event_it)
-  {
-    gyper::Event const & event = event_it->first;
-    auto const & other_haps = event_it->second;
-    long count{0};
-
-    for (auto event_it2 = std::next(event_it);
-         event_it2 != haplotypes.end() && event_it2->first.pos < (event.pos + 100l);
-         ++event_it2, ++count)
-    {
-      gyper::Event const & other_event = event_it2->first;
-
-      if (other_haps.count(other_event) == 0)
-      {
-        print_log(gyper::log_severity::warning,
-                  __HERE__,
-                  " Missing event link ",
-                  event.to_string(),
-                  " ",
-                  other_event.to_string());
-        is_ok = false;
-      }
-    }
-
-    if (count != static_cast<long>(other_haps.size()))
-    {
-      print_log(gyper::log_severity::warning, __HERE__, " count mismatch ", count, " != ", other_haps.size());
-      print_log(gyper::log_severity::warning, __HERE__, " ", event.to_string());
-
-      for (auto event_it2 = std::next(event_it);
-           event_it2 != haplotypes.end() && event_it2->first.pos < (event.pos + 100l);
-           ++event_it2)
-      {
-        gyper::Event const & other_event = event_it2->first;
-        print_log(gyper::log_severity::info, __HERE__, " ", other_event.to_string());
-      }
-
-      for (auto const & o : other_haps)
-      {
-        print_log(gyper::log_severity::info, __HERE__, " ", o.first.to_string(), " ", static_cast<long>(o.second));
-      }
-
-      is_ok = false;
-    }
-  }
-
-  return is_ok;
-}
-
-#endif // NDEBUG
-
-void merge_haplotypes(std::map<gyper::Event, std::unordered_map<gyper::Event, int8_t, gyper::EventHash>> & into,
-                      std::map<gyper::Event, std::unordered_map<gyper::Event, int8_t, gyper::EventHash>> & from)
-{
-  using namespace gyper;
-
-  // if (into.size() > 200 || from.size() > 200)
-  //  BOOST_LOG_TRIVIAL(info) << __HERE__ << " size of into, from=" << into.size() << " " << from.size();
-
-  // go through into and find variants not in from, and add anti hap support accordingly
-  // std::unordered_set<uint32_t> from_positions;
-  //
-  //// cache positions from "from"
-  // for (auto from_it = from.begin(); from_it != from.end(); ++from_it)
-  //  from_positions.insert(from_it->first.pos);
-
-  for (auto it = into.begin(); it != into.end(); ++it)
-  {
-    Event const & event_into = it->first;
-
-    if (from.count(event_into) == 1)
-      continue;
-
-    std::unordered_map<gyper::Event, int8_t, gyper::EventHash> & haplotype_into = it->second;
-
-    ////
-    for (auto from_it = from.lower_bound(event_into); from_it != from.end(); ++from_it)
-    {
-      Event const & from_event = from_it->first;
-      assert(from_event.pos >= event_into.pos);
-
-      if (from_event.pos >= (event_into.pos + 100l))
-        break;
-
-      auto find_it = haplotype_into.find(from_event);
-
-      if (find_it == haplotype_into.end())
-        continue;
-
-      find_it->second |= gyper::IS_ANY_ANTI_HAP_SUPPORT;
-    }
-    //// alternative way - this is not the way
-    //// Add anti support to "event_into"
-    // for (std::pair<gyper::Event const, int8_t> & into2 : haplotype_into)
-    //{
-    //  if ((into2.second & gyper::IS_ANY_ANTI_HAP_SUPPORT) == 0u &&
-    //      from_positions.count(into2.first.pos) == 1 && from.count(into2.first) == 1)
-    //  {
-    //    into2.second |= gyper::IS_ANY_ANTI_HAP_SUPPORT;
-    //  } // else do nothing, the variant is phase completely irrelevant to "from"
-    //}
-    ////
-  }
-
   for (auto it = from.begin(); it != from.end(); ++it)
   {
     // Event const & first_from_event = it->first;
-    auto insert_it = into.insert(*it);
-    bool const is_inserted = insert_it.second;
+    auto insert_p = into.insert(*it);
 
-    if (is_inserted)
+    if (!insert_p.second)
     {
-      // BOOST_LOG_TRIVIAL(info) << __HERE__ << " new event I hadnt seen before: " << it->first.to_string();
-      // add anti-support for the event in previous events
-      Event const & inserted_event = insert_it.first->first;
-      std::map<Event, std::unordered_map<Event, int8_t, EventHash>>::iterator prev_it(insert_it.first);
+      // not inserted
+      auto insert_it = insert_p.first;
 
-      // Go back to previous events and make sure they have this event
-      while (prev_it != into.begin())
-      {
-        --prev_it;
-
-        if ((prev_it->first.pos + 100l) <= inserted_event.pos)
-          break;
-
-        // insert it if it isn't already there
-        if (prev_it->second.count(inserted_event) == 0)
-          prev_it->second[inserted_event] = gyper::IS_ANY_ANTI_HAP_SUPPORT;
-      }
-
-      // also, go forward and add anti support to all (nearby) events that this one is missing
-      for (auto forw_it = std::next(insert_it.first);
-           forw_it != into.end() && forw_it->first.pos < (inserted_event.pos + 100l);
-           ++forw_it)
-      {
-        Event const & next_event = forw_it->first;
-        std::unordered_map<Event, int8_t, EventHash> & inserted_hap = insert_it.first->second;
-
-        // insert it if it isn't already there
-        if (inserted_hap.count(next_event) == 0)
-          inserted_hap[next_event] = gyper::IS_ANY_ANTI_HAP_SUPPORT;
-      }
-    }
-    else
-    {
-      // We have seen this variant before
-      std::unordered_map<Event, int8_t, EventHash> & into_haplotypes = insert_it.first->second;
-      std::unordered_map<Event, int8_t, EventHash> const & from_haplotypes = it->second;
-
-      // Add anti hap support to any variants not found in "from"
-      for (auto into_hap_it = into_haplotypes.begin(); into_hap_it != into_haplotypes.end(); ++into_hap_it)
-      {
-        Event const & into_next_event = into_hap_it->first;
-        int8_t & flags = into_hap_it->second;
-
-        if (flags == (IS_ANY_HAP_SUPPORT | IS_ANY_ANTI_HAP_SUPPORT)) // support for both already
-          continue;
-
-        auto find_it = from_haplotypes.find(into_next_event);
-
-        if (find_it == from_haplotypes.end())
-          flags |= IS_ANY_ANTI_HAP_SUPPORT;
-        else
-          flags |= find_it->second;
-      }
-
-      for (auto from_hap_it = from_haplotypes.begin(); from_hap_it != from_haplotypes.end(); ++from_hap_it)
-      {
-        Event const & second_from_event = from_hap_it->first;
-        auto find_snp_hap_it = into_haplotypes.find(second_from_event);
-
-        if (find_snp_hap_it != into_haplotypes.end())
-        {
-          find_snp_hap_it->second |= from_hap_it->second; // Found
-        }
-        else
-        {
-          //// Not found
-          // this means we saw the first event in a previous pool but not the second event,
-          // therefore it is safe to say they are not on the same haplotype from that previous pool
-          std::pair<Event, int8_t> new_value = *from_hap_it;
-          new_value.second |= gyper::IS_ANY_ANTI_HAP_SUPPORT;
-          into_haplotypes.insert(std::move(new_value));
-        }
-      }
+      for (auto el_it = it->second.begin(); el_it != it->second.end(); ++el_it)
+        insert_it->second.insert(*el_it);
     }
   }
 
@@ -691,7 +515,7 @@ void run_first_pass(bam1_t * hts_rec,
                     long file_i,
                     bool const is_first_in_pool,
                     std::vector<BucketFirstPass> & buckets,
-                    std::map<Event, std::unordered_map<Event, int8_t, EventHash>> & pool_haplotypes,
+                    std::map<Event, phmap::flat_hash_set<Event, EventHash>> & pool_haplotypes,
                     long const BUCKET_SIZE,
                     long const region_begin,
                     std::vector<char> const & reference_sequence)
@@ -700,7 +524,7 @@ void run_first_pass(bam1_t * hts_rec,
   int32_t global_max_pos_end{0};
   std::vector<uint32_t> cov_up(REF_SIZE);
   std::vector<uint32_t> cov_down(REF_SIZE);
-  std::map<Event, std::unordered_map<Event, int8_t, EventHash>> sample_haplotypes;
+  std::map<Event, phmap::flat_hash_set<Event, EventHash>> sample_haplotypes;
 
   // make sure the buckets are empty
 #ifndef NDEBUG
@@ -1366,8 +1190,8 @@ void run_first_pass(bam1_t * hts_rec,
       long const begin = std::max(0l, event.pos - region_begin);
       long cov{depth}; // starting coverage depth
 
-      auto it_bool = sample_haplotypes.insert({event, std::unordered_map<Event, int8_t, EventHash>()});
-      std::unordered_map<Event, int8_t, EventHash> & haplotypes = it_bool.first->second;
+      auto it_bool = sample_haplotypes.insert({event, phmap::flat_hash_set<Event, EventHash>()});
+      phmap::flat_hash_set<Event, EventHash> & haplotypes = it_bool.first->second;
 
       assert(begin >= b * BUCKET_SIZE);
       update_coverage(cov, begin, b, BUCKET_SIZE);
@@ -1439,13 +1263,14 @@ void run_first_pass(bam1_t * hts_rec,
         if (other_event.pos == event.pos && other_event.type == event.type)
         {
           // If they share a position and type they trivially cant share haplotype
-          haplotypes[other_event] |= IS_ANY_ANTI_HAP_SUPPORT;
           continue;
         }
 
         auto find_it = info.phase.find(other_event);
         uint16_t const flags = is_good_support(cov, begin + 1, event_it, event_it2, find_it, info.phase);
-        haplotypes[other_event] |= flags;
+
+        if ((flags & IS_ANY_HAP_SUPPORT) != 0u)
+          haplotypes.insert(other_event);
       }
 
       // check next bucket
@@ -1460,7 +1285,9 @@ void run_first_pass(bam1_t * hts_rec,
           assert(other_event.pos < (event.pos + 2 * BUCKET_SIZE));
           auto find_it = info.phase.find(other_event);
           uint16_t const flags = is_good_support(cov, begin + 1, event_it, event_it2, find_it, info.phase);
-          haplotypes[other_event] |= flags;
+
+          if ((flags & IS_ANY_HAP_SUPPORT) != 0u)
+            haplotypes.insert(other_event);
         }
       }
 
@@ -1479,7 +1306,9 @@ void run_first_pass(bam1_t * hts_rec,
 
           auto find_it = info.phase.find(other_event);
           uint16_t const flags = is_good_support(cov, begin + 1, event_it, event_it2, find_it, info.phase);
-          haplotypes[other_event] |= flags;
+
+          if ((flags & IS_ANY_HAP_SUPPORT) != 0u)
+            haplotypes.insert(other_event);
         }
       }
 
@@ -1505,17 +1334,13 @@ void run_first_pass(bam1_t * hts_rec,
     }
   } // for (long b{0}; b < static_cast<long>(buckets.size()); ++b)
 
-  // Add sample haplotypes to pool haplotypes
-  // assert(check_haplotypes(sample_haplotypes)); // check for errors in sample_haplotypes
-
   if (is_first_in_pool)
   {
     pool_haplotypes = std::move(sample_haplotypes);
   }
   else
   {
-    merge_haplotypes(pool_haplotypes, sample_haplotypes);
-    assert(check_haplotypes(pool_haplotypes)); // check for errors after merging haplotypes
+    merge_haplotypes2(pool_haplotypes, sample_haplotypes);
   }
 }
 
@@ -2652,7 +2477,7 @@ void read_hts_and_return_realignment_indels(bam1_t * hts_rec,
 }
 
 void parallel_first_pass(std::vector<std::string> * hts_paths_ptr,
-                         std::map<Event, std::unordered_map<Event, int8_t, EventHash>> * pool_haplotypes_ptr,
+                         std::map<Event, phmap::flat_hash_set<Event, EventHash>> * pool_haplotypes_ptr,
                          std::vector<std::vector<BucketFirstPass>> * file_buckets_first_pass_ptr,
                          std::vector<std::string> * sample_names_ptr,
                          std::vector<char> * reference_sequence_ptr,
@@ -2664,7 +2489,7 @@ void parallel_first_pass(std::vector<std::string> * hts_paths_ptr,
   assert(pool_haplotypes_ptr);
 
   std::vector<std::string> const & hts_paths = *hts_paths_ptr;
-  std::map<Event, std::unordered_map<Event, int8_t, EventHash>> & pool_haplotypes = *pool_haplotypes_ptr;
+  std::map<Event, phmap::flat_hash_set<Event, EventHash>> & pool_haplotypes = *pool_haplotypes_ptr;
   std::vector<char> const & reference_sequence = *reference_sequence_ptr;
 
   for (long i{0}; i < static_cast<long>(hts_paths.size()); ++i)
@@ -2910,7 +2735,7 @@ void streamlined_discovery(std::vector<std::string> const & hts_paths,
   sample_names.resize(NUM_FILES);
 
   std::vector<std::unique_ptr<std::vector<std::string>>> spl_hts_paths{};
-  std::vector<std::unique_ptr<std::map<Event, std::unordered_map<Event, int8_t, EventHash>>>> spl_snp_hq_haplotypes{};
+  std::vector<std::unique_ptr<std::map<Event, phmap::flat_hash_set<Event, EventHash>>>> spl_snp_hq_haplotypes{};
   long jobs{1};
 
   {
@@ -2927,7 +2752,7 @@ void streamlined_discovery(std::vector<std::string> const & hts_paths,
         auto end_it = it + NUM_FILES / num_parts + (i < (NUM_FILES % num_parts));
         assert(std::distance(hts_paths.cbegin(), end_it) <= NUM_FILES);
         spl_hts_paths.emplace_back(new std::vector<std::string>(it, end_it));
-        spl_snp_hq_haplotypes.emplace_back(new std::map<Event, std::unordered_map<Event, int8_t, EventHash>>());
+        spl_snp_hq_haplotypes.emplace_back(new std::map<Event, phmap::flat_hash_set<Event, EventHash>>());
         it = end_it;
       }
     }
@@ -2945,7 +2770,7 @@ void streamlined_discovery(std::vector<std::string> const & hts_paths,
 
   Tindel_events indel_events;
   long NUM_BUCKETS{0};
-  std::map<Event, std::unordered_map<Event, int8_t, EventHash>> haplotypes;
+  std::map<Event, phmap::flat_hash_set<Event, EventHash>> haplotypes;
 
   // FIRST PASS
   {
@@ -2991,10 +2816,8 @@ void streamlined_discovery(std::vector<std::string> const & hts_paths,
 
     for (long i{1}; i < NUM_POOLS; ++i)
     {
-      std::map<Event, std::unordered_map<Event, int8_t, EventHash>> & pool_haplotypes = *spl_snp_hq_haplotypes[i];
-      // assert(check_haplotypes(pool_haplotypes));
-      merge_haplotypes(haplotypes, pool_haplotypes);
-      // assert(check_haplotypes(haplotypes));
+      std::map<Event, phmap::flat_hash_set<Event, EventHash>> & pool_haplotypes = *spl_snp_hq_haplotypes[i];
+      merge_haplotypes2(haplotypes, pool_haplotypes);
     }
 
     // Create buckets for second pass
@@ -3178,9 +3001,7 @@ void streamlined_discovery(std::vector<std::string> const & hts_paths,
       }
 
       {
-        std::ostringstream ss_hap;
         std::ostringstream ss_anti;
-        bool is_hap_stream_empty{true};
         bool is_anti_stream_empty{true};
         long next_event_index = event_index + 1;
 
@@ -3205,36 +3026,19 @@ void streamlined_discovery(std::vector<std::string> const & hts_paths,
 
           auto find_event_it = event_it->second.find(next_event);
 
-          if (find_event_it != event_it->second.end())
+          if (find_event_it == event_it->second.end())
           {
-            // found
-            if (find_event_it->second == IS_ANY_HAP_SUPPORT)
-            {
-              // ONLY haplotype support
-              if (is_hap_stream_empty)
-                is_hap_stream_empty = false;
-              else
-                ss_hap << ',';
+            // anti haplotype support
+            if (is_anti_stream_empty)
+              is_anti_stream_empty = false;
+            else
+              ss_anti << ',';
 
-              ss_hap << next_event_index;
-            }
-            else if (find_event_it->second == IS_ANY_ANTI_HAP_SUPPORT)
-            {
-              // ONLY anti haplotype support
-              if (is_anti_stream_empty)
-                is_anti_stream_empty = false;
-              else
-                ss_anti << ',';
-
-              ss_anti << next_event_index;
-            }
+            ss_anti << next_event_index;
           }
         }
 
         variant.infos["GT_ID"] = std::to_string(event_index);
-
-        if (!is_hap_stream_empty)
-          variant.infos["GT_HAPLOTYPE"] = ss_hap.str();
 
         if (!is_anti_stream_empty)
           variant.infos["GT_ANTI_HAPLOTYPE"] = ss_anti.str();
