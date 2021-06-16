@@ -97,7 +97,7 @@ void genotype_hla(std::string ref_path,
   }
   else
   {
-    print_log(log_severity::info, __HERE__, " Running BamShrink.");
+    print_log(log_severity::info, "Running BamShrink.");
     std::string bamshrink_ref_path;
 
     if (copts.force_use_input_ref_for_cram_reading)
@@ -168,10 +168,6 @@ void genotype_hla(std::string ref_path,
               event2hap_gt[event] = std::pair<uint32_t, uint32_t>(h, v_e);
           }
         }
-
-        // Haplotype hap;
-        // hap.add_genotype(Genotype(var_node.get_label().order, ref_node.out_degree(), uint32_t(v)));
-        // haplotypes.push_back(std::move(hap));
 
         ++h;
         v += ref_node.out_degree();
@@ -263,20 +259,18 @@ void genotype_hla(std::string ref_path,
     if (Options::const_instance()->force_use_input_ref_for_cram_reading)
       reference_fn = ref_path;
 
-    std::vector<std::string> paths;
-
-    paths = gyper::call(shrinked_sams,
-                        avg_cov_by_readlen,
-                        "", // graph_path
-                        ph_index,
-                        out_dir,
-                        "",  // reference
-                        ".", // region
-                        nullptr,
-                        ph,
-                        is_writing_calls_vcf,
-                        is_writing_hap,
-                        &allele_hap_gts);
+    std::vector<std::string> paths = gyper::call(shrinked_sams,
+                                                 avg_cov_by_readlen,
+                                                 "", // graph_path
+                                                 ph_index,
+                                                 out_dir,
+                                                 "",  // reference
+                                                 ".", // region
+                                                 nullptr,
+                                                 ph,
+                                                 is_writing_calls_vcf,
+                                                 is_writing_hap,
+                                                 &allele_hap_gts);
 
     print_log(log_severity::info, "Merging output VCFs.");
 
@@ -290,7 +284,7 @@ void genotype_hla(std::string ref_path,
       vcf_merge_and_return(hla_vcf, paths, tmp + "/graphtyper.vcf.gz");
       assert(hla_vcf.variants.size() == 1);
       Variant & var = hla_vcf.variants[0];
-      int constexpr MAX_ALLELES{99}; // Maximum number of allowed HLA alleles
+      int constexpr MAX_ALLELES{80}; // Maximum number of allowed HLA alleles
 
       {
         // Fix sequences names
@@ -302,10 +296,7 @@ void genotype_hla(std::string ref_path,
         for (long s{0}; s < static_cast<long>(hla.sample_names.size()); ++s)
         {
           if (s > 0 && is_pass_alt[s - 1] == 0)
-          {
-            // BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << s << " " << static_cast<long>(is_pass_alt[s - 1]);
             continue;
-          }
 
           std::string const & hla_allele = hla.sample_names[s];
           std::vector<char> seq;
@@ -313,6 +304,11 @@ void genotype_hla(std::string ref_path,
           std::copy(hla_allele.begin(), hla_allele.end(), std::back_inserter(seq));
           seq.push_back('>');
           new_seqs.push_back(seq);
+        }
+
+        for (auto const & new_seq : new_seqs)
+        {
+          print_log(log_severity::info, "Called contig sequence: ", std::string(new_seq.begin(), new_seq.end()));
         }
 
         long const old_cnum = var.seqs.size();
@@ -341,10 +337,19 @@ void genotype_hla(std::string ref_path,
           }
 
           assert(static_cast<long>(new_phred.size()) == ((cnum * (cnum + 1)) / 2));
+
+          auto min_it = std::min_element(new_phred.begin(), new_phred.end());
+
+          if (min_it != new_phred.end() && *min_it > 0)
+          {
+            for (auto & pl : new_phred)
+              pl -= *min_it;
+          }
+
           call.phred = new_phred;
         }
 
-        var.seqs = new_seqs;
+        var.seqs = std::move(new_seqs);
         var.stats = VarStats();
         var.generate_infos();
       }
@@ -466,6 +471,7 @@ void genotype_hla(std::string ref_path,
 
         if (!is_skipping)
         {
+          print_log(log_severity::info, d, "-digit calling with ", new_var.seqs.size(), " alleles.");
           hla_vcf.write_record(new_var, "." + std::to_string(d) + "digit", false, false);
         }
         else if (d == 2)
