@@ -31,7 +31,10 @@ std::string get_string_at_tab_index(std::string const & line, std::vector<std::s
 namespace
 {
 template <typename Tint>
-bool parse_info_int(std::string const check_if_key, std::string const & key, std::string const & val, Tint & parsed_val)
+bool parse_info_int(std::string const & check_if_key,
+                    std::string const & key,
+                    std::string const & val,
+                    Tint & parsed_val)
 {
   if (check_if_key == key)
   {
@@ -56,7 +59,7 @@ bool parse_info_int(std::string const check_if_key, std::string const & key, std
   return false;
 }
 
-bool parse_info_str(std::string const check_if_key,
+bool parse_info_str(std::string const & check_if_key,
                     std::string const & key,
                     std::string const & val,
                     std::vector<char> & parsed_val)
@@ -75,7 +78,7 @@ bool parse_info_str(std::string const check_if_key,
   return false;
 }
 
-bool parse_info_sv_type(std::string const check_if_key,
+bool parse_info_sv_type(std::string const & check_if_key,
                         std::string const & key,
                         std::string const & val,
                         gyper::SVTYPE & parsed_val)
@@ -1161,7 +1164,6 @@ bool transform_sv_records(seqan::VcfRecord & vcf_record,
               " with size diff ",
               size_diff);
 
-    std::string deleted_seq;
     std::string seq;
 
     // Check if first base does not match
@@ -1206,7 +1208,7 @@ bool transform_sv_records(seqan::VcfRecord & vcf_record,
 void add_var_record(std::vector<VarRecord> & var_records,
                     seqan::VcfRecord const & vcf_record,
                     seqan::FaiIndex const & fasta_index,
-                    GenomicRegion genomic_region,
+                    GenomicRegion const & genomic_region,
                     bool is_sv_graph)
 {
   assert(vcf_record.beginPos >= 0);
@@ -1248,6 +1250,7 @@ void add_var_record(std::vector<VarRecord> & var_records,
                     genomic_region.chr,
                     ":",
                     (vcf_record.beginPos + 1));
+
           std::exit(1234);
         }
 
@@ -1289,45 +1292,19 @@ void add_var_record(std::vector<VarRecord> & var_records,
                               ? std::string(seqan::begin(info) + EQ_SIGN_POS + 1, seqan::end(info))
                               : std::string("");
 
-      if (parse_info_sv_type("SVTYPE", key, val, sv.type))
-      {
-      }
-      else if (parse_info_int("END", key, val, sv.end))
-      {
-      }
-      else if (parse_info_int("SVSIZE", key, val, sv.size))
-      {
-      }
-      else if (parse_info_int("SVLEN", key, val, sv.length))
-      {
-      }
-      else if (parse_info_int("NCLUSTERS", key, val, sv.n_clusters))
-      {
-      }
-      else if (parse_info_int("ORSTART", key, val, sv.or_start))
-      {
-      }
-      else if (parse_info_int("OREND", key, val, sv.or_end))
-      {
-      }
-      else if (parse_info_int("NUM_MERGED_SVS", key, val, sv.num_merged_svs))
-      {
-      }
-      else if (parse_info_str("SEQ", key, val, sv.seq))
-      {
-      }
-      else if (parse_info_str("SVINSSEQ", key, val, sv.ins_seq))
-      {
-      }
-      else if (parse_info_str("LEFT_SVINSSEQ", key, val, sv.ins_seq_left))
-      {
-      }
-      else if (parse_info_str("RIGHT_SVINSSEQ", key, val, sv.ins_seq_right))
-      {
-      }
-      else if (parse_info_inv_type(key, sv.inv_type))
-      {
-      }
+      parse_info_sv_type("SVTYPE", key, val, sv.type) ||                 // SVTYPE
+        parse_info_int("END", key, val, sv.end) ||                       // END
+        parse_info_int("SVSIZE", key, val, sv.size) ||                   // SVSIZE
+        parse_info_int("SVLEN", key, val, sv.length) ||                  // SVLEN
+        parse_info_int("NCLUSTERS", key, val, sv.n_clusters) ||          // NCLUSTERS
+        parse_info_int("ORSTART", key, val, sv.or_start) ||              // ORSTART
+        parse_info_int("OREND", key, val, sv.or_end) ||                  // OREND
+        parse_info_int("NUM_MERGED_SVS", key, val, sv.num_merged_svs) || // NUM_MERGED_SVS
+        parse_info_str("SEQ", key, val, sv.seq) ||                       // SEQ
+        parse_info_str("SVINSSEQ", key, val, sv.ins_seq) ||              // SVINSSEQ
+        parse_info_str("LEFT_SVINSSEQ", key, val, sv.ins_seq_left) ||    // LEFT_SVINSSEQ
+        parse_info_str("RIGHT_SVINSSEQ", key, val, sv.ins_seq_right) ||  // RIGHT_SVINSSEQ
+        parse_info_inv_type(key, sv.inv_type);                           // INV3 and INV5
     }
 
     if (sv.type == NOT_SV)
@@ -1356,14 +1333,6 @@ void add_var_record(std::vector<VarRecord> & var_records,
         if (sv.length == 0)
           sv.length = (int)sv.ins_seq.size();
       }
-
-      //// If length is less than 50 then it is not an SV
-      // if (sv.length < 50 && ((int)sv.ins_seq_left.size() + (int)sv.ins_seq_right.size()) < 20)
-      //{
-      //  BOOST_LOG_TRIVIAL(warning) << "[" << __HERE__ << "] Ignored SV at " << var.pos
-      //                             << " because it was less than 50 bp.";
-      //  return;
-      //}
     }
 
     // Make sure sv.size is set
@@ -1386,16 +1355,22 @@ void add_var_record(std::vector<VarRecord> & var_records,
         // At most align MAX_SIZE bp
         if (seq1.size() > MAX_SIZE && seq2.size() > MAX_SIZE)
         {
-          seqan_seq1 = std::string(begin(seq1), begin(seq1) + MAX_SIZE).c_str();
-          seqan_seq2 = std::string(begin(seq2), begin(seq2) + MAX_SIZE).c_str();
+          std::string tmp1(begin(seq1), begin(seq1) + MAX_SIZE);
+          seqan_seq1 = tmp1.c_str();
+
+          std::string tmp2(begin(seq2), begin(seq2) + MAX_SIZE);
+          seqan_seq2 = tmp2.c_str();
         }
         else
         {
-          seqan_seq1 = std::string(begin(seq1), end(seq1)).c_str();
-          seqan_seq2 = std::string(begin(seq2), end(seq2)).c_str();
+          std::string tmp1(begin(seq1), end(seq1));
+          seqan_seq1 = tmp1.c_str();
+
+          std::string tmp2(begin(seq2), end(seq2));
+          seqan_seq2 = tmp2.c_str();
         }
 
-        auto const larger_size = std::max(length(seqan_seq1), length(seqan_seq2));
+        auto const larger_size = std::max(seqan::length(seqan_seq1), seqan::length(seqan_seq2));
 
         seqan::Align<seqan::Dna5String> align;
         seqan::resize(seqan::rows(align), 2);
@@ -1814,7 +1789,7 @@ std::vector<gyper::Variant> get_variants_using_tabix(std::string const & vcf, Ge
 
     std::string const chrom = get_string_at_tab_index(line, tabs, 0);
     long const pos = std::stoul(get_string_at_tab_index(line, tabs, 1));
-    std::string const id = get_string_at_tab_index(line, tabs, 2);
+    // std::string const id = get_string_at_tab_index(line, tabs, 2);
     std::string const ref = get_string_at_tab_index(line, tabs, 3);
     std::string const alts = get_string_at_tab_index(line, tabs, 4);
     std::vector<std::size_t> const alt_commas = get_all_pos(alts, ',');
