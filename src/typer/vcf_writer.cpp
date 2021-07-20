@@ -541,7 +541,9 @@ VcfWriter::push_to_haplotype_scores(GenotypePaths & geno, long const pn_index)
       uint32_t const hap_id = id2hap[p_it->var_order[i]]; // hap_id = first, gen_id = second
 
       assert(hap_id < haplotypes.size());
-      assert(p_it->nums[i].size() > 0);
+
+      if (p_it->nums[i].size() == 0)
+        continue;
 
       auto & hap = haplotypes[hap_id];
       auto & num = p_it->nums[i];
