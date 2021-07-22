@@ -794,6 +794,8 @@ void Vcf::write_record(Variant const & var,
     }
   }
 
+  bool const is_sv = var.is_sv();
+
   bgzf_stream.ss << contig_pos.first << '\t';
   bgzf_stream.ss << contig_pos.second << '\t';
 
@@ -894,10 +896,12 @@ void Vcf::write_record(Variant const & var,
     }
 
     // Only filter on PASS_ratio there are no PASS calls or it is low and we have sufficient amount of samples
-    if (var.infos.count("AN") == 1 &&
-        ((std::stoi(var.infos.at("AN")) >= 500 && var.infos.count("PASS_ratio") == 1 &&
-          std::stod(var.infos.at("PASS_ratio")) < 0.05) ||
-         (var.infos.count("PASS_ratio") == 1 && std::stod(var.infos.at("PASS_ratio")) < 0.001)))
+    if (var.infos.count("AN") == 1 &&                      // "AN" is in INFO
+        var.infos.count("PASS_ratio") == 1 &&              // "PASS_ratio" is in INFO
+        ((std::stoi(var.infos.at("AN")) >= 500 &&          // population genotyping
+          std::stod(var.infos.at("PASS_ratio")) < 0.05) || // Threshold for populations
+         ((is_sv || std::stoi(var.infos.at("AN")) >= 6) && // SV genotyping or trio genotyping/small populations
+          std::stod(var.infos.at("PASS_ratio")) < 0.001))) // Threshold for trio genotyping
     {
       if (!is_pass)
         bgzf_stream.ss << ";";
@@ -937,7 +941,6 @@ void Vcf::write_record(Variant const & var,
   }
 
   assert(sample_names.size() == var.calls.size());
-  bool const is_sv = var.is_sv();
 
   // Parse FORMAT
   if (!is_dropping_genotypes)

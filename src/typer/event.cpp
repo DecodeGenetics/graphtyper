@@ -197,6 +197,14 @@ void EventSupport::clear()
   // do not clear indel only things
 }
 
+void EventSupport::was_bad_count()
+{
+  if (hq_count > 0)
+    --hq_count;
+  else if (lq_count > 0)
+    --lq_count;
+}
+
 int EventSupport::get_raw_support() const
 {
   return hq_count + lq_count;
