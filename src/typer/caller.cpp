@@ -40,34 +40,109 @@
 #include <graphtyper/utilities/logging.hpp> // BOOST_LOG_TRIVIAL
 #include <graphtyper/utilities/options.hpp> // gyper::Options
 
+namespace gyper
+{
+struct HaplotypeInfo
+{
+  phmap::flat_hash_set<gyper::Event, gyper::EventHash> ever_together;
+  phmap::flat_hash_set<gyper::Event, gyper::EventHash> always_together;
+};
+
+} // namespace gyper
+
+using Thap = gyper::HaplotypeInfo;
+
 namespace
 {
 #ifndef NDEBUG
 std::string const debug_read_name = "HISEQ1:33:H9YY4ADXX:1:2110:2792:58362/2";
-long debug_event_pos{50812009};
-char debug_event_type{'I'};
-std::size_t debug_event_size{19};
+long debug_event_pos{152195561};
+char debug_event_type{'X'};
+std::size_t debug_event_size{1};
 #endif // NDEBUG
 
-void merge_haplotypes2(std::map<gyper::Event, phmap::flat_hash_set<gyper::Event, gyper::EventHash>> & into,
-                       std::map<gyper::Event, phmap::flat_hash_set<gyper::Event, gyper::EventHash>> & from)
+void merge_haplotypes2(std::map<gyper::Event, Thap> & into, std::map<gyper::Event, Thap> & from)
 {
+  // check trivial case
   if (into.size() == 0)
   {
     into = std::move(from);
+    from.clear();
+    return;
   }
-  else
-  {
-    for (auto from_it = from.begin(); from_it != from.end(); ++from_it)
-    {
-      auto insert_p = into.insert(*from_it);
 
-      if (!insert_p.second)
+  // Insert any elements from "from" into "into"
+  for (auto from_it = from.begin(); from_it != from.end(); ++from_it)
+  {
+    auto insert_p = into.insert(*from_it);
+
+    if (insert_p.second)
+    {
+      // we hadn't seen this event before in "into"
+      // nothing needs to be done for "ever_together"
+      // go through all events in the newly inserted "always_together" and remove any that have been seen in into
+
+      gyper::HaplotypeInfo & into_hap_info = insert_p.first->second;
+      auto it = into_hap_info.always_together.begin();
+
+      for (; it != into_hap_info.always_together.end();) // no increment
       {
-        std::move(from_it->second.begin(),
-                  from_it->second.end(),
-                  std::inserter(insert_p.first->second, insert_p.first->second.begin()));
+        if (into.count(*it) > 0)
+        {
+          // gyper::print_log(gyper::log_severity::info, __HERE__, " Found old event ", it->to_string());
+          it = into_hap_info.always_together.erase(it);
+        }
+        else
+        {
+          // gyper::print_log(gyper::log_severity::info, __HERE__, " Keeping ", it->to_string());
+          ++it;
+        }
       }
+    }
+    else
+    {
+      // the event was already in "into"
+      gyper::HaplotypeInfo & into_hap_info = insert_p.first->second;
+      gyper::HaplotypeInfo & from_hap_info = from_it->second;
+
+      // The event has been seen before, add ever_together events
+      std::move(from_hap_info.ever_together.begin(),
+                from_hap_info.ever_together.end(),
+                std::inserter(into_hap_info.ever_together, into_hap_info.ever_together.begin()));
+
+      // take the intersection for the always_together events
+      phmap::flat_hash_set<gyper::Event, gyper::EventHash> intersection;
+
+      // go through the smaller table
+      if (from_hap_info.always_together.size() <= into_hap_info.always_together.size())
+      {
+        for (auto const & at : from_hap_info.always_together)
+        {
+          if (into_hap_info.always_together.count(at) > 0)
+            intersection.insert(at);
+        }
+      }
+      else
+      {
+        for (auto const & at : into_hap_info.always_together)
+        {
+          if (from_hap_info.always_together.count(at) > 0)
+            intersection.insert(at);
+        }
+      }
+
+      /*
+      gyper::print_log(gyper::log_severity::info,
+                       __HERE__,
+                       " ",
+                       from_hap_info.always_together.size(),
+                       " ",
+                       into_hap_info.always_together.size(),
+                       " ",
+                       intersection.size());
+      */
+
+      insert_p.first->second.always_together = std::move(intersection);
     }
   }
 
@@ -400,7 +475,7 @@ void run_first_pass(bam1_t * hts_rec,
                     HtsReader & hts_reader,
                     long file_i,
                     std::vector<BucketFirstPass> & buckets,
-                    std::map<Event, phmap::flat_hash_set<Event, EventHash>> & pool_haplotypes,
+                    std::map<Event, Thap> & pool_haplotypes,
                     long const BUCKET_SIZE,
                     long const region_begin,
                     std::vector<char> const & reference_sequence)
@@ -409,7 +484,7 @@ void run_first_pass(bam1_t * hts_rec,
   int32_t global_max_pos_end{0};
   std::vector<uint32_t> cov_up(REF_SIZE);
   std::vector<uint32_t> cov_down(REF_SIZE);
-  std::map<Event, phmap::flat_hash_set<Event, EventHash>> sample_haplotypes;
+  std::map<Event, Thap> sample_haplotypes;
 
   // make sure the buckets are empty
 #ifndef NDEBUG
@@ -482,6 +557,8 @@ void run_first_pass(bam1_t * hts_rec,
     auto const qual_it = bam_get_qual(hts_rec);
     std::vector<std::map<Event, EventSupport>::iterator> cigar_events;
     bool const is_read_clipped = is_clipped(*hts_rec);
+
+    // Check if
 
     for (long i{0}; i < N_CIGAR; ++i)
     {
@@ -696,16 +773,48 @@ void run_first_pass(bam1_t * hts_rec,
       }
     }
 
-    for (long e{1}; e < static_cast<long>(cigar_events.size()); ++e)
-    {
-      Event const & event = cigar_events[e]->first;
+    // TODO set as options
+    int constexpr HIGH_EVENT_COUNT{12};
+    int constexpr VHIGH_EVENT_COUNT{18};
 
-      // Add event to previous snp events
-      for (long prev{0}; prev < e; ++prev)
+    if (static_cast<int>(cigar_events.size()) >= HIGH_EVENT_COUNT)
+    {
+      for (auto event_it = cigar_events.begin(); event_it != cigar_events.end(); ++event_it)
       {
-        auto & prev_info = cigar_events[prev]->second;
-        auto insert_it = prev_info.phase.insert({event, 0});
-        ++insert_it.first->second;
+        EventSupport & info = (*event_it)->second;
+
+        if (cigar_events.size() >= VHIGH_EVENT_COUNT)
+        {
+          // very high amount of events
+          if (info.hq_count > 0)
+            --info.hq_count;
+          else if (info.lq_count > 0)
+            --info.lq_count;
+        }
+        else
+        {
+          if (info.hq_count > 0)
+          {
+            --info.hq_count;
+            ++info.lq_count;
+          }
+        }
+      }
+    }
+
+    if (static_cast<int>(cigar_events.size()) < VHIGH_EVENT_COUNT)
+    {
+      for (long e{1}; e < static_cast<long>(cigar_events.size()); ++e)
+      {
+        Event const & event = cigar_events[e]->first;
+
+        // Add event to previous snp events
+        for (long prev{0}; prev < e; ++prev)
+        {
+          auto & prev_info = cigar_events[prev]->second;
+          auto insert_it = prev_info.phase.insert({event, 0});
+          ++insert_it.first->second;
+        }
       }
     }
 
@@ -1072,8 +1181,9 @@ void run_first_pass(bam1_t * hts_rec,
       long const begin = std::max(0l, event.pos - region_begin);
       long cov{depth}; // starting coverage depth
 
-      auto it_bool = sample_haplotypes.insert({event, phmap::flat_hash_set<Event, EventHash>()});
-      phmap::flat_hash_set<Event, EventHash> & haplotypes = it_bool.first->second;
+      auto it_bool = sample_haplotypes.insert({event, Thap()});
+      auto & always_together = it_bool.first->second.always_together;
+      auto & ever_together = it_bool.first->second.ever_together;
 
       assert(begin >= b * BUCKET_SIZE);
       update_coverage(cov, begin, b, BUCKET_SIZE);
@@ -1152,7 +1262,13 @@ void run_first_pass(bam1_t * hts_rec,
         uint16_t const flags = is_good_support(cov, begin + 1, event_it, event_it2, find_it, info.phase);
 
         if ((flags & IS_ANY_HAP_SUPPORT) != 0u)
-          haplotypes.insert(other_event);
+        {
+          ever_together.insert(other_event);
+
+          // stricter criteria on position in always_together than for ever_together
+          if (other_event.pos <= (event.pos + 10))
+            always_together.insert(other_event);
+        }
       }
 
       // check next bucket
@@ -1169,7 +1285,13 @@ void run_first_pass(bam1_t * hts_rec,
           uint16_t const flags = is_good_support(cov, begin + 1, event_it, event_it2, find_it, info.phase);
 
           if ((flags & IS_ANY_HAP_SUPPORT) != 0u)
-            haplotypes.insert(other_event);
+          {
+            ever_together.insert(other_event);
+
+            // stricter criteria on position in always_together than for ever_together
+            if (other_event.pos <= (event.pos + 10))
+              always_together.insert(other_event);
+          }
         }
       }
 
@@ -1190,7 +1312,10 @@ void run_first_pass(bam1_t * hts_rec,
           uint16_t const flags = is_good_support(cov, begin + 1, event_it, event_it2, find_it, info.phase);
 
           if ((flags & IS_ANY_HAP_SUPPORT) != 0u)
-            haplotypes.insert(other_event);
+          {
+            ever_together.insert(other_event);
+            // no need to check always_together, position difference will be too high
+          }
         }
       }
 
@@ -2352,7 +2477,7 @@ void read_hts_and_return_realignment_indels(bam1_t * hts_rec,
 }
 
 void parallel_first_pass(std::vector<std::string> * hts_paths_ptr,
-                         std::map<Event, phmap::flat_hash_set<Event, EventHash>> * pool_haplotypes_ptr,
+                         std::map<Event, Thap> * pool_haplotypes_ptr,
                          std::vector<std::vector<BucketFirstPass>> * file_buckets_first_pass_ptr,
                          std::vector<std::string> * sample_names_ptr,
                          std::vector<char> * reference_sequence_ptr,
@@ -2364,7 +2489,7 @@ void parallel_first_pass(std::vector<std::string> * hts_paths_ptr,
   assert(pool_haplotypes_ptr);
 
   std::vector<std::string> const & hts_paths = *hts_paths_ptr;
-  std::map<Event, phmap::flat_hash_set<Event, EventHash>> & pool_haplotypes = *pool_haplotypes_ptr;
+  std::map<Event, Thap> & pool_haplotypes = *pool_haplotypes_ptr;
   std::vector<char> const & reference_sequence = *reference_sequence_ptr;
 
   for (long i{0}; i < static_cast<long>(hts_paths.size()); ++i)
@@ -2609,7 +2734,7 @@ void streamlined_discovery(std::vector<std::string> const & hts_paths,
   sample_names.resize(NUM_FILES);
 
   std::vector<std::unique_ptr<std::vector<std::string>>> spl_hts_paths{};
-  std::vector<std::unique_ptr<std::map<Event, phmap::flat_hash_set<Event, EventHash>>>> spl_snp_hq_haplotypes{};
+  std::vector<std::unique_ptr<std::map<Event, Thap>>> spl_snp_hq_haplotypes{};
   long jobs{1};
 
   {
@@ -2626,7 +2751,7 @@ void streamlined_discovery(std::vector<std::string> const & hts_paths,
         auto end_it = it + NUM_FILES / num_parts + (i < (NUM_FILES % num_parts));
         assert(std::distance(hts_paths.cbegin(), end_it) <= NUM_FILES);
         spl_hts_paths.emplace_back(new std::vector<std::string>(it, end_it));
-        spl_snp_hq_haplotypes.emplace_back(new std::map<Event, phmap::flat_hash_set<Event, EventHash>>());
+        spl_snp_hq_haplotypes.emplace_back(new std::map<Event, Thap>());
         it = end_it;
       }
     }
@@ -2644,7 +2769,7 @@ void streamlined_discovery(std::vector<std::string> const & hts_paths,
 
   Tindel_events indel_events;
   long NUM_BUCKETS{0};
-  std::map<Event, phmap::flat_hash_set<Event, EventHash>> haplotypes;
+  std::map<Event, Thap> haplotypes;
 
   // FIRST PASS
   {
@@ -2690,7 +2815,7 @@ void streamlined_discovery(std::vector<std::string> const & hts_paths,
 
     for (long i{1}; i < NUM_POOLS; ++i)
     {
-      std::map<Event, phmap::flat_hash_set<Event, EventHash>> & pool_haplotypes = *spl_snp_hq_haplotypes[i];
+      std::map<Event, Thap> & pool_haplotypes = *spl_snp_hq_haplotypes[i];
       merge_haplotypes2(haplotypes, pool_haplotypes);
     }
 
@@ -2875,7 +3000,9 @@ void streamlined_discovery(std::vector<std::string> const & hts_paths,
       }
 
       {
+        std::ostringstream ss_hap;
         std::ostringstream ss_anti;
+        bool is_hap_stream_empty{true};
         bool is_anti_stream_empty{true};
         long next_event_index = event_index + 1;
 
@@ -2898,11 +3025,19 @@ void streamlined_discovery(std::vector<std::string> const & hts_paths,
               continue; // skip
           }
 
-          auto find_event_it = event_it->second.find(next_event);
-
-          if (find_event_it == event_it->second.end())
+          if (event_it->second.always_together.count(next_event) > 0)
           {
-            // anti haplotype support
+            // these two were always seen together
+            if (is_hap_stream_empty)
+              is_hap_stream_empty = false;
+            else
+              ss_hap << ',';
+
+            ss_hap << next_event_index;
+          }
+          else if (event_it->second.ever_together.count(next_event) == 0)
+          {
+            // these two events were never seen together - anti haplotype support
             if (is_anti_stream_empty)
               is_anti_stream_empty = false;
             else
@@ -2913,6 +3048,9 @@ void streamlined_discovery(std::vector<std::string> const & hts_paths,
         }
 
         variant.infos["GT_ID"] = std::to_string(event_index);
+
+        if (!is_hap_stream_empty)
+          variant.infos["GT_HAPLOTYPE"] = ss_hap.str();
 
         if (!is_anti_stream_empty)
           variant.infos["GT_ANTI_HAPLOTYPE"] = ss_anti.str();

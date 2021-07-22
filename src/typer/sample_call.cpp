@@ -159,11 +159,11 @@ long SampleCall::check_filter(long gq) const
 {
   if (filter < 0)
   {
-    if (gq > 40)
+    if (gq >= 30)
       filter = 0;
-    else if (gq > 20)
+    else if (gq >= 20)
       filter = 1;
-    else if (gq > 0)
+    else if (gq >= 10)
       filter = 2;
     else
       filter = 3;
