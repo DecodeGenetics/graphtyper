@@ -84,6 +84,8 @@ public:
   std::map<Event, uint16_t> phase;
 
   void clear();
+  void was_bad_count(); // use if alignments has way too many events to revert support
+
   int get_raw_support() const;
   double corrected_support() const;
   bool has_good_support(long cov) const;
