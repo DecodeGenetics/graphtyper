@@ -227,12 +227,12 @@ void Graph::add_genomic_region(std::vector<char> && reference_sequence,
           if (var_records[i].alts.size() > 100 || (var_records[i + 1].pos - var_records[i].pos) < 4)
           {
             var_records[i + 1].merge_one_path(std::move(var_records[i]));
-            var_records[i].clear();
-            ++i;
-            continue;
+          }
+          else
+          {
+            var_records[i + 1].merge(std::move(var_records[i]), 4);
           }
 
-          var_records[i + 1].merge(std::move(var_records[i]), 4);
           var_records[i].clear(); // Clear variants that have been merged into others
           ++i;
         } // while
