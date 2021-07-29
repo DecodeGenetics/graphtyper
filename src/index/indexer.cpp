@@ -12,7 +12,7 @@ namespace
 {
 bool entry_has_too_many_nonrefs(gyper::IndexEntry const & entry)
 {
-  uint32_t constexpr MAX_TOTAL_VAR_NUM = 401u; // 131 is a prime
+  uint32_t constexpr MAX_TOTAL_VAR_NUM = 181u;
   uint32_t constexpr MAX_TOTAL_VAR_COUNT = 4u;
 
   return entry.total_var_count > 1 &&
