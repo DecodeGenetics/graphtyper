@@ -8,6 +8,19 @@
 #include <graphtyper/index/ph_index.hpp>
 #include <graphtyper/utilities/logging.hpp>
 
+namespace
+{
+bool entry_has_too_many_nonrefs(gyper::IndexEntry const & entry)
+{
+  uint32_t constexpr MAX_TOTAL_VAR_NUM = 401u; // 131 is a prime
+  uint32_t constexpr MAX_TOTAL_VAR_COUNT = 4u;
+
+  return entry.total_var_count > 1 &&
+         (entry.total_var_num > MAX_TOTAL_VAR_NUM || entry.total_var_count > MAX_TOTAL_VAR_COUNT);
+}
+
+} // namespace
+
 namespace gyper
 {
 void index_reference_label(PHIndex & ph_index, TEntryList & mers, Label const & label)
@@ -41,7 +54,7 @@ void index_reference_label(PHIndex & ph_index, TEntryList & mers, Label const & 
     {
       for (auto q_it = mers.back().begin(); q_it != mers.back().end(); ++q_it)
       {
-        // Skip invalid labels (e.g. labels with '*'). Label is valid if valid==0
+        // Skip invalid labels (e.g. labels with '*')
         if (q_it->valid > 0)
           continue;
 
@@ -58,7 +71,7 @@ void index_reference_label(PHIndex & ph_index, TEntryList & mers, Label const & 
           for (auto var_id : q_it->variant_id)
             new_labels.push_back(KmerLabel(q_it->start_index, label.order + d, var_id));
 
-          ph_index.put(q_it->dna, std::move(new_labels));
+          ph_index.put(q_it->dna, std::vector<KmerLabel>(new_labels));
         }
       }
 
@@ -71,6 +84,8 @@ void insert_variant_label(PHIndex & ph_index,
                           TEntryList & mers,
                           std::vector<VarNode> const & var_nodes,
                           TNodeIndex const v,
+                          bool const is_reference,
+                          unsigned const var_count,
                           std::size_t const ref_reach)
 {
   assert(v < var_nodes.size());
@@ -96,19 +111,10 @@ void insert_variant_label(PHIndex & ph_index,
         IndexEntry & entry = *entry_it;
         bool is_ok{true};
 
-        // if (var_node.events.size() > 0 || var_node.anti_events.size() > 0)
-        //{
-        //  BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << var_node.events.size() << " "
-        //                          << var_node.anti_events.size() << " "
-        //                          << entry.events.size() << " "
-        //                          << entry.anti_events.size();
-        //}
-
         for (auto const & anti_event : entry.anti_events)
         {
           if (var_node.events.count(anti_event) == 1)
           {
-            // BOOST_LOG_TRIVIAL(info) << __HERE__ << " bad event " << anti_event;
             is_ok = false;
             break;
           }
@@ -131,16 +137,6 @@ void insert_variant_label(PHIndex & ph_index,
         {
           entry_it = sublist_it->erase(entry_it);
         }
-
-        /*
-        for (auto const & event : entry.events)
-        {
-          if (var_node.anti_events.count(event) == 1)
-          {
-            print_log(log_severity::info, __HERE__, " bad event ", event.to_string());
-            is_ok = false;
-          }
-        }*/
       }
     }
 
@@ -150,7 +146,7 @@ void insert_variant_label(PHIndex & ph_index,
     if (pos > ref_reach)
       pos = graph.get_special_pos(pos, static_cast<uint32_t>(ref_reach));
 
-    IndexEntry new_index_entry(pos, static_cast<uint32_t>(v));
+    IndexEntry new_index_entry(pos, static_cast<uint32_t>(v), is_reference, var_count);
     new_index_entry.add_to_dna(dna_base);
     new_index_entry.events = var_node.events;
     new_index_entry.anti_events = var_node.anti_events;
@@ -173,7 +169,7 @@ void insert_variant_label(PHIndex & ph_index,
         for (auto var_id : q_it->variant_id)
           new_labels.push_back(KmerLabel(q_it->start_index, pos, var_id));
 
-        ph_index.put(q_it->dna, std::move(new_labels));
+        ph_index.put(q_it->dna, std::vector<KmerLabel>(new_labels));
       }
 
       mers.pop_back();
@@ -199,6 +195,21 @@ void append_list(TEntryList & mers, TEntryList && list)
   assert(list.size() <= mers.size());
 }
 
+void remove_large_variants_from_list(TEntryList & list, unsigned const var_count)
+{
+  for (auto sublist_it = list.begin(); sublist_it != list.end(); ++sublist_it)
+  {
+    for (auto entry_it = sublist_it->begin(); entry_it != sublist_it->end(); ++entry_it)
+    {
+      entry_it->total_var_num *= var_count;
+      ++entry_it->total_var_count;
+    }
+
+    sublist_it->erase(std::remove_if(sublist_it->begin(), sublist_it->end(), entry_has_too_many_nonrefs),
+                      sublist_it->end());
+  }
+}
+
 void index_variant(
   PHIndex & ph_index, std::vector<VarNode> const & var_nodes, TEntryList & mers, unsigned var_count, TNodeIndex v)
 {
@@ -207,7 +218,11 @@ void index_variant(
   // Insert reference label
   assert(v < var_nodes.size());
   std::size_t const ref_label_reach = var_nodes[v].get_label().reach();
-  insert_variant_label(ph_index, mers, var_nodes, v, ref_label_reach);
+  insert_variant_label(ph_index, mers, var_nodes, v, true /*is reference*/, 1, ref_label_reach);
+
+  // Remove all labels with large variants
+  remove_large_variants_from_list(clean_list, var_count);
+  unsigned const var_num = var_count;
 
   // Loops over variants
   while (var_count > 2)
@@ -216,14 +231,14 @@ void index_variant(
     ++v;
 
     TEntryList new_list(clean_list); // copies all mers, we find new kmers using the new copy
-    insert_variant_label(ph_index, new_list, var_nodes, v, ref_label_reach);
+    insert_variant_label(ph_index, new_list, var_nodes, v, false /*is reference*/, var_num, ref_label_reach);
 
     append_list(mers, std::move(new_list));
   }
 
   // No need to copy clean_list on the last variant
   ++v;
-  insert_variant_label(ph_index, clean_list, var_nodes, v, ref_label_reach);
+  insert_variant_label(ph_index, clean_list, var_nodes, v, false /*is reference*/, var_num, ref_label_reach);
 
   append_list(mers, std::move(clean_list));
 }
@@ -271,7 +286,6 @@ PHIndex index_graph(Graph const & graph)
   mers.clear();
 
   // Commit the rest of the buffer before closing
-  print_log(log_severity::debug, __HERE__, " Writing index to disk...");
   print_log(log_severity::debug, __HERE__, " Done indexing graph.");
   return ph_index;
 }
