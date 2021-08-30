@@ -1029,6 +1029,7 @@ int subcmd_genotype_lr(paw::Parser & parser)
 
   // Change the default values
   opts.max_files_open = 128;
+  opts.is_lr_calling = true;
 
   // Parse options
   parser.parse_option(see_advanced_options,

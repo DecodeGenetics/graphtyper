@@ -1473,11 +1473,14 @@ void run_first_pass_lr(bam1_t * hts_rec,
             continue;
           }
 
-          // transform qual to range 12-27
-          long const tr_qual = 12l + std::lround((static_cast<double>(qual) * 22.0) / 60.0);
+          if (qual > 60)
+            qual = 60;
 
-          assert(tr_qual >= 12l);
-          assert(tr_qual <= 36l);
+          // transform qual to range 15-27
+          long const tr_qual = 15l + std::lround((static_cast<double>(qual) * 12.0) / 60.0);
+
+          assert(tr_qual >= 15l);
+          assert(tr_qual <= 27l);
           qual = static_cast<char>(tr_qual);
           add_base_to_bucket(buckets, ref_pos + region_begin, read_base, qual, region_begin, BUCKET_SIZE);
         }
@@ -3226,6 +3229,7 @@ void streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
 
         BaseCount const & base_count = pileup[p];
 
+        std::array<int32_t, 4> const & bc = base_count.acgt;
         std::array<int64_t, 4> const & qs = base_count.acgt_qualsum;
         std::array<long, 4> idx{{0, 1, 2, 3}};
 
@@ -3235,13 +3239,14 @@ void streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
         long const second = idx[2];
         long const third = idx[1];
 
-        if (first != ref_index && (((qs[first] - qs[second]) >= 25) || ((qs[first] - qs[third]) >= 40)))
+        if (first != ref_index && bc[first] >= 3 &&
+            (((qs[first] - qs[second]) >= 30) || ((qs[first] - qs[third]) >= 50)))
         {
           SnpEvent snp_event(region_begin + pos + p, index2base[first]);
           snp_events.insert(snp_event);
         }
 
-        if (second != ref_index && (qs[second] - qs[third]) >= 40 &&
+        if (second != ref_index && bc[second] >= 4 && (qs[second] - qs[third]) >= 50 &&
             ((static_cast<double>(qs[second]) / static_cast<double>(qs[0] + qs[1] + qs[2] + qs[3])) > 0.3))
         {
           SnpEvent snp_event(region_begin + pos + p, index2base[second]);
@@ -3393,13 +3398,15 @@ void streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
     }
 
     variant.generate_infos();
+    variant.infos.erase("MQ");
 
     // double QD, top avoid the vcf filter thingie
+    /*
     if (variant.infos.count("QD") == 1)
     {
       double const old_qd = std::stod(variant.infos.at("QD"));
       variant.infos["QD"] = std::to_string(2.0 * old_qd);
-    }
+    }*/
 
     vcf.variants.push_back(std::move(variant));
   }
@@ -3407,7 +3414,7 @@ void streamlined_lr_genotyping(std::vector<std::string> const & hts_paths,
   vcf.sample_names = std::move(new_sample_names);
 
 #ifndef NDEBUG
-  print_log(log_severity::info, __HERE__, " WIP done");
+  // print_info(__HERE__, " WIP done");
 #endif // NDEBUG
 }
 
