@@ -822,7 +822,7 @@ void Vcf::write_record(Variant const & var,
   bgzf_stream.ss << "\t" << std::to_string(variant_qual) << "\t";
 
   // Parse filter
-  if (sample_names.size() == 0 || copts.ploidy > 2 || copts.is_segment_calling)
+  if (sample_names.size() == 0 || copts.ploidy > 2 || copts.is_segment_calling || copts.is_lr_calling)
   {
     bgzf_stream.ss << ".\t";
   }
