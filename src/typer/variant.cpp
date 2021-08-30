@@ -237,6 +237,7 @@ void Variant::scan_calls()
     stats.read_strand.resize(seqs.size());
   }
 
+  Options const & copts = *(Options::const_instance());
   long const num_alts = seqs.size() - 1l;
 
   // BOOST_LOG_TRIVIAL(info) << __HERE__ << " " << calls.size();
@@ -313,7 +314,11 @@ void Variant::scan_calls()
     assert(seqs.size() == sample_call.coverage.size());
     assert(call.first < seqs.size());
     assert(call.second < seqs.size());
-    long const genotype_quality = sample_call.get_gq();
+    long genotype_quality = sample_call.get_gq();
+
+    if (copts.is_lr_calling)
+      genotype_quality += 10;
+
     long const filter = sample_call.check_filter(genotype_quality);
 
     {
