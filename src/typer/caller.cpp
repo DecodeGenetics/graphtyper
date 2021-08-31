@@ -1357,13 +1357,14 @@ void run_first_pass_lr(bam1_t * hts_rec,
   // std::vector<uint32_t> cov_down(REF_SIZE);
   // long constexpr MAX_READ_SIZE{1000000};
   Options const & copts = *(Options::const_instance());
+  int min_pos{-1}; // Can be set in case of extremely high coverage
 
   while (true)
   {
     assert(hts_rec);
 
-    while (hts_rec->core.n_cigar == 0 || hts_rec->core.l_qseq < 150 || hts_rec->core.qual < copts.lr_mapq_filter ||
-           (hts_rec->core.flag & copts.sam_flag_filter) != 0u)
+    while (hts_rec->core.n_cigar == 0 || hts_rec->core.pos < min_pos || hts_rec->core.l_qseq < 150 ||
+           hts_rec->core.qual < copts.lr_mapq_filter || (hts_rec->core.flag & copts.sam_flag_filter) != 0u)
     {
       hts_rec = hts_reader.get_next_read(hts_rec);
 
@@ -1482,7 +1483,15 @@ void run_first_pass_lr(bam1_t * hts_rec,
           assert(tr_qual >= 15l);
           assert(tr_qual <= 27l);
           qual = static_cast<char>(tr_qual);
-          add_base_to_bucket(buckets, ref_pos + region_begin, read_base, qual, region_begin, BUCKET_SIZE);
+          bool high_cov = add_base_to_bucket(buckets,                // buckets
+                                             ref_pos + region_begin, // pos
+                                             read_base,
+                                             qual,
+                                             region_begin,
+                                             BUCKET_SIZE);
+
+          if (high_cov)
+            min_pos = ref_pos + region_begin;
         }
 
         read_offset += cigar_count;
