@@ -10,6 +10,7 @@
 #include <graphtyper/typer/event.hpp>
 #include <graphtyper/typer/read.hpp>
 #include <graphtyper/utilities/logging.hpp>
+#include <graphtyper/utilities/options.hpp>
 
 namespace gyper
 {
@@ -187,7 +188,7 @@ std::map<Event, EventSupport>::iterator add_snp_event_to_bucket(std::vector<Buck
   return it_pair.first;
 }
 
-void add_base_to_bucket(
+bool add_base_to_bucket(
   std::vector<BucketLR> & buckets, int32_t pos, char seq, char qual, long const region_begin, long const BUCKET_SIZE)
 {
   // Any sensible compiler will optimize this
@@ -203,7 +204,10 @@ void add_base_to_bucket(
     bucket.pileup.resize(BUCKET_SIZE);
 
   assert(local_pos < static_cast<long>(bucket.pileup.size()));
-  bucket.pileup[local_pos].add_base(seq, qual);
+  BaseCount & local_pileup = bucket.pileup[local_pos];
+  local_pileup.add_base(seq, qual);
+  int const c = Options::const_instance()->lr_coverage_filter;
+  return c > 0 && local_pileup.get_depth_with_deleted() >= c;
 }
 
 // explicit instantiation

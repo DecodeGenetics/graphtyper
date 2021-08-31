@@ -46,6 +46,7 @@ public:
   bool no_filter_on_begin_pos{false};
   bool no_filter_on_coverage{false};
   int lr_mapq_filter{5};
+  int lr_coverage_filter{100};
 
   /*******************
    * GENERAL OPTIONS *

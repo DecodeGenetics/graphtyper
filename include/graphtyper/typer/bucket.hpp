@@ -60,7 +60,7 @@ std::map<Event, EventSupport>::iterator add_indel_event_to_bucket(std::vector<TB
                                                                   std::vector<char> const & reference_sequence,
                                                                   long ref_offset);
 
-void add_base_to_bucket(
+bool add_base_to_bucket(
   std::vector<BucketLR> & buckets, int32_t pos, char seq, char qual, long const region_begin, long const BUCKET_SIZE);
 
 } // namespace gyper

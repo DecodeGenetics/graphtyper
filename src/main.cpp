@@ -1109,6 +1109,11 @@ int subcmd_genotype_lr(paw::Parser & parser)
                                "lr_mapq_filter",
                                "Filter reads with MAPQ below this threshold.");
 
+  parser.parse_advanced_option(opts.lr_coverage_filter,
+                               ' ',
+                               "lr_coverage_filter",
+                               "Filter reads after seeing coverage above this value. Set as -1 to remove the filter.");
+
   parser.parse_advanced_option(opts.uncompressed_sample_names,
                                ' ',
                                "uncompressed_sample_names",
