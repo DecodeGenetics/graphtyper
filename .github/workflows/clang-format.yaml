@@ -12,7 +12,7 @@ defaults:
 jobs:
   build:
     name: ${{ matrix.name }}
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-18.04
     timeout-minutes: 120
     strategy:
       fail-fast: true
@@ -20,6 +20,7 @@ jobs:
         include:
           - name: "Clang12 Release C++20"
             pkg: "clang-12"
+            format: "clang-format-12"
             cxx: "clang++-12"
             cc: "clang-12"
             cxx_flags: "-std=c++20"
@@ -35,18 +36,23 @@ jobs:
       - name: Add package source
         run: |
           echo 'APT::Acquire::Retries "5";' | sudo tee -a /etc/apt/apt.conf.d/80-retries > /dev/null
-          sudo add-apt-repository --no-update --yes "deb http://apt.llvm.org/focal/ llvm-toolchain-focal main"
+          sudo add-apt-repository --no-update --yes ppa:ubuntu-toolchain-r/ppa
+          sudo add-apt-repository --no-update --yes ppa:ubuntu-toolchain-r/test
+          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          sudo add-apt-repository --no-update --yes "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-12 main"
           sudo apt-get update
+
       - name: Install CMake
         run: sudo apt-get install --yes cmake
 
       - name: Install clang-format
-        run: sudo apt-get install --yes ${{ matrix.pkg }}
+        run: sudo apt-get install --yes ${{ matrix.pkg }} ${{ matrix.format }}
 
       - name: Tool versions
         run: |
           env cmake --version
           env ${{ matrix.cxx }} --version
+          env ${{ matrix.format }} --version
       - name: Configure tests
         env:
           CXX: ${{ matrix.cxx }}
