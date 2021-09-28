@@ -1,10 +1,9 @@
-![Build Status](https://github.com/DecodeGenetics/graphtyper/workflows/ci_linux.yml/badge.svg) [![Conda](https://img.shields.io/conda/pn/bioconda/graphtyper?color=green)](http://bioconda.github.io/recipes/graphtyper/README.html) [![Conda](https://img.shields.io/conda/v/bioconda/graphtyper?color=green)](http://bioconda.github.io/recipes/graphtyper/README.html)
+[![Build Status](https://github.com/DecodeGenetics/graphtyper/actions/workflows/ci_linux.yaml/badge.svg?branch=master)](https://github.com/DecodeGenetics/graphtyper/actions/workflows/ci_linux.yaml?query=branch%3Amaster) [![Format Status](https://github.com/DecodeGenetics/graphtyper/actions/workflows/clang-format.yaml/badge.svg?branch=master)](https://github.com/DecodeGenetics/graphtyper/actions/workflows/clang-format.yaml?query=branch%3Amaster) [![Conda](https://img.shields.io/conda/pn/bioconda/graphtyper?color=green)](http://bioconda.github.io/recipes/graphtyper/README.html) [![Conda](https://img.shields.io/conda/v/bioconda/graphtyper?color=green)](http://bioconda.github.io/recipes/graphtyper/README.html)
 
 # graphtyper
-graphtyper is a highly scalable graph-based variant caller. It represents a reference genome and known variants of a genomic region using an acyclic graph structure (a "pangenome reference"), which high-throughput sequence reads are re-aligned to for the purpose of discovering and genotyping SNPs, small indels, and structural variants.
+graphtyper is a graph-based variant caller capable of genotyping population-scale short read data sets. It represents a reference genome and known variants of a genomic region using an acyclic graph structure (a "pangenome reference"), which high-throughput sequence reads are re-aligned to for the purpose of discovering and genotyping SNPs, small indels, and structural variants.
 
 Maintainer: Hannes Pétur Eggertsson (Hannes.Eggertsson@decode.is)
-
 
 ## Installation
 ### Static binary release
