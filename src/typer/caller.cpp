@@ -1999,7 +1999,7 @@ void realign_to_indels(std::vector<Tindel_events::iterator> const & realignment_
         //                                                               opts.get_gap_extend(),
         //                                                               opts.get_clip());
 
-        paw::AlignmentResults<Tuint> const & ar = *opts.get_alignment_results();
+        paw::AlignmentResults const & ar = *opts.get_alignment_results();
         // auto p = ar.get_database_begin_end(read.sequence, new_ref);
 
         if (ar.database_begin == 0 || ar.database_end == static_cast<long>(new_ref.size()))

@@ -974,14 +974,22 @@ std::vector<int8_t> Variant::generate_infos()
         continue;
       }
 
-      assert(a < static_cast<long>(qd_alt.size()));
-      // assert(s < static_cast<long>(maximum_variant_support.size()));
-      double const qd = qd_alt[a];
+      if (graph.is_sv_graph)
+      {
+        is_good_alt[a] = per_al.maximum_alt_support >= 3 && per_al.maximum_alt_support_ratio >= 0.15;
+      }
+      else
+      {
+        assert(a < static_cast<long>(qd_alt.size()));
+        // assert(s < static_cast<long>(maximum_variant_support.size()));
+        double const qd = qd_alt[a];
 
-      is_good_alt[a] = static_cast<int>(aa_score[a] >= 0.05 && qd > 1.0 && per_al.maximum_alt_support >= 3 &&
-                                        per_al.maximum_alt_support_ratio >= 0.175 &&
-                                        (seqs.size() < 71 || (qd > 1.25 && per_al.maximum_alt_support_ratio >= 0.2)) &&
-                                        (seqs.size() < 131 || (qd > 1.5 && per_al.maximum_alt_support_ratio >= 0.225)));
+        is_good_alt[a] =
+          static_cast<int>(aa_score[a] >= 0.05 && qd > 1.0 && per_al.maximum_alt_support >= 3 &&
+                           per_al.maximum_alt_support_ratio >= 0.175 &&
+                           (seqs.size() < 71 || (qd > 1.25 && per_al.maximum_alt_support_ratio >= 0.2)) &&
+                           (seqs.size() < 131 || (qd > 1.5 && per_al.maximum_alt_support_ratio >= 0.225)));
+      }
 
 #ifndef NDEBUG
       if (is_good_alt[a] == 0)

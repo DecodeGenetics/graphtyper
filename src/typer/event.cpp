@@ -237,15 +237,19 @@ bool EventSupport::has_good_support(long cov) const
      (hq_count >= 5 && ((static_cast<double>(raw_support) / static_cast<double>(cov)) >= 0.40))) &&
     (!copts.filter_on_proper_pairs || proper_pairs >= 4);
 
-  return (copts.no_filter_on_begin_pos || uniq_pos2 != -1) && (!copts.filter_on_proper_pairs || (proper_pairs >= 2)) &&
-         (hq_count >= 3) &&
-         (!copts.filter_on_read_bias || is_promising || (first_in_pairs > 0 && first_in_pairs < raw_support)) &&
-         (is_very_promising || !copts.filter_on_strand_bias ||
-          (is_promising && sequence_reversed > 0 && sequence_reversed < raw_support) ||
-          (sequence_reversed > 1 && sequence_reversed < (raw_support - 1))) &&
-         (clipped <= 1 || (clipped + 5) <= raw_support) && (max_distance >= 10 || (is_promising && hq_count >= 10)) &&
-         (corrected_support() >= 3.9) &&
-         (((static_cast<double>(raw_support) / static_cast<double>(cov)) > 0.26) || is_promising);
+  return (copts.no_filter_on_begin_pos || uniq_pos2 != -1) &&                                      //
+         (!copts.filter_on_proper_pairs || (proper_pairs >= 2)) &&                                 //
+         (hq_count >= 3) &&                                                                        //
+         (!copts.filter_on_read_bias ||                                                            //
+          is_promising ||                                                                          //
+          (first_in_pairs > 0 && first_in_pairs < raw_support)) &&                                 //
+         (is_very_promising || !copts.filter_on_strand_bias ||                                     //
+          (is_promising && sequence_reversed > 0 && sequence_reversed < raw_support) ||            //
+          (sequence_reversed > 1 && sequence_reversed < (raw_support - 1))) &&                     //
+         (clipped <= 1 || (clipped + 5) <= raw_support) &&                                         //
+         (max_distance >= 10 || (is_promising && hq_count >= 10)) &&                               //
+         (corrected_support() >= 3.9) &&                                                           //
+         (((static_cast<double>(raw_support) / static_cast<double>(cov)) > 0.26) || is_promising); //
 }
 
 std::string EventSupport::to_string() const
@@ -277,7 +281,7 @@ bool EventSupport::is_good_indel(uint32_t eps) const
   }
 
   assert(sequence_reversed <= depth);
-  long const qual = 3 * get_log_qual(hq_count + lq_count, anti_count, eps);
+  long const qual = 3l * get_log_qual(hq_count + lq_count, anti_count, eps);
 
   if (qual < 50)
     return false;

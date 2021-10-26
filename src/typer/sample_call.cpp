@@ -255,11 +255,11 @@ SampleCall make_bi_allelic_call(SampleCall const & oc, long aa)
 SampleCall make_call_based_on_coverage(long pn_index, SV const & sv, ReferenceDepth const & reference_depth)
 {
   SampleCall call;
-  long abs_begin = absolute_pos.get_absolute_position(sv.chrom, sv.begin);
+  long abs_begin = sv.begin;
   long abs_end;
 
   if (sv.size < 190000)
-    abs_end = absolute_pos.get_absolute_position(sv.chrom, sv.end);
+    abs_end = abs_begin + sv.size;
   else
     abs_end = abs_begin + 190000;
 
