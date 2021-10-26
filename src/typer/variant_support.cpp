@@ -59,15 +59,19 @@ bool VariantSupport::is_support_above_cutoff(long const min_support) const
 
   Options const & copts = *(Options::const_instance());
 
-  return (copts.no_filter_on_begin_pos || unique_positions.size() > 1) && (!copts.filter_on_mapq || is_any_mapq_good) &&
-         (!copts.filter_on_proper_pairs || (proper_pairs >= 2 || (proper_pairs >= 1 && is_indel))) &&
-         (hq_support >= 3 || (hq_support >= 2 && is_indel)) &&
-         (!copts.filter_on_read_bias || is_indel || is_promising || (first_in_pairs > 0 && first_in_pairs < _depth)) &&
-         (!copts.filter_on_strand_bias || is_indel ||
-          (is_promising && sequence_reversed > 0 && sequence_reversed < _depth) ||
-          (sequence_reversed > 1 && sequence_reversed < (_depth - 1))) &&
-         (clipped <= (_depth - 3) || (is_indel && clipped <= (_depth - 1))) &&
-         static_cast<long>(get_corrected_support() + 0.5) >= min_support;
+  return (copts.no_filter_on_begin_pos || unique_positions.size() > 1) &&                             //
+         (!copts.filter_on_mapq || is_any_mapq_good) &&                                               //
+         (!copts.filter_on_proper_pairs || (proper_pairs >= 2 || (proper_pairs >= 1 && is_indel))) && //
+         (hq_support >= 3 || (hq_support >= 2 && is_indel)) &&                                        //
+         (!copts.filter_on_read_bias ||                                                               //
+          is_indel || is_promising ||                                                                 //
+          (first_in_pairs > 0 && first_in_pairs < _depth)) &&                                         //
+         (!copts.filter_on_strand_bias ||                                                             //
+          is_indel ||                                                                                 //
+          (is_promising && sequence_reversed > 0 && sequence_reversed < _depth) ||                    //
+          (sequence_reversed > 1 && sequence_reversed < (_depth - 1))) &&                             //
+         (clipped <= (_depth - 3) || (is_indel && clipped <= (_depth - 1))) &&                        //
+         static_cast<long>(get_corrected_support() + 0.5) >= min_support;                             //
 }
 
 bool VariantSupport::is_above_cutoff(long const min_support, double const min_ratio) const
