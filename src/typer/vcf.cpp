@@ -822,7 +822,8 @@ void Vcf::write_record(Variant const & var,
   bgzf_stream.ss << "\t" << std::to_string(variant_qual) << "\t";
 
   // Parse filter
-  if (sample_names.size() == 0 || copts.ploidy > 2 || copts.is_segment_calling || copts.is_lr_calling)
+  if (sample_names.size() == 0 || copts.ploidy > 2 || copts.is_segment_calling || copts.is_lr_calling ||
+      graph.is_sv_graph)
   {
     bgzf_stream.ss << ".\t";
   }
@@ -1557,8 +1558,11 @@ template void Vcf::serialize<cereal::BinaryOutputArchive>(cereal::BinaryOutputAr
 void save_vcf(Vcf const & vcf, std::string const & filename)
 {
 #ifndef NDEBUG
-  for (Variant const & var : vcf.variants)
-    assert(var.stats.n_calls > 0 || var.stats.seqdepth > 0);
+  if (!graph.is_sv_graph)
+  {
+    for (Variant const & var : vcf.variants)
+      assert(var.stats.n_calls > 0 || var.stats.seqdepth > 0);
+  }
 #endif // NDEBUG
 
   long n_batch{0};

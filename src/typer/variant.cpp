@@ -800,6 +800,31 @@ std::vector<int8_t> Variant::generate_infos()
 
     return is_good_alt;
   }
+  else if (graph.is_sv_graph)
+  {
+    assert(stats.per_allele.size() == seqs.size());
+
+    for (long a{1}; a < static_cast<long>(stats.per_allele.size()); ++a)
+      is_good_alt[a - 1] = static_cast<int8_t>(stats.per_allele[a].ac > 0);
+
+    // erase stats that don't make sense in SV calling
+    infos.erase("ABHetMulti");
+    infos.erase("ABHomMulti");
+    infos.erase("CR");
+    infos.erase("QDalt");
+    infos.erase("MQ");
+    infos.erase("MQsquared");
+    infos.erase("SB");
+    infos.erase("SBAlt");
+    infos.erase("SBF");
+    infos.erase("SBR");
+    infos.erase("SBF1");
+    infos.erase("SBF2");
+    infos.erase("SBR1");
+    infos.erase("SBR2");
+
+    return is_good_alt;
+  }
 
   assert(stats.per_allele.size() == seqs.size());
 

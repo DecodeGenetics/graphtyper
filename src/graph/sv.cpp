@@ -293,6 +293,10 @@ void reformat_sv_vcf_records(std::vector<Variant> & variants, ReferenceDepth con
         }
       }
 
+      // clear all variant stats and recalculate
+      combined_var.stats.clear();
+      // combined_var.scan_calls();
+      combined_var.generate_infos();
       return combined_var;
     };
 

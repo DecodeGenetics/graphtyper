@@ -52,16 +52,16 @@ class VarStats
   friend class cereal::access;
 
 public:
-  /** Stats per allele (excluding ReadStrand) */
+  // Stats per allele (excluding ReadStrand)
   std::vector<VarStatsPerAllele> per_allele{};
 
-  /** Strand bias per allele */
+  // Strand bias per allele
   std::vector<ReadStrand> read_strand{};
 
-  /** Clipped reads */
+  // Clipped reads
   uint32_t clipped_reads{0u};
 
-  /** MapQ statistics */
+  // MapQ statistics
   uint64_t mapq_squared{0u};
 
   // Other statistics for INFO field
@@ -74,28 +74,30 @@ public:
   uint8_t n_max_alt_proper_pairs{0};
   uint64_t seqdepth{0};
 
-  std::pair<uint32_t, uint32_t> het_allele_depth = {0ul, 0ul}; // First is the first call, second is the second call
-  std::pair<uint32_t, uint32_t> hom_allele_depth = {0ul,
-                                                    0ul}; // First is the called allele, second is not the called one
+  // First is the first call, second is the second call
+  std::pair<uint32_t, uint32_t> het_allele_depth = {0ul, 0ul};
 
-  /**
+  // First is the called allele, second is not the called one
+  std::pair<uint32_t, uint32_t> hom_allele_depth = {0ul, 0ul};
+
+  /*
    * CONSTRUCTORS
    */
   VarStats() = default;
   VarStats(std::size_t allele_count) noexcept;
 
-  /**
+  /*
    * CLASS INFORMATION
    */
-
   void write_stats(std::map<std::string, std::string> & infos) const;
   void write_per_allele_stats(std::map<std::string, std::string> & infos) const;
   void write_read_strand_stats(std::map<std::string, std::string> & infos) const;
 
-  /**
+  /*
    * CLASS MODIFIERS
    */
   void add_stats(VarStats const & stats);
+  void clear();
   void read_stats(std::map<std::string, std::string> const & infos);
 
 private:

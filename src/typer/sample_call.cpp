@@ -17,8 +17,7 @@ namespace
 {
 uint16_t get_uint16(long const val)
 {
-  return static_cast<uint16_t>(std::max(static_cast<long>(std::numeric_limits<uint16_t>::min()),
-                                        std::min(static_cast<long>(std::numeric_limits<uint16_t>::max()), val)));
+  return static_cast<uint16_t>(std::max(0l, std::min(static_cast<long>(std::numeric_limits<uint16_t>::max()), val)));
 }
 
 template <typename Tvec>
@@ -181,6 +180,7 @@ void SampleCall::serialize(Archive & ar, unsigned const int /*version*/)
   ar & alt_total_depth;
   ar & ambiguous_depth;
   ar & alt_proper_pair_depth;
+  ar & filter;
 }
 
 template void SampleCall::serialize<cereal::BinaryInputArchive>(cereal::BinaryInputArchive &, const unsigned int);
@@ -231,7 +231,6 @@ SampleCall make_bi_allelic_call(SampleCall const & oc, long aa)
   c.coverage.push_back(static_cast<unsigned short>(std::max(cov_aa, 0)));
 
   int32_t const alt_not_proper = c.coverage[1] > c.alt_proper_pair_depth ? c.coverage[1] - c.alt_proper_pair_depth : 0;
-
   int32_t const alt_proper = c.coverage[1] - alt_not_proper;
 
   c.phred.resize(3, 0); // 0/0, 0/1, 1/1
@@ -320,8 +319,26 @@ SampleCall make_call_based_on_coverage(long pn_index, SV const & sv, ReferenceDe
   else if (sv.type == DUP || sv.type == INV)
   {
     // Set "coverage"
-    call.coverage.push_back(get_uint16(2 * median_out - std::max(median_in, median_out)));
-    call.coverage.push_back(get_uint16(median_out - static_cast<long>(call.coverage[0])));
+    double const cmed = static_cast<double>(median_out + median_in) / 2.0;
+    long const dmed = median_in - median_out;
+
+    if (dmed <= 0)
+    {
+      call.coverage.push_back(get_uint16(std::lround(cmed)));
+      call.coverage.push_back(0);
+    }
+    else if (dmed >= (2 * median_in))
+    {
+      call.coverage.push_back(0);
+      call.coverage.push_back(get_uint16(std::lround(cmed)));
+    }
+    else
+    {
+      assert(median_in > 0);
+      double const frac = static_cast<double>(dmed) / static_cast<double>(median_out);
+      call.coverage.push_back(get_uint16(std::lround((1.0 - frac) * cmed)));
+      call.coverage.push_back(get_uint16(cmed - call.coverage[0]));
+    }
   }
   else
   {

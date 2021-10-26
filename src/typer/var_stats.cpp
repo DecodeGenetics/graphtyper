@@ -188,6 +188,25 @@ void VarStats::add_stats(VarStats const & stats)
   }
 }
 
+void VarStats::clear()
+{
+  per_allele.clear();
+  read_strand.clear();
+
+  clipped_reads = 0;
+  mapq_squared = 0;
+  n_genotyped = 0;
+  n_calls = 0;
+  n_passed_calls = 0;
+  n_ref_ref = 0;
+  n_ref_alt = 0;
+  n_alt_alt = 0;
+  n_max_alt_proper_pairs = 0;
+  seqdepth = 0;
+  het_allele_depth = {0, 0};
+  hom_allele_depth = {0, 0};
+}
+
 void VarStats::read_stats(std::map<std::string, std::string> const & infos)
 {
   {
