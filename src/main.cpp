@@ -879,6 +879,7 @@ int subcmd_genotype_sv(paw::Parser & parser)
   bool force_copy_reference{false};
   bool force_no_copy_reference{false};
   bool see_advanced_options{false};
+  bool force_filter_zero_qual{false};
 
   // Change the default values
   opts.max_files_open = 128;
@@ -944,6 +945,13 @@ int subcmd_genotype_sv(paw::Parser & parser)
                                ' ',
                                "force_no_filter_zero_qual",
                                "Set to force variants to be in the final output despite they have zero quality"
+                               " (all calls are ref/ref). NOTE: This is now the default behaviour, use "
+                               "'--force_filter_zero_qual' to turn it off.");
+
+  parser.parse_advanced_option(force_filter_zero_qual,
+                               ' ',
+                               "force_filter_zero_qual",
+                               "Set to filter variants to be in the final output despite they have zero quality"
                                " (all calls are ref/ref)");
 
   parser.parse_advanced_option(opts.force_use_input_ref_for_cram_reading,
@@ -982,7 +990,10 @@ int subcmd_genotype_sv(paw::Parser & parser)
                                "uncompressed_sample_names",
                                "If set, graphtyper BGZF VCF (.vcf.gz) files will output samples names in uncompressed "
                                "(0-level) in the header. The byte range of these blocks will also be printed in "
-                               "${prefix}.samples_byte_range. Requires external utils: awk, truncate, stat.");
+                               "${prefix}.samples_byte_range.");
+
+  if (!force_filter_zero_qual)
+    opts.force_no_filter_zero_qual = true;
 
   if (opts.force_no_filter_zero_qual)
     opts.force_no_filter_bad_alts = true;

@@ -822,10 +822,50 @@ void Vcf::write_record(Variant const & var,
   bgzf_stream.ss << "\t" << std::to_string(variant_qual) << "\t";
 
   // Parse filter
-  if (sample_names.size() == 0 || copts.ploidy > 2 || copts.is_segment_calling || copts.is_lr_calling ||
-      graph.is_sv_graph)
+  if (sample_names.size() == 0 || copts.ploidy > 2 || copts.is_segment_calling || copts.is_lr_calling)
   {
     bgzf_stream.ss << ".\t";
+  }
+  else if (is_sv)
+  {
+    bool is_pass = true;
+
+    if (var.infos.count("QD") == 1 && std::stod(var.infos.at("QD")) < 6.0)
+    {
+      // is_pass is trivially false
+      bgzf_stream.ss << "LowQD";
+      is_pass = false;
+    }
+
+    if (variant_qual < 10)
+    {
+      if (!is_pass)
+        bgzf_stream.ss << ";";
+
+      bgzf_stream.ss << "LowQUAL";
+      is_pass = false;
+    }
+
+    // Only filter on PASS_ratio there are no PASS calls or it is low and we have sufficient amount of samples
+    if (var.infos.count("AN") == 1 &&                   // "AN" is in INFO
+        var.infos.count("PASS_AC") == 1 &&              // "PASS_AC" is in INFO
+        var.infos.count("PASS_ratio") == 1 &&           // "PASS_ratio" is in INFO
+        (std::stoi(var.infos.at("AN")) >= 100 &&        // population genotyping
+         (var.infos.at("PASS_AC") == "0" ||             // No carrier with PASS call
+          std::stod(var.infos.at("PASS_ratio")) < 0.01) // Threshold for populations
+         ))
+    {
+      if (!is_pass)
+        bgzf_stream.ss << ";";
+
+      bgzf_stream.ss << "LowPratio";
+      is_pass = false;
+    }
+
+    if (is_pass)
+      bgzf_stream.ss << "PASS";
+
+    bgzf_stream.ss << "\t";
   }
   else
   {
@@ -897,12 +937,10 @@ void Vcf::write_record(Variant const & var,
     }
 
     // Only filter on PASS_ratio there are no PASS calls or it is low and we have sufficient amount of samples
-    if (var.infos.count("AN") == 1 &&                      // "AN" is in INFO
-        var.infos.count("PASS_ratio") == 1 &&              // "PASS_ratio" is in INFO
-        ((std::stoi(var.infos.at("AN")) >= 500 &&          // population genotyping
-          std::stod(var.infos.at("PASS_ratio")) < 0.05) || // Threshold for populations
-         ((is_sv || std::stoi(var.infos.at("AN")) >= 6) && // SV genotyping or trio genotyping/small populations
-          std::stod(var.infos.at("PASS_ratio")) < 0.001))) // Threshold for trio genotyping
+    if (var.infos.count("AN") == 1 &&                     // "AN" is in INFO
+        var.infos.count("PASS_ratio") == 1 &&             // "PASS_ratio" is in INFO
+        ((std::stoi(var.infos.at("AN")) >= 500 &&         // population genotyping
+          std::stod(var.infos.at("PASS_ratio")) < 0.05))) // Threshold for populations
     {
       if (!is_pass)
         bgzf_stream.ss << ";";

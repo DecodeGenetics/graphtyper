@@ -7,7 +7,7 @@ include(CheckIncludeFileCXX)
 # The version number
 set (graphtyper_VERSION_MAJOR 2)
 set (graphtyper_VERSION_MINOR 7)
-set (graphtyper_VERSION_PATCH 2)
+set (graphtyper_VERSION_PATCH 3)
 set(STATIC_DIR "" CACHE STRING "If set, GraphTyper will be built as a static binary using libraries from the given STATIC_DIR.")
 
 # Get the current working branch
