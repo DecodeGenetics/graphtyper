@@ -796,6 +796,13 @@ void Vcf::write_record(Variant const & var,
 
   bool const is_sv = var.is_sv();
 
+  bgzf_stream.flush();
+
+  if (bgzf_stream.ss.tellp() != 0)
+  {
+    print_log(log_severity::warning, __HERE__, " bgzf was not flushed: tellp=", bgzf_stream.ss.tellp());
+  }
+
   bgzf_stream.ss << contig_pos.first << '\t';
   bgzf_stream.ss << contig_pos.second << '\t';
 
@@ -1001,6 +1008,9 @@ void Vcf::write_record(Variant const & var,
       }
     }
 
+    long const old_line_size = bgzf_stream.ss.tellp();
+    bool is_record_written{false};
+
     for (long i{0}; i < static_cast<long>(var.calls.size()); ++i)
     {
       auto const & call = var.calls[i];
@@ -1075,7 +1085,34 @@ void Vcf::write_record(Variant const & var,
         bgzf_stream.ss << ',' << static_cast<uint16_t>(call.phred[p]);
 
       // Check if this should be added
-      bgzf_stream.check_cache();
+      if (!is_record_written && static_cast<long>(bgzf_stream.ss.tellp()) >= BGZF_stream::MAX_CACHE_SIZE)
+      {
+        long const new_line_size = bgzf_stream.ss.tellp();
+        assert(new_line_size > old_line_size);
+        double const bytes_per_call = static_cast<double>(new_line_size - old_line_size) / static_cast<double>(i + 1);
+        double total_bytes_expected = old_line_size + bytes_per_call * static_cast<double>(var.calls.size());
+
+        if (total_bytes_expected >= 2000000000.0)
+        {
+          print_log(log_severity::warning,
+                    " Skipping variant with extreme expected line size=",
+                    total_bytes_expected / 1024.0 / 1024.0,
+                    " MB");
+
+          // Clear stringstream
+          bgzf_stream.ss.str(std::string());
+          bgzf_stream.ss.clear();
+          return;
+        }
+
+        // write record and continue
+        is_record_written = true;
+        bgzf_stream.flush();
+      }
+      else if (is_record_written)
+      {
+        bgzf_stream.check_cache();
+      }
     }
   }
 

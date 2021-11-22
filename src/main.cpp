@@ -992,6 +992,7 @@ int subcmd_genotype_sv(paw::Parser & parser)
                                "(0-level) in the header. The byte range of these blocks will also be printed in "
                                "${prefix}.samples_byte_range.");
 
+  // Changed behaviour such that zero qual SVs are not filtered out by default
   if (!force_filter_zero_qual)
     opts.force_no_filter_zero_qual = true;
 
