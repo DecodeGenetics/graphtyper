@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <cstdio> // std::exit
 #include <cstring>
 #include <iostream> // std::cout
@@ -42,7 +43,7 @@ public:
   std::string filename{};
   std::string filemode{};
   long n_threads{1};
-  long static constexpr MAX_CACHE_SIZE{50000ll};
+  long static constexpr MAX_CACHE_SIZE{200000ll};
 };
 
 template <class T>
@@ -87,6 +88,7 @@ inline void BGZF_stream::flush()
   // Clear stringstream
   ss.str(std::string());
   ss.clear();
+  assert(ss.tellp() == 0);
 }
 
 inline int BGZF_stream::write(void const * data, std::size_t length)
