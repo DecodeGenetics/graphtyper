@@ -288,7 +288,7 @@ void genotype_hla(std::string ref_path,
 
       {
         // Fix sequences names
-        auto const is_pass_alt = var.generate_infos();
+        auto is_pass_alt = var.generate_infos();
         assert(var.seqs.size() == hla.sample_names.size());
         assert((is_pass_alt.size() + 1u) == hla.sample_names.size());
         std::vector<std::vector<char>> new_seqs;
@@ -305,6 +305,20 @@ void genotype_hla(std::string ref_path,
           seq.push_back('>');
           new_seqs.push_back(seq);
         }
+
+        if (new_seqs.size() == 1 && hla.sample_names.size() >= 2)
+        {
+          // special case where only reference allele is called, in this case also add some other sequence
+          is_pass_alt[0] = true;
+          std::string const & hla_allele = hla.sample_names[1];
+          std::vector<char> seq;
+          seq.push_back('<');
+          std::copy(hla_allele.begin(), hla_allele.end(), std::back_inserter(seq));
+          seq.push_back('>');
+          new_seqs.push_back(seq);
+        }
+
+        assert(new_seqs.size() >= 2);
 
         for (auto const & new_seq : new_seqs)
         {
@@ -351,6 +365,7 @@ void genotype_hla(std::string ref_path,
 
         var.seqs = std::move(new_seqs);
         var.stats = VarStats();
+        var.infos.clear();
         var.generate_infos();
       }
 
@@ -358,7 +373,7 @@ void genotype_hla(std::string ref_path,
       hla_vcf.write_header();
       assert(hla_vcf.variants.size() > 0);
 
-      if (hla_vcf.variants[0].seqs.size() <= MAX_ALLELES)
+      if (var.seqs.size() <= MAX_ALLELES)
       {
         hla_vcf.write_record(hla_vcf.variants[0], ".all", false, false);
       }
