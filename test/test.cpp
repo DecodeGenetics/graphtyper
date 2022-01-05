@@ -4,4 +4,4 @@
 
 #include <graphtyper/constants.hpp>
 
-#include <catch.hpp>
+#include <catch2/catch.hpp>

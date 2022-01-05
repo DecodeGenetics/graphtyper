@@ -12,7 +12,7 @@
 #include <graphtyper/utilities/type_conversions.hpp>
 
 #include "../help_functions.hpp" // create_test_graph
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 TEST_CASE("Test index chr1")
 {

@@ -6,7 +6,7 @@
 #include <graphtyper/graph/label.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
 
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 /*
 TEST_CASE("Getting absolute and contig positions from genomic region")

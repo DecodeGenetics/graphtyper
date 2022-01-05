@@ -7,7 +7,7 @@
 #include <graphtyper/graph/var_record.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
 
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 TEST_CASE("Haplotype with one genotype")
 {

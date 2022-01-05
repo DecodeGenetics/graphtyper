@@ -7,7 +7,7 @@
 #include <graphtyper/utilities/logging.hpp>
 #include <graphtyper/utilities/system.hpp>
 
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 inline void create_test_graph(std::string const & fasta,
                               std::string const & vcf,

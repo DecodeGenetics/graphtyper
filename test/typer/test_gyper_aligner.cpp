@@ -10,7 +10,7 @@
 #include <graphtyper/typer/aligner.hpp>
 #include <graphtyper/utilities/type_conversions.hpp> // to_uint64()
 
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 typedef gyper::Aligner<gyper::SimpleGraph, gyper::Index<gyper::RocksDB>> TAligner;
 

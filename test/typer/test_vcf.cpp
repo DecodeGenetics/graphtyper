@@ -10,7 +10,7 @@
 #include <graphtyper/typer/vcf.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
 
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 TEST_CASE("Create a VCF and add samples")
 {

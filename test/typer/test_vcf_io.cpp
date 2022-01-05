@@ -8,7 +8,7 @@
 #include <graphtyper/constants.hpp>
 #include <graphtyper/typer/vcf.hpp>
 
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 TEST_CASE("Read the index test VCF file")
 {

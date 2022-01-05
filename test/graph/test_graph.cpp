@@ -14,7 +14,7 @@
 #include <graphtyper/utilities/options.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
 
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 std::vector<std::vector<char>> get_var_dna(std::vector<gyper::VarNode> const & var_nodes)
 {

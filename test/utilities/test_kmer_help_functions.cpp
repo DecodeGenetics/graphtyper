@@ -15,7 +15,7 @@
 #include <graphtyper/utilities/kmer_help_functions.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
 
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 TEST_CASE("Get the number of kmers in a dna string")
 {
