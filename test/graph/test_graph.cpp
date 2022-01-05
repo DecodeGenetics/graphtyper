@@ -14,7 +14,7 @@
 #include <graphtyper/utilities/options.hpp>
 #include <graphtyper/utilities/type_conversions.hpp>
 
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 std::vector<std::vector<char>> get_var_dna(std::vector<gyper::VarNode> const & var_nodes)
 {
@@ -1844,7 +1844,7 @@ TEST_CASE("Two deletions and one of them overlaps SNPs")
   {
     REQUIRE(ref_nodes[0].out_degree() == 11);
 
-    for (auto i = 0; i < 11; ++i)
+    for (decltype(ref_nodes[0].get_var_index(0)) i = 0; i < 11; ++i)
       REQUIRE(ref_nodes[0].get_var_index(i) == i);
 
     for (auto const & v : var_nodes)

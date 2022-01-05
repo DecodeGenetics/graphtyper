@@ -8,6 +8,6 @@
 #include <graphtyper/typer/variant.hpp>
 #include <graphtyper/typer/vcf.hpp>
 
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 // TODO

@@ -12,7 +12,7 @@
 #include <graphtyper/utilities/type_conversions.hpp>
 
 #include "../help_functions.hpp" // create_test_graph
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 TEST_CASE("Test index chr1")
 {
@@ -204,7 +204,7 @@ TEST_CASE("Test index chr3")
     REQUIRE(labels3.size() == 1);
     REQUIRE(labels3[0].start_index == 32);
     REQUIRE(labels3[0].end_index == 63);
-    REQUIRE(labels3[0].variant_id == -1);
+    REQUIRE(labels3[0].variant_id == std::numeric_limits<decltype(labels3[0].variant_id)>::max());
   }
 }
 
@@ -382,11 +382,13 @@ TEST_CASE("Test index chr9 with anti event")
 
   labels = ph_index.get(gyper::to_uint64("AGGGGGGTGGGGGGGGGGGGGGGGGGGGGGGG", 0));
 
-  for (auto const & label : labels)
-  {
-    bool const is_either = label.variant_id == 0 || label.variant_id == 2;
-    std::cerr << __HERE__ << " " << label.to_string() << "\n";
-  }
+  // TODO look at this
+  //   for (auto const & label : labels)
+  //   {
+  //     bool const is_either = label.variant_id == 0 || label.variant_id == 2;
+  //     REQUIRE(is_either);
+  //     std::cerr << __HERE__ << " " << label.to_string() << "\n";
+  //   }
 
   REQUIRE(labels.size() == 2);
   REQUIRE(labels[0].variant_id != labels[1].variant_id);

@@ -11,7 +11,7 @@
 #include <graphtyper/typer/path.hpp>
 #include <graphtyper/utilities/type_conversions.hpp> // to_uint64()
 
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 /*
 TEST_CASE("Genotype paths")

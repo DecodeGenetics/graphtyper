@@ -16,7 +16,7 @@
 #include <graphtyper/utilities/type_conversions.hpp>
 
 #include "../help_functions.hpp" // create_test_graph
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 TEST_CASE("Construct test graph (chr1) (not with absolute positions)")
 {
