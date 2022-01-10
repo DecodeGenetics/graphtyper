@@ -8,7 +8,53 @@ include(CheckIncludeFileCXX)
 set (graphtyper_VERSION_MAJOR 2)
 set (graphtyper_VERSION_MINOR 7)
 set (graphtyper_VERSION_PATCH 3)
-set(STATIC_DIR "" CACHE STRING "If set, GraphTyper will be built as a static binary using libraries from the given STATIC_DIR.")
+
+# Graphtyper's headers
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
+include_directories("${CMAKE_CURRENT_BINARY_DIR}/include")
+
+## Executables go to a "bin" folder.
+set(EXECUTABLE_OUTPUT_PATH ../bin)
+
+#############################################################################
+## Build flags
+#############################################################################
+
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wfatal-errors -pedantic -Wno-variadic-macros -std=c++17")
+
+if(CMAKE_BUILD_TYPE STREQUAL "DEBUG" OR CMAKE_BUILD_TYPE STREQUAL "Debug")
+  message(STATUS "Building in debug mode.")
+  set (CMAKE_CXX_FLAGS "-g -O0 -DDEBUG ${CMAKE_CXX_FLAGS}")
+elseif(CMAKE_BUILD_TYPE STREQUAL "RELDEB" OR CMAKE_BUILD_TYPE STREQUAL "Reldeb" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+  message(STATUS "Building in release (with assertions and debug info) mode.")
+  set (CMAKE_CXX_FLAGS "-g -O3 -DDEBUG ${CMAKE_CXX_FLAGS}")
+elseif(CMAKE_BUILD_TYPE STREQUAL "PROFILING" OR CMAKE_BUILD_TYPE STREQUAL "Profiling")
+  message(STATUS "Building in profiling mode, which is release mode with profiling mode enabled.")
+  set (CMAKE_CXX_FLAGS "-pg -O3 -DNDEBUG ${CMAKE_CXX_FLAGS}")
+else()
+  message(STATUS "Building in release mode.")
+  set (CMAKE_CXX_FLAGS "-O3 -DNDEBUG ${CMAKE_CXX_FLAGS}")
+endif()
+
+set (CMAKE_CXX_FLAGS_RELEASE "")
+set (CMAKE_CXX_FLAGS_DEBUG "")
+message(STATUS "CXX flags are: ${CMAKE_CXX_FLAGS}")
+
+
+if (DEFINED CFLAGS)
+  set(MYCFLAGS "${CFLAGS}")
+  message (STATUS "Custom CFLAGS: ${MYCFLAGS}")
+endif()
+
+if (DEFINED LDFLAGS)
+  set(MYLDFLAGS "${LDFLAGS}")
+  message (STATUS "Custom LDFLAGS: ${MYLDFLAGS}")
+endif()
+
+#############################################################################
+## Passing constants to source
+#############################################################################
 
 # Get the current working branch
 execute_process(
@@ -42,211 +88,224 @@ execute_process(
   OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 
-message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wfatal-errors -pedantic -Wno-variadic-macros -std=c++17 -DSEQAN_HAS_ZLIB=1 -DSEQAN_USE_HTSLIB=1 -DSEQAN_ENABLE_TESTING=0 -DSEQAN_ENABLE_DEBUG=0")
-
-if(CMAKE_BUILD_TYPE STREQUAL "DEBUG" OR CMAKE_BUILD_TYPE STREQUAL "Debug")
-  message(STATUS "Building in debug mode.")
-  set (CMAKE_CXX_FLAGS "-g -O0 -DDEBUG ${CMAKE_CXX_FLAGS}")
-elseif(CMAKE_BUILD_TYPE STREQUAL "RELDEB" OR CMAKE_BUILD_TYPE STREQUAL "Reldeb" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
-  message(STATUS "Building in release (with assertions and debug info) mode.")
-  set (CMAKE_CXX_FLAGS "-g -O3 -DDEBUG ${CMAKE_CXX_FLAGS}")
-elseif(CMAKE_BUILD_TYPE STREQUAL "PROFILING" OR CMAKE_BUILD_TYPE STREQUAL "Profiling")
-  message(STATUS "Building in profiling mode, which is release mode with profiling mode enabled.")
-  set (CMAKE_CXX_FLAGS "-pg -O3 -DNDEBUG ${CMAKE_CXX_FLAGS}")
-else()
-  message(STATUS "Building in release mode.")
-  set (CMAKE_CXX_FLAGS "-O3 -DNDEBUG ${CMAKE_CXX_FLAGS}")
-endif()
-
-set (CMAKE_CXX_FLAGS_RELEASE "")
-set (CMAKE_CXX_FLAGS_DEBUG "")
-message(STATUS "CXX flags are: ${CMAKE_CXX_FLAGS}")
-
 # configure a header file to pass some of the CMake settings to the source code
 configure_file (
-  "${PROJECT_SOURCE_DIR}/include/graphtyper/constants.hpp.in"
-  "${PROJECT_BINARY_DIR}/include/graphtyper/constants.hpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/graphtyper/constants.hpp.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/include/graphtyper/constants.hpp"
 )
 
-include_directories("${PROJECT_BINARY_DIR}/include")
+#############################################################################
+## Dependency setup
+#############################################################################
 
-if (DEFINED CFLAGS)
-  set(MYCFLAGS "${CFLAGS}")
-  message (STATUS "Custom CFLAGS: ${MYCFLAGS}")
-endif()
+set (STATIC_DIR "" CACHE STRING "Build in 'static' mode and include libraries in this directory.")
 
-if (DEFINED LDFLAGS)
-  set(MYLDFLAGS "${LDFLAGS}")
-  message (STATUS "Custom LDFLAGS: ${MYLDFLAGS}")
-endif()
-
-
-## libdeflate
-ExternalProject_Add(
-  project_libdeflate
-  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libdeflate
-  BUILD_IN_SOURCE 1
-  PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/libdeflate
-  CONFIGURE_COMMAND ""
-  BUILD_COMMAND $(MAKE) -C ${CMAKE_CURRENT_SOURCE_DIR}/libdeflate
-    "CC=${CMAKE_C_COMPILER}"
-    "CFLAGS=-fPIC -O3 ${CMAKE_C_FLAGS}" libdeflate.a
-  INSTALL_COMMAND ""
-)
-
-ExternalProject_Get_Property(project_libdeflate install_dir)
-add_library(libdeflate STATIC IMPORTED)
-
-#include_directories(SYSTEM ${install_dir})
-
-set(libdeflate_location ${install_dir}/libdeflate.a)
-message(STATUS "libdeflate target location is ${libdeflate_location}")
-set_property(TARGET libdeflate PROPERTY IMPORTED_LOCATION ${libdeflate_location})
-add_dependencies(libdeflate project_libdeflate)
-
+#############################################################################
 ## htslib
+#############################################################################
+
+if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/htslib/Makefile)
+    message(FATAL_ERROR "htslib not found. Run 'git submodule update --init' to fetch all submodules.")
+endif()
+
 ExternalProject_Add(
-  project_htslib
-  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/htslib
-  BUILD_IN_SOURCE 1
-  PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/htslib
-  CONFIGURE_COMMAND ""
-  BUILD_COMMAND autoheader COMMAND autoconf COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/htslib/configure --disable-libcurl --disable-gcs --with-libdeflate
-    "CFLAGS=${MYCFLAGS} -g -Wall -O3 ${CMAKE_C_FLAGS} -I${CMAKE_CURRENT_SOURCE_DIR}/libdeflate"
-    "LDFLAGS=${MYLDFLAGS} -L${CMAKE_CURRENT_SOURCE_DIR}/libdeflate"
-    "CC=${CMAKE_C_COMPILER}" COMMAND $(MAKE) -C ${CMAKE_CURRENT_SOURCE_DIR}/htslib libhts.a
-  INSTALL_COMMAND ""
+    project_htslib
+    BUILD_IN_SOURCE 1
+    SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/htslib
+    PREFIX ${CMAKE_CURRENT_BINARY_DIR}/htslib
+    CONFIGURE_COMMAND cp -a ${CMAKE_CURRENT_SOURCE_DIR}/htslib ${CMAKE_CURRENT_BINARY_DIR}/ COMMAND autoheader COMMAND autoconf COMMAND ${CMAKE_CURRENT_BINARY_DIR}/htslib/configure --disable-libcurl --disable-gcs --with-libdeflate
+        "CFLAGS=${MYCFLAGS} -g -Wall -O3 ${CMAKE_C_FLAGS} -I${CMAKE_CURRENT_BINARY_DIR}/libdeflate"
+        "LDFLAGS=${MYLDFLAGS} -L${CMAKE_CURRENT_BINARY_DIR}/libdeflate"
+        "CC=${CMAKE_C_COMPILER}"
+    BUILD_COMMAND $(MAKE) -C ${CMAKE_CURRENT_BINARY_DIR}/htslib libhts.a
+    INSTALL_COMMAND ""
 )
 
-ExternalProject_Get_Property(project_htslib install_dir)
 add_library(htslib STATIC IMPORTED)
 
 # both are needed
-include_directories(SYSTEM ${install_dir})
-include_directories(SYSTEM ${install_dir}/htslib)
+include_directories(SYSTEM ${CMAKE_CURRENT_BINARY_DIR}/htslib)
+include_directories(SYSTEM ${CMAKE_CURRENT_BINARY_DIR}/htslib/htslib)
 
-set(htslib_location ${install_dir}/libhts.a)
+set(htslib_location ${CMAKE_CURRENT_BINARY_DIR}/htslib/libhts.a)
 message(STATUS "htslib target location is ${htslib_location}")
 set_property(TARGET htslib PROPERTY IMPORTED_LOCATION ${htslib_location})
 add_dependencies(htslib project_htslib)
 add_dependencies(project_htslib libdeflate)
+list(APPEND graphtyper_all_libraries "${htslib_location}")
 
+#############################################################################
 ## paw
-ExternalProject_Add(
-  project_paw
-  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/paw
-  BUILD_IN_SOURCE 1
-  PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/paw
-  CONFIGURE_COMMAND ""
-  BUILD_COMMAND mkdir -p ${CMAKE_CURRENT_SOURCE_DIR}/paw/build COMMAND ${CMAKE_COMMAND} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -H${CMAKE_CURRENT_SOURCE_DIR}/paw -B${CMAKE_CURRENT_SOURCE_DIR}/paw/build -DFORCE_AVX512=1 COMMAND $(MAKE) -C ${CMAKE_CURRENT_SOURCE_DIR}/paw/build static
-  INSTALL_COMMAND "")
+#############################################################################
 
+if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/paw/CMakeLists.txt)
+    message(FATAL_ERROR "paw not found. Run 'git submodule update --init' to fetch all submodules.")
+endif()
+
+ExternalProject_Add(
+    project_paw
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/paw
+    BUILD_IN_SOURCE 0
+    PREFIX ${CMAKE_CURRENT_BINARY_DIR}/paw
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND ${CMAKE_COMMAND} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -H${CMAKE_CURRENT_SOURCE_DIR}/paw -B${CMAKE_CURRENT_BINARY_DIR}/paw -DFORCE_AVX512=1
+        COMMAND $(MAKE) -C ${CMAKE_CURRENT_BINARY_DIR}/paw static
+    INSTALL_COMMAND ""
+)
 
 add_library(paw STATIC IMPORTED)
+include_directories(SYSTEM ${CMAKE_CURRENT_BINARY_DIR}/paw/include)
 include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/paw/include)
-include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/paw/build/include)
-set(paw_location ${CMAKE_CURRENT_SOURCE_DIR}/paw/build/lib/libpaw.a)
+set(paw_location ${CMAKE_CURRENT_BINARY_DIR}/paw/lib/libpaw.a)
 message(STATUS "paw target location is ${paw_location}")
 set_property(TARGET paw PROPERTY IMPORTED_LOCATION ${paw_location})
 add_dependencies(paw project_paw)
-
-## parallel_hashmap
-include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/parallel-hashmap)
-
-## Find a multi-thread library (which will likely be pthread on unix)
-find_package(Threads)
-
-## SeqAn
-include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/seqan/include)
-
-## CEREAL
-if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cereal)
-    set (CMAKE_REQUIRED_INCLUDES    ${CMAKE_INCLUDE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cereal/include)
-    include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/cereal/include)
-    message (STATUS "Cereal submodule found. Adding it to INCLUDES.")
-endif()
-check_include_file_cxx (cereal/cereal.hpp _HAVE_CEREAL)
-if (NOT _HAVE_CEREAL)
-    message (FATAL_ERROR "Cereal has not been found but is required.")
-endif()
-
-## Executables go to a "bin" folder.
-set(EXECUTABLE_OUTPUT_PATH ../bin)
-
-## Include public header files
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
+list(APPEND graphtyper_all_libraries "${paw_location}")
 
 
-if(STATIC_DIR STREQUAL "")
-  ### DYNAMIC BUILD
-  message(STATUS "Creating dynamic graphtyper binary.")
+#############################################################################
+## libdeflate
+#############################################################################
 
-  ## zlib
-  message (STATUS "Checking for zlib")
-  find_package(ZLIB REQUIRED)
-  include_directories(SYSTEM ${ZLIB_INCLUDE_DIRS})
+if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/libdeflate/Makefile)
+    message(FATAL_ERROR "libdeflate not found. Run 'git submodule update --init' to fetch all submodules.")
+endif ()
 
-  ## bzip2
-  message (STATUS "Checking for bzip2")
-  find_package (BZip2 REQUIRED)
-  include_directories(SYSTEM ${BZIP_INCLUDE_DIRS})
-
-  ## List of all library which require linking
-  set(graphtyper_all_libraries
-    htslib
-    paw
-    libdeflate
-    ${CMAKE_THREAD_LIBS_INIT}
-    ${ZLIB_LIBRARIES}
-    ${BZIP2_LIBRARIES}
-  )
-
-  if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-    message(STATUS "Using GCC")
-    list(APPEND graphtyper_all_libraries "rt")
-    list(APPEND graphtyper_all_libraries "stdc++fs")
-  elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-    message(STATUS "Using Clang")
-  else()
-    message(WARNING "Unsupported compiler")
-  endif ()
-
-  # If lzma is optional for htslib
-  find_package (LibLZMA)
-
-  if (LIBLZMA_FOUND)
-    list(APPEND graphtyper_all_libraries ${LIBLZMA_LIBRARIES})
-  endif ()
-else(STATIC_DIR STREQUAL "")
-  ### STATIC BUILD
-  message(STATUS "Creating static graphtyper binary.")
-
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
-  set(graphtyper_all_libraries
-    htslib
-    paw
-    libdeflate
-    ${STATIC_DIR}/libpthread.a
-    ${STATIC_DIR}/libz.a
-    ${STATIC_DIR}/libbz2.a
-    ${STATIC_DIR}/liblzma.a
-    ${STATIC_DIR}/librt.a
-    ${STATIC_DIR}/libstdc++fs.a
+ExternalProject_Add(
+    project_libdeflate
+    BUILD_IN_SOURCE 1
+    SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/libdeflate
+    PREFIX ${CMAKE_CURRENT_BINARY_DIR}/libdeflate
+    CONFIGURE_COMMAND cp -a ${CMAKE_CURRENT_SOURCE_DIR}/libdeflate ${CMAKE_CURRENT_BINARY_DIR}/
+    BUILD_COMMAND $(MAKE) -C ${CMAKE_CURRENT_BINARY_DIR}/libdeflate
+        PREFIX="${CMAKE_CURRENT_BINARY_DIR}/libdeflate"
+        "CC=${CMAKE_C_COMPILER}"
+        "CFLAGS=-fPIC -O3 ${CMAKE_C_FLAGS}" libdeflate.a
+    INSTALL_COMMAND ""
 )
-endif(STATIC_DIR STREQUAL "")
+
+add_library(libdeflate STATIC IMPORTED)
+set(libdeflate_location ${CMAKE_CURRENT_BINARY_DIR}/libdeflate/libdeflate.a)
+message(STATUS "libdeflate target location is ${libdeflate_location}")
+
+set_property(TARGET libdeflate PROPERTY IMPORTED_LOCATION ${libdeflate_location})
+add_dependencies(libdeflate project_libdeflate)
+list(APPEND graphtyper_all_libraries "${libdeflate_location}")
+
+#############################################################################
+## parallel_hashmap
+#############################################################################
+
+if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/parallel-hashmap/parallel_hashmap/phmap.h)
+    message(FATAL_ERROR "ParallelHashmap not found. Run 'git submodule update --init' to fetch all submodules.")
+endif ()
+
+include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/parallel-hashmap/)
+message(STATUS "Using ParallelHashMap from ${CMAKE_CURRENT_SOURCE_DIR}/parallel-hashmap.")
+
+#############################################################################
+## SeqAn
+#############################################################################
+
+if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/seqan/include)
+    message(FATAL_ERROR "SeqAn not found. Run 'git submodule update --init' to fetch all submodules.")
+endif ()
+
+include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/seqan/include)
+message(STATUS "Using SeqAn from ${CMAKE_CURRENT_SOURCE_DIR}/seqan/include.")
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DSEQAN_HAS_ZLIB=1 -DSEQAN_USE_HTSLIB=1 -DSEQAN_ENABLE_TESTING=0 -DSEQAN_ENABLE_DEBUG=0")
+
+#############################################################################
+## Cereal
+#############################################################################
+
+if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cereal/include/)
+    message(FATAL_ERROR "SeqAn not found. Run 'git submodule update --init' to fetch all submodules.")
+endif ()
+
+include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/cereal/include/)
+message(STATUS "Using Cereal from ${CMAKE_CURRENT_SOURCE_DIR}/cereal/include.")
+
+#############################################################################
+## Compression
+#############################################################################
+
+# compression libraries are never "local"
+if (STATIC_DIR STREQUAL "")
+    message (STATUS "Using system's compression libraries.")
+
+    find_package(ZLIB REQUIRED)
+    include_directories(SYSTEM ${ZLIB_INCLUDE_DIRS})
+    list(APPEND graphtyper_all_libraries ${ZLIB_LIBRARIES})
+
+    find_package (BZip2 REQUIRED)
+    include_directories(SYSTEM ${BZIP_INCLUDE_DIRS})
+    list(APPEND graphtyper_all_libraries ${BZIP2_LIBRARIES})
+
+    find_package (LibLZMA)
+    if (LIBLZMA_FOUND)
+        include_directories(SYSTEM ${LIBLZMA_INCLUDE_DIRS})
+        list(APPEND graphtyper_all_libraries ${LIBLZMA_LIBRARIES})
+    endif ()
+else () # PREBUILT
+    message (STATUS "Using prebuilt compression libraries.")
+    list(APPEND graphtyper_all_libraries "${STATIC_DIR}/libz.a")
+    list(APPEND graphtyper_all_libraries "${STATIC_DIR}/libbz2.a")
+    list(APPEND graphtyper_all_libraries "${STATIC_DIR}/liblzma.a")
+endif ()
+
+#############################################################################
+## System
+#############################################################################
+
+if (STATIC_DIR STREQUAL "")
+    ## Find a multi-thread library (which will likely be pthread on unix)
+    find_package(Threads)
+    list(APPEND graphtyper_all_libraries ${CMAKE_THREAD_LIBS_INIT})
+
+    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+        list(APPEND graphtyper_all_libraries "rt")
+        list(APPEND graphtyper_all_libraries "stdc++fs")
+    endif ()
+else () # PREBUILT
+    list(APPEND graphtyper_all_libraries "${STATIC_DIR}/libpthread.a")
+
+    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+        list(APPEND graphtyper_all_libraries "${STATIC_DIR}/librt.a")
+        list(APPEND graphtyper_all_libraries "${STATIC_DIR}/libstdc++fs.a")
+    endif ()
+endif()
+
+# LOCAL binaries have static GCC, PREBUILT are all static
+if (STATIC_DIR STREQUAL "")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
+else ()
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static")
+endif ()
+
+#############################################################################
+##  DEPENDENCY END
+#############################################################################
 
 message(STATUS "Libraries: ${graphtyper_all_libraries}")
+
+# Add graphtyper src
 add_subdirectory(src)
 
-## Testing
+#############################################################################
+##  TESTING
+#############################################################################
+
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/catch/single_include/)
 
 enable_testing(true)
 add_subdirectory(test)
 
-## Add clang-format check
+#############################################################################
+##  CLANG-FORMAT
+#############################################################################
+
 find_program(CLANG_FORMAT "clang-format-12")
 
 if (CLANG_FORMAT STREQUAL "" OR CLANG_FORMAT STREQUAL "CLANG_FORMAT-NOTFOUND")
