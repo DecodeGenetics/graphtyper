@@ -23,7 +23,7 @@ struct HtsRecord
   HtsRecord(HtsRecord const &) = delete;
   HtsRecord & operator=(HtsRecord const &) = delete;
 
-  HtsRecord & operator=(HtsRecord && o)
+  HtsRecord & operator=(HtsRecord && o) noexcept
   {
     if (record)
       bam_destroy1(record);
@@ -34,7 +34,7 @@ struct HtsRecord
     return *this;
   }
 
-  HtsRecord(HtsRecord && o)
+  HtsRecord(HtsRecord && o) noexcept
   {
     if (record)
       bam_destroy1(record);
