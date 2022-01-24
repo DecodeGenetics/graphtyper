@@ -19,6 +19,7 @@
 #include <graphtyper/graph/haplotype_calls.hpp>
 #include <graphtyper/graph/reference_depth.hpp>
 #include <graphtyper/graph/var_record.hpp>
+#include <graphtyper/typer/binned_pl.hpp>
 #include <graphtyper/typer/vcf.hpp>
 #include <graphtyper/utilities/filesystem.hpp>
 #include <graphtyper/utilities/graph_help_functions.hpp>
@@ -1076,13 +1077,13 @@ void Vcf::write_record(Variant const & var,
       }
 
       // Write GQ
-      bgzf_stream.ss << ':' << std::min(99l, gq);
+      bgzf_stream.ss << ':' << std::min(static_cast<uint16_t>(99), binned_pl[gq]);
 
       // Write PL - This cast to uint16_t is needed! Otherwise uint8_t is represented as a char
-      bgzf_stream.ss << ':' << static_cast<uint16_t>(call.phred[0]);
+      bgzf_stream.ss << ':' << binned_pl[call.phred[0]];
 
       for (long p{1}; p < static_cast<long>(call.phred.size()); ++p)
-        bgzf_stream.ss << ',' << static_cast<uint16_t>(call.phred[p]);
+        bgzf_stream.ss << ',' << binned_pl[call.phred[p]];
 
       // Check if this should be added
       if (!is_record_written && static_cast<long>(bgzf_stream.ss.tellp()) >= BGZF_stream::MAX_CACHE_SIZE)
