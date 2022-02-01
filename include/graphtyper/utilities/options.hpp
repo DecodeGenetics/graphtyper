@@ -35,6 +35,8 @@ public:
   bool is_lr_calling{false};
   bool force_ignore_segment{false};
   bool uncompressed_sample_names{false};
+  char encoding{'v'};             // v VCF, p popVCF
+  bool is_on_final_output{false}; // Set as true before writing out final output
 
   /****
    * FILTERING OPTIONS

@@ -342,6 +342,7 @@ int subcmd_genotype(paw::Parser & parser)
   std::string ref_fn{};
   std::string sam{};
   std::string sams{};
+  std::string encoding{"vcf"};
   bool force_copy_reference{false};
   bool force_no_copy_reference{false};
   bool no_filter_on_proper_pairs{false};
@@ -435,6 +436,8 @@ int subcmd_genotype(paw::Parser & parser)
 
   if (see_advanced_options)
     parser.see_advanced_options(true);
+
+  parser.parse_advanced_option(encoding, ' ', "encoding", "Select output encoding. Available are: vcf, popvcf");
 
   parser.parse_advanced_option(opts.no_asterisks, ' ', "no_asterisks", "Set to avoid using asterisk in VCF output.");
 
@@ -655,6 +658,7 @@ int subcmd_genotype(paw::Parser & parser)
   parser.finalize();
   setup_logger();
 
+  opts.encoding = (encoding == "popvcf") ? 'p' : 'v';
   opts.filter_on_proper_pairs = !no_filter_on_proper_pairs;
   opts.filter_on_read_bias = !no_filter_on_read_bias;
   opts.filter_on_strand_bias = !no_filter_on_strand_bias;
