@@ -475,6 +475,7 @@ void vcf_merge_and_break(std::vector<std::string> const & vcfs,
   if (vcfs.size() == 0)
     return;
 
+  Options::instance()->is_on_final_output = true;
   auto const & copts = *(Options::const_instance());
   long const ploidy = copts.ploidy;
   GenomicRegion genomic_region(region);

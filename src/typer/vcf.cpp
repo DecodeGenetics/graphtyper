@@ -680,7 +680,7 @@ void Vcf::write_header(bool const is_dropping_genotypes)
   if (!is_dropping_genotypes && !sample_names.empty())
   {
     // Only a "format" column if there are any samples
-    bgzf_stream.ss << "\tFORMAT";
+    bgzf_stream.ss << "\tFORMAT\t";
 
     if (Options::const_instance()->uncompressed_sample_names)
     {
@@ -705,9 +705,10 @@ void Vcf::write_header(bool const is_dropping_genotypes)
       // append 0-level compressed data
       bgzf_stream.open(bgzf_stream.filename, "a0", bgzf_stream.n_threads);
 
-      for (auto const & sample_name : sample_names)
-        bgzf_stream.ss << "\t" << sample_name;
+      for (long s{0}; s < static_cast<long>(sample_names.size()) - 1; ++s)
+        bgzf_stream.ss << sample_names[s] << "\t";
 
+      bgzf_stream.ss << sample_names.back() << '\n';
       bgzf_stream.close();
 
       // truncate the file by 28 bytes (strip bgzf EOF marker)
@@ -723,12 +724,17 @@ void Vcf::write_header(bool const is_dropping_genotypes)
     }
     else
     {
-      for (auto const & sample_name : sample_names)
-        bgzf_stream.ss << "\t" << sample_name;
+      for (long s{0}; s < static_cast<long>(sample_names.size()) - 1; ++s)
+        bgzf_stream.ss << sample_names[s] << "\t";
+
+      bgzf_stream.ss << sample_names.back() << '\n';
     }
   }
+  else
+  {
+    bgzf_stream.ss << '\n';
+  }
 
-  bgzf_stream.ss << "\n";
   bgzf_stream.flush();
 }
 
@@ -798,11 +804,6 @@ void Vcf::write_record(Variant const & var,
   bool const is_sv = var.is_sv();
 
   bgzf_stream.flush();
-
-  if (bgzf_stream.ss.tellp() != 0)
-  {
-    print_log(log_severity::warning, __HERE__, " bgzf was not flushed: tellp=", bgzf_stream.ss.tellp());
-  }
 
   bgzf_stream.ss << contig_pos.first << '\t';
   bgzf_stream.ss << contig_pos.second << '\t';

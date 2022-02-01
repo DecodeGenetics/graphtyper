@@ -10,6 +10,8 @@
 
 #include <graphtyper/constants.hpp>
 
+#include <popvcf/encode.hpp>
+
 #define INCLUDE_SEQAN_STREAM_IOSTREAM_BGZF_H_
 #include "bgzf.h" // part of htslib
 
@@ -22,6 +24,8 @@ private:
 
 public:
   std::ostringstream ss;
+  std::string buffer_in;
+  std::string buffer_out;
 
   BGZF_stream() = default;
   ~BGZF_stream(); // custom
@@ -40,104 +44,90 @@ public:
   bool is_open() const;
   void close(); // Close BGZF file
 
+  popvcf::EncodeData ed;
   std::string filename{};
   std::string filemode{};
   long n_threads{1};
   long static constexpr MAX_CACHE_SIZE{200000ll};
 };
 
-template <class T>
-inline BGZF_stream & BGZF_stream::operator<<(T const & x)
-{
-  // Add to stringstream
-  ss << x;
-  return *this;
-}
-
 inline void BGZF_stream::check_cache()
 {
-  if (static_cast<long>(ss.tellp()) > MAX_CACHE_SIZE)
+  buffer_in.append(ss.str());
+  ss.str(std::string()); // clear stringstream
+  ss.clear();
+
+  if (buffer_in.size() > MAX_CACHE_SIZE)
     flush();
 }
 
 inline void BGZF_stream::flush()
 {
-  // Write stringstream to BGZF file
-  if (fp == nullptr)
+  buffer_in.append(ss.str());
+  ss.str(std::string()); // clear stringstream
+  ss.clear();
+
+  if (Options::const_instance()->is_on_final_output && Options::const_instance()->encoding == 'p')
   {
-    std::cout << ss.str(); // Write uncompressed to stdout
+    assert(buffer_in.size() >= ed.remaining_bytes);
+    ed.bytes_read = buffer_in.size() - ed.remaining_bytes;
+    popvcf::encode_buffer(buffer_out, buffer_in, ed);
+
+    if (fp == nullptr)
+    {
+      std::cout << buffer_out; // Write uncompressed to stdout
+    }
+    else if (buffer_out.size() > 0)
+    {
+      std::cerr << "Writing:'" << buffer_out << "'";
+      int written_length = bgzf_write(fp, buffer_out.data(), ed.o);
+
+      if (written_length < 0)
+      {
+        std::cerr << "[bgzf_stream] ERROR: Writing to BGZF file failed. "
+                  << "Exit code: " << written_length << " . No space left on device?" << std::endl;
+        std::exit(1);
+      }
+      else if (written_length != static_cast<long>(ed.o))
+      {
+        std::cerr << "[bgzf] WARNING: Mismatch between size written and expected: " << written_length
+                  << " != " << buffer_out.size();
+      }
+    }
+
+    ed.o = 0;
+    buffer_in.resize(ed.remaining_bytes);
+    buffer_out.resize(0);
   }
   else
   {
-    std::string str = ss.str();
-    int written_length = bgzf_write(fp, str.data(), str.size());
+    if (buffer_in.empty())
+      return;
 
-    if (written_length < 0)
+    // Write stringstream to BGZF file
+    if (fp == nullptr)
     {
-      std::cerr << "[bgzf_stream] ERROR: Writing to BGZF file failed. "
-                << "Exit code: " << written_length << " . No space left on device?" << std::endl;
-      std::exit(1);
+      std::cout << buffer_in; // Write uncompressed to stdout
     }
-    else if (written_length != static_cast<long>(str.size()))
+    else
     {
-      std::cerr << "[bgzf] WARNING: Mismatch between size written and expected: " << written_length
-                << " != " << str.size();
+      int written_length = bgzf_write(fp, buffer_in.data(), buffer_in.size());
+
+      if (written_length < 0)
+      {
+        std::cerr << "[bgzf_stream] ERROR: Writing to BGZF file failed. "
+                  << "Exit code: " << written_length << " . No space left on device?" << std::endl;
+        std::exit(1);
+      }
+      else if (written_length != static_cast<long>(buffer_in.size()))
+      {
+        std::cerr << "[bgzf] WARNING: Mismatch between size written and expected: " << written_length
+                  << " != " << buffer_in.size();
+      }
     }
+
+    buffer_in.resize(0);
   }
-
-  // Clear stringstream
-  ss.str(std::string());
-  ss.clear();
-  assert(ss.tellp() == 0);
-}
-
-inline int BGZF_stream::write(void const * data, std::size_t length)
-{
-  if (fp == nullptr)
-  {
-    std::cout << std::string(reinterpret_cast<const char *>(data), length);
-    return length;
-  }
-
-  int const written_length = bgzf_write(fp, data, length);
-
-  if (written_length < 0)
-  {
-    std::cerr << "[bgzf_stream] ERROR: Writing to BGZF file failed. "
-              << "Exit code: " << written_length << " . No space left on device?" << std::endl;
-    std::exit(1);
-  }
-  else if (written_length != static_cast<long>(length))
-  {
-    std::cerr << "[bgzf] WARNING: Mismatch between size written and expected: " << written_length << " != " << length;
-  }
-
-  return written_length != static_cast<long>(length);
-}
-
-inline int BGZF_stream::write(std::string const & str)
-{
-  if (fp == nullptr)
-  {
-    std::cout << str;
-    return str.size();
-  }
-
-  std::size_t const length = str.size();
-  int const written_length = bgzf_write(fp, str.data(), length);
-
-  if (written_length < 0)
-  {
-    std::cerr << "[bgzf_stream] ERROR: Writing to BGZF file failed. "
-              << "Exit code: " << written_length << " . No space left on device?" << std::endl;
-    std::exit(1);
-  }
-  else if (written_length != static_cast<long>(length))
-  {
-    std::cerr << "[bgzf] WARNING: Mismatch between size written and expected: " << written_length << " != " << length;
-  }
-
-  return written_length != static_cast<long>(length);
 }
 
 inline void BGZF_stream::open(std::string const & _filename, std::string const & _filemode, long const _n_threads)
@@ -167,6 +157,9 @@ inline bool BGZF_stream::is_open() const
 inline void BGZF_stream::close()
 {
   flush();
+  assert(buffer_in.empty());
+  assert(buffer_out.empty());
+  assert(ss.str().empty());
 
   if (fp != nullptr)
   {
