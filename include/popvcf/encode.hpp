@@ -22,22 +22,24 @@ class EncodeData
 {
 public:
   std::size_t bytes_read{0};
-  std::size_t remaining_bytes{0};
   std::size_t field{0};         // current vcf field
   std::size_t b{0};             // begin index in buffer_in
   std::size_t i{b};             // index in buffer_in
-  std::size_t o{0};             // output index
   bool header_line{true};       //!< True iff in header line
   bool no_previous_line{false}; //! Set to skip using previous line
 
   std::string prev_contig{};
-  uint64_t prev_pos{0};
+  int64_t prev_pos{0};
   uint32_t prev_num_unique_fields{};
+  std::vector<std::string> prev_unique_fields{};
+  std::vector<uint32_t> prev_field2uid{};
   phmap::flat_hash_map<std::string, uint32_t> prev_map_to_unique_fields{};
 
   std::string contig{};
-  uint64_t pos{0};
+  int64_t pos{0};
   uint32_t num_unique_fields{};
+  std::vector<std::string> unique_fields{};
+  std::vector<uint32_t> field2uid{};
   phmap::flat_hash_map<std::string, uint32_t> map_to_unique_fields{};
 
   inline void clear_line()
@@ -49,51 +51,42 @@ public:
       std::swap(prev_contig, contig);
       prev_pos = pos;
       prev_num_unique_fields = num_unique_fields;
+      std::swap(prev_unique_fields, unique_fields);
+      std::swap(prev_field2uid, field2uid);
       std::swap(prev_map_to_unique_fields, map_to_unique_fields);
     }
 
     contig.resize(0);
     pos = 0;
     num_unique_fields = 0;
+    unique_fields.resize(0);
+    field2uid.resize(0);
     map_to_unique_fields.clear(); // clear map every line
   }
 };
 
 template <typename Tint, typename Tbuffer_out>
-inline void to_chars(Tint char_val, Tbuffer_out & buffer_out, EncodeData & ed)
+inline void to_chars(Tint char_val, Tbuffer_out & buffer_out)
 {
   while (char_val >= CHAR_SET_SIZE)
   {
     auto rem = char_val % CHAR_SET_SIZE;
     char_val = char_val / CHAR_SET_SIZE;
-    buffer_out[ed.o++] = int_to_ascii(rem);
+    buffer_out.push_back(int_to_ascii(rem));
   }
 
   assert(char_val < CHAR_SET_SIZE);
-  buffer_out[ed.o++] = int_to_ascii(char_val);
-}
-
-template <typename Tbuffer_out>
-inline void reserve_space(Tbuffer_out & buffer, long const input_size)
-{
-  buffer.resize(std::max(ENC_BUFFER_SIZE, input_size));
-}
-
-//! Specialization for array buffers
-template <>
-inline void reserve_space(Tarray_buf & /*buffer*/, long const /*input_size*/)
-{
-  // NOP
+  buffer_out.push_back(int_to_ascii(char_val));
 }
 
 //! Encodes an input buffer. Output is written in \a buffer_out.
 template <typename Tbuffer_out, typename Tbuffer_in>
 inline void encode_buffer(Tbuffer_out & buffer_out, Tbuffer_in & buffer_in, EncodeData & ed)
 {
-  popvcf::reserve_space(buffer_out, buffer_in.size());
+  buffer_out.reserve(ENC_BUFFER_SIZE / 2);
   std::size_t constexpr N_FIELDS_SITE_DATA{9}; // how many fields of the VCF contains site data
 
-  while (ed.i < (ed.bytes_read + ed.remaining_bytes))
+  while (ed.i < ed.bytes_read)
   {
     char const b_in = buffer_in[ed.i];
 
@@ -131,8 +124,7 @@ inline void encode_buffer(Tbuffer_out & buffer_out, Tbuffer_in & buffer_in, Enco
     if (ed.header_line || ed.field < N_FIELDS_SITE_DATA)
     {
       ++ed.i; // adds '\t' or '\n'
-      std::copy(&buffer_in[ed.b], &buffer_in[ed.i], &buffer_out[ed.o]);
-      ed.o += (ed.i - ed.b);
+      std::copy(&buffer_in[ed.b], &buffer_in[ed.i], std::back_inserter(buffer_out));
     }
     else
     {
@@ -145,34 +137,69 @@ inline void encode_buffer(Tbuffer_out & buffer_out, Tbuffer_in & buffer_in, Enco
                                          std::forward_as_tuple(&buffer_in[ed.b], ed.i - ed.b),
                                          std::forward_as_tuple(ed.num_unique_fields)));
 
+      long const field_idx = ed.field - N_FIELDS_SITE_DATA;
+      assert(field_idx == static_cast<long>(ed.field2uid.size()));
+
       if (insert_it.second == true)
       {
+        ed.field2uid.push_back(ed.unique_fields.size());
         ++ed.num_unique_fields; // unique field
+        ed.unique_fields.emplace_back(&buffer_in[ed.b], ed.i - ed.b);
 
-        // check if it is in the previous line
-        auto prev_find_it = ed.prev_map_to_unique_fields.find(insert_it.first->first);
+        assert(ed.num_unique_fields == static_cast<long>(ed.unique_fields.size()));
 
-        if (prev_find_it == ed.prev_map_to_unique_fields.end())
+        if (field_idx < static_cast<long>(ed.prev_field2uid.size()) &&
+            ed.prev_unique_fields[ed.prev_field2uid[field_idx]] == ed.unique_fields[insert_it.first->second])
         {
-          /* Case 1: Field is unique in the current line and is not in the previous line. */
-          ++ed.i;                                                           // adds '\t' or '\n'
-          std::copy(&buffer_in[ed.b], &buffer_in[ed.i], &buffer_out[ed.o]); // just copy as is
-          ed.o += (ed.i - ed.b);
+          /* Case 0: unique and same as above. */
+          buffer_out.push_back('$');
+          buffer_out.push_back(buffer_in[ed.i]);
+          ++ed.i;
         }
         else
         {
-          /* Case 2: Field is unique in the current line but identical to a field in the previous line. */
-          buffer_out[ed.o++] = '%';
-          popvcf::to_chars(prev_find_it->second, buffer_out, ed);
-          buffer_out[ed.o++] = buffer_in[ed.i++]; // write '\t' or '\n'
+          // check if it is in the previous line
+          auto prev_find_it = ed.prev_map_to_unique_fields.find(insert_it.first->first);
+
+          if (prev_find_it == ed.prev_map_to_unique_fields.end())
+          {
+            /* Case 1: Field is unique in the current line and is not in the previous line. */
+            ++ed.i;                                                                        // adds '\t' or '\n'
+            std::copy(&buffer_in[ed.b], &buffer_in[ed.i], std::back_inserter(buffer_out)); // just copy as is
+          }
+          else
+          {
+            /* Case 2: Field is unique in the current line but identical to a field in the previous line. */
+            buffer_out.push_back('%');
+            popvcf::to_chars(prev_find_it->second, buffer_out);
+            buffer_out.push_back(buffer_in[ed.i]); // write '\t' or '\n'
+            ++ed.i;
+          }
         }
       }
       else
       {
-        /* Case 3: Field is a duplicate in the current line. */
-        popvcf::to_chars(insert_it.first->second, buffer_out, ed);
-        buffer_out[ed.o++] = buffer_in[ed.i++]; // write '\t' or '\n'
+        ed.field2uid.push_back(insert_it.first->second);
+
+        if (field_idx < static_cast<long>(ed.prev_field2uid.size()) &&
+            ed.prev_unique_fields[ed.prev_field2uid[field_idx]] == ed.unique_fields[insert_it.first->second])
+        {
+          /* Case 3: Field is not unique and same has the field above. */
+          buffer_out.push_back('&');
+          buffer_out.push_back(buffer_in[ed.i]);
+          ++ed.i;
+        }
+        else
+        {
+          /* Case 4: Field is a duplicate in the current line. */
+          popvcf::to_chars(insert_it.first->second, buffer_out);
+          buffer_out.push_back(buffer_in[ed.i]); // write '\t' or '\n'
+          ++ed.i;
+        }
       }
+
+      assert((field_idx + 1) == static_cast<long>(ed.field2uid.size()));
+      assert(ed.field2uid[0] == 0);
     }
 
     assert(b_in == buffer_in[ed.i - 1]); // i should have been already incremented here
@@ -186,15 +213,10 @@ inline void encode_buffer(Tbuffer_out & buffer_out, Tbuffer_in & buffer_in, Enco
   } // ends inner loop
 
   // copy the remaining data to the beginning of the input buffer
-  ed.remaining_bytes = ed.i - ed.b;
-
-  if (ed.b > 0)
-  {
-    std::copy(&buffer_in[ed.b], &buffer_in[ed.b + ed.remaining_bytes], &buffer_in[0]);
-    ed.b = 0;
-  }
-
-  ed.i = ed.remaining_bytes;
+  std::copy(&buffer_in[ed.b], &buffer_in[ed.i], &buffer_in[0]);
+  ed.i = ed.i - ed.b;
+  ed.b = 0;
+  ed.bytes_read = ed.i;
 }
 
 //! Encode a gzipped file and write to stdout
