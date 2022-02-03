@@ -18,12 +18,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: "GCC7 Debug"
-            pkg: "g++-7"
-            cxx: "g++-7"
-            cc: "gcc-7"
-            build_type: Debug
-
           - name: "GCC8 Release"
             pkg: "g++-8"
             cxx: "g++-8"

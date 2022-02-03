@@ -13,7 +13,7 @@ The binary is linked statically and therefore does not require any runtime libra
 
 ### Building from source
 You may also want to build graphtyper from source, for example if you want to make changes to the code. In this case, you'll first need the following:
-* C++ compiler with full AVX512 support (GCC 7+)
+* C++ compiler with full AVX512 support (GCC 8+)
 * Boost>=1.57.0
 * zlib>=1.2.8
 * libbz2
