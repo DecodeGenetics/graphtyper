@@ -69,8 +69,8 @@ inline void BGZF_stream::flush()
 
   if (Options::const_instance()->is_on_final_output && Options::const_instance()->encoding == 'p')
   {
-    assert(buffer_in.size() >= ed.remaining_bytes);
-    ed.bytes_read = buffer_in.size() - ed.remaining_bytes;
+    assert(buffer_in.size() >= ed.i);
+    ed.bytes_read = buffer_in.size();
     popvcf::encode_buffer(buffer_out, buffer_in, ed);
 
     if (fp == nullptr)
@@ -79,8 +79,7 @@ inline void BGZF_stream::flush()
     }
     else if (buffer_out.size() > 0)
     {
-      std::cerr << "Writing:'" << buffer_out << "'";
-      int written_length = bgzf_write(fp, buffer_out.data(), ed.o);
+      int written_length = bgzf_write(fp, buffer_out.data(), buffer_out.size());
 
       if (written_length < 0)
       {
@@ -88,15 +87,14 @@ inline void BGZF_stream::flush()
                   << "Exit code: " << written_length << " . No space left on device?" << std::endl;
         std::exit(1);
       }
-      else if (written_length != static_cast<long>(ed.o))
+      else if (written_length != static_cast<long>(buffer_out.size()))
       {
         std::cerr << "[bgzf] WARNING: Mismatch between size written and expected: " << written_length
                   << " != " << buffer_out.size();
       }
     }
 
-    ed.o = 0;
-    buffer_in.resize(ed.remaining_bytes);
+    buffer_in.resize(ed.i);
     buffer_out.resize(0);
   }
   else
