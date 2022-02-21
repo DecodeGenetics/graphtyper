@@ -10,6 +10,7 @@ example_test.vcf
 *.log
 .nfs*
 *.bak
+*.git*.sh
 
 # ggtags
 /GPATH

@@ -7,7 +7,7 @@ include(CheckIncludeFileCXX)
 # The version number
 set (graphtyper_VERSION_MAJOR 2)
 set (graphtyper_VERSION_MINOR 7)
-set (graphtyper_VERSION_PATCH 3)
+set (graphtyper_VERSION_PATCH 4)
 
 # Graphtyper's headers
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
@@ -301,6 +301,15 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/catch/single_include/)
 
 enable_testing(true)
 add_subdirectory(test)
+
+############################################################################
+#  ARCHIVE
+############################################################################
+add_custom_target(archive
+    COMMAND sh -c "bash .git-archive-all.sh --format tar.gz --prefix graphtyper-v${graphtyper_VERSION}/ ${CMAKE_CURRENT_BINARY_DIR}/graphtyper-v${graphtyper_VERSION}.tar.gz"
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMENT "Generating an archive which includes submodules."
+    VERBATIM)
 
 #############################################################################
 ##  CLANG-FORMAT

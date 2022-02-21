@@ -25,7 +25,7 @@ private:
 public:
   std::ostringstream ss;
   std::string buffer_in;
-  std::string buffer_out;
+  std::vector<char> buffer_out;
 
   BGZF_stream() = default;
   ~BGZF_stream(); // custom
@@ -70,12 +70,11 @@ inline void BGZF_stream::flush()
   if (Options::const_instance()->is_on_final_output && Options::const_instance()->encoding == 'p')
   {
     assert(buffer_in.size() >= ed.i);
-    ed.bytes_read = buffer_in.size();
     popvcf::encode_buffer(buffer_out, buffer_in, ed);
 
     if (fp == nullptr)
     {
-      std::cout << buffer_out; // Write uncompressed to stdout
+      std::copy(buffer_out.begin(), buffer_out.end(), std::ostream_iterator<char>(std::cout));
     }
     else if (buffer_out.size() > 0)
     {
@@ -94,7 +93,6 @@ inline void BGZF_stream::flush()
       }
     }
 
-    buffer_in.resize(ed.i);
     buffer_out.resize(0);
   }
   else

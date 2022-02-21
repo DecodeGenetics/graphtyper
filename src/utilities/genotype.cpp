@@ -405,6 +405,8 @@ void genotype(std::string ref_path,
   std::unique_ptr<Primers> primers;
 
   paw::Station gc_station(Options::const_instance()->threads);
+  std::string const vcf_ext = copts.encoding == 'p' ? ".popvcf.gz" : ".vcf.gz";
+  std::string const index_ext = copts.is_csi ? (vcf_ext + ".csi") : (vcf_ext + ".tbi");
 
   if (copts.primer_bedpe.size() > 0)
   {
@@ -583,7 +585,7 @@ void genotype(std::string ref_path,
       bool constexpr force_no_break_down{false};
 
       vcf_merge_and_break(paths,
-                          tmp + "/graphtyper.vcf.gz",
+                          tmp + "/graphtyper" + vcf_ext,
                           region.to_string(),
                           is_filter_zero_qual,
                           false, // force_no_variant_overlapping
@@ -593,7 +595,7 @@ void genotype(std::string ref_path,
       {
         //> FILTER_ZERO_QUAL, force_no_variant_overlapping
         vcf_merge_and_break(paths,
-                            tmp + "/graphtyper_no_variant_overlapping.vcf.gz",
+                            tmp + "/graphtyper_no_variant_overlapping" + vcf_ext,
                             region.to_string(),
                             is_filter_zero_qual,
                             true, // force_no_variant_overlapping
@@ -612,8 +614,6 @@ void genotype(std::string ref_path,
     }
   }
 
-  std::string const index_ext = copts.is_csi ? ".vcf.gz.csi" : ".vcf.gz.tbi";
-
   // Copy final VCFs
   auto copy_to_results = [&](std::string const & basename_no_ext, std::string const & extension, std::string const & id)
   {
@@ -625,30 +625,21 @@ void genotype(std::string ref_path,
 
   std::string basename_no_ext{"graphtyper"};
 
-  // Check if tabix file exists
-  if (!is_file(tmp + "/graphtyper.vcf.gz.tbi") && !is_file(tmp + "/graphtyper.vcf.gz.csi"))
+  copy_to_results(basename_no_ext, vcf_ext, ""); // Copy final VCF
+
+  // Check if indexx file exists
+  if (!is_file(tmp + "/graphtyper" + index_ext))
   {
-    print_log(log_severity::warning,
-              "Tabix creation appears to have failed, ",
-              "I will retry sorting the VCF by reading it in whole.");
+    print_error("Tabix creation appears to have failed.");
 
-    bool const no_sort{false};
-    bool const sites_only{false};
-    bool const write_tbi{true};
+    std::ostringstream ss;
+    ss << output_path << "/" << region.chr << "/" << std::setw(9) << std::setfill('0') << (region.begin + 1) << '-'
+       << std::setw(9) << std::setfill('0') << region.end << vcf_ext;
 
-    std::string region{"."}; // already extracted region
-
-    vcf_concatenate({tmp + "/graphtyper.vcf.gz"},
-                    tmp + "/graphtyper.sorted.vcf.gz",
-                    no_sort,
-                    sites_only,
-                    write_tbi,
-                    region);
-
-    basename_no_ext = "graphtyper.sorted";
+    print_error("Output file written anyway at: ", ss.str());
+    std::exit(1);
   }
 
-  copy_to_results(basename_no_ext, ".vcf.gz", ""); // Copy final VCF
   copy_to_results(basename_no_ext, index_ext, ""); // Copy tabix index for final VCF
 
   if (copts.uncompressed_sample_names)
@@ -656,7 +647,7 @@ void genotype(std::string ref_path,
 
   if (copts.normal_and_no_variant_overlapping)
   {
-    copy_to_results("graphtyper_no_variant_overlapping", ".vcf.gz", ".no_variant_overlapping");
+    copy_to_results("graphtyper_no_variant_overlapping", vcf_ext, ".no_variant_overlapping");
     copy_to_results("graphtyper_no_variant_overlapping", index_ext, ".no_variant_overlapping");
 
     if (copts.uncompressed_sample_names)
@@ -683,7 +674,7 @@ void genotype(std::string ref_path,
   {
     std::ostringstream ss;
     ss << output_path << "/" << region.chr << "/" << std::setw(9) << std::setfill('0') << (region.begin + 1) << '-'
-       << std::setw(9) << std::setfill('0') << region.end << ".vcf.gz";
+       << std::setw(9) << std::setfill('0') << region.end << vcf_ext;
 
     print_log(log_severity::info, "Finished! Output written at: ", ss.str());
   }

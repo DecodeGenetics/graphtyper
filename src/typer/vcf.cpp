@@ -100,14 +100,14 @@ void Vcf::set_filemode(VCF_FILE_MODE const _filemode)
 {
   if (_filemode == READ_MODE)
   {
-    if (ends_with(filename, ".vcf.gz"))
+    if (ends_with(filename, "vcf.gz"))
       filemode = READ_BGZF_MODE;
     else
       filemode = READ_UNCOMPRESSED_MODE;
   }
   else if (_filemode == WRITE_MODE)
   {
-    if (ends_with(filename, ".vcf.gz"))
+    if (ends_with(filename, "vcf.gz"))
       filemode = WRITE_BGZF_MODE;
     else
       filemode = WRITE_UNCOMPRESSED_MODE;
@@ -496,16 +496,30 @@ void Vcf::open_for_writing(long const n_threads)
   switch (filemode)
   {
   case WRITE_UNCOMPRESSED_MODE:
+  {
     bgzf_stream.open("-", "w", 1); // Only single thread possible
     break;
+  }
 
   case WRITE_BGZF_MODE:
-    bgzf_stream.open(filename, "w", n_threads);
+  {
+    std::string filemode{"w"};
+    int level = Options::const_instance()->bgzf_compression_level;
+
+    if (level >= 9)
+      filemode.push_back('9');
+    else if (level >= 0)
+      filemode += std::to_string(level);
+
+    bgzf_stream.open(filename, filemode, n_threads);
     break;
+  }
 
   default:
-    print_log(log_severity::error, "Trying to write in reading mode.");
+  {
+    print_error("Trying to write in reading mode.");
     std::exit(1);
+  }
   }
 }
 
@@ -515,7 +529,8 @@ void Vcf::write_header(bool const is_dropping_genotypes)
   bgzf_stream.ss << "##fileformat=VCFv4.2\n"
                  << "##fileDate=" << current_date() << "\n"
                  << "##source=Graphtyper\n"
-                 << "##graphtyperVersion=" << graphtyper_VERSION_MAJOR << "." << graphtyper_VERSION_MINOR;
+                 << "##graphtyperVersion=" << graphtyper_VERSION_MAJOR << "." << graphtyper_VERSION_MINOR << "."
+                 << graphtyper_VERSION_PATCH;
 
   if (std::string(GIT_NUM_DIRTY_LINES) != std::string("0"))
     bgzf_stream.ss << "-dirty";
@@ -682,7 +697,7 @@ void Vcf::write_header(bool const is_dropping_genotypes)
     // Only a "format" column if there are any samples
     bgzf_stream.ss << "\tFORMAT\t";
 
-    if (Options::const_instance()->uncompressed_sample_names)
+    if (Options::const_instance()->uncompressed_sample_names && bgzf_stream.filename != "-")
     {
       // close the bgzf file, we will re-open it with new options
       bgzf_stream.close();
@@ -720,7 +735,18 @@ void Vcf::write_header(bool const is_dropping_genotypes)
       byte_range_file << byte_range_begin << ' ' << byte_range_end << '\n';
 
       // resume regular operations
-      bgzf_stream.open(bgzf_stream.filename, "a", bgzf_stream.n_threads);
+      std::string filemode{"a"};
+
+      {
+        int const level = Options::const_instance()->bgzf_compression_level;
+
+        if (level >= 9)
+          filemode.push_back('9');
+        else if (level >= 0)
+          filemode += std::to_string(level);
+      }
+
+      bgzf_stream.open(bgzf_stream.filename, filemode, bgzf_stream.n_threads);
     }
     else
     {

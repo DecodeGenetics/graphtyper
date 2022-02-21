@@ -439,6 +439,10 @@ int subcmd_genotype(paw::Parser & parser)
 
   parser.parse_advanced_option(encoding, ' ', "encoding", "Select output encoding. Available are: vcf, popvcf");
 
+  // set default compression level as 9 when popvcf, since level 9 is already very fast anyway in that encoding mode
+  if (encoding == "popvcf")
+    opts.bgzf_compression_level = 9;
+
   parser.parse_advanced_option(opts.no_asterisks, ' ', "no_asterisks", "Set to avoid using asterisk in VCF output.");
 
   parser.parse_advanced_option(opts.no_bamshrink, ' ', "no_bamshrink", "(advanced) Set to skip bamShrink.");
@@ -646,6 +650,12 @@ int subcmd_genotype(paw::Parser & parser)
                                "If set, graphtyper BGZF VCF (.vcf.gz) files will output samples names in uncompressed "
                                "(0-level) in the header. The byte range of these blocks will also be printed in "
                                "${prefix}.samples_byte_range. Requires external utils: awk, truncate, stat.");
+
+  parser.parse_advanced_option(opts.bgzf_compression_level,
+                               ' ',
+                               "bgzf_compression_level",
+                               "Select bgzf compression level, ranges from 0 (for lowest and fastest) to 9 (highest "
+                               "and slowest). Set as -1 to use default bgzf value.");
 
 #ifndef NDEBUG
   parser.parse_advanced_option(opts.stats, ' ', "stats", "Directory for statistics files.");

@@ -37,6 +37,7 @@ public:
   bool uncompressed_sample_names{false};
   char encoding{'v'};             // v VCF, p popVCF
   bool is_on_final_output{false}; // Set as true before writing out final output
+  int bgzf_compression_level{9};
 
   /****
    * FILTERING OPTIONS

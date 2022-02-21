@@ -107,4 +107,14 @@ void print_log(log_severity const severity, args_t &&... args)
   *log_singleton->sink << '\n';
 }
 
+#ifdef NDEBUG // Release build
+#  define print_debug(...) ((void)0)
+#else // not NDEBUG (=> debug build)
+#  define print_debug(...) print_log(gyper::log_severity::debug, __VA_ARGS__)
+#endif // NDEBUG
+
+#define print_info(...) print_log(gyper::log_severity::info, __VA_ARGS__)
+#define print_warning(...) print_log(gyper::log_severity::warning, __VA_ARGS__)
+#define print_error(...) print_log(gyper::log_severity::error, __VA_ARGS__)
+
 } // namespace gyper
