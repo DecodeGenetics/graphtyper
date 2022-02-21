@@ -29,6 +29,7 @@ public:
   /* Data fields from current line. */
   std::string contig{};
   int64_t pos{0};
+  int32_t stored_alt{0};
   int32_t n_alt{-1};
   std::vector<std::string> unique_fields{};
   std::vector<uint32_t> field2uid{};
@@ -38,8 +39,11 @@ public:
   std::string next_contig{};
   int64_t next_pos{0};
 
-  inline void clear_line(std::string && next_contig, int64_t next_pos, int32_t next_n_alt)
+  inline void clear_line(int64_t next_pos, int32_t next_n_alt)
   {
+    next_n_alt += stored_alt;
+    stored_alt = 0;
+
     if (next_contig != contig || (next_pos / 10000) != (pos / 10000))
     {
       /// Previous line is not available, clear values
@@ -56,7 +60,7 @@ public:
     }
 
     /// Clear data from this line for the next
-    contig = std::move(next_contig);
+    contig = next_contig;
     pos = next_pos;
     n_alt = next_n_alt;
     unique_fields.resize(0);
@@ -85,7 +89,6 @@ inline void encode_buffer(Tbuffer_out & buffer_out, Tbuffer_in & buffer_in, Enco
   set_input_size(buffer_in, ed);
   buffer_out.reserve(ENC_BUFFER_SIZE);
   std::size_t constexpr N_FIELDS_SITE_DATA{9}; // how many fields of the VCF contains site data
-  std::string next_contig{};
   int64_t next_pos{0};
 
   while (ed.i < ed.in_size)
@@ -104,7 +107,7 @@ inline void encode_buffer(Tbuffer_out & buffer_out, Tbuffer_in & buffer_in, Enco
       ed.header_line = buffer_in[ed.b] == '#'; // check if in header line
 
       if (not ed.header_line)
-        next_contig.assign(&buffer_in[ed.b], ed.i - ed.b);
+        ed.next_contig.assign(&buffer_in[ed.b], ed.i - ed.b);
     }
     else if (not ed.header_line)
     {
@@ -115,7 +118,7 @@ inline void encode_buffer(Tbuffer_out & buffer_out, Tbuffer_in & buffer_in, Enco
       else if (ed.field == 4) /*ALT field*/
       {
         int32_t next_n_alt = std::count(&buffer_in[ed.b], &buffer_in[ed.i], ',');
-        ed.clear_line(std::move(next_contig), next_pos, next_n_alt);
+        ed.clear_line(next_pos, next_n_alt);
       }
     }
 
@@ -213,9 +216,23 @@ inline void encode_buffer(Tbuffer_out & buffer_out, Tbuffer_in & buffer_in, Enco
       ++ed.field;
   } // ends inner loop
 
-  // copy the remaining data to the beginning of the input buffer
-  std::copy(&buffer_in[ed.b], &buffer_in[ed.i], &buffer_in[0]);
-  ed.i = ed.i - ed.b;
+  if (ed.field >= 3 && ed.field < N_FIELDS_SITE_DATA)
+  {
+    // write the data even if the field is not complete
+    buffer_out.insert(buffer_out.end(), &buffer_in[ed.b], &buffer_in[ed.i]);
+
+    if (ed.field == 4) /*ALT field*/
+      ed.stored_alt = std::count(&buffer_in[ed.b], &buffer_in[ed.i], ',');
+
+    ed.i = 0;
+  }
+  else
+  {
+    // copy the remaining data to the beginning of the input buffer
+    std::copy(&buffer_in[ed.b], &buffer_in[ed.i], &buffer_in[0]);
+    ed.i = ed.i - ed.b;
+  }
+
   ed.b = 0;
   ed.in_size = ed.i;
   resize_input_buffer(buffer_in, ed.i);
