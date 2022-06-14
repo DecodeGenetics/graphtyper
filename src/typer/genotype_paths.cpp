@@ -311,7 +311,7 @@ void GenotypePaths::add_next_kmer_labels(std::vector<KmerLabel> const & ll,
       continue;
 
     bool matched_at_least_once = false;
-    Path const & original_path = paths[i];
+    Path const original_path = paths[i];
 
     for (unsigned j = 0; j < pp.size(); ++j)
     {
