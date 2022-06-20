@@ -505,11 +505,12 @@ void Haplotype::explain_to_score(std::size_t const pn_index,
 
 #ifndef NDEBUG
   // TODO(h2) THE FOLLOWING DOESNT MAKE SENSE
-  /*assert(!explains.none());
+  assert(!explains.empty());
 
+  /*
   if (explains.none())
     explains.set(); // Flip 'em all, cause they can all explain this read
-    */
+  */
 #endif // NDEBUG
 
   // std::vector<uint16_t> haplotype_errors = find_with_how_many_errors_haplotypes_explain_the_read(cnum);

@@ -56,7 +56,7 @@ namespace
 {
 #ifndef NDEBUG
 std::string const debug_read_name = "HISEQ1:33:H9YY4ADXX:1:2110:2792:58362/2";
-long debug_event_pos{152195561};
+long debug_event_pos{3603668};
 char debug_event_type{'X'};
 std::size_t debug_event_size{1};
 #endif // NDEBUG
@@ -74,6 +74,11 @@ void merge_haplotypes2(std::map<gyper::Event, Thap> & into, std::map<gyper::Even
   // Insert any elements from "from" into "into"
   for (auto from_it = from.begin(); from_it != from.end(); ++from_it)
   {
+#ifndef NDEBUG
+    if (from_it->first.pos == debug_event_pos)
+      gyper::print_log(gyper::log_severity::info, __HERE__, " var ", from_it->first.to_string());
+#endif // NDEBUG
+
     auto insert_p = into.insert(*from_it);
 
     if (insert_p.second)
@@ -81,6 +86,11 @@ void merge_haplotypes2(std::map<gyper::Event, Thap> & into, std::map<gyper::Even
       // we hadn't seen this event before in "into"
       // nothing needs to be done for "ever_together"
       // go through all events in the newly inserted "always_together" and remove any that have been seen in into
+
+#ifndef NDEBUG
+      if (insert_p.first->first.pos == debug_event_pos)
+        gyper::print_log(gyper::log_severity::info, __HERE__, " new var ", insert_p.first->first.to_string());
+#endif // NDEBUG
 
       gyper::HaplotypeInfo & into_hap_info = insert_p.first->second;
       auto it = into_hap_info.always_together.begin();
@@ -131,16 +141,20 @@ void merge_haplotypes2(std::map<gyper::Event, Thap> & into, std::map<gyper::Even
         }
       }
 
-      /*
-      gyper::print_log(gyper::log_severity::info,
-                       __HERE__,
-                       " ",
-                       from_hap_info.always_together.size(),
-                       " ",
-                       into_hap_info.always_together.size(),
-                       " ",
-                       intersection.size());
-      */
+#ifndef NDEBUG
+      if (insert_p.first->first.pos == debug_event_pos)
+      {
+        gyper::print_log(gyper::log_severity::info, __HERE__, " intersection of ", insert_p.first->first.to_string());
+        gyper::print_log(gyper::log_severity::info,
+                         __HERE__,
+                         " ",
+                         from_hap_info.always_together.size(),
+                         " ",
+                         into_hap_info.always_together.size(),
+                         " ",
+                         intersection.size());
+      }
+#endif // NDEBUG
 
       insert_p.first->second.always_together = std::move(intersection);
     }

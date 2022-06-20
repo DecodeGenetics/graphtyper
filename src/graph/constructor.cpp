@@ -1579,9 +1579,9 @@ void add_var_record(std::vector<VarRecord> & var_records,
           else
           {
             assert(key == "GT_HAPLOTYPE");
-            auto const val_ul = std::stoul(val_str);
-            ref.anti_events.insert(val_ul);
-            // alt.anti_events.insert(-val_ul);
+            int const val_ul = std::stol(val_str);
+            // ref.anti_events.insert(val_ul);
+            alt.anti_events.insert(-val_ul);
           }
         } // for (auto const & val : values)
       }   // for (auto const & info : infos)

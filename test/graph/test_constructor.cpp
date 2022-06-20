@@ -530,9 +530,9 @@ TEST_CASE("Construct test graph with anti events (chr10)")
   }
 
   {
-    REQUIRE(var_nodes[0].anti_events.size() == 1);
-    REQUIRE(var_nodes[0].anti_events.count(2) == 1);
-    REQUIRE(var_nodes[1].anti_events.size() == 0);
+    REQUIRE(var_nodes[0].anti_events.size() == 0);
+    REQUIRE(var_nodes[1].anti_events.size() == 1);
+    REQUIRE(var_nodes[1].anti_events.count(-2) == 1);
     REQUIRE(var_nodes[2].anti_events.size() == 0);
     REQUIRE(var_nodes[3].anti_events.size() == 0);
   }
@@ -553,7 +553,7 @@ TEST_CASE("Construct test graph with anti events (chr11)")
 
   {
     REQUIRE(ref_nodes.size() == 2);
-    REQUIRE(var_nodes.size() == 6);
+    REQUIRE(var_nodes.size() == 4);
   }
 
   Options::instance()->add_all_variants = false;

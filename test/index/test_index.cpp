@@ -431,7 +431,7 @@ TEST_CASE("Test index chr10 with parity event")
   REQUIRE(labels[0].variant_id != labels[1].variant_id);
 
   labels = ph_index.get(gyper::to_uint64("AGGGGGGTGGGGGGGGGGGGGGGGGGGGGGGG", 0));
-  REQUIRE(labels.size() == 2);
+  REQUIRE(labels.size() == 0);
 
   labels = ph_index.get(gyper::to_uint64("AGGGGGAGTGGGGGGGGGGGGGGGGGGGGGGG", 0));
 
