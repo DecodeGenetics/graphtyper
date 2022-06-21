@@ -1556,7 +1556,7 @@ void add_var_record(std::vector<VarRecord> & var_records,
           continue;
         }
 
-        if (key != "GT_ANTI_HAPLOTYPE" && key != "GT_HAPLOTYPE")
+        if (key != "GT_ANTI_HAPLOTYPE")
           continue;
 
         seqan::CharString value = EQ_SIGN_POS < static_cast<int>(seqan::length(info))
@@ -1573,16 +1573,7 @@ void add_var_record(std::vector<VarRecord> & var_records,
           std::string val_str = seqan::toCString(val);
 
           if (key == "GT_ANTI_HAPLOTYPE")
-          {
             alt.anti_events.insert(std::stoul(val_str));
-          }
-          else
-          {
-            assert(key == "GT_HAPLOTYPE");
-            int const val_ul = std::stol(val_str);
-            // ref.anti_events.insert(val_ul);
-            alt.anti_events.insert(-val_ul);
-          }
         } // for (auto const & val : values)
       }   // for (auto const & info : infos)
     }     // if (var.alts.size() == 1)
