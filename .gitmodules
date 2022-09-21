@@ -13,7 +13,8 @@
 	ignore = dirty
 [submodule "paw"]
 	path = paw
-	url = https://github.com/hannespetur/paw.git
+	url = https://github.com/martin-g/paw.git
+	branch = support-linux-arm64-dev
 	ignore = dirty
 [submodule "parallel-hashmap"]
 	path = parallel-hashmap
