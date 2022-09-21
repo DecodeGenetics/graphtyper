@@ -142,7 +142,9 @@ if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/paw/CMakeLists.txt)
     message(FATAL_ERROR "paw not found. Run 'git submodule update --init' to fetch all submodules.")
 endif()
 
-set (paw_BUILD_FLAGS "-DFORCE_AVX512=1")
+if (NOT DEFINED paw_BUILD_FLAGS)
+  set (paw_BUILD_FLAGS "-DFORCE_AVX512=1")
+endif()
 
 ExternalProject_Add(
     project_paw
