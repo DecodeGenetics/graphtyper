@@ -148,11 +148,12 @@ jobs:
           apt-get install -q -y autoconf gcc g++ git make cmake libboost-all-dev liblzma-dev libbz2-dev libz-dev
         run: |
           git config --global --add safe.directory /graphtyper
+          git config --global --add safe.directory /graphtyper/paw
           cd /graphtyper
           mkdir release-build
           cd release-build
-          echo "Running 'cmake .. -Dpaw_BUILD_FLAGS= -DCMAKE_BUILD_TYPE=Release'"
-          cmake .. -Dpaw_BUILD_FLAGS= -DCMAKE_BUILD_TYPE=Release
+          echo "Running 'cmake .. -Dpaw_BUILD_FLAGS="-DCMAKE_CXX_FLAGS_ARCH=-march=native" -DCMAKE_BUILD_TYPE=Release'"
+          cmake .. -Dpaw_BUILD_FLAGS="-DCMAKE_CXX_FLAGS_ARCH=-march=native" -DCMAKE_BUILD_TYPE=Release
           echo "Running 'make -k -j2'"
           make -k -j2
           file ./bin/graphtyper | grep aarch64
