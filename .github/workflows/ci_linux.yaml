@@ -147,6 +147,7 @@ jobs:
           apt-get update -q -y
           apt-get install -q -y autoconf gcc g++ git make cmake libboost-all-dev liblzma-dev libbz2-dev libz-dev
         run: |
+          git config --global --add safe.directory /graphtyper
           cd /graphtyper
           mkdir release-build
           cd release-build
