@@ -1333,6 +1333,7 @@ int subcmd_vcf_merge(paw::Parser & parser)
   setup_logger();
 
   opts.encoding = (encoding == "popvcf") ? 'p' : 'v';
+  opts.is_on_final_output = true;
 
   if (is_sv_vcf)
     gyper::graph.is_sv_graph = true;
