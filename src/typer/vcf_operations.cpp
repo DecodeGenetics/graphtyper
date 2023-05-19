@@ -1,7 +1,9 @@
-#include <cmath>   // sqrt
-#include <sstream> // std::ostringstream
-#include <string>  // std::string
-#include <vector>  // std::vector
+#include <cmath>      // sqrt
+#include <libgen.h>   // dirname
+#include <sstream>    // std::ostringstream
+#include <string>     // std::string
+#include <sys/stat.h> // mkdir
+#include <vector>     // std::vector
 
 #include <graphtyper/graph/absolute_position.hpp>
 #include <graphtyper/graph/genomic_region.hpp>
@@ -148,6 +150,16 @@ void vcf_merge(std::vector<std::string> & vcfs, std::string const & output)
 
   if (vcfs.size() == 0)
     return;
+
+  // Create output directory
+  {
+    int const l = output.size();
+    char * c = new char[l + 1];
+    std::copy(output.begin(), output.end(), c);
+    c[l] = '\0';
+    mkdir(dirname(c), 0755);
+    delete[] c;
+  }
 
   gyper::Vcf vcf;
   vcf.open(READ_MODE, vcfs.at(0));

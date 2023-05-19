@@ -106,6 +106,7 @@ bool process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_ta
   unsigned i{0};
   int64_t as{-1};
   int64_t xs{-1};
+  int64_t ws{-1};
   auto const tags_length = seqan::length(record.tags);
 
   while (i < tags_length)
@@ -116,8 +117,9 @@ bool process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_ta
     auto end_it = begin_it;
     i += 3;
     char type = record.tags[i - 1];
-    bool is_as = false;
-    bool is_xs = false;
+    bool is_as{false};
+    bool is_xs{false};
+    bool is_ws{false};
 
     // Check for AS and XS
     if (record.tags[i - 2] == 'S')
@@ -126,7 +128,19 @@ bool process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_ta
         is_as = true;
       else if (record.tags[i - 3] == 'X')
         is_xs = true;
+      else if (record.tags[i - 3] == 'W')
+        is_ws = true;
     }
+
+    auto set_alignment_score = [&](int64_t score) -> void
+    {
+      if (is_as)
+        as = score;
+      else if (is_xs)
+        xs = score;
+      else if (is_ws)
+        ws = score;
+    };
 
     switch (type)
     {
@@ -165,18 +179,9 @@ bool process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_ta
 
     case 'c':
     {
-      if (is_as)
-      {
-        int8_t num;
-        memcpy(&num, &record.tags[i], sizeof(int8_t));
-        as = num;
-      }
-      else if (is_xs)
-      {
-        int8_t num;
-        memcpy(&num, &record.tags[i], sizeof(int8_t));
-        xs = num;
-      }
+      int8_t num;
+      memcpy(&num, &record.tags[i], sizeof(int8_t));
+      set_alignment_score(static_cast<int64_t>(num));
 
       i += sizeof(int8_t);
       end_it = begin(record.tags) + i;
@@ -185,18 +190,9 @@ bool process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_ta
 
     case 'C':
     {
-      if (is_as)
-      {
-        uint8_t num;
-        memcpy(&num, &record.tags[i], sizeof(uint8_t));
-        as = num;
-      }
-      else if (is_xs)
-      {
-        uint8_t num;
-        memcpy(&num, &record.tags[i], sizeof(uint8_t));
-        xs = num;
-      }
+      uint8_t num;
+      memcpy(&num, &record.tags[i], sizeof(uint8_t));
+      set_alignment_score(static_cast<int64_t>(num));
 
       i += sizeof(uint8_t);
       end_it = begin(record.tags) + i;
@@ -205,18 +201,9 @@ bool process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_ta
 
     case 's':
     {
-      if (is_as)
-      {
-        int16_t num;
-        memcpy(&num, &record.tags[i], sizeof(int16_t));
-        as = num;
-      }
-      else if (is_xs)
-      {
-        int16_t num;
-        memcpy(&num, &record.tags[i], sizeof(int16_t));
-        xs = num;
-      }
+      int16_t num;
+      memcpy(&num, &record.tags[i], sizeof(int16_t));
+      set_alignment_score(static_cast<int64_t>(num));
 
       i += sizeof(int16_t);
       end_it = begin(record.tags) + i;
@@ -225,18 +212,9 @@ bool process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_ta
 
     case 'S':
     {
-      if (is_as)
-      {
-        uint16_t num;
-        memcpy(&num, &record.tags[i], sizeof(uint16_t));
-        as = num;
-      }
-      else if (is_xs)
-      {
-        uint16_t num;
-        memcpy(&num, &record.tags[i], sizeof(uint16_t));
-        xs = num;
-      }
+      uint16_t num;
+      memcpy(&num, &record.tags[i], sizeof(uint16_t));
+      set_alignment_score(static_cast<int64_t>(num));
 
       i += sizeof(uint16_t);
       end_it = begin(record.tags) + i;
@@ -245,18 +223,9 @@ bool process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_ta
 
     case 'i':
     {
-      if (is_as)
-      {
-        int32_t num;
-        memcpy(&num, &record.tags[i], sizeof(int32_t));
-        as = num;
-      }
-      else if (is_xs)
-      {
-        int32_t num;
-        memcpy(&num, &record.tags[i], sizeof(int32_t));
-        xs = num;
-      }
+      int32_t num;
+      memcpy(&num, &record.tags[i], sizeof(int32_t));
+      set_alignment_score(static_cast<int64_t>(num));
 
       i += sizeof(int32_t);
       end_it = begin(record.tags) + i;
@@ -265,18 +234,9 @@ bool process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_ta
 
     case 'I':
     {
-      if (is_as)
-      {
-        uint32_t num;
-        memcpy(&num, &record.tags[i], sizeof(uint32_t));
-        as = num;
-      }
-      else if (is_xs)
-      {
-        uint32_t num;
-        memcpy(&num, &record.tags[i], sizeof(uint32_t));
-        xs = num;
-      }
+      uint32_t num;
+      memcpy(&num, &record.tags[i], sizeof(uint32_t));
+      set_alignment_score(static_cast<int64_t>(num));
 
       i += sizeof(uint32_t);
       end_it = begin(record.tags) + i;
@@ -297,7 +257,7 @@ bool process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_ta
     }
     }
 
-    if (is_as || is_xs)
+    if (is_as || is_xs || is_ws)
     {
       unsigned const old_length = length(new_tags);
       resize(new_tags, old_length + std::distance(begin_it, end_it), seqan::Exact());
@@ -305,13 +265,16 @@ bool process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_ta
     }
   }
 
-  if (as != -1 && xs != -1 && (!seqan::hasFlagMultiple(record) || seqan::hasFlagNextUnmapped(record)))
+  if (as != -1 && ws == -1)
+    ws = as;
+
+  if (ws != -1 && xs != -1 && (!seqan::hasFlagMultiple(record) || seqan::hasFlagNextUnmapped(record)))
   {
-    if (as <= (xs + 5))
+    if (ws <= (xs + 5))
       return false;
 
-    long matches = 0;
-    long indels = 0;
+    long matches{0};
+    long indels{0};
 
     for (auto const & c : record.cigar)
     {
@@ -321,7 +284,7 @@ bool process_tags(seqan::BamAlignmentRecord & record, seqan::CharString & new_ta
         indels += c.count + 2; // Extra 2 for each event
     }
 
-    if ((as + opts.as_filter_threshold) <= (matches - indels))
+    if ((std::max(ws, as) + opts.as_filter_threshold) <= (matches - indels))
       return false;
   }
 
