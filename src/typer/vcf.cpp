@@ -1119,8 +1119,9 @@ void Vcf::write_record(Variant const & var,
         assert(new_line_size > old_line_size);
         double const bytes_per_call = static_cast<double>(new_line_size - old_line_size) / static_cast<double>(i + 1);
         double total_bytes_expected = old_line_size + bytes_per_call * static_cast<double>(var.calls.size());
+        double constexpr MAX_BYTES{static_cast<double>(std::numeric_limits<int32_t>::max()) * 0.9};
 
-        if (total_bytes_expected >= 2000000000.0)
+        if (total_bytes_expected >= MAX_BYTES)
         {
           print_log(log_severity::warning,
                     " Skipping variant with extreme expected line size=",

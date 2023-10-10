@@ -890,6 +890,7 @@ int subcmd_genotype_sv(paw::Parser & parser)
   std::string sam{};
   std::string sams{};
   std::string sv_vcf{};
+  std::string encoding{"vcf"};
   bool force_copy_reference{false};
   bool force_no_copy_reference{false};
   bool see_advanced_options{false};
@@ -1006,6 +1007,12 @@ int subcmd_genotype_sv(paw::Parser & parser)
                                "(0-level) in the header. The byte range of these blocks will also be printed in "
                                "${prefix}.samples_byte_range.");
 
+  parser.parse_advanced_option(encoding, ' ', "encoding", "Select output encoding. Available are: vcf, popvcf");
+
+  // set default compression level as 9 when popvcf, since level 9 is already very fast anyway in that encoding mode
+  if (encoding == "popvcf")
+    opts.bgzf_compression_level = 9;
+
   // Changed behaviour such that zero qual SVs are not filtered out by default
   if (!force_filter_zero_qual)
     opts.force_no_filter_zero_qual = true;
@@ -1016,6 +1023,7 @@ int subcmd_genotype_sv(paw::Parser & parser)
   parser.finalize();
   setup_logger();
 
+  opts.encoding = (encoding == "popvcf") ? 'p' : 'v';
   print_log(gyper::log_severity::info, "Running the 'genotype_sv' subcommand.");
 
 #ifndef NDEBUG
@@ -1302,19 +1310,30 @@ int subcmd_vcf_concatenate(paw::Parser & parser)
 
 int subcmd_vcf_merge(paw::Parser & parser)
 {
+  gyper::Options & opts = *(gyper::Options::instance());
+
   std::vector<std::string> vcfs;
   std::string output_fn;
   std::string file_list;
+  std::string encoding{"vcf"};
   bool is_sv_vcf{false};
 
   parser.parse_option(output_fn, 'o', "output", "Output VCF file name.");
   parser.parse_option(file_list, ' ', "file_list", "File containing VCFs to merge.");
   parser.parse_option(is_sv_vcf, ' ', "sv", "Set if the input VCFs were generated from genotype_sv.");
+  parser.parse_option(encoding, ' ', "encoding", "Select output encoding. Available are: vcf, popvcf");
+
+  // set default compression level as 9 when popvcf, since level 9 is already very fast anyway in that encoding mode
+  if (encoding == "popvcf")
+    opts.bgzf_compression_level = 9;
 
   parser.parse_remaining_positional_arguments(vcfs, "vcfs...", "VCFs to merge");
 
   parser.finalize();
   setup_logger();
+
+  opts.encoding = (encoding == "popvcf") ? 'p' : 'v';
+  opts.is_on_final_output = true;
 
   if (is_sv_vcf)
     gyper::graph.is_sv_graph = true;

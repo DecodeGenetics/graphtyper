@@ -44,8 +44,8 @@ public:
   int32_t length = 0; // Length of alt. allele minus ref. allele
   int32_t size = 0;   // Total size, i.e. length of larger allele excluding padding base
   int32_t end = 0;
-  int16_t n_clusters = 0;
-  int16_t num_merged_svs = -1;
+  int32_t n_clusters = 0;
+  int32_t num_merged_svs = -1;
   int32_t or_start = -1; // Start coordinate of the sequence origin
   int32_t or_end = -1;   // End coordinate of the sequence origin
   int32_t related_sv = -1;

@@ -7,7 +7,7 @@ include(CheckIncludeFileCXX)
 # The version number
 set (graphtyper_VERSION_MAJOR 2)
 set (graphtyper_VERSION_MINOR 7)
-set (graphtyper_VERSION_PATCH 5)
+set (graphtyper_VERSION_PATCH 6)
 
 # Graphtyper's headers
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")

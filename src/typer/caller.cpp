@@ -549,8 +549,14 @@ void run_first_pass(bam1_t * hts_rec,
 
     if (ref_offset >= REF_SIZE)
     {
-      print_log(log_severity::error, __HERE__, " Unexpected ref_offset = ", ref_offset);
-      std::exit(1);
+      if (ref_offset > REF_SIZE)
+      {
+        print_log(log_severity::warning, __HERE__, " Unexpected ref_offset=", ref_offset, " > REF_SIZE=", REF_SIZE);
+      }
+
+      // ref_offset==REF_SIZE occurs if the first read happens to be on the very last base. In this case is safe to just
+      // ignore it.
+      break;
     }
 
     Read read;

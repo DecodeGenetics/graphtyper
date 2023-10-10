@@ -1283,6 +1283,9 @@ void add_var_record(std::vector<VarRecord> & var_records,
     seqan::StringSet<seqan::CharString> infos;
     seqan::strSplit(infos, vcf_record.info, seqan::EqualsChar<';'>());
 
+    // for a special case for Dragen 3.7+ files.
+    bool is_a_dup = false;
+
     for (auto const & info : infos)
     {
       long const EQ_SIGN_POS = std::distance(seqan::begin(info), std::find(seqan::begin(info), seqan::end(info), '='));
@@ -1291,6 +1294,9 @@ void add_var_record(std::vector<VarRecord> & var_records,
       std::string const val = EQ_SIGN_POS < static_cast<int>(seqan::length(info))
                               ? std::string(seqan::begin(info) + EQ_SIGN_POS + 1, seqan::end(info))
                               : std::string("");
+
+      if (key == "DUPSVLEN")
+        is_a_dup = true;
 
       parse_info_sv_type("SVTYPE", key, val, sv.type) ||                 // SVTYPE
         parse_info_int("END", key, val, sv.end) ||                       // END
@@ -1304,6 +1310,7 @@ void add_var_record(std::vector<VarRecord> & var_records,
         parse_info_str("SVINSSEQ", key, val, sv.ins_seq) ||              // SVINSSEQ
         parse_info_str("LEFT_SVINSSEQ", key, val, sv.ins_seq_left) ||    // LEFT_SVINSSEQ
         parse_info_str("RIGHT_SVINSSEQ", key, val, sv.ins_seq_right) ||  // RIGHT_SVINSSEQ
+        parse_info_str("DUPSVINSSEQ", key, val, sv.ins_seq) ||           // DUPSVINSSEQ
         parse_info_inv_type(key, sv.inv_type);                           // INV3 and INV5
     }
 
@@ -1317,6 +1324,9 @@ void add_var_record(std::vector<VarRecord> & var_records,
                 var.pos);
       std::exit(1);
     }
+
+    if (sv.type == INS && is_a_dup)
+      sv.type = DUP; // special case for Dragen 3.7 files, there small duplications have SVTYPE=INS
 
     if (sv.length < 0)
       sv.length = -sv.length; // Make SVLEN positive
