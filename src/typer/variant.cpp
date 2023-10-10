@@ -1632,9 +1632,9 @@ std::vector<Variant> break_down_variant(Variant && var,
   else if (!is_no_variant_overlapping)
   {
     // Use the skyr
-    print_log(log_severity::debug, "Using the skyr");
+    print_debug("Using the skyr");
     std::vector<Variant> new_broken_down_vars = break_down_skyr(std::move(var), reach);
-    print_log(log_severity::debug, "skyr finished.");
+    print_debug("skyr finished.");
 
     std::move(new_broken_down_vars.begin(), new_broken_down_vars.end(), std::back_inserter(broken_down_vars));
   }
