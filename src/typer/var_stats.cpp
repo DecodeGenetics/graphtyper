@@ -148,9 +148,6 @@ void VarStats::add_stats(VarStats const & stats)
   n_genotyped += stats.n_genotyped;
   n_calls += stats.n_calls;
   n_passed_calls += stats.n_passed_calls;
-  n_ref_ref += stats.n_ref_ref;
-  n_ref_alt += stats.n_ref_alt;
-  n_alt_alt += stats.n_alt_alt;
   n_max_alt_proper_pairs += stats.n_max_alt_proper_pairs;
   het_allele_depth.first += stats.het_allele_depth.first;
   het_allele_depth.second += stats.het_allele_depth.second;
@@ -176,6 +173,9 @@ void VarStats::add_stats(VarStats const & stats)
     new_a.pass_ac += old_a.pass_ac;
     new_a.maximum_alt_support = std::max(new_a.maximum_alt_support, old_a.maximum_alt_support);
     new_a.maximum_alt_support_ratio = std::max(new_a.maximum_alt_support_ratio, old_a.maximum_alt_support_ratio);
+    new_a.n_ref_ref += old_a.n_ref_ref;
+    new_a.n_ref_alt += old_a.n_ref_alt;
+    new_a.n_alt_alt += old_a.n_alt_alt;
     new_a.het_multi_allele_depth.first += old_a.het_multi_allele_depth.first;
     new_a.het_multi_allele_depth.second += old_a.het_multi_allele_depth.second;
     new_a.hom_multi_allele_depth.first += old_a.hom_multi_allele_depth.first;
@@ -198,9 +198,6 @@ void VarStats::clear()
   n_genotyped = 0;
   n_calls = 0;
   n_passed_calls = 0;
-  n_ref_ref = 0;
-  n_ref_alt = 0;
-  n_alt_alt = 0;
   n_max_alt_proper_pairs = 0;
   seqdepth = 0;
   het_allele_depth = {0, 0};
@@ -482,9 +479,6 @@ void VarStats::serialize(Archive & ar, unsigned const int /*version*/)
   ar & n_genotyped;
   ar & n_calls;
   ar & n_passed_calls;
-  ar & n_ref_ref;
-  ar & n_ref_alt;
-  ar & n_alt_alt;
   ar & n_max_alt_proper_pairs;
   ar & seqdepth;
   ar & het_allele_depth;

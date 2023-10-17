@@ -59,6 +59,7 @@ set(graphtyper_SOURCE_FILES
   utilities/options.cpp
   utilities/type_conversions.cpp
   utilities/sam_reader.cpp
+  utilities/snp_hwe.cpp
   utilities/system.cpp
 )
 

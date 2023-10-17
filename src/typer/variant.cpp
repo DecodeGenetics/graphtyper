@@ -27,6 +27,7 @@
 #include <graphtyper/utilities/logging.hpp>
 #include <graphtyper/utilities/options.hpp>             // gyper::Options
 #include <graphtyper/utilities/sequence_operations.hpp> // gyper::remove_common_prefix, gyper::remove_common_suffix
+#include <graphtyper/utilities/snp_hwe.hpp>
 
 namespace
 {
@@ -294,6 +295,12 @@ void Variant::scan_calls()
 
     assert(static_cast<long>(sample_call.coverage.size()) == num_alts + 1);
 
+    // Get the GT
+    std::pair<uint16_t, uint16_t> call = sample_call.get_gt_call();
+    assert(seqs.size() == sample_call.coverage.size());
+    assert(call.first < seqs.size());
+    assert(call.second < seqs.size());
+
     for (long c{0}; c < num_alts; ++c)
     {
       assert((c + 1) < static_cast<long>(stats.per_allele.size()));
@@ -307,13 +314,21 @@ void Variant::scan_calls()
           static_cast<double>(sample_call.coverage[c + 1]) / static_cast<double>(total_depth);
         per_al.maximum_alt_support_ratio = std::max(per_al.maximum_alt_support_ratio, current_ratio);
       }
+
+      if (call.first == (c + 1) || call.second == (c + 1))
+      {
+        if (call.second == call.first)
+          ++per_al.n_alt_alt;
+        else
+          ++per_al.n_ref_alt;
+      }
+      else
+      {
+        ++per_al.n_ref_ref;
+      }
     }
 
-    // Get the GT
-    std::pair<uint16_t, uint16_t> call = sample_call.get_gt_call();
-    assert(seqs.size() == sample_call.coverage.size());
-    assert(call.first < seqs.size());
-    assert(call.second < seqs.size());
+    // GQ
     long genotype_quality = sample_call.get_gq();
 
     if (copts.is_lr_calling)
@@ -402,12 +417,12 @@ void Variant::scan_calls()
         ++stats.per_allele[call.second].pass_ac;
       }
 
-      if (call.first == 0u && call.second == 0u)
-        ++stats.n_ref_ref;
-      else if (call.first == 0u || call.second == 0u)
-        ++stats.n_ref_alt;
-      else
-        ++stats.n_alt_alt;
+      // if (call.first == 0u && call.second == 0u)
+      //   ++stats.n_ref_ref;
+      // else if (call.first == 0u || call.second == 0u)
+      //   ++stats.n_ref_alt;
+      // else
+      //   ++stats.n_alt_alt;
     }
   }
 }
@@ -498,6 +513,44 @@ std::vector<int8_t> Variant::generate_infos()
     infos["MaxAASR"] = ss_max_asr.str();
   }
 
+  // Write NHomRef, NHet, NHomAlt, PexcessHet
+  {
+    assert(stats.per_allele.size() > 0);
+    assert(static_cast<long>(stats.per_allele.size()) == num_seqs);
+
+    std::stringstream ss_n_hom_ref;
+    std::stringstream ss_n_het;
+    std::stringstream ss_n_hom_alt;
+    std::stringstream ss_exc_het;
+
+    // skip ref (index 0)
+    ss_n_hom_ref << stats.per_allele[1].n_ref_ref;
+    ss_n_het << stats.per_allele[1].n_ref_alt;
+    ss_n_hom_alt << stats.per_allele[1].n_alt_alt;
+
+    double p_exc_het =
+      p_hwe_excess_het(stats.per_allele[1].n_ref_alt, stats.per_allele[1].n_ref_ref, stats.per_allele[1].n_alt_alt);
+
+    ss_exc_het << p_exc_het;
+
+    for (int e{2}; e < num_seqs; ++e)
+    {
+      ss_n_hom_ref << ',' << stats.per_allele[e].n_ref_ref;
+      ss_n_het << ',' << stats.per_allele[e].n_ref_alt;
+      ss_n_hom_alt << ',' << stats.per_allele[e].n_alt_alt;
+
+      p_exc_het =
+        p_hwe_excess_het(stats.per_allele[e].n_ref_alt, stats.per_allele[e].n_ref_ref, stats.per_allele[e].n_alt_alt);
+
+      ss_exc_het << ',' << p_exc_het;
+    }
+
+    infos["NHomRef"] = ss_n_hom_ref.str();
+    infos["NHet"] = ss_n_het.str();
+    infos["NHomAlt"] = ss_n_hom_alt.str();
+    infos["PexcessHet"] = ss_exc_het.str();
+  }
+
   // Write MaxAltPP
   if (is_sv())
   {
@@ -572,14 +625,14 @@ std::vector<int8_t> Variant::generate_infos()
     infos["PASS_ratio"] = ss_pr.str();
   }
 
-  // Write Num REF/REF, REF/ALT, ALT/ALT, homozygous and heterozygous calls
-  {
-    std::ostringstream n_gt;
-    n_gt << stats.n_ref_ref << "," << stats.n_ref_alt << "," << stats.n_alt_alt;
-    infos["NHomRef"] = std::to_string(stats.n_ref_ref);
-    infos["NHet"] = std::to_string(stats.n_ref_alt);
-    infos["NHomAlt"] = std::to_string(stats.n_alt_alt);
-  }
+  // // Write Num REF/REF, REF/ALT, ALT/ALT, homozygous and heterozygous calls
+  // {
+  //   std::ostringstream n_gt;
+  //   n_gt << stats.n_ref_ref << "," << stats.n_ref_alt << "," << stats.n_alt_alt;
+  //   infos["NHomRef"] = std::to_string(stats.n_ref_ref);
+  //   infos["NHet"] = std::to_string(stats.n_ref_alt);
+  //   infos["NHomAlt"] = std::to_string(stats.n_alt_alt);
+  // }
 
   // Write SeqDepth
   {

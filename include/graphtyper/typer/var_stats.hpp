@@ -23,6 +23,9 @@ struct VarStatsPerAllele
   uint64_t total_depth{0u};
   uint32_t ac{0};
   uint32_t pass_ac{0};
+  uint32_t n_ref_ref{0};
+  uint32_t n_ref_alt{0};
+  uint32_t n_alt_alt{0};
   uint16_t maximum_alt_support{0u};
   double maximum_alt_support_ratio{0u};
   std::pair<uint32_t, uint32_t> het_multi_allele_depth{0u, 0u};
@@ -40,6 +43,9 @@ struct VarStatsPerAllele
     ar & total_depth;
     ar & ac;
     ar & pass_ac;
+    ar & n_ref_ref;
+    ar & n_ref_alt;
+    ar & n_alt_alt;
     ar & maximum_alt_support;
     ar & maximum_alt_support_ratio;
     ar & het_multi_allele_depth;
@@ -68,9 +74,6 @@ public:
   uint32_t n_genotyped{0};
   uint32_t n_calls{0};
   uint32_t n_passed_calls{0};
-  uint32_t n_ref_ref{0};
-  uint32_t n_ref_alt{0};
-  uint32_t n_alt_alt{0};
   uint8_t n_max_alt_proper_pairs{0};
   uint64_t seqdepth{0};
 
