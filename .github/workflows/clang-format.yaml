@@ -1,6 +1,13 @@
 name: Format-check
 
-on: [ push, pull_request ]
+on:
+  # Trigger workflow on pull requests of any branch
+  pull_request:
+  # Trigger workflow on pushes to following branches
+  push:
+    branches:
+      - master
+      - dev
 
 env:
   TZ: Atlantic/Reykjavik
@@ -12,7 +19,7 @@ defaults:
 jobs:
   build:
     name: ${{ matrix.name }}
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 120
     strategy:
       fail-fast: true
@@ -39,7 +46,7 @@ jobs:
           sudo add-apt-repository --no-update --yes ppa:ubuntu-toolchain-r/ppa
           sudo add-apt-repository --no-update --yes ppa:ubuntu-toolchain-r/test
           wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-          sudo add-apt-repository --no-update --yes "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-12 main"
+          sudo add-apt-repository --no-update --yes "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy main"
           sudo apt-get update
 
       - name: Install CMake

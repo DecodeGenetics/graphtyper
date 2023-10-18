@@ -1,6 +1,13 @@
 name: CI on Linux
 
-on: [ push, pull_request ]
+on:
+  # Trigger workflow on pull requests of any branch
+  pull_request:
+  # Trigger workflow on pushes to following branches
+  push:
+    branches:
+      - master
+      - dev
 
 env:
   TZ: Atlantic/Reykjavik
@@ -12,23 +19,23 @@ defaults:
 jobs:
   build:
     name: ${{ matrix.name }}
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: "GCC8 Release"
-            pkg: "g++-8"
-            cxx: "g++-8"
-            cc: "gcc-8"
-            build_type: Release
-
           - name: "GCC9 Debug"
             pkg: "g++-9"
             cxx: "g++-9"
             cc: "gcc-9"
             build_type: Debug
+
+          - name: "GCC9 Release"
+            pkg: "g++-9"
+            cxx: "g++-9"
+            cc: "gcc-9"
+            build_type: Release
 
           - name: "GCC10 Debug C++20"
             pkg: "g++-10"
@@ -44,17 +51,17 @@ jobs:
             cxx_flags: "-std=c++20"
             build_type: Release
 
-          - name: "Clang10 Debug C++20"
-            pkg: "clang-10"
-            cxx: "clang++-10"
-            cc: "clang-10"
-            cxx_flags: "-std=c++20"
-            build_type: Debug
-
           - name: "Clang12 Release C++20"
             pkg: "clang-12"
             cxx: "clang++-12"
             cc: "clang-12"
+            cxx_flags: "-std=c++20"
+            build_type: Release
+
+          - name: "Clang16 Release C++20"
+            pkg: "clang-16"
+            cxx: "clang++-16"
+            cc: "clang-16"
             cxx_flags: "-std=c++20"
             build_type: Release
     steps:
@@ -71,9 +78,9 @@ jobs:
           sudo add-apt-repository --no-update --yes ppa:ubuntu-toolchain-r/ppa
           sudo add-apt-repository --no-update --yes ppa:ubuntu-toolchain-r/test
           wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-          sudo add-apt-repository --no-update --yes "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic main"
-          sudo add-apt-repository --no-update --yes "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-11 main"
-          sudo add-apt-repository --no-update --yes "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-12 main"
+          sudo add-apt-repository --no-update --yes "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy main"
+          sudo add-apt-repository --no-update --yes "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-15 main"
+          sudo add-apt-repository --no-update --yes "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-16 main"
           sudo apt-get update
 
       - name: Install Build dependencies
