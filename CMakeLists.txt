@@ -113,7 +113,7 @@ ExternalProject_Add(
     BUILD_IN_SOURCE 1
     SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/htslib
     PREFIX ${CMAKE_CURRENT_BINARY_DIR}/htslib
-    CONFIGURE_COMMAND cp -a ${CMAKE_CURRENT_SOURCE_DIR}/htslib ${CMAKE_CURRENT_BINARY_DIR}/ COMMAND autoheader COMMAND autoconf COMMAND ${CMAKE_CURRENT_BINARY_DIR}/htslib/configure --disable-libcurl --disable-gcs --with-libdeflate
+    CONFIGURE_COMMAND cp -a ${CMAKE_CURRENT_SOURCE_DIR}/htslib ${CMAKE_CURRENT_BINARY_DIR}/ COMMAND autoreconf -i COMMAND ${CMAKE_CURRENT_BINARY_DIR}/htslib/configure --disable-libcurl --disable-gcs --with-libdeflate
         "CFLAGS=${MYCFLAGS} -g -Wall -O3 ${CMAKE_C_FLAGS} -I${CMAKE_CURRENT_BINARY_DIR}/libdeflate"
         "LDFLAGS=${MYLDFLAGS} -L${CMAKE_CURRENT_BINARY_DIR}/libdeflate"
         "CC=${CMAKE_C_COMPILER}"
