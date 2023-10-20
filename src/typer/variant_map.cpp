@@ -394,14 +394,13 @@ void VariantMap::filter_varmap_for_all()
     var_cp.seqs = var.seqs;
 
     // Force that no variant is overlapping
-    long const reach{-1};
     bool const is_no_variant_overlapping{true}; // Force it to be true so we wont use skyr
     bool const is_all_biallelic{false};
     Variant new_var(var_cp);
     new_var.infos["SBF1"] = ".";
 
     std::vector<Variant> new_broken_down_vars =
-      break_down_variant(std::move(new_var), reach, is_no_variant_overlapping, is_all_biallelic);
+      break_down_variant(std::move(new_var), is_no_variant_overlapping, is_all_biallelic);
 
     assert(new_broken_down_vars.size() != 0);
 

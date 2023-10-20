@@ -626,7 +626,7 @@ void vcf_merge_and_break(std::vector<std::string> const & vcfs,
     }
     else
     {
-      new_variants = break_down_variant(std::move(var), reach, is_no_variant_overlapping, is_all_biallelic);
+      new_variants = break_down_variant(std::move(var), is_no_variant_overlapping, is_all_biallelic);
     }
 
     assert(new_variants.size() > 0);
@@ -963,8 +963,9 @@ void vcf_break_down(std::string const & vcf, std::string const & output, std::st
     bool const is_no_variant_overlapping{Options::const_instance()->no_variant_overlapping};
     bool const is_all_biallelic{Options::const_instance()->is_all_biallelic};
     assert(vcf_in.variants[0].infos.count("SBF1") == 1);
+
     std::vector<Variant> new_variants =
-      break_down_variant(std::move(vcf_in.variants[0]), reach, is_no_variant_overlapping, is_all_biallelic);
+      break_down_variant(std::move(vcf_in.variants[0]), is_no_variant_overlapping, is_all_biallelic);
 
     update_reach(new_variants);
     std::move(new_variants.begin(), new_variants.end(), std::back_inserter(vcf_out.variants));

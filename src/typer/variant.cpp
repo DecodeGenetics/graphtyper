@@ -1063,10 +1063,9 @@ std::vector<int8_t> Variant::generate_infos()
         double const qd = qd_alt[a];
 
         is_good_alt[a] =
-          static_cast<int>(aa_score[a] >= 0.05 && qd > 1.0 && per_al.maximum_alt_support >= 3 &&
-                           per_al.maximum_alt_support_ratio >= 0.175 &&
-                           (seqs.size() < 71 || (qd > 1.25 && per_al.maximum_alt_support_ratio >= 0.2)) &&
-                           (seqs.size() < 131 || (qd > 1.5 && per_al.maximum_alt_support_ratio >= 0.225)));
+          static_cast<int>(qd >= 1.0 && per_al.maximum_alt_support >= 2 &&
+                           (seqs.size() < 71 || (qd >= 1.5 && per_al.maximum_alt_support_ratio >= 0.2)) &&
+                           (seqs.size() < 131 || (qd >= 2.0 && per_al.maximum_alt_support_ratio >= 0.225)));
       }
 
 #ifndef NDEBUG
@@ -1651,7 +1650,6 @@ std::vector<Variant> make_biallelic(Variant && var)
 
 // Variants functions
 std::vector<Variant> break_down_variant(Variant && var,
-                                        long const reach,
                                         bool const is_no_variant_overlapping,
                                         bool const is_all_biallelic)
 {
@@ -1686,7 +1684,7 @@ std::vector<Variant> break_down_variant(Variant && var,
   {
     // Use the skyr
     print_debug("Using the skyr");
-    std::vector<Variant> new_broken_down_vars = break_down_skyr(std::move(var), reach);
+    std::vector<Variant> new_broken_down_vars = break_down_skyr(std::move(var));
     print_debug("skyr finished.");
 
     std::move(new_broken_down_vars.begin(), new_broken_down_vars.end(), std::back_inserter(broken_down_vars));
@@ -2001,6 +1999,20 @@ std::vector<Variant> break_multi_snps(Variant && var)
   std::vector<std::vector<char>> const & seqs = var.seqs;
   std::vector<Variant> new_vars;
 
+  // find which sequence is called
+  std::vector<int> ac(seqs.size(), 0);
+
+  for (SampleCall const & call : var.calls)
+  {
+    auto const & gt_call = call.get_gt_call();
+
+    assert(gt_call.first < ac.size());
+    assert(gt_call.second < ac.size());
+
+    ac[gt_call.first]++;
+    ac[gt_call.second]++;
+  }
+
   for (long j = 0; j < static_cast<long>(seqs[0].size()); ++j)
   {
     std::vector<char> new_seqs(1, seqs[0][j]);
@@ -2008,6 +2020,12 @@ std::vector<Variant> break_multi_snps(Variant && var)
 
     for (long k = 1; k < static_cast<long>(seqs.size()); ++k)
     {
+      if (ac[k] == 0)
+      {
+        old_phred_to_new_phred.push_back(0);
+        continue;
+      }
+
       auto find_it = std::find(new_seqs.begin(), new_seqs.end(), seqs[k][j]);
 
       if (find_it == new_seqs.end())
@@ -2092,28 +2110,49 @@ std::vector<Variant> break_multi_snps(Variant && var)
   return new_vars;
 }
 
-std::vector<Variant> break_down_skyr(Variant && var, long const reach)
+std::vector<Variant> break_down_skyr(Variant && var)
 {
   std::vector<Variant> new_vars;
 
   long constexpr OPTIMAL_EXTRA = 50l;
   bool const use_asterisks = !Options::instance()->no_asterisks;
 
-  long const extra_bases_before =
-    use_asterisks ? std::min(OPTIMAL_EXTRA, static_cast<long>(var.abs_pos) - reach - 1l) : OPTIMAL_EXTRA;
+  long const extra_bases_before = OPTIMAL_EXTRA;
+  //    use_asterisks ? std::min(OPTIMAL_EXTRA, static_cast<long>(var.abs_pos) - reach - 1l) : OPTIMAL_EXTRA;
 
-  long constexpr extra_bases_after{OPTIMAL_EXTRA};
+  // long constexpr extra_bases_after{OPTIMAL_EXTRA};
 
   for (long i = 0; i < extra_bases_before && var.add_base_in_front(false); ++i)
   {
   }
 
-  for (long i = 0; i < extra_bases_after && var.add_base_in_back(false); ++i)
-  {
-  }
+  // for (long i = 0; i < extra_bases_after && var.add_base_in_back(false); ++i)
+  // {
+  // }
 
   auto const & seqs = var.seqs;
+
+  // find which sequence is called
+  std::vector<int> ac(var.seqs.size(), 0);
+
+  for (SampleCall const & call : var.calls)
+  {
+    auto const & gt_call = call.get_gt_call();
+
+    assert(gt_call.first < ac.size());
+    assert(gt_call.second < ac.size());
+
+    ac[gt_call.first]++;
+    ac[gt_call.second]++;
+  }
+
   paw::Skyr skyr(var.seqs);
+
+  for (int i{1}; i < static_cast<int>(var.seqs.size()); ++i)
+  {
+    if (ac[i] == 0)
+      skyr.seqs[i] = skyr.seqs[0];
+  }
 
   bool constexpr is_normalize = true; // The events must the normalized
   skyr.find_all_edits(is_normalize);

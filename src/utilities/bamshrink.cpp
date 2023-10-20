@@ -682,11 +682,10 @@ void qualityFilterSlice2(Options const & opts,
     std::exit(1);
   }
 
+  int const begin = std::max(chr_start_end.i2 - (opts.maxFragLen - 100), 0);
+
   // bamshrink regions are expanded by 100 which should be removed here
-  if (!setRegion(bamFileIn,
-                 toCString(chr_start_end.i1),
-                 chr_start_end.i2 - (opts.maxFragLen - 100),
-                 chr_start_end.i3 + (opts.maxFragLen - 100)))
+  if (!setRegion(bamFileIn, toCString(chr_start_end.i1), begin, chr_start_end.i3 + (opts.maxFragLen - 100)))
   {
     print_log(gyper::log_severity::error,
               __HERE__,

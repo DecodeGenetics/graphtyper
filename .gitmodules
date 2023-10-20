@@ -5,7 +5,7 @@
 	ignore = dirty
 [submodule "htslib"]
 	path = htslib
-	url = https://github.com/samtools/htslib.git
+	url = git@lsource2.decode.is:hannese/htslib.git
 	ignore = dirty
 [submodule "catch"]
 	path = catch

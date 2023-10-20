@@ -565,7 +565,7 @@ void Vcf::write_header(bool const is_dropping_genotypes)
       << "##INFO=<ID=AF,Number=A,Type=Float,Description=\"Allele frequency.\">\n"
       << "##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Number of alleles in called genotypes.\">\n"
       << "##INFO=<ID=CR,Number=1,Type=Integer,Description=\"Number of clipped reads in the graph alignment.\">\n"
-      << "##INFO=<ID=CRal,Number=.,Type=String,Description=\"Number of clipped reads per allele.\">\n"
+      << "##INFO=<ID=CRal,Number=.,Type=String,Description=\"Number of clipped bp per allele.\">\n"
       << "##INFO=<ID=CRalt,Number=A,Type=Float,Description=\"Percent of clipped reads per allele.\">\n"
       << "##INFO=<ID=END,Number=1,Type=Integer,Description=\"End position of an SV.\">\n"
       << "##INFO=<ID=FEATURE,Number=1,Type=String,Description=\"Gene feature.\">\n"

@@ -91,11 +91,10 @@ struct VariantHash
 };
 
 std::vector<Variant> break_down_variant(Variant && variant,
-                                        long const reach,
                                         bool const is_no_variant_overlapping,
                                         bool const is_all_biallelic);
 
-std::vector<Variant> break_down_skyr(Variant && var, long const reach);
+std::vector<Variant> break_down_skyr(Variant && var);
 std::vector<Variant> extract_sequences_from_aligned_variant(Variant const && variant, std::size_t const THRESHOLD);
 std::vector<Variant> simplify_complex_haplotype(Variant && variant, std::size_t const THRESHOLD);
 std::vector<Variant> break_multi_snps(Variant && var);
