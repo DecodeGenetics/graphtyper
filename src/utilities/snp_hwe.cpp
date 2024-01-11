@@ -1,5 +1,4 @@
 #include <cassert>
-#include <cmath>
 #include <cstdint>
 #include <limits>
 
@@ -44,12 +43,13 @@ double p_hwe_excess_het(int obs_hets, int obs_hom1, int obs_hom2)
 
   std::vector<double> het_probs(rare_copies + 1, 0.0);
 
-  // start at midpoint
-  double mid_double = static_cast<double>(rare_copies) * static_cast<double>(2 * genotypes - rare_copies) /
-                      static_cast<double>(2 * genotypes);
+  // start at midpoint.
+  // Note: This code was modified from its original source to prevent integer overflow with 100,000+ genotypes
+  double mid_double = static_cast<double>(rare_copies) *
+                      (static_cast<double>(2 * genotypes - rare_copies) / static_cast<double>(2 * genotypes));
 
   assert(mid_double < static_cast<double>(std::numeric_limits<int>::max()));
-  int mid = std::lround(mid_double);
+  int mid = static_cast<int>(mid_double);
 
   // check to ensure that midpoint and rare alleles have same parity
   if ((rare_copies & 1) ^ (mid & 1))
