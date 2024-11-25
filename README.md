@@ -56,7 +56,7 @@ See the [graphtyper user guide](https://github.com/DecodeGenetics/graphtyper/wik
 ### Small variant genotyping
 Hannes P. Eggertsson, Hakon Jonsson, Snaedis Kristmundsdottir, Eirikur Hjartarson, Birte Kehr, Gisli Masson, Florian Zink, Kristjan E. Hjorleifsson, Aslaug Jonasdottir, Adalbjorg Jonasdottir, Ingileif Jonsdottir, Daniel F. Gudbjartsson, Pall Melsted, Kari Stefansson, Bjarni V. Halldorsson. Graphtyper enables population-scale genotyping using pangenome graphs. *Nature Genetics* **49**, 1654–1660 (2017). [doi:10.1038/ng.3964](http://dx.doi.org/10.1038/ng.3964)
 
-### Strucural variant genotyping
+### Structural variant genotyping
 Eggertsson, H.P., Kristmundsdottir, S., Beyter, D. et al. GraphTyper2 enables population-scale genotyping of structural variation using pangenome graphs. *Nature Communications* **10**, 5402 (2019) [doi:10.1038/s41467-019-13341-9](https://www.nature.com/articles/s41467-019-13341-9)
 
 
